@@ -1,0 +1,49 @@
+{
+  "name": "@sequenzy/mcp",
+  "version": "0.0.5",
+  "description": "Sequenzy MCP server for AI-powered email marketing automation",
+  "type": "module",
+  "bin": {
+    "sequenzy-mcp": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "build": "bun build src/index.ts --outdir dist --target node --minify",
+    "start": "node dist/index.js",
+    "type-check": "tsc --noEmit",
+    "prepublishOnly": "bun run build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.8.0"
+  },
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "sequenzy",
+    "email",
+    "mcp",
+    "ai",
+    "claude",
+    "automation",
+    "email-marketing"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sequenzy/mcp"
+  },
+  "homepage": "https://sequenzy.com",
+  "bugs": {
+    "url": "https://github.com/sequenzy/mcp/issues"
+  }
+}
