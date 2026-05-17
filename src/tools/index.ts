@@ -617,6 +617,7 @@ function buildSubscriberSearchParams(input: {
   query?: unknown;
   tags?: unknown;
   segmentId?: unknown;
+  status?: unknown;
   page: number;
   pageSize: number;
 }): URLSearchParams {
@@ -639,6 +640,10 @@ function buildSubscriberSearchParams(input: {
 
   if (typeof input.segmentId === "string" && input.segmentId.trim() !== "") {
     params.set("segmentId", input.segmentId);
+  }
+
+  if (typeof input.status === "string" && input.status.trim() !== "") {
+    params.set("status", input.status.trim());
   }
 
   params.set("page", String(input.page));
@@ -668,6 +673,7 @@ async function fetchAllSubscribers(
       query: args.query,
       tags: args.tags,
       segmentId: args.segmentId,
+      status: args.status,
       page,
       pageSize,
     });
@@ -1338,6 +1344,16 @@ Before implementing, use create_api_key to generate an API key and save it to .e
           items: { type: "string" },
           description: "List IDs to add subscriber to",
         },
+        status: {
+          type: "string",
+          description:
+            "Initial subscriber status: active, unsubscribed, or bounced. Defaults to active.",
+        },
+        optInMode: {
+          type: "string",
+          description:
+            "Consent mode: confirmed creates active immediately when consent is verified, double_opt_in sends a confirmation email before activation, and default obeys company double opt-in settings.",
+        },
       },
       required: [],
     },
@@ -1461,6 +1477,11 @@ Before implementing, use create_api_key to generate an API key and save it to .e
         segmentId: {
           type: "string",
           description: "Filter by segment ID",
+        },
+        status: {
+          type: "string",
+          description:
+            "Filter by subscriber status: active, unsubscribed, or bounced.",
         },
         limit: {
           type: "number",
@@ -1987,6 +2008,19 @@ Before implementing, use create_api_key to generate an API key and save it to .e
           type: "string",
           description: "Target segment ID",
         },
+        campaignData: {
+          type: "object",
+          description:
+            "Optional campaign-scoped JSON data for repeat blocks and personalization.",
+        },
+        computedLists: {
+          type: "array",
+          description:
+            "Optional computed list definitions derived from campaignData at send time.",
+          items: {
+            type: "object",
+          },
+        },
         labels: {
           type: "array",
           description:
@@ -2043,6 +2077,19 @@ Before implementing, use create_api_key to generate an API key and save it to .e
           type: "string",
           description:
             "Set reply-to using a reply profile ID for this company.",
+        },
+        campaignData: {
+          type: "object",
+          description:
+            "Set campaign-scoped JSON data for repeat blocks and personalization.",
+        },
+        computedLists: {
+          type: "array",
+          description:
+            "Set computed list definitions derived from campaignData at send time.",
+          items: {
+            type: "object",
+          },
         },
         labels: {
           type: "array",
@@ -3577,6 +3624,10 @@ export async function handleToolCall(
             customAttributes: args.attributes,
             tags: args.tags,
             lists: args.listIds,
+            ...(args.status !== undefined && { status: args.status }),
+            ...(args.optInMode !== undefined && {
+              optInMode: args.optInMode,
+            }),
           },
           companyId
         );
@@ -4021,6 +4072,12 @@ export async function handleToolCall(
               ...(args.segmentId !== undefined && {
                 segmentId: args.segmentId,
               }),
+              ...(args.campaignData !== undefined && {
+                campaignData: args.campaignData,
+              }),
+              ...(args.computedLists !== undefined && {
+                computedLists: args.computedLists,
+              }),
               ...(args.labels !== undefined && {
                 labels: args.labels,
               }),
@@ -4045,6 +4102,8 @@ export async function handleToolCall(
           "blocks",
           "replyTo",
           "replyProfileId",
+          "campaignData",
+          "computedLists",
           "labels",
         ]);
         const unsupportedCampaignUpdateKeys = Object.keys(args).filter(
@@ -4053,7 +4112,7 @@ export async function handleToolCall(
 
         if (unsupportedCampaignUpdateKeys.length > 0) {
           throw new Error(
-            `\`update_campaign\` accepts only \`name\`, \`subject\`, \`html\`, \`blocks\`, \`replyTo\`, \`replyProfileId\`, and \`labels\` update fields. Unsupported field${unsupportedCampaignUpdateKeys.length === 1 ? "" : "s"}: ${unsupportedCampaignUpdateKeys.map((key) => `\`${key}\``).join(", ")}.`
+            `\`update_campaign\` accepts only \`name\`, \`subject\`, \`html\`, \`blocks\`, \`replyTo\`, \`replyProfileId\`, \`campaignData\`, \`computedLists\`, and \`labels\` update fields. Unsupported field${unsupportedCampaignUpdateKeys.length === 1 ? "" : "s"}: ${unsupportedCampaignUpdateKeys.map((key) => `\`${key}\``).join(", ")}.`
           );
         }
 
@@ -4073,10 +4132,12 @@ export async function handleToolCall(
           args.blocks === undefined &&
           args.replyTo === undefined &&
           args.replyProfileId === undefined &&
+          args.campaignData === undefined &&
+          args.computedLists === undefined &&
           args.labels === undefined
         ) {
           throw new Error(
-            "Provide at least one of `name`, `subject`, `html`, `blocks`, `replyTo`, `replyProfileId`, or `labels` when calling `update_campaign`."
+            "Provide at least one of `name`, `subject`, `html`, `blocks`, `replyTo`, `replyProfileId`, `campaignData`, `computedLists`, or `labels` when calling `update_campaign`."
           );
         }
 

@@ -623,6 +623,8 @@ describe("update_campaign tool validation", () => {
     expect(inputSchema?.properties).toHaveProperty("blocks");
     expect(inputSchema?.properties).toHaveProperty("replyTo");
     expect(inputSchema?.properties).toHaveProperty("replyProfileId");
+    expect(inputSchema?.properties).toHaveProperty("campaignData");
+    expect(inputSchema?.properties).toHaveProperty("computedLists");
     expect(inputSchema?.properties).toHaveProperty("labels");
   });
 
@@ -652,7 +654,7 @@ describe("update_campaign tool validation", () => {
 
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain(
-      "Provide at least one of `name`, `subject`, `html`, `blocks`, `replyTo`, `replyProfileId`, or `labels` when calling `update_campaign`."
+      "Provide at least one of `name`, `subject`, `html`, `blocks`, `replyTo`, `replyProfileId`, `campaignData`, `computedLists`, or `labels` when calling `update_campaign`."
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
   });

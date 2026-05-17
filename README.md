@@ -169,39 +169,39 @@ This server currently exposes 57 MCP tools.
 
 ### Account, Companies, Setup
 
-| Tool | Description |
-| --- | --- |
-| `get_account` | Get account info, available companies, and the current company. |
-| `select_company` | Set the active company for future tool calls. |
-| `get_app_urls` | Build dashboard URLs for campaigns, sequences, emails, settings, domains, and sent email details. |
-| `create_company` | Create a new company or brand. |
-| `get_company` | Read company details and localization settings. |
-| `create_api_key` | Create an API key for a company. |
-| `list_websites` | List configured sender websites and domains. |
-| `add_website` | Add a sender website. Processing can take around 30 seconds. |
-| `check_website` | Check whether a website is processed and ready. |
-| `get_integration_guide` | Get framework-specific integration examples. |
+| Tool                    | Description                                                                                       |
+| ----------------------- | ------------------------------------------------------------------------------------------------- |
+| `get_account`           | Get account info, available companies, and the current company.                                   |
+| `select_company`        | Set the active company for future tool calls.                                                     |
+| `get_app_urls`          | Build dashboard URLs for campaigns, sequences, emails, settings, domains, and sent email details. |
+| `create_company`        | Create a new company or brand.                                                                    |
+| `get_company`           | Read company details and localization settings.                                                   |
+| `create_api_key`        | Create an API key for a company.                                                                  |
+| `list_websites`         | List configured sender websites and domains.                                                      |
+| `add_website`           | Add a sender website. Processing can take around 30 seconds.                                      |
+| `check_website`         | Check whether a website is processed and ready.                                                   |
+| `get_integration_guide` | Get framework-specific integration examples.                                                      |
 
 ### Subscribers
 
-| Tool | Description |
-| --- | --- |
-| `add_subscriber` | Add a subscriber with attributes, tags, and optional list IDs. |
-| `update_subscriber` | Update attributes, add tags, or remove tags. |
-| `remove_subscriber` | Unsubscribe a subscriber or hard-delete them. |
-| `get_subscriber` | Fetch subscriber details by email or external ID. |
-| `search_subscribers` | Search by query, tags, segment, or pagination. |
+| Tool                 | Description                                                                         |
+| -------------------- | ----------------------------------------------------------------------------------- |
+| `add_subscriber`     | Add a subscriber with attributes, tags, status, opt-in mode, and optional list IDs. |
+| `update_subscriber`  | Update attributes, add tags, or remove tags.                                        |
+| `remove_subscriber`  | Unsubscribe a subscriber or hard-delete them.                                       |
+| `get_subscriber`     | Fetch subscriber details by email or external ID.                                   |
+| `search_subscribers` | Search by query, tags, status, segment, or pagination.                              |
 
 ### Lists, Tags, Segments
 
-| Tool | Description |
-| --- | --- |
-| `list_tags` | List all tags. |
-| `list_lists` | List subscriber lists. |
-| `create_list` | Create a subscriber list. |
-| `list_segments` | List saved segments and counts. |
-| `create_segment` | Create saved segments from filters or nested AND/OR groups. |
-| `get_segment_count` | Preview the active subscriber count for a segment. |
+| Tool                | Description                                                 |
+| ------------------- | ----------------------------------------------------------- |
+| `list_tags`         | List all tags.                                              |
+| `list_lists`        | List subscriber lists.                                      |
+| `create_list`       | Create a subscriber list.                                   |
+| `list_segments`     | List saved segments and counts.                             |
+| `create_segment`    | Create saved segments from filters or nested AND/OR groups. |
+| `get_segment_count` | Preview the active subscriber count for a segment.          |
 
 Segment filters support attributes, events, saved segment membership, engagement events, and Stripe product purchase rules. Use `filterJoinOperator: "or"` for match-any segments, or pass a v2 `root` group for nested logic.
 
@@ -218,49 +218,49 @@ Engagement fields such as `emailSent`, `emailOpened`, `emailClicked`, `emailBoun
 
 ### Templates
 
-| Tool | Description |
-| --- | --- |
-| `list_templates` | List templates with localization status. |
-| `get_template` | Read template details, content, and localized variants. |
-| `create_template` | Create templates from HTML or Sequenzy blocks. |
-| `update_template` | Update template metadata, labels, HTML, or blocks. |
-| `delete_template` | Delete a template. |
+| Tool              | Description                                             |
+| ----------------- | ------------------------------------------------------- |
+| `list_templates`  | List templates with localization status.                |
+| `get_template`    | Read template details, content, and localized variants. |
+| `create_template` | Create templates from HTML or Sequenzy blocks.          |
+| `update_template` | Update template metadata, labels, HTML, or blocks.      |
+| `delete_template` | Delete a template.                                      |
 
 ### A/B Tests
 
-| Tool | Description |
-| --- | --- |
-| `list_ab_tests` | List A/B tests and variants, optionally scoped by sequence. |
-| `get_ab_test` | Get variants, content, and localization status. |
-| `get_ab_test_stats` | Get aggregate and per-variant stats. |
+| Tool                     | Description                                                    |
+| ------------------------ | -------------------------------------------------------------- |
+| `list_ab_tests`          | List A/B tests and variants, optionally scoped by sequence.    |
+| `get_ab_test`            | Get variants, content, and localization status.                |
+| `get_ab_test_stats`      | Get aggregate and per-variant stats.                           |
 | `update_ab_test_variant` | Update a draft variant subject, preview text, HTML, or blocks. |
 
 Use `get_ab_test` to discover variant IDs before editing. Variant updates accept either `html` or `blocks`, not both.
 
 ### Campaigns
 
-| Tool | Description |
-| --- | --- |
-| `list_campaigns` | List campaigns, optionally filtered by status. |
-| `get_campaign` | Get campaign details and stats. |
-| `get_email_send` | Inspect a sent email detail record. |
-| `create_campaign` | Create a draft campaign from HTML, blocks, or a template. |
-| `update_campaign` | Update a draft campaign. |
-| `schedule_campaign` | Schedule a draft or reschedule an existing scheduled campaign. |
-| `send_test_email` | Send a test email to one address. |
+| Tool                | Description                                                              |
+| ------------------- | ------------------------------------------------------------------------ |
+| `list_campaigns`    | List campaigns, optionally filtered by status.                           |
+| `get_campaign`      | Get campaign details and stats.                                          |
+| `get_email_send`    | Inspect a sent email detail record.                                      |
+| `create_campaign`   | Create a draft campaign from HTML, blocks, a template, or campaign data. |
+| `update_campaign`   | Update a draft campaign, including campaign data and computed lists.     |
+| `schedule_campaign` | Schedule a draft or reschedule an existing scheduled campaign.           |
+| `send_test_email`   | Send a test email to one address.                                        |
 
 ### Sequences
 
-| Tool | Description |
-| --- | --- |
-| `list_sequences` | List email sequences and automation status. |
-| `get_sequence` | Get sequence details, including step `nodeId`, linked `emailId`, subject, preview text, and blocks. |
-| `create_sequence` | Create AI-generated or explicit-step sequences. |
-| `update_sequence` | Update sequence settings, trigger, enrollment behavior, or specific steps. |
-| `enable_sequence` | Activate a sequence. |
-| `disable_sequence` | Pause a sequence. |
-| `cancel_sequence_enrollments` | Stop active or waiting enrollments by subscriber or entry-event field values. |
-| `delete_sequence` | Delete a sequence. |
+| Tool                          | Description                                                                                         |
+| ----------------------------- | --------------------------------------------------------------------------------------------------- |
+| `list_sequences`              | List email sequences and automation status.                                                         |
+| `get_sequence`                | Get sequence details, including step `nodeId`, linked `emailId`, subject, preview text, and blocks. |
+| `create_sequence`             | Create AI-generated or explicit-step sequences.                                                     |
+| `update_sequence`             | Update sequence settings, trigger, enrollment behavior, or specific steps.                          |
+| `enable_sequence`             | Activate a sequence.                                                                                |
+| `disable_sequence`            | Pause a sequence.                                                                                   |
+| `cancel_sequence_enrollments` | Stop active or waiting enrollments by subscriber or entry-event field values.                       |
+| `delete_sequence`             | Delete a sequence.                                                                                  |
 
 Sequence creation supports:
 
@@ -276,32 +276,32 @@ Run `cancel_sequence_enrollments` with `dryRun: true` before applying bulk cance
 
 ### Transactional Email
 
-| Tool | Description |
-| --- | --- |
-| `list_transactional_emails` | List transactional templates and API slugs. |
-| `get_transactional_email` | Read a transactional email by ID or slug. |
-| `create_transactional_email` | Create a transactional email template. |
-| `update_transactional_email` | Update transactional metadata or body content. |
-| `send_email` | Send a single transactional email by template or HTML. |
+| Tool                         | Description                                            |
+| ---------------------------- | ------------------------------------------------------ |
+| `list_transactional_emails`  | List transactional templates and API slugs.            |
+| `get_transactional_email`    | Read a transactional email by ID or slug.              |
+| `create_transactional_email` | Create a transactional email template.                 |
+| `update_transactional_email` | Update transactional metadata or body content.         |
+| `send_email`                 | Send a single transactional email by template or HTML. |
 
 `send_email` variables support nested arrays for repeat blocks, such as `{ "event": { "items": [...] } }`.
 
 ### Analytics
 
-| Tool | Description |
-| --- | --- |
-| `get_stats` | Get overview stats for `7d`, `30d`, or `90d`. |
-| `get_campaign_stats` | Get detailed campaign performance. |
-| `get_sequence_stats` | Get sequence performance. |
+| Tool                      | Description                                            |
+| ------------------------- | ------------------------------------------------------ |
+| `get_stats`               | Get overview stats for `7d`, `30d`, or `90d`.          |
+| `get_campaign_stats`      | Get detailed campaign performance.                     |
+| `get_sequence_stats`      | Get sequence performance.                              |
 | `get_subscriber_activity` | Get subscriber email stats, activity, and enrollments. |
 
 ### AI Generation
 
-| Tool | Description |
-| --- | --- |
-| `generate_email` | Generate email blocks from a prompt. |
-| `generate_sequence` | Generate a multi-email sequence from a goal. |
-| `generate_subject_lines` | Generate A/B subject line variants. |
+| Tool                     | Description                                  |
+| ------------------------ | -------------------------------------------- |
+| `generate_email`         | Generate email blocks from a prompt.         |
+| `generate_sequence`      | Generate a multi-email sequence from a goal. |
+| `generate_subject_lines` | Generate A/B subject line variants.          |
 
 Generated content is returned as draft content for review.
 
@@ -309,19 +309,19 @@ Generated content is returned as draft content for review.
 
 The server also exposes read-only MCP resources.
 
-| Resource | Description |
-| --- | --- |
-| `sequenzy://dashboard` | Live overview stats for the last 7 days. |
-| `sequenzy://company` | Current company and localization settings. |
-| `sequenzy://campaigns/recent` | Last 10 campaigns with status and basic stats. |
-| `sequenzy://subscribers/recent` | Most recently added subscribers. |
-| `sequenzy://subscribers/engaged` | Most active or engaged subscribers. |
-| `sequenzy://sequences` | All sequences with status. |
-| `sequenzy://templates` | Templates with localization status. |
-| `sequenzy://segments` | Saved segments with subscriber counts. |
-| `sequenzy://tags` | Tags with usage counts. |
-| `sequenzy://health` | Deliverability metrics and health status. |
-| `sequenzy://app-routes` | Dashboard route templates and settings tabs. |
+| Resource                         | Description                                    |
+| -------------------------------- | ---------------------------------------------- |
+| `sequenzy://dashboard`           | Live overview stats for the last 7 days.       |
+| `sequenzy://company`             | Current company and localization settings.     |
+| `sequenzy://campaigns/recent`    | Last 10 campaigns with status and basic stats. |
+| `sequenzy://subscribers/recent`  | Most recently added subscribers.               |
+| `sequenzy://subscribers/engaged` | Most active or engaged subscribers.            |
+| `sequenzy://sequences`           | All sequences with status.                     |
+| `sequenzy://templates`           | Templates with localization status.            |
+| `sequenzy://segments`            | Saved segments with subscriber counts.         |
+| `sequenzy://tags`                | Tags with usage counts.                        |
+| `sequenzy://health`              | Deliverability metrics and health status.      |
+| `sequenzy://app-routes`          | Dashboard route templates and settings tabs.   |
 
 ## Example Prompts
 
