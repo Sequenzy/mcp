@@ -1,6 +1,8 @@
 import type { Resource } from "@modelcontextprotocol/sdk/types.js";
 
-import { apiRequest } from "../index.js";
+import { buildSequenzyAppUrls } from "../app-urls.js";
+import { formatMcpError } from "../error-output.js";
+import { apiRequest, getSelectedCompanyId } from "../index.js";
 
 // Resource definitions
 export const resources: Resource[] = [
@@ -8,6 +10,13 @@ export const resources: Resource[] = [
     uri: "sequenzy://dashboard",
     name: "Dashboard Overview",
     description: "Live overview stats for the last 7 days",
+    mimeType: "application/json",
+  },
+  {
+    uri: "sequenzy://company",
+    name: "Current Company",
+    description:
+      "The currently selected company, including localization settings",
     mimeType: "application/json",
   },
   {
@@ -37,7 +46,7 @@ export const resources: Resource[] = [
   {
     uri: "sequenzy://templates",
     name: "Templates",
-    description: "All available email templates",
+    description: "All available email templates with localization status",
     mimeType: "application/json",
   },
   {
@@ -58,6 +67,13 @@ export const resources: Resource[] = [
     description: "Email deliverability metrics and health status",
     mimeType: "application/json",
   },
+  {
+    uri: "sequenzy://app-routes",
+    name: "Dashboard URL Routes",
+    description:
+      "Route templates and settings tabs for building Sequenzy dashboard links",
+    mimeType: "application/json",
+  },
 ];
 
 // Resource read handler
@@ -69,8 +85,24 @@ export async function handleResourceRead(uri: string): Promise<{
 
     switch (uri) {
       case "sequenzy://dashboard":
-        data = await apiRequest("GET", "/api/v1/stats?period=7d");
+        data = await apiRequest("GET", "/api/v1/metrics?period=7d");
         break;
+
+      case "sequenzy://company": {
+        const account = await apiRequest<{
+          currentCompanyId: string | null;
+        }>("GET", "/api/v1/account");
+        const companyId = getSelectedCompanyId() ?? account.currentCompanyId;
+
+        if (!companyId) {
+          throw new Error(
+            "No company available. Create or select a company first."
+          );
+        }
+
+        data = await apiRequest("GET", `/api/v1/companies/${companyId}`);
+        break;
+      }
 
       case "sequenzy://campaigns/recent":
         data = await apiRequest("GET", "/api/v1/campaigns?limit=10");
@@ -110,6 +142,10 @@ export async function handleResourceRead(uri: string): Promise<{
         data = await apiRequest("GET", "/api/v1/health/deliverability");
         break;
 
+      case "sequenzy://app-routes":
+        data = buildSequenzyAppUrls();
+        break;
+
       default:
         throw new Error(`Unknown resource: ${uri}`);
     }
@@ -129,7 +165,7 @@ export async function handleResourceRead(uri: string): Promise<{
         {
           uri,
           mimeType: "text/plain",
-          text: `Error: ${error instanceof Error ? error.message : "Unknown error"}`,
+          text: formatMcpError(error),
         },
       ],
     };

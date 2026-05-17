@@ -1,17 +1,17 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "sequenzy",
+  "name": "io.github.sequenzy/mcp",
   "description": "Sequenzy MCP server for AI-powered email marketing automation. Manage subscribers, send emails, create campaigns and sequences with AI.",
   "repository": {
-    "url": "https://github.com/sequenzy/mcp",
+    "url": "https://github.com/Sequenzy/mcp",
     "source": "github"
   },
-  "version": "0.0.5",
+  "version": "0.0.36",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@sequenzy/mcp",
-      "version": "0.0.5",
+      "version": "0.0.36",
       "runtime": "node",
       "transport": {
         "type": "stdio"
@@ -19,9 +19,15 @@
       "environmentVariables": [
         {
           "name": "SEQUENZY_API_KEY",
-          "description": "Your Sequenzy API key (get one at sequenzy.com/settings/api-keys)",
+          "description": "Your Sequenzy API key (get one from the Sequenzy dashboard under Settings > API Keys)",
           "isRequired": true,
           "isSecret": true
+        },
+        {
+          "name": "SEQUENZY_APP_URL",
+          "description": "Optional Sequenzy app base URL for dashboard links. Defaults to https://sequenzy.com.",
+          "isRequired": false,
+          "isSecret": false
         }
       ]
     }
