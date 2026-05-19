@@ -1973,6 +1973,11 @@ Before implementing, use create_api_key to generate an API key and save it to .e
           description:
             "Email subject line. Optional when `prompt` is provided because the generated subject will be used.",
         },
+        trackingCode: {
+          type: "string",
+          description:
+            "Optional campaign tracking code for UTM templates. Use only when explicitly requested.",
+        },
         html: {
           type: "string",
           description: "Email HTML content. Mutually exclusive with `blocks`.",
@@ -2055,6 +2060,11 @@ Before implementing, use create_api_key to generate an API key and save it to .e
         subject: {
           type: "string",
           description: "Email subject line",
+        },
+        trackingCode: {
+          type: "string",
+          description:
+            "Optional campaign tracking code for UTM templates. Use only when explicitly requested. Send an empty string to clear it.",
         },
         html: {
           type: "string",
@@ -4072,6 +4082,9 @@ export async function handleToolCall(
               ...(args.segmentId !== undefined && {
                 segmentId: args.segmentId,
               }),
+              ...(args.trackingCode !== undefined && {
+                trackingCode: args.trackingCode,
+              }),
               ...(args.campaignData !== undefined && {
                 campaignData: args.campaignData,
               }),
@@ -4098,6 +4111,7 @@ export async function handleToolCall(
           "campaignId",
           "name",
           "subject",
+          "trackingCode",
           "html",
           "blocks",
           "replyTo",
@@ -4112,7 +4126,7 @@ export async function handleToolCall(
 
         if (unsupportedCampaignUpdateKeys.length > 0) {
           throw new Error(
-            `\`update_campaign\` accepts only \`name\`, \`subject\`, \`html\`, \`blocks\`, \`replyTo\`, \`replyProfileId\`, \`campaignData\`, \`computedLists\`, and \`labels\` update fields. Unsupported field${unsupportedCampaignUpdateKeys.length === 1 ? "" : "s"}: ${unsupportedCampaignUpdateKeys.map((key) => `\`${key}\``).join(", ")}.`
+            `\`update_campaign\` accepts only \`name\`, \`subject\`, \`trackingCode\`, \`html\`, \`blocks\`, \`replyTo\`, \`replyProfileId\`, \`campaignData\`, \`computedLists\`, and \`labels\` update fields. Unsupported field${unsupportedCampaignUpdateKeys.length === 1 ? "" : "s"}: ${unsupportedCampaignUpdateKeys.map((key) => `\`${key}\``).join(", ")}.`
           );
         }
 
@@ -4128,6 +4142,7 @@ export async function handleToolCall(
         if (
           args.name === undefined &&
           args.subject === undefined &&
+          args.trackingCode === undefined &&
           args.html === undefined &&
           args.blocks === undefined &&
           args.replyTo === undefined &&
@@ -4137,7 +4152,7 @@ export async function handleToolCall(
           args.labels === undefined
         ) {
           throw new Error(
-            "Provide at least one of `name`, `subject`, `html`, `blocks`, `replyTo`, `replyProfileId`, `campaignData`, `computedLists`, or `labels` when calling `update_campaign`."
+            "Provide at least one of `name`, `subject`, `trackingCode`, `html`, `blocks`, `replyTo`, `replyProfileId`, `campaignData`, `computedLists`, or `labels` when calling `update_campaign`."
           );
         }
 

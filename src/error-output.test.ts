@@ -42,4 +42,33 @@ describe("formatMcpError", () => {
     expect(message).toContain("https://docs.sequenzy.com/authentication");
     expect(message).toContain('Details: {"error":"Invalid API key"}');
   });
+
+  it("formats structured API conflicts with API-provided recovery guidance", () => {
+    const message = formatMcpError(
+      new McpApiError(
+        "Segment name already exists",
+        409,
+        '{"segmentName":"VIP"}',
+        "SEGMENT_NAME_ALREADY_EXISTS",
+        {
+          title: "Segment name already exists",
+          description:
+            'A saved segment named "VIP" already exists in this company.',
+          howToFix:
+            "Use the existing segment id, call list_segments before creating, or retry create_segment with a different name.",
+          docsUrl: "https://docs.sequenzy.com/api-reference/segments/create",
+        }
+      )
+    );
+
+    expect(message).toContain(
+      "Sequenzy MCP error: Segment name already exists"
+    );
+    expect(message).toContain('Description: A saved segment named "VIP"');
+    expect(message).toContain("How to fix: Use the existing segment id");
+    expect(message).toContain(
+      "Docs: https://docs.sequenzy.com/api-reference/segments/create"
+    );
+    expect(message).toContain('Details: {"segmentName":"VIP"}');
+  });
 });

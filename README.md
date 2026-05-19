@@ -367,6 +367,10 @@ npx @sequenzy/setup
 
 Create a new personal key in Settings -> API Keys, update your MCP config, and restart the client.
 
+### Duplicate Resources
+
+If a tool call would create a duplicate segment name or sending domain, the server returns a stable `code`, an agent-friendly `description`, a concrete `resolution`, and a `docsUrl`. For segments, call `list_segments` and reuse the existing segment ID or choose a different name. For websites, call `list_websites`; if the domain is not listed for the selected company, it belongs to another company or account and must be removed, reassigned, or replaced with a different sending domain.
+
 ### Tools Do Not Appear
 
 - Confirm `npx` is available in the environment the client uses.

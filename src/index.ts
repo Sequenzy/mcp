@@ -9,7 +9,11 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import packageJson from "../package.json";
 
-import { formatMcpError, McpApiError } from "./error-output.js";
+import {
+  formatMcpError,
+  McpApiError,
+  type McpApiErrorContext,
+} from "./error-output.js";
 import { resources, handleResourceRead } from "./resources/index.js";
 import { tools, handleToolCall } from "./tools/index.js";
 
@@ -62,46 +66,102 @@ const server = new Server(
 );
 
 // API client for making requests
-function parseApiErrorPayload(raw: string): { message: string; code?: string } {
+function getStringField(
+  record: Record<string, unknown>,
+  key: string
+): string | undefined {
+  const value = record[key];
+  return typeof value === "string" && value.trim() !== ""
+    ? value.trim()
+    : undefined;
+}
+
+function formatStructuredDetails(value: unknown): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value === "string") {
+    return value.trim() || undefined;
+  }
+
+  return JSON.stringify(value);
+}
+
+function parseApiErrorPayload(raw: string): {
+  message: string;
+  code?: string;
+  details?: string;
+  context?: McpApiErrorContext;
+} {
   if (!raw.trim()) {
     return { message: "Request failed" };
   }
 
   try {
-    const parsed = JSON.parse(raw) as
-      | {
-          message?: string;
-          error?:
-            | string
-            | {
-                code?: string;
-                message?: string;
-              };
-          code?: string;
-        }
-      | string;
+    const parsed = JSON.parse(raw) as Record<string, unknown> | string;
 
     if (typeof parsed === "string") {
       return { message: parsed };
     }
 
-    if (typeof parsed.error === "string") {
+    const nestedError =
+      typeof parsed.error === "object" && parsed.error !== null
+        ? (parsed.error as Record<string, unknown>)
+        : undefined;
+
+    const code =
+      getStringField(parsed, "code") ??
+      (nestedError ? getStringField(nestedError, "code") : undefined);
+    const message =
+      (typeof parsed.error === "string" ? parsed.error : undefined) ??
+      (nestedError ? getStringField(nestedError, "message") : undefined) ??
+      getStringField(parsed, "message") ??
+      getStringField(parsed, "error") ??
+      raw;
+    const howToFix =
+      getStringField(parsed, "howToFix") ??
+      getStringField(parsed, "resolution");
+    const context: McpApiErrorContext = {
+      ...(getStringField(parsed, "title")
+        ? { title: getStringField(parsed, "title") }
+        : {}),
+      ...(getStringField(parsed, "description")
+        ? { description: getStringField(parsed, "description") }
+        : {}),
+      ...(howToFix ? { howToFix } : {}),
+      ...(getStringField(parsed, "docsUrl")
+        ? { docsUrl: getStringField(parsed, "docsUrl") }
+        : {}),
+    };
+    const details = formatStructuredDetails(parsed.details);
+
+    if (Object.keys(context).length > 0 || details) {
       return {
-        message: parsed.error,
-        code: parsed.code,
+        message,
+        ...(code ? { code } : {}),
+        ...(details ? { details } : {}),
+        ...(Object.keys(context).length > 0 ? { context } : {}),
       };
     }
 
-    if (parsed.error && typeof parsed.error === "object") {
+    if (typeof parsed.error === "string") {
       return {
-        message: parsed.error.message ?? parsed.message ?? raw,
-        code: parsed.error.code ?? parsed.code,
+        message: parsed.error,
+        ...(code ? { code } : {}),
+      };
+    }
+
+    if (nestedError) {
+      return {
+        message,
+        ...(code ? { code } : {}),
       };
     }
 
     return {
-      message: parsed.message ?? raw,
-      code: parsed.code,
+      message,
+      ...(code ? { code } : {}),
     };
   } catch {
     return { message: raw };
@@ -148,8 +208,9 @@ export async function apiRequest<T>(
     throw new McpApiError(
       parsedError.message,
       response.status,
-      rawError,
-      parsedError.code
+      parsedError.details ?? rawError,
+      parsedError.code,
+      parsedError.context
     );
   }
 

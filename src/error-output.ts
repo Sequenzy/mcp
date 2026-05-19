@@ -10,12 +10,20 @@ interface McpErrorDescriptor {
   details: string;
 }
 
+export interface McpApiErrorContext {
+  title?: string;
+  description?: string;
+  howToFix?: string;
+  docsUrl?: string;
+}
+
 export class McpApiError extends Error {
   constructor(
     message: string,
     public statusCode: number,
     public rawDetails?: string,
-    public code?: string
+    public code?: string,
+    public context?: McpApiErrorContext
   ) {
     super(message);
     this.name = "McpApiError";
@@ -27,6 +35,7 @@ function normalizeMcpError(error: unknown): {
   statusCode?: number;
   code?: string;
   rawDetails?: string;
+  context?: McpApiErrorContext;
 } {
   if (error instanceof McpApiError) {
     return {
@@ -34,6 +43,7 @@ function normalizeMcpError(error: unknown): {
       statusCode: error.statusCode,
       code: error.code,
       rawDetails: error.rawDetails,
+      context: error.context,
     };
   }
 
@@ -53,6 +63,27 @@ function describeMcpError(error: unknown): McpErrorDescriptor {
   const message = normalized.message.trim() || "Unknown error";
   const lowerMessage = message.toLowerCase();
   const details = normalized.rawDetails?.trim() || message;
+
+  if (
+    normalized.context?.title ||
+    normalized.context?.description ||
+    normalized.context?.howToFix ||
+    normalized.context?.docsUrl
+  ) {
+    return {
+      title:
+        normalized.context.title ??
+        (normalized.statusCode === 409
+          ? "Request conflict"
+          : "API request failed"),
+      description: normalized.context.description ?? message,
+      howToFix:
+        normalized.context.howToFix ??
+        "Review the details below, adjust the tool input, and retry.",
+      docsUrl: normalized.context.docsUrl ?? MCP_DOCS_URL,
+      details,
+    };
+  }
 
   if (
     normalized.code === "MCP_AUTH_REQUIRED" ||
@@ -115,6 +146,21 @@ function describeMcpError(error: unknown): McpErrorDescriptor {
         "Sequenzy could not find the requested campaign, template, sequence, company, or subscriber.",
       howToFix:
         "List or fetch the resource collection first, then retry the tool with a confirmed ID or email value.",
+      docsUrl: MCP_DOCS_URL,
+      details,
+    };
+  }
+
+  if (
+    normalized.statusCode === 409 ||
+    lowerMessage.includes("already exists")
+  ) {
+    return {
+      title: "Resource already exists",
+      description:
+        "Sequenzy rejected this MCP request because it would create a duplicate resource.",
+      howToFix:
+        "List the existing resources first, reuse the matching resource when appropriate, or retry with a unique name or domain.",
       docsUrl: MCP_DOCS_URL,
       details,
     };

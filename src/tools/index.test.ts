@@ -654,7 +654,7 @@ describe("update_campaign tool validation", () => {
 
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain(
-      "Provide at least one of `name`, `subject`, `html`, `blocks`, `replyTo`, `replyProfileId`, `campaignData`, `computedLists`, or `labels` when calling `update_campaign`."
+      "Provide at least one of `name`, `subject`, `trackingCode`, `html`, `blocks`, `replyTo`, `replyProfileId`, `campaignData`, `computedLists`, or `labels` when calling `update_campaign`."
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
   });
@@ -711,6 +711,35 @@ describe("update_campaign tool validation", () => {
       {
         campaignId: "camp_123",
         labels: ["edm"],
+      },
+      undefined
+    );
+  });
+
+  it("allows trackingCode as the only update_campaign field", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      campaign: {
+        id: "camp_123",
+        name: "Launch",
+        subject: "Hello",
+        status: "draft",
+        trackingCode: "AKL-01May2026",
+      },
+    });
+
+    const result = await handleToolCall("update_campaign", {
+      campaignId: "camp_123",
+      trackingCode: "AKL-01May2026",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/campaigns/camp_123",
+      {
+        campaignId: "camp_123",
+        trackingCode: "AKL-01May2026",
       },
       undefined
     );
@@ -912,6 +941,7 @@ describe("create_campaign tool validation", () => {
     expect(inputSchema?.properties).toHaveProperty("style");
     expect(inputSchema?.properties).toHaveProperty("tone");
     expect(inputSchema?.properties).toHaveProperty("labels");
+    expect(inputSchema?.properties).toHaveProperty("trackingCode");
   });
 
   it("requires subject when prompt is not provided", async () => {
@@ -1015,6 +1045,56 @@ describe("create_campaign tool validation", () => {
         labels: ["edm"],
       },
       "comp_123"
+    );
+  });
+
+  it("passes tracking code when creating a prompt-based campaign", async () => {
+    mockApiRequest
+      .mockResolvedValueOnce({
+        success: true,
+        subject: "Generated launch subject",
+        blocks: [
+          {
+            type: "text",
+            content: "<p>Generated launch body</p>",
+            variant: "paragraph",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        campaign: {
+          id: "camp_123",
+          name: "Launch",
+          subject: "Generated launch subject",
+          status: "draft",
+        },
+      });
+
+    const result = await handleToolCall("create_campaign", {
+      name: "Launch",
+      prompt: "Announce the new dashboard",
+      trackingCode: "AKL-01May2026",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenNthCalledWith(
+      2,
+      "POST",
+      "/api/v1/campaigns",
+      {
+        name: "Launch",
+        subject: "Generated launch subject",
+        blocks: [
+          {
+            type: "text",
+            content: "<p>Generated launch body</p>",
+            variant: "paragraph",
+          },
+        ],
+        trackingCode: "AKL-01May2026",
+      },
+      undefined
     );
   });
 });
