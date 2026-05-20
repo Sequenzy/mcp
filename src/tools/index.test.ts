@@ -46,6 +46,34 @@ function collectSchemaKeywordPaths(
   return paths;
 }
 
+function collectArraySchemasWithoutItems(
+  value: unknown,
+  path: string
+): string[] {
+  if (Array.isArray(value)) {
+    return value.flatMap((item, index) =>
+      collectArraySchemasWithoutItems(item, `${path}[${index}]`)
+    );
+  }
+
+  if (typeof value !== "object" || value === null) {
+    return [];
+  }
+
+  const record = value as Record<string, unknown>;
+  const paths =
+    record.type === "array" &&
+    !Object.prototype.hasOwnProperty.call(record, "items")
+      ? [path]
+      : [];
+
+  for (const [key, child] of Object.entries(record)) {
+    paths.push(...collectArraySchemasWithoutItems(child, `${path}.${key}`));
+  }
+
+  return paths;
+}
+
 describe("tool schema compatibility", () => {
   it("does not publish unsupported root-level composition keywords", () => {
     const unsupportedRootKeywords = ["anyOf", "oneOf", "allOf", "enum", "not"];
@@ -67,6 +95,14 @@ describe("tool schema compatibility", () => {
   it("does not publish anyOf anywhere in tool schemas", () => {
     const violations = tools.flatMap((tool) =>
       collectSchemaKeywordPaths(tool.inputSchema, "anyOf", tool.name)
+    );
+
+    expect(violations).toEqual([]);
+  });
+
+  it("publishes items for every array schema", () => {
+    const violations = tools.flatMap((tool) =>
+      collectArraySchemasWithoutItems(tool.inputSchema, tool.name)
     );
 
     expect(violations).toEqual([]);
