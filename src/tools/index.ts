@@ -2893,6 +2893,7 @@ OTHER BUILT-IN EVENTS:
               blocks: {
                 type: "array",
                 description: "Updated Sequenzy block JSON for the step",
+                items: { type: "object" },
               },
             },
           },
@@ -2939,6 +2940,7 @@ OTHER BUILT-IN EVENTS:
               blocks: {
                 type: "array",
                 description: "Updated Sequenzy block JSON for the step",
+                items: { type: "object" },
               },
             },
           },
