@@ -11,7 +11,7 @@ const mockApiRequest = mock<ApiRequestMock>(async () => {
   throw new Error("apiRequest should not be called");
 });
 
-await mock.module("../index.js", () => ({
+await mock.module("../runtime.js", () => ({
   apiRequest: mockApiRequest,
   getSelectedCompanyId: () => null,
   setSelectedCompanyId: () => undefined,

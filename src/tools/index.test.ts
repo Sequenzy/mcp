@@ -11,7 +11,7 @@ const mockApiRequest = mock<ApiRequestMock>(async () => {
   throw new Error("apiRequest should not be called");
 });
 
-await mock.module("../index.js", () => ({
+await mock.module("../runtime.js", () => ({
   apiRequest: mockApiRequest,
   getSelectedCompanyId: () => null,
   setSelectedCompanyId: () => undefined,
@@ -46,6 +46,34 @@ function collectSchemaKeywordPaths(
   return paths;
 }
 
+function collectArraySchemasWithoutItems(
+  value: unknown,
+  path: string
+): string[] {
+  if (Array.isArray(value)) {
+    return value.flatMap((item, index) =>
+      collectArraySchemasWithoutItems(item, `${path}[${index}]`)
+    );
+  }
+
+  if (typeof value !== "object" || value === null) {
+    return [];
+  }
+
+  const record = value as Record<string, unknown>;
+  const paths =
+    record.type === "array" &&
+    !Object.prototype.hasOwnProperty.call(record, "items")
+      ? [path]
+      : [];
+
+  for (const [key, child] of Object.entries(record)) {
+    paths.push(...collectArraySchemasWithoutItems(child, `${path}.${key}`));
+  }
+
+  return paths;
+}
+
 describe("tool schema compatibility", () => {
   it("does not publish unsupported root-level composition keywords", () => {
     const unsupportedRootKeywords = ["anyOf", "oneOf", "allOf", "enum", "not"];
@@ -67,6 +95,14 @@ describe("tool schema compatibility", () => {
   it("does not publish anyOf anywhere in tool schemas", () => {
     const violations = tools.flatMap((tool) =>
       collectSchemaKeywordPaths(tool.inputSchema, "anyOf", tool.name)
+    );
+
+    expect(violations).toEqual([]);
+  });
+
+  it("publishes items for every array schema", () => {
+    const violations = tools.flatMap((tool) =>
+      collectArraySchemasWithoutItems(tool.inputSchema, tool.name)
     );
 
     expect(violations).toEqual([]);
@@ -190,6 +226,7 @@ describe("A/B test tools", () => {
     expect(toolNames).toContain("list_ab_tests");
     expect(toolNames).toContain("get_ab_test");
     expect(toolNames).toContain("get_ab_test_stats");
+    expect(toolNames).toContain("restart_ab_test");
     expect(toolNames).toContain("update_ab_test_variant");
     expect(inputSchema?.required).toEqual(["abTestId", "variantId"]);
     expect(inputSchema?.additionalProperties).toBe(false);
@@ -237,6 +274,47 @@ describe("A/B test tools", () => {
       undefined,
       "company_123"
     );
+  });
+
+  it("calls the A/B restart API with control and generation options", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      abTest: { id: "ab_new" },
+    });
+
+    await handleToolCall("restart_ab_test", {
+      companyId: "company_123",
+      abTestId: "ab_123",
+      sourceVariantId: "var_b",
+      testType: "content",
+      winnerThreshold: 120,
+      variantCount: 3,
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/ab-tests/ab_123/restart",
+      {
+        sourceVariantId: "var_b",
+        testType: "content",
+        winnerThreshold: 120,
+        variantCount: 3,
+      },
+      "company_123"
+    );
+  });
+
+  it("rejects invalid A/B restart options before calling the API", async () => {
+    const result = await handleToolCall("restart_ab_test", {
+      abTestId: "ab_123",
+      testType: "body",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`restart_ab_test` testType must be `subject` or `content`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
   it("rejects update_ab_test_variant calls that omit all update fields", async () => {

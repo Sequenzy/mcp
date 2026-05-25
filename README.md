@@ -274,6 +274,27 @@ Sequence creation supports:
 
 Run `cancel_sequence_enrollments` with `dryRun: true` before applying bulk cancellation.
 
+### Email Block Styling
+
+Tools that accept `blocks` persist per-block visual styling under a block's `styles` object:
+
+```json
+{
+  "type": "card",
+  "title": "Your update",
+  "content": "Everything is ready.",
+  "variant": "default",
+  "styles": {
+    "backgroundColor": "#f8fafc",
+    "borderColor": "#cbd5e1",
+    "borderWidth": 1,
+    "borderRadius": 12
+  }
+}
+```
+
+For compatibility with older agent prompts, top-level style keys such as `backgroundColor`, `borderColor`, `borderWidth`, and `borderRadius` are also accepted and saved under `styles`.
+
 ### Transactional Email
 
 | Tool                         | Description                                            |

@@ -2,7 +2,7 @@ import type { Resource } from "@modelcontextprotocol/sdk/types.js";
 
 import { buildSequenzyAppUrls } from "../app-urls.js";
 import { formatMcpError } from "../error-output.js";
-import { apiRequest, getSelectedCompanyId } from "../index.js";
+import { apiRequest, getSelectedCompanyId } from "../runtime.js";
 
 // Resource definitions
 export const resources: Resource[] = [

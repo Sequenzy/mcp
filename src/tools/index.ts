@@ -6,7 +6,16 @@ import {
   apiRequest,
   getSelectedCompanyId,
   setSelectedCompanyId,
-} from "../index.js";
+} from "../runtime.js";
+
+const emailBlocksDescription =
+  "Sequenzy email blocks. Use `styles` for per-block background, text color, padding, border radius, border width, and border color. Top-level style aliases such as `backgroundColor`, `borderColor`, `borderWidth`, and `borderRadius` are also accepted and saved under `styles`. Use this for editor-compatible content, including conditional and repeat blocks. Repeat blocks use { type: 'repeat', source: 'items', itemAlias: 'item', children: [...] }.";
+
+const replacementEmailBlocksDescription =
+  "Replacement Sequenzy email blocks. Use `styles` for per-block background, text color, padding, border radius, border width, and border color. Top-level style aliases such as `backgroundColor`, `borderColor`, `borderWidth`, and `borderRadius` are also accepted and saved under `styles`.";
+
+const sequenceEmailBlocksDescription =
+  "Sequenzy email blocks. Provide blocks or html for email steps. Use `styles` for per-block background, text color, padding, border radius, border width, and border color. Top-level style aliases such as `backgroundColor`, `borderColor`, `borderWidth`, and `borderRadius` are also accepted and saved under `styles`. Blocks can include repeat blocks over array variables such as items.";
 
 const segmentFilterItemSchema = {
   type: "object",
@@ -467,7 +476,7 @@ const sequenceBranchPathStepSchema = {
     },
     blocks: {
       type: "array",
-      description: "Sequenzy email blocks for email steps.",
+      description: sequenceEmailBlocksDescription,
       items: { type: "object" },
     },
     html: {
@@ -1681,8 +1690,7 @@ Before implementing, use create_api_key to generate an API key and save it to .e
         },
         blocks: {
           type: "array",
-          description:
-            "Sequenzy email blocks. Use this for editor-compatible content, including conditional and repeat blocks. Repeat blocks use { type: 'repeat', source: 'items', itemAlias: 'item', children: [...] }.",
+          description: emailBlocksDescription,
           items: {
             type: "object",
           },
@@ -1729,8 +1737,7 @@ Before implementing, use create_api_key to generate an API key and save it to .e
         },
         blocks: {
           type: "array",
-          description:
-            "Sequenzy email blocks. Use this for editor-compatible content, including conditional and repeat blocks. Repeat blocks use { type: 'repeat', source: 'items', itemAlias: 'item', children: [...] }.",
+          description: emailBlocksDescription,
           items: {
             type: "object",
           },
@@ -1842,6 +1849,46 @@ Before implementing, use create_api_key to generate an API key and save it to .e
     },
   },
   {
+    name: "restart_ab_test",
+    description:
+      "Run another sequence A/B test after a winner is selected. By default the winner becomes the new control; pass sourceVariantId to use another variant as the control email.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        abTestId: {
+          type: "string",
+          description: "A/B test ID to restart",
+        },
+        sourceVariantId: {
+          type: "string",
+          description:
+            "Optional variant ID to use as the new control email. Defaults to the selected winner.",
+        },
+        testType: {
+          type: "string",
+          description: "Optional test type: subject or content.",
+        },
+        winnerThreshold: {
+          type: "number",
+          description:
+            "Optional number of subscribers before selecting a winner. Must be from 10 to 1000.",
+        },
+        variantCount: {
+          type: "number",
+          description:
+            "Optional total variants including the control. Must be from 2 to 4.",
+        },
+      },
+      required: ["abTestId"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "update_ab_test_variant",
     description:
       "Update a draft A/B test variant. Provide at least one of subject, previewText, html, or blocks. Use either html or blocks, not both.",
@@ -1876,8 +1923,7 @@ Before implementing, use create_api_key to generate an API key and save it to .e
         },
         blocks: {
           type: "array",
-          description:
-            "Replacement Sequenzy email blocks. Mutually exclusive with html.",
+          description: `${replacementEmailBlocksDescription} Mutually exclusive with html.`,
           items: {
             type: "object",
           },
@@ -1984,8 +2030,7 @@ Before implementing, use create_api_key to generate an API key and save it to .e
         },
         blocks: {
           type: "array",
-          description:
-            "Sequenzy email blocks. Use this for editor-compatible content, including conditional and repeat blocks. Repeat blocks use { type: 'repeat', source: 'items', itemAlias: 'item', children: [...] }.",
+          description: emailBlocksDescription,
           items: {
             type: "object",
           },
@@ -2072,8 +2117,7 @@ Before implementing, use create_api_key to generate an API key and save it to .e
         },
         blocks: {
           type: "array",
-          description:
-            "Sequenzy email blocks. Use this for editor-compatible content, including conditional and repeat blocks. Repeat blocks use { type: 'repeat', source: 'items', itemAlias: 'item', children: [...] }.",
+          description: emailBlocksDescription,
           items: {
             type: "object",
           },
@@ -2485,8 +2529,7 @@ OTHER BUILT-IN EVENTS:
               },
               blocks: {
                 type: "array",
-                description:
-                  "Sequenzy email blocks. Provide blocks or html for email steps. Blocks can include repeat blocks over array variables such as items.",
+                description: sequenceEmailBlocksDescription,
                 items: { type: "object" },
               },
               html: {
@@ -2892,7 +2935,8 @@ OTHER BUILT-IN EVENTS:
               },
               blocks: {
                 type: "array",
-                description: "Updated Sequenzy block JSON for the step",
+                description: replacementEmailBlocksDescription,
+                items: { type: "object" },
               },
             },
           },
@@ -2938,7 +2982,8 @@ OTHER BUILT-IN EVENTS:
               },
               blocks: {
                 type: "array",
-                description: "Updated Sequenzy block JSON for the step",
+                description: replacementEmailBlocksDescription,
+                items: { type: "object" },
               },
             },
           },
@@ -3128,8 +3173,7 @@ OTHER BUILT-IN EVENTS:
         },
         blocks: {
           type: "array",
-          description:
-            "Sequenzy email blocks. Use this for editor-compatible content, including conditional and repeat blocks. Repeat blocks use { type: 'repeat', source: 'items', itemAlias: 'item', children: [...] }. Mutually exclusive with `html`.",
+          description: `${emailBlocksDescription} Mutually exclusive with \`html\`.`,
           items: {
             type: "object",
           },
@@ -3198,8 +3242,7 @@ OTHER BUILT-IN EVENTS:
         },
         blocks: {
           type: "array",
-          description:
-            "Sequenzy email blocks, including conditional and repeat blocks. Mutually exclusive with `html`.",
+          description: `${replacementEmailBlocksDescription} Mutually exclusive with \`html\`.`,
           items: {
             type: "object",
           },
@@ -3940,6 +3983,81 @@ export async function handleToolCall(
           "GET",
           `/api/v1/ab-tests/${args.abTestId}/stats${abTestStatsParams.size > 0 ? `?${abTestStatsParams}` : ""}`,
           undefined,
+          companyId
+        );
+        break;
+      }
+
+      case "restart_ab_test": {
+        const companyId = args.companyId as string | undefined;
+        const allowedRestartKeys = new Set([
+          "companyId",
+          "abTestId",
+          "sourceVariantId",
+          "testType",
+          "winnerThreshold",
+          "variantCount",
+        ]);
+        const unsupportedRestartKeys = Object.keys(args).filter(
+          (key) => !allowedRestartKeys.has(key)
+        );
+
+        if (unsupportedRestartKeys.length > 0) {
+          throw new Error(
+            `\`restart_ab_test\` accepts only \`sourceVariantId\`, \`testType\`, \`winnerThreshold\`, and \`variantCount\` option fields. Unsupported field${unsupportedRestartKeys.length === 1 ? "" : "s"}: ${unsupportedRestartKeys.map((key) => `\`${key}\``).join(", ")}.`
+          );
+        }
+
+        const testType = optionalString(args, "testType");
+        if (
+          testType !== undefined &&
+          testType !== "subject" &&
+          testType !== "content"
+        ) {
+          throw new Error(
+            "`restart_ab_test` testType must be `subject` or `content`."
+          );
+        }
+
+        const winnerThreshold =
+          args.winnerThreshold === undefined
+            ? undefined
+            : Number(args.winnerThreshold);
+        if (
+          winnerThreshold !== undefined &&
+          (!Number.isInteger(winnerThreshold) ||
+            winnerThreshold < 10 ||
+            winnerThreshold > 1000)
+        ) {
+          throw new Error(
+            "`restart_ab_test` winnerThreshold must be an integer from 10 to 1000."
+          );
+        }
+
+        const variantCount =
+          args.variantCount === undefined
+            ? undefined
+            : Number(args.variantCount);
+        if (
+          variantCount !== undefined &&
+          (!Number.isInteger(variantCount) ||
+            variantCount < 2 ||
+            variantCount > 4)
+        ) {
+          throw new Error(
+            "`restart_ab_test` variantCount must be an integer from 2 to 4."
+          );
+        }
+
+        result = await apiRequest(
+          "POST",
+          `/api/v1/ab-tests/${args.abTestId}/restart`,
+          {
+            sourceVariantId: optionalString(args, "sourceVariantId"),
+            testType,
+            winnerThreshold,
+            variantCount,
+          },
           companyId
         );
         break;
