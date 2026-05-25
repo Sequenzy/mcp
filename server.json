@@ -6,12 +6,12 @@
     "url": "https://github.com/Sequenzy/mcp",
     "source": "github"
   },
-  "version": "0.0.43",
+  "version": "0.0.44",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@sequenzy/mcp",
-      "version": "0.0.43",
+      "version": "0.0.44",
       "runtime": "node",
       "transport": {
         "type": "stdio"

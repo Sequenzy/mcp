@@ -286,6 +286,7 @@ Tools that accept `blocks` persist per-block visual styling under a block's `sty
   "variant": "default",
   "styles": {
     "backgroundColor": "#f8fafc",
+    "backgroundOpacity": 85,
     "borderColor": "#cbd5e1",
     "borderWidth": 1,
     "borderRadius": 12
@@ -293,7 +294,7 @@ Tools that accept `blocks` persist per-block visual styling under a block's `sty
 }
 ```
 
-For compatibility with older agent prompts, top-level style keys such as `backgroundColor`, `borderColor`, `borderWidth`, and `borderRadius` are also accepted and saved under `styles`.
+For compatibility with older agent prompts, top-level style keys such as `backgroundColor`, `backgroundOpacity`, `borderColor`, `borderWidth`, and `borderRadius` are also accepted and saved under `styles`.
 
 ### Transactional Email
 

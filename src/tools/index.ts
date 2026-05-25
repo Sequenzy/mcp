@@ -9,13 +9,13 @@ import {
 } from "../runtime.js";
 
 const emailBlocksDescription =
-  "Sequenzy email blocks. Use `styles` for per-block background, text color, padding, border radius, border width, and border color. Top-level style aliases such as `backgroundColor`, `borderColor`, `borderWidth`, and `borderRadius` are also accepted and saved under `styles`. Use this for editor-compatible content, including conditional and repeat blocks. Repeat blocks use { type: 'repeat', source: 'items', itemAlias: 'item', children: [...] }.";
+  "Sequenzy email blocks. Use `styles` for per-block background, background opacity, text color, padding, border radius, border width, and border color. Top-level style aliases such as `backgroundColor`, `backgroundOpacity`, `borderColor`, `borderWidth`, and `borderRadius` are also accepted and saved under `styles`. Use this for editor-compatible content, including conditional and repeat blocks. Repeat blocks use { type: 'repeat', source: 'items', itemAlias: 'item', children: [...] }.";
 
 const replacementEmailBlocksDescription =
-  "Replacement Sequenzy email blocks. Use `styles` for per-block background, text color, padding, border radius, border width, and border color. Top-level style aliases such as `backgroundColor`, `borderColor`, `borderWidth`, and `borderRadius` are also accepted and saved under `styles`.";
+  "Replacement Sequenzy email blocks. Use `styles` for per-block background, background opacity, text color, padding, border radius, border width, and border color. Top-level style aliases such as `backgroundColor`, `backgroundOpacity`, `borderColor`, `borderWidth`, and `borderRadius` are also accepted and saved under `styles`.";
 
 const sequenceEmailBlocksDescription =
-  "Sequenzy email blocks. Provide blocks or html for email steps. Use `styles` for per-block background, text color, padding, border radius, border width, and border color. Top-level style aliases such as `backgroundColor`, `borderColor`, `borderWidth`, and `borderRadius` are also accepted and saved under `styles`. Blocks can include repeat blocks over array variables such as items.";
+  "Sequenzy email blocks. Provide blocks or html for email steps. Use `styles` for per-block background, background opacity, text color, padding, border radius, border width, and border color. Top-level style aliases such as `backgroundColor`, `backgroundOpacity`, `borderColor`, `borderWidth`, and `borderRadius` are also accepted and saved under `styles`. Blocks can include repeat blocks over array variables such as items.";
 
 const segmentFilterItemSchema = {
   type: "object",
