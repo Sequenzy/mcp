@@ -70,12 +70,12 @@ const segmentFilterItemSchema = {
         "lt",
       ],
       description:
-        "Filter operator. Use `is_empty` or `is_not_empty` for fields that can be blank, including custom attributes. For `stripeProduct`, use `is` or `is_not` with a raw product ID, and `at_least` or `less_than_count` with `productId:count`. For `event`, use `is`, `is_not`, `at_least`, or `less_than_count`. For engagement fields, use `is` (event happened) or `is_not` (event did not happen).",
+        "Filter operator. Use `is_empty` or `is_not_empty` for fields that can be blank, including custom attributes. For `stripeProduct`, use `is` or `is_not` with a raw product ID, and `at_least` or `less_than_count` with `productId:count`. For `stripeCurrentProduct` and `stripeTrialProduct`, use a raw product ID for current/trialing checks, or product-scoped values like `productId:is_canceled`, `productId:cancels_at:2026-05-26`, `productId:end_at:2026-05-26`, and `productId:start_at:7 days ago` with `is`, `is_not`, `gte`, `lte`, `gt`, or `lt` as appropriate. For `event`, use `is`, `is_not`, `at_least`, or `less_than_count`. For engagement fields, use `is` (event happened) or `is_not` (event did not happen).",
     },
     value: {
       type: "string",
       description:
-        "Filter value. For custom attribute empty checks, use `attributeName:` such as `last_logged_in:`. Event examples: `saas.purchase:30d`, `saas.purchase:all`, or `saas.purchase:5:30d` for thresholds. Segment values are segment IDs. Stripe product examples: `prod_123` for bought/didn't buy, `prod_123:3` for payment thresholds. Engagement examples: `7d`, `30d`, `90d`, `180d`, `all` for rolling time windows, or `campaign:<campaign_id>` to scope to a specific sent campaign (use `list_campaigns` to find IDs).",
+        "Filter value. For custom attribute empty checks, use `attributeName:` such as `last_logged_in:`. Event examples: `saas.purchase:30d`, `saas.purchase:all`, or `saas.purchase:5:30d` for thresholds. Segment values are segment IDs. Stripe product examples: `prod_123` for bought/didn't buy/current/trialing, `prod_123:3` for payment thresholds, `prod_123:is_canceled` for products set to cancel, `prod_123:cancels_at:2026-05-26`, `prod_123:end_at:2026-05-26`, or `prod_123:start_at:7 days ago` for product-scoped dates. Engagement examples: `7d`, `30d`, `90d`, `180d`, `all` for rolling time windows, or `campaign:<campaign_id>` to scope to a specific sent campaign (use `list_campaigns` to find IDs).",
     },
   },
   required: ["field", "operator", "value"],
@@ -1572,7 +1572,7 @@ Before implementing, use create_api_key to generate an API key and save it to .e
   {
     name: "create_segment",
     description:
-      'Create a new segment from explicit filter rules. Use `filters` plus `filterJoinOperator` for flat legacy rules, or `root` for nested AND/OR groups such as `{ "kind": "group", "joinOperator": "and", "children": [{ "kind": "filter", "field": "attribute", "operator": "gte", "value": "mrr:50" }, { "kind": "group", "joinOperator": "or", "children": [{ "kind": "filter", "field": "tag", "operator": "contains", "value": "vip" }, { "kind": "filter", "field": "event", "operator": "is_not", "value": "saas.purchase:30d" }] }] }`. Supports `event` and `segment` fields, Stripe product purchase filters, and campaign-specific engagement filters.',
+      'Create a new segment from explicit filter rules. Use `filters` plus `filterJoinOperator` for flat legacy rules, or `root` for nested AND/OR groups such as `{ "kind": "group", "joinOperator": "and", "children": [{ "kind": "filter", "field": "attribute", "operator": "gte", "value": "mrr:50" }, { "kind": "group", "joinOperator": "or", "children": [{ "kind": "filter", "field": "tag", "operator": "contains", "value": "vip" }, { "kind": "filter", "field": "event", "operator": "is_not", "value": "saas.purchase:30d" }] }] }`. Supports `event` and `segment` fields, Stripe product purchase/current/trial/date filters, and campaign-specific engagement filters.',
     inputSchema: {
       type: "object",
       properties: {
@@ -1596,7 +1596,7 @@ Before implementing, use create_api_key to generate an API key and save it to .e
           items: segmentFilterItemSchema,
           minItems: 1,
           description:
-            'Array of segment filters. Example custom attribute empty check: [{"id":"filter-1","field":"attribute","operator":"is_empty","value":"last_logged_in:"}]. Example Stripe purchase filter: [{"id":"filter-1","field":"stripeProduct","operator":"is","value":"prod_123"}]. Example threshold filter: [{"id":"filter-1","field":"stripeProduct","operator":"at_least","value":"prod_123:3"}]. Example campaign-specific engagement combo: [{"id":"filter-1","field":"emailBounced","operator":"is","value":"campaign:cmp_abc"},{"id":"filter-2","field":"emailBounced","operator":"is_not","value":"campaign:cmp_xyz"}]. Combine them with `filterJoinOperator: "or"` to match any filter.',
+            'Array of segment filters. Example custom attribute empty check: [{"id":"filter-1","field":"attribute","operator":"is_empty","value":"last_logged_in:"}]. Example Stripe purchase filter: [{"id":"filter-1","field":"stripeProduct","operator":"is","value":"prod_123"}]. Example threshold filter: [{"id":"filter-1","field":"stripeProduct","operator":"at_least","value":"prod_123:3"}]. Example trial cancellation filter: [{"id":"filter-1","field":"stripeTrialProduct","operator":"is","value":"prod_123:is_canceled"}]. Example trial end filter: [{"id":"filter-1","field":"stripeTrialProduct","operator":"is","value":"prod_123:end_at:2026-05-26"}]. Example campaign-specific engagement combo: [{"id":"filter-1","field":"emailBounced","operator":"is","value":"campaign:cmp_abc"},{"id":"filter-2","field":"emailBounced","operator":"is_not","value":"campaign:cmp_xyz"}]. Combine them with `filterJoinOperator: "or"` to match any filter.',
         },
         root: {
           ...segmentFilterGroupSchema,
