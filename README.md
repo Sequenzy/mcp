@@ -212,6 +212,11 @@ Stripe product filter examples:
 { "field": "stripeProduct", "operator": "is_not", "value": "prod_pro" }
 { "field": "stripeProduct", "operator": "at_least", "value": "prod_pro:3" }
 { "field": "stripeProduct", "operator": "less_than_count", "value": "prod_pro:3" }
+{ "field": "stripeCurrentProduct", "operator": "is", "value": "prod_pro" }
+{ "field": "stripeTrialProduct", "operator": "is", "value": "prod_pro" }
+{ "field": "stripeTrialProduct", "operator": "is", "value": "prod_pro:is_canceled" }
+{ "field": "stripeTrialProduct", "operator": "gte", "value": "prod_pro:start_at:7 days ago" }
+{ "field": "stripeTrialProduct", "operator": "is", "value": "prod_pro:end_at:2026-05-26" }
 ```
 
 Engagement fields such as `emailSent`, `emailOpened`, `emailClicked`, `emailBounced`, and `emailComplained` accept rolling windows like `7d`, `30d`, `90d`, `180d`, `all`, or a campaign scope like `campaign:cmp_123`.

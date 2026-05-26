@@ -1697,6 +1697,10 @@ describe("create_segment tool", () => {
         "stripeTrialProduct",
       ])
     );
+    const fieldEnum =
+      inputSchema?.properties?.filters?.items?.properties?.field?.enum;
+    expect(fieldEnum).not.toContain("stripeTrialStarted");
+    expect(fieldEnum).not.toContain("stripeTrialEnds");
   });
 
   it("rejects create_segment calls without filters or root before hitting the API", async () => {
