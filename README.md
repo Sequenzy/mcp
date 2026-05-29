@@ -165,7 +165,7 @@ Personal keys start with `seq_user_`. You can revoke them any time in the dashbo
 
 ## Tools
 
-This server currently exposes 57 MCP tools.
+This server currently exposes 59 MCP tools.
 
 ### Account, Companies, Setup
 
@@ -194,14 +194,15 @@ This server currently exposes 57 MCP tools.
 
 ### Lists, Tags, Segments
 
-| Tool                | Description                                                 |
-| ------------------- | ----------------------------------------------------------- |
-| `list_tags`         | List all tags.                                              |
-| `list_lists`        | List subscriber lists.                                      |
-| `create_list`       | Create a subscriber list.                                   |
-| `list_segments`     | List saved segments and counts.                             |
-| `create_segment`    | Create saved segments from filters or nested AND/OR groups. |
-| `get_segment_count` | Preview the active subscriber count for a segment.          |
+| Tool                      | Description                                                 |
+| ------------------------- | ----------------------------------------------------------- |
+| `list_tags`               | List all tags.                                              |
+| `list_lists`              | List subscriber lists.                                      |
+| `create_list`             | Create a subscriber list.                                   |
+| `add_subscribers_to_list` | Add up to 100 subscribers to a list from an email array.    |
+| `list_segments`           | List saved segments and counts.                             |
+| `create_segment`          | Create saved segments from filters or nested AND/OR groups. |
+| `get_segment_count`       | Preview the active subscriber count for a segment.          |
 
 Segment filters support attributes, events, saved segment membership, engagement events, and Stripe product purchase rules. Use `filterJoinOperator: "or"` for match-any segments, or pass a v2 `root` group for nested logic.
 

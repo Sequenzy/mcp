@@ -201,4 +201,77 @@ describe("subscriber MCP tools", () => {
       "/api/v1/subscribers/external?externalId=gid%3A%2F%2Fshopify%2FCustomer%2F123"
     );
   });
+
+  it("adds subscribers to a list from an email array", async () => {
+    mockApiRequest.mockResolvedValue({
+      success: true,
+      listId: "list_123",
+      processed: 2,
+      addedToList: 2,
+      failed: 0,
+      results: [],
+    });
+
+    const result = await handleToolCall("add_subscribers_to_list", {
+      companyId: "comp_123",
+      listId: "list_123",
+      emails: ["one@example.com", "two@example.com"],
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/lists/list_123/subscribers",
+      {
+        emails: ["one@example.com", "two@example.com"],
+        duplicateStrategy: "skip",
+        enrollInSequences: false,
+        optInMode: "default",
+      },
+      "comp_123"
+    );
+  });
+
+  it("rejects invalid add_subscribers_to_list duplicate strategies before hitting the API", async () => {
+    const result = await handleToolCall("add_subscribers_to_list", {
+      listId: "list_123",
+      emails: ["one@example.com"],
+      duplicateStrategy: "append",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`duplicateStrategy` must be one of skip, merge, overwrite"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects add_subscribers_to_list calls with more than 100 emails before hitting the API", async () => {
+    const result = await handleToolCall("add_subscribers_to_list", {
+      listId: "list_123",
+      emails: Array.from(
+        { length: 101 },
+        (_value, index) => `batch-${index}@example.com`
+      ),
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`emails` must include no more than 100 email addresses"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects add_subscribers_to_list calls with non-string email items before hitting the API", async () => {
+    const result = await handleToolCall("add_subscribers_to_list", {
+      listId: "list_123",
+      emails: ["one@example.com", { email: "two@example.com" }],
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`emails` item 2 must be a string"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
 });

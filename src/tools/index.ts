@@ -17,6 +17,8 @@ const replacementEmailBlocksDescription =
 const sequenceEmailBlocksDescription =
   "Sequenzy email blocks. Provide blocks or html for email steps. Use `styles` for per-block background, background opacity, text color, padding, border radius, border width, and border color. Top-level style aliases such as `backgroundColor`, `backgroundOpacity`, `borderColor`, `borderWidth`, and `borderRadius` are also accepted and saved under `styles`. Blocks can include repeat blocks over array variables such as items.";
 
+const ADD_SUBSCRIBERS_TO_LIST_EMAIL_LIMIT = 100;
+
 const segmentFilterItemSchema = {
   type: "object",
   properties: {
@@ -806,6 +808,79 @@ function optionalString(
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
+function requiredString(
+  toolName: string,
+  record: Record<string, unknown>,
+  key: string
+): string {
+  const value = optionalString(record, key);
+  if (value === undefined) {
+    throw new Error(`\`${key}\` is required when calling \`${toolName}\`.`);
+  }
+
+  return value;
+}
+
+function optionalAllowedString(
+  toolName: string,
+  record: Record<string, unknown>,
+  key: string,
+  allowedValues: readonly string[]
+): string | undefined {
+  const value = optionalString(record, key);
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (!allowedValues.includes(value)) {
+    throw new Error(
+      `\`${key}\` must be one of ${allowedValues.join(", ")} when calling \`${toolName}\`.`
+    );
+  }
+
+  return value;
+}
+
+function requireEmailArray(
+  toolName: string,
+  args: Record<string, unknown>
+): string[] {
+  if (!Array.isArray(args.emails)) {
+    throw new Error(
+      `\`emails\` must be an array when calling \`${toolName}\`.`
+    );
+  }
+
+  const emails: string[] = [];
+
+  args.emails.forEach((email, index) => {
+    if (typeof email !== "string") {
+      throw new Error(
+        `\`emails\` item ${index + 1} must be a string when calling \`${toolName}\`.`
+      );
+    }
+
+    const trimmed = email.trim();
+    if (trimmed.length > 0) {
+      emails.push(trimmed);
+    }
+  });
+
+  if (emails.length === 0) {
+    throw new Error(
+      `\`emails\` must include at least one email address when calling \`${toolName}\`.`
+    );
+  }
+
+  if (emails.length > ADD_SUBSCRIBERS_TO_LIST_EMAIL_LIMIT) {
+    throw new Error(
+      `\`emails\` must include no more than ${ADD_SUBSCRIBERS_TO_LIST_EMAIL_LIMIT} email addresses when calling \`${toolName}\`. Split larger batches into multiple calls.`
+    );
+  }
+
+  return emails;
+}
+
 async function resolveCompanyIdForAppUrls(
   args: Record<string, unknown>
 ): Promise<string | undefined> {
@@ -1553,6 +1628,47 @@ Before implementing, use create_api_key to generate an API key and save it to .e
         },
       },
       required: ["name"],
+    },
+  },
+  {
+    name: "add_subscribers_to_list",
+    description:
+      "Bulk add existing or new subscribers to a subscriber list from an email array. Existing subscribers are added to the list without requiring a per-subscriber update call.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        listId: {
+          type: "string",
+          description: "Subscriber list ID to add subscribers to.",
+        },
+        emails: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Email addresses to add to the list. Maximum 100 per call.",
+        },
+        duplicateStrategy: {
+          type: "string",
+          description:
+            "Duplicate strategy for existing subscribers: skip, merge, or overwrite. Defaults to skip.",
+        },
+        enrollInSequences: {
+          type: "boolean",
+          description:
+            "Whether newly created subscribers should enroll in matching sequences. Defaults to false.",
+        },
+        optInMode: {
+          type: "string",
+          description:
+            "Consent mode for newly created subscribers: default, confirmed, or double_opt_in. Defaults to default.",
+        },
+      },
+      required: ["listId", "emails"],
     },
   },
   {
@@ -3804,6 +3920,42 @@ export async function handleToolCall(
       case "create_list": {
         const companyId = args.companyId as string | undefined;
         result = await apiRequest("POST", "/api/v1/lists", args, companyId);
+        break;
+      }
+
+      case "add_subscribers_to_list": {
+        const companyId = args.companyId as string | undefined;
+        const listId = requiredString(
+          "add_subscribers_to_list",
+          args,
+          "listId"
+        );
+        const emails = requireEmailArray("add_subscribers_to_list", args);
+        const duplicateStrategy =
+          optionalAllowedString(
+            "add_subscribers_to_list",
+            args,
+            "duplicateStrategy",
+            ["skip", "merge", "overwrite"]
+          ) ?? "skip";
+        const optInMode =
+          optionalAllowedString("add_subscribers_to_list", args, "optInMode", [
+            "default",
+            "confirmed",
+            "double_opt_in",
+          ]) ?? "default";
+
+        result = await apiRequest(
+          "POST",
+          `/api/v1/lists/${encodeURIComponent(listId)}/subscribers`,
+          {
+            emails,
+            duplicateStrategy,
+            enrollInSequences: args.enrollInSequences === true,
+            optInMode,
+          },
+          companyId
+        );
         break;
       }
 
