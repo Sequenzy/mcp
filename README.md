@@ -206,6 +206,20 @@ This server currently exposes 59 MCP tools.
 
 Segment filters support attributes, events, saved segment membership, engagement events, and Stripe product purchase rules. Use `filterJoinOperator: "or"` for match-any segments, or pass a v2 `root` group for nested logic.
 
+Each segment filter field validates its own operators:
+
+- `status`, `segment`: `is`, `is_not`
+- `tag`: `contains`, `not_contains`, `is_empty`, `is_not_empty`
+- `email`: `contains`, `not_contains`
+- `emailProvider`, `list`: `is`, `is_not`, `is_empty`, `is_not_empty`
+- `firstName`, `lastName`: `contains`, `not_contains`, `is_empty`, `is_not_empty`
+- `added`: `less_than`, `more_than`
+- `attribute`: `is`, `is_not`, `is_empty`, `is_not_empty`, `gte`, `lte`, `gt`, `lt`, `contains`, `not_contains`
+- `event`, email engagement fields: `is`, `is_not`, `at_least`, `less_than_count`
+- `emailBounced`: also supports `is_temporary_bounce`, `is_permanent_bounce`
+- `stripeProduct`: `is`, `is_not`, `at_least`, `less_than_count`
+- `stripeCurrentProduct`, `stripeTrialProduct`: `is`, `is_not`, `gte`, `lte`, `gt`, `lt`
+
 Stripe product filter examples:
 
 ```json
@@ -215,7 +229,7 @@ Stripe product filter examples:
 { "field": "stripeProduct", "operator": "less_than_count", "value": "prod_pro:3" }
 ```
 
-Engagement fields such as `emailSent`, `emailOpened`, `emailClicked`, `emailBounced`, and `emailComplained` accept rolling windows like `7d`, `30d`, `90d`, `180d`, `all`, or a campaign scope like `campaign:cmp_123`.
+Engagement fields such as `emailSent`, `emailDelivered`, `emailOpened`, `emailClicked`, `emailBounced`, and `emailComplained` accept rolling windows like `7d`, `30d`, `90d`, `180d`, `all`, threshold values like `5:30d`, or a campaign scope like `campaign:cmp_123`.
 
 ### Templates
 

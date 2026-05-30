@@ -19,6 +19,51 @@ const sequenceEmailBlocksDescription =
 
 const ADD_SUBSCRIBERS_TO_LIST_EMAIL_LIMIT = 100;
 
+const segmentOperatorsByField = {
+  status: ["is", "is_not"],
+  tag: ["contains", "not_contains", "is_empty", "is_not_empty"],
+  email: ["contains", "not_contains"],
+  emailProvider: ["is", "is_not", "is_empty", "is_not_empty"],
+  added: ["less_than", "more_than"],
+  firstName: ["contains", "not_contains", "is_empty", "is_not_empty"],
+  lastName: ["contains", "not_contains", "is_empty", "is_not_empty"],
+  list: ["is", "is_not", "is_empty", "is_not_empty"],
+  emailSent: ["is", "is_not", "at_least", "less_than_count"],
+  emailDelivered: ["is", "is_not", "at_least", "less_than_count"],
+  emailOpened: ["is", "is_not", "at_least", "less_than_count"],
+  emailClicked: ["is", "is_not", "at_least", "less_than_count"],
+  emailBounced: [
+    "is",
+    "is_temporary_bounce",
+    "is_permanent_bounce",
+    "is_not",
+    "at_least",
+    "less_than_count",
+  ],
+  emailComplained: ["is", "is_not", "at_least", "less_than_count"],
+  attribute: [
+    "is",
+    "is_not",
+    "is_empty",
+    "is_not_empty",
+    "gte",
+    "lte",
+    "gt",
+    "lt",
+    "contains",
+    "not_contains",
+  ],
+  event: ["is", "is_not", "at_least", "less_than_count"],
+  segment: ["is", "is_not"],
+  stripeProduct: ["is", "is_not", "at_least", "less_than_count"],
+  stripeCurrentProduct: ["is", "is_not", "gte", "lte", "gt", "lt"],
+  stripeTrialProduct: ["is", "is_not", "gte", "lte", "gt", "lt"],
+} as const satisfies Record<string, readonly string[]>;
+
+const segmentFilterOperatorHelp = Object.entries(segmentOperatorsByField)
+  .map(([field, operators]) => `${field}: ${operators.join(", ")}`)
+  .join("; ");
+
 const segmentFilterItemSchema = {
   type: "object",
   properties: {
@@ -39,6 +84,7 @@ const segmentFilterItemSchema = {
         "lastName",
         "list",
         "emailSent",
+        "emailDelivered",
         "emailOpened",
         "emailClicked",
         "emailBounced",
@@ -51,7 +97,7 @@ const segmentFilterItemSchema = {
         "stripeTrialProduct",
       ],
       description:
-        "Filter field. Use `event` for custom subscriber events, `segment` for saved segment membership, and `stripeProduct`/`stripeCurrentProduct`/`stripeTrialProduct` for Stripe product-based segments. Engagement fields (`emailSent`, `emailOpened`, `emailClicked`, `emailBounced`, `emailComplained`) accept a time range as the value or a specific campaign via `campaign:<campaign_id>`.",
+        "Filter field. Use `event` for custom subscriber events, `segment` for saved segment membership, and `stripeProduct`/`stripeCurrentProduct`/`stripeTrialProduct` for Stripe product-based segments. Engagement fields (`emailSent`, `emailDelivered`, `emailOpened`, `emailClicked`, `emailBounced`, `emailComplained`) accept a time range as the value or a specific campaign via `campaign:<campaign_id>`.",
     },
     operator: {
       type: "string",
@@ -64,6 +110,8 @@ const segmentFilterItemSchema = {
         "not_contains",
         "less_than",
         "more_than",
+        "is_temporary_bounce",
+        "is_permanent_bounce",
         "at_least",
         "less_than_count",
         "gte",
@@ -71,13 +119,12 @@ const segmentFilterItemSchema = {
         "gt",
         "lt",
       ],
-      description:
-        "Filter operator. Use `is_empty` or `is_not_empty` for fields that can be blank, including custom attributes. For `stripeProduct`, use `is` or `is_not` with a raw product ID, and `at_least` or `less_than_count` with `productId:count`. For `event`, use `is`, `is_not`, `at_least`, or `less_than_count`. For engagement fields, use `is` (event happened) or `is_not` (event did not happen).",
+      description: `Filter operator. Allowed operators by field: ${segmentFilterOperatorHelp}.`,
     },
     value: {
       type: "string",
       description:
-        "Filter value. For custom attribute empty checks, use `attributeName:` such as `last_logged_in:`. Event examples: `saas.purchase:30d`, `saas.purchase:all`, or `saas.purchase:5:30d` for thresholds. Segment values are segment IDs. Stripe product examples: `prod_123` for bought/didn't buy, `prod_123:3` for payment thresholds. Engagement examples: `7d`, `30d`, `90d`, `180d`, `all` for rolling time windows, or `campaign:<campaign_id>` to scope to a specific sent campaign (use `list_campaigns` to find IDs).",
+        "Filter value. For custom attribute empty checks, use `attributeName:` such as `last_logged_in:`. Event examples: `saas.purchase:30d`, `saas.purchase:all`, or `saas.purchase:5:30d` for thresholds. Segment values are segment IDs. Stripe product examples: `prod_123` for bought/didn't buy/current/trialing, `prod_123:3` for payment thresholds, `prod_123:is_canceled` for products set to cancel, `prod_123:cancels_at:2026-05-26`, `prod_123:end_at:2026-05-26`, or `prod_123:start_at:7 days ago` for product-scoped dates. Engagement examples: `7d`, `30d`, `90d`, `180d`, `all` for rolling time windows, or `campaign:<campaign_id>` to scope to a specific sent campaign (use `list_campaigns` to find IDs).",
     },
   },
   required: ["field", "operator", "value"],
@@ -140,7 +187,12 @@ function normalizeSegmentRoot(root: unknown): unknown {
   }
 
   const record = root as Record<string, unknown>;
-  if (record.kind === "filter") {
+  if (
+    record.kind === "filter" ||
+    "field" in record ||
+    "operator" in record ||
+    "value" in record
+  ) {
     const normalized = normalizeSegmentFilters([record]);
     return Array.isArray(normalized) ? normalized[0] : record;
   }
@@ -159,6 +211,333 @@ function normalizeSegmentRoot(root: unknown): unknown {
       ? record.children.map(normalizeSegmentRoot)
       : [],
   };
+}
+
+function hasSegmentAttributeName(value: string): boolean {
+  const colonIndex = value.indexOf(":");
+  return colonIndex !== -1 && value.substring(0, colonIndex).trim().length > 0;
+}
+
+function hasSegmentAttributeValue(value: string): boolean {
+  const colonIndex = value.indexOf(":");
+  return colonIndex !== -1 && value.substring(colonIndex + 1).trim().length > 0;
+}
+
+function isSegmentTimeRange(value: string): boolean {
+  if (value === "all") {
+    return true;
+  }
+
+  const match = value.match(/^(\d+)d$/);
+  if (!match?.[1]) {
+    return false;
+  }
+
+  const days = Number.parseInt(match[1], 10);
+  return Number.isInteger(days) && days > 0;
+}
+
+function getSegmentEventValueValidationError(
+  operator: string,
+  value: string
+): string | null {
+  const parts = value.split(":");
+
+  if (operator === "at_least" || operator === "less_than_count") {
+    if (parts.length < 3) {
+      return 'Event count filters must use "eventName:count:timeRange", like "saas.purchase:2:30d".';
+    }
+
+    const eventName = parts.slice(0, -2).join(":").trim();
+    const thresholdValue = parts.at(-2);
+    const timeRangeValue = parts.at(-1);
+    const threshold =
+      thresholdValue === undefined
+        ? Number.NaN
+        : Number.parseInt(thresholdValue, 10);
+
+    return eventName &&
+      Number.isInteger(threshold) &&
+      threshold > 0 &&
+      timeRangeValue !== undefined &&
+      isSegmentTimeRange(timeRangeValue)
+      ? null
+      : 'Event count filters must use "eventName:count:timeRange", like "saas.purchase:2:30d".';
+  }
+
+  if (parts.length < 2) {
+    return 'Event filters must use "eventName:timeRange", like "saas.purchase:30d".';
+  }
+
+  const eventName = parts.slice(0, -1).join(":").trim();
+  const timeRangeValue = parts.at(-1);
+
+  return eventName &&
+    timeRangeValue !== undefined &&
+    isSegmentTimeRange(timeRangeValue)
+    ? null
+    : 'Event filters must use "eventName:timeRange", like "saas.purchase:30d".';
+}
+
+function splitSegmentStripeValue(value: string): {
+  productId: string;
+  subfilter: string | null;
+  rawValue: string | null;
+} {
+  const firstColonIndex = value.indexOf(":");
+  if (firstColonIndex === -1) {
+    return { productId: value, subfilter: null, rawValue: null };
+  }
+
+  const productId = value.substring(0, firstColonIndex);
+  const remainder = value.substring(firstColonIndex + 1);
+  const secondColonIndex = remainder.indexOf(":");
+
+  if (secondColonIndex === -1) {
+    return { productId, subfilter: remainder, rawValue: null };
+  }
+
+  return {
+    productId,
+    subfilter: remainder.substring(0, secondColonIndex),
+    rawValue: remainder.substring(secondColonIndex + 1),
+  };
+}
+
+function normalizeSegmentStripeSubfilter(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[-\s]+/g, "_");
+}
+
+function isSegmentStripeCancelFlag(subfilter: string): boolean {
+  return [
+    "is_canceled",
+    "is_cancelled",
+    "canceled",
+    "cancelled",
+    "will_cancel",
+    "cancel_at_period_end",
+    "is_not_canceled",
+    "is_not_cancelled",
+    "not_canceled",
+    "not_cancelled",
+    "will_not_cancel",
+  ].includes(subfilter);
+}
+
+function isSegmentStripeDateSubfilter(
+  field: string,
+  subfilter: string
+): boolean {
+  if (
+    subfilter === "cancels_at" ||
+    subfilter === "cancel_at" ||
+    subfilter === "cancellation_at"
+  ) {
+    return true;
+  }
+
+  if (field === "stripeCurrentProduct") {
+    return [
+      "end_at",
+      "ends_at",
+      "period_end",
+      "period_ends_at",
+      "current_period_end",
+    ].includes(subfilter);
+  }
+
+  return [
+    "start_at",
+    "started_at",
+    "trial_start",
+    "trial_started_at",
+    "end_at",
+    "ends_at",
+    "trial_end",
+    "trial_ends_at",
+  ].includes(subfilter);
+}
+
+function isSegmentStripeDateOperator(operator: string): boolean {
+  return ["is", "is_not", "gte", "lte", "gt", "lt"].includes(operator);
+}
+
+function getSegmentStripeValueValidationError(
+  field: string,
+  operator: string,
+  value: string
+): string | null {
+  if (field === "stripeProduct") {
+    if (operator !== "at_least" && operator !== "less_than_count") {
+      return null;
+    }
+
+    const colonIndex = value.indexOf(":");
+    if (colonIndex === -1) {
+      return null;
+    }
+
+    const productId = value.substring(0, colonIndex).trim();
+    const threshold = Number.parseInt(
+      value.substring(colonIndex + 1).trim(),
+      10
+    );
+
+    return productId && Number.isInteger(threshold) && threshold >= 1
+      ? null
+      : 'Stripe Product threshold filters must use "productId:count" with a count of at least 1.';
+  }
+
+  if (field !== "stripeCurrentProduct" && field !== "stripeTrialProduct") {
+    return null;
+  }
+
+  const { productId, subfilter, rawValue } = splitSegmentStripeValue(value);
+  if (!productId.trim()) {
+    return "Stripe product filters must include a product ID.";
+  }
+
+  if (!subfilter) {
+    return operator === "is" || operator === "is_not"
+      ? null
+      : 'Stripe current/trial date filters must use "productId:dateField:value".';
+  }
+
+  const normalizedSubfilter = normalizeSegmentStripeSubfilter(subfilter);
+  if (isSegmentStripeCancelFlag(normalizedSubfilter)) {
+    return operator === "is" || operator === "is_not"
+      ? null
+      : "Stripe cancellation flag filters only support is and is_not operators.";
+  }
+
+  if (!isSegmentStripeDateSubfilter(field, normalizedSubfilter)) {
+    return `Unsupported Stripe product subfilter "${subfilter}".`;
+  }
+
+  if (!isSegmentStripeDateOperator(operator)) {
+    return "Stripe date filters only support is, is_not, gte, lte, gt, and lt operators.";
+  }
+
+  return rawValue?.trim()
+    ? null
+    : 'Stripe date filters must include a value like "productId:end_at:2026-05-26".';
+}
+
+function getSegmentFilterValidationError(filter: unknown): string | null {
+  if (typeof filter !== "object" || filter === null) {
+    return "Segment filters must be objects.";
+  }
+
+  const record = filter as Record<string, unknown>;
+  const field = record.field;
+  const operator = record.operator;
+  const value = record.value;
+
+  if (typeof field !== "string" || !(field in segmentOperatorsByField)) {
+    return `Unsupported segment filter field "${String(field)}".`;
+  }
+
+  if (typeof operator !== "string") {
+    return `Segment filter "${field}" must include an operator.`;
+  }
+
+  const allowedOperators =
+    segmentOperatorsByField[field as keyof typeof segmentOperatorsByField];
+  if (!(allowedOperators as readonly string[]).includes(operator)) {
+    return `Operator "${operator}" is not supported for ${field} filters. Use one of: ${allowedOperators.join(", ")}.`;
+  }
+
+  if (
+    operator !== "is_empty" &&
+    operator !== "is_not_empty" &&
+    (typeof value !== "string" || value.trim().length === 0)
+  ) {
+    return `Segment filter "${field}" must include a value.`;
+  }
+
+  if (field === "attribute" && typeof value === "string") {
+    if (!hasSegmentAttributeName(value)) {
+      return 'Attribute filters must use "attributeName:value" or "attributeName:" for empty checks.';
+    }
+
+    if (
+      operator !== "is_empty" &&
+      operator !== "is_not_empty" &&
+      !hasSegmentAttributeValue(value)
+    ) {
+      return 'Attribute filters must include a value after "attributeName:".';
+    }
+  }
+
+  if (field === "event" && typeof value === "string") {
+    const eventValueError = getSegmentEventValueValidationError(
+      operator,
+      value
+    );
+    if (eventValueError) {
+      return eventValueError;
+    }
+  }
+
+  if (
+    (field === "stripeProduct" ||
+      field === "stripeCurrentProduct" ||
+      field === "stripeTrialProduct") &&
+    typeof value === "string"
+  ) {
+    const stripeValueError = getSegmentStripeValueValidationError(
+      field,
+      operator,
+      value
+    );
+    if (stripeValueError) {
+      return stripeValueError;
+    }
+  }
+
+  if (
+    field === "tag" &&
+    (operator === "contains" || operator === "not_contains")
+  ) {
+    const hasTagValue =
+      typeof value === "string" &&
+      value
+        .split(",")
+        .map((tag) => tag.trim())
+        .some(Boolean);
+
+    if (!hasTagValue) {
+      return "Tag filters must include at least one tag name.";
+    }
+  }
+
+  return null;
+}
+
+function collectSegmentFilterValidationErrors(input: unknown): string[] {
+  if (typeof input !== "object" || input === null) {
+    return [];
+  }
+
+  const record = input as Record<string, unknown>;
+  if (
+    record.kind === "filter" ||
+    "field" in record ||
+    "operator" in record ||
+    "value" in record
+  ) {
+    const error = getSegmentFilterValidationError(record);
+    return error ? [error] : [];
+  }
+
+  if (Array.isArray(record.children)) {
+    return record.children.flatMap(collectSegmentFilterValidationErrors);
+  }
+
+  return [];
 }
 
 function validateHtmlOrBlocksArgs(
@@ -248,6 +627,19 @@ function validateCreateSegmentArgs(args: Record<string, unknown>): void {
 
   if (hasRoot && (typeof args.root !== "object" || args.root === null)) {
     throw new Error("`root` must be an object when calling `create_segment`.");
+  }
+
+  const validationErrors = hasFilters
+    ? (args.filters as unknown[]).flatMap((filter) => {
+        const error = getSegmentFilterValidationError(filter);
+        return error ? [error] : [];
+      })
+    : collectSegmentFilterValidationErrors(args.root);
+
+  if (validationErrors.length > 0) {
+    throw new Error(
+      validationErrors[0] ?? "Invalid segment filter in `create_segment`."
+    );
   }
 }
 
@@ -1688,7 +2080,7 @@ Before implementing, use create_api_key to generate an API key and save it to .e
   {
     name: "create_segment",
     description:
-      'Create a new segment from explicit filter rules. Use `filters` plus `filterJoinOperator` for flat legacy rules, or `root` for nested AND/OR groups such as `{ "kind": "group", "joinOperator": "and", "children": [{ "kind": "filter", "field": "attribute", "operator": "gte", "value": "mrr:50" }, { "kind": "group", "joinOperator": "or", "children": [{ "kind": "filter", "field": "tag", "operator": "contains", "value": "vip" }, { "kind": "filter", "field": "event", "operator": "is_not", "value": "saas.purchase:30d" }] }] }`. Supports `event` and `segment` fields, Stripe product purchase filters, and campaign-specific engagement filters.',
+      'Create a new segment from explicit filter rules. Use `filters` plus `filterJoinOperator` for flat legacy rules, or `root` for nested AND/OR groups such as `{ "kind": "group", "joinOperator": "and", "children": [{ "kind": "filter", "field": "attribute", "operator": "gte", "value": "mrr:50" }, { "kind": "group", "joinOperator": "or", "children": [{ "kind": "filter", "field": "tag", "operator": "contains", "value": "vip" }, { "kind": "filter", "field": "event", "operator": "is_not", "value": "saas.purchase:30d" }] }] }`. Supports `event` and `segment` fields, Stripe product purchase/current/trial/date filters, and campaign-specific engagement filters.',
     inputSchema: {
       type: "object",
       properties: {
@@ -1712,7 +2104,7 @@ Before implementing, use create_api_key to generate an API key and save it to .e
           items: segmentFilterItemSchema,
           minItems: 1,
           description:
-            'Array of segment filters. Example custom attribute empty check: [{"id":"filter-1","field":"attribute","operator":"is_empty","value":"last_logged_in:"}]. Example Stripe purchase filter: [{"id":"filter-1","field":"stripeProduct","operator":"is","value":"prod_123"}]. Example threshold filter: [{"id":"filter-1","field":"stripeProduct","operator":"at_least","value":"prod_123:3"}]. Example campaign-specific engagement combo: [{"id":"filter-1","field":"emailBounced","operator":"is","value":"campaign:cmp_abc"},{"id":"filter-2","field":"emailBounced","operator":"is_not","value":"campaign:cmp_xyz"}]. Combine them with `filterJoinOperator: "or"` to match any filter.',
+            'Array of segment filters. Example custom attribute empty check: [{"id":"filter-1","field":"attribute","operator":"is_empty","value":"last_logged_in:"}]. Example Stripe purchase filter: [{"id":"filter-1","field":"stripeProduct","operator":"is","value":"prod_123"}]. Example threshold filter: [{"id":"filter-1","field":"stripeProduct","operator":"at_least","value":"prod_123:3"}]. Example trial cancellation filter: [{"id":"filter-1","field":"stripeTrialProduct","operator":"is","value":"prod_123:is_canceled"}]. Example trial end filter: [{"id":"filter-1","field":"stripeTrialProduct","operator":"is","value":"prod_123:end_at:2026-05-26"}]. Example campaign-specific engagement combo: [{"id":"filter-1","field":"emailBounced","operator":"is","value":"campaign:cmp_abc"},{"id":"filter-2","field":"emailBounced","operator":"is_not","value":"campaign:cmp_xyz"}]. Combine them with `filterJoinOperator: "or"` to match any filter.',
         },
         root: {
           ...segmentFilterGroupSchema,

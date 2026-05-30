@@ -1676,6 +1676,9 @@ describe("create_segment tool", () => {
                   field?: {
                     enum?: string[];
                   };
+                  operator?: {
+                    description?: string;
+                  };
                 };
               };
             };
@@ -1693,10 +1696,26 @@ describe("create_segment tool", () => {
     ).toEqual(
       expect.arrayContaining([
         "emailProvider",
+        "emailDelivered",
         "stripeCurrentProduct",
         "stripeTrialProduct",
       ])
     );
+    const fieldEnum =
+      inputSchema?.properties?.filters?.items?.properties?.field?.enum;
+    expect(fieldEnum).not.toContain("stripeTrialStarted");
+    expect(fieldEnum).not.toContain("stripeTrialEnds");
+    expect(
+      inputSchema?.properties?.filters?.items?.properties?.operator?.description
+    ).toContain("emailDelivered: is, is_not, at_least, less_than_count");
+    expect(
+      inputSchema?.properties?.filters?.items?.properties?.operator?.description
+    ).toContain(
+      "emailBounced: is, is_temporary_bounce, is_permanent_bounce, is_not, at_least, less_than_count"
+    );
+    expect(
+      inputSchema?.properties?.filters?.items?.properties?.operator?.description
+    ).toContain("tag: contains, not_contains, is_empty, is_not_empty");
   });
 
   it("rejects create_segment calls without filters or root before hitting the API", async () => {
@@ -1737,6 +1756,85 @@ describe("create_segment tool", () => {
       "Provide either `filters` or `root` when calling `create_segment`, not both."
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects unsupported tag operators before hitting the API", async () => {
+    const result = await handleToolCall("create_segment", {
+      companyId: "comp_123",
+      name: "Non-customers",
+      filters: [
+        {
+          field: "tag",
+          operator: "is_not",
+          value: "customers",
+        },
+      ],
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.type).toBe("text");
+    expect(result.content[0]?.text).toContain(
+      'Operator "is_not" is not supported for tag filters'
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects unsupported non-tag operators before hitting the API", async () => {
+    const result = await handleToolCall("create_segment", {
+      companyId: "comp_123",
+      name: "Exact emails",
+      filters: [
+        {
+          field: "email",
+          operator: "is",
+          value: "alice@example.com",
+        },
+      ],
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.type).toBe("text");
+    expect(result.content[0]?.text).toContain(
+      'Operator "is" is not supported for email filters'
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid segment value formats before hitting the API", async () => {
+    const invalidFilters = [
+      {
+        field: "attribute",
+        operator: "is_empty",
+        value: "plan",
+        expected: 'Attribute filters must use "attributeName:value"',
+      },
+      {
+        field: "event",
+        operator: "is",
+        value: "saas.purchase",
+        expected: 'Event filters must use "eventName:timeRange"',
+      },
+      {
+        field: "stripeCurrentProduct",
+        operator: "gt",
+        value: "prod_123",
+        expected: "Stripe current/trial date filters",
+      },
+    ];
+
+    for (const invalidFilter of invalidFilters) {
+      mockApiRequest.mockClear();
+      const result = await handleToolCall("create_segment", {
+        companyId: "comp_123",
+        name: "Invalid value format",
+        filters: [invalidFilter],
+      });
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0]?.type).toBe("text");
+      expect(result.content[0]?.text).toContain(invalidFilter.expected);
+      expect(mockApiRequest).not.toHaveBeenCalled();
+    }
   });
 
   it("passes filterJoinOperator through to the API", async () => {
