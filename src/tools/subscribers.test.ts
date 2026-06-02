@@ -246,7 +246,37 @@ describe("subscriber MCP tools", () => {
     expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
-  it("rejects add_subscribers_to_list calls with more than 100 emails before hitting the API", async () => {
+  it("chunks add_subscribers_to_list calls with more than 100 emails", async () => {
+    mockApiRequest
+      .mockResolvedValueOnce({
+        success: true,
+        listId: "list_123",
+        total: 100,
+        processed: 100,
+        created: 100,
+        updated: 0,
+        skipped: 0,
+        addedToList: 100,
+        failed: 0,
+        duplicateInputCount: 0,
+        ignoredBlankCount: 0,
+        results: [],
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        listId: "list_123",
+        total: 1,
+        processed: 1,
+        created: 1,
+        updated: 0,
+        skipped: 0,
+        addedToList: 1,
+        failed: 0,
+        duplicateInputCount: 0,
+        ignoredBlankCount: 0,
+        results: [],
+      });
+
     const result = await handleToolCall("add_subscribers_to_list", {
       listId: "list_123",
       emails: Array.from(
@@ -255,11 +285,19 @@ describe("subscriber MCP tools", () => {
       ),
     });
 
-    expect(result.isError).toBe(true);
-    expect(result.content[0]?.text).toContain(
-      "`emails` must include no more than 100 email addresses"
-    );
-    expect(mockApiRequest).not.toHaveBeenCalled();
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledTimes(2);
+    expect((mockApiRequest.mock.calls[0]?.[2] as { emails: string[] }).emails).toHaveLength(100);
+    expect((mockApiRequest.mock.calls[1]?.[2] as { emails: string[] }).emails).toHaveLength(1);
+
+    const payload = JSON.parse(result.content[0]?.text ?? "{}") as {
+      total: number;
+      processed: number;
+      addedToList: number;
+    };
+    expect(payload.total).toBe(101);
+    expect(payload.processed).toBe(101);
+    expect(payload.addedToList).toBe(101);
   });
 
   it("rejects add_subscribers_to_list calls with non-string email items before hitting the API", async () => {

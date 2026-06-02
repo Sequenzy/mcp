@@ -17,7 +17,7 @@ const replacementEmailBlocksDescription =
 const sequenceEmailBlocksDescription =
   "Sequenzy email blocks. Provide blocks or html for email steps. Use `styles` for per-block background, background opacity, text color, padding, border radius, border width, and border color. Top-level style aliases such as `backgroundColor`, `backgroundOpacity`, `borderColor`, `borderWidth`, and `borderRadius` are also accepted and saved under `styles`. Blocks can include repeat blocks over array variables such as items.";
 
-const ADD_SUBSCRIBERS_TO_LIST_EMAIL_LIMIT = 100;
+const ADD_SUBSCRIBERS_TO_LIST_CHUNK_SIZE = 100;
 
 const segmentOperatorsByField = {
   status: ["is", "is_not"],
@@ -1000,6 +1000,21 @@ interface DetailedSubscriberResult {
   };
 }
 
+interface AddSubscribersToListResponse {
+  success: boolean;
+  listId: string;
+  total: number;
+  processed: number;
+  created: number;
+  updated: number;
+  skipped: number;
+  addedToList: number;
+  failed: number;
+  duplicateInputCount: number;
+  ignoredBlankCount: number;
+  results: unknown[];
+}
+
 interface GeneratedEmailResult {
   success: boolean;
   html?: string;
@@ -1264,13 +1279,57 @@ function requireEmailArray(
     );
   }
 
-  if (emails.length > ADD_SUBSCRIBERS_TO_LIST_EMAIL_LIMIT) {
-    throw new Error(
-      `\`emails\` must include no more than ${ADD_SUBSCRIBERS_TO_LIST_EMAIL_LIMIT} email addresses when calling \`${toolName}\`. Split larger batches into multiple calls.`
-    );
-  }
-
   return emails;
+}
+
+function chunkSubscriberEmails(emails: string[]): string[][] {
+  const chunks: string[][] = [];
+  for (
+    let index = 0;
+    index < emails.length;
+    index += ADD_SUBSCRIBERS_TO_LIST_CHUNK_SIZE
+  ) {
+    chunks.push(emails.slice(index, index + ADD_SUBSCRIBERS_TO_LIST_CHUNK_SIZE));
+  }
+  return chunks;
+}
+
+function combineAddSubscribersToListResponses(
+  listId: string,
+  responses: AddSubscribersToListResponse[]
+): AddSubscribersToListResponse {
+  return responses.reduce<AddSubscribersToListResponse>(
+    (combined, response) => ({
+      success: combined.success && response.success,
+      listId,
+      total: combined.total + response.total,
+      processed: combined.processed + response.processed,
+      created: combined.created + response.created,
+      updated: combined.updated + response.updated,
+      skipped: combined.skipped + response.skipped,
+      addedToList: combined.addedToList + response.addedToList,
+      failed: combined.failed + response.failed,
+      duplicateInputCount:
+        combined.duplicateInputCount + response.duplicateInputCount,
+      ignoredBlankCount:
+        combined.ignoredBlankCount + response.ignoredBlankCount,
+      results: [...combined.results, ...response.results],
+    }),
+    {
+      success: true,
+      listId,
+      total: 0,
+      processed: 0,
+      created: 0,
+      updated: 0,
+      skipped: 0,
+      addedToList: 0,
+      failed: 0,
+      duplicateInputCount: 0,
+      ignoredBlankCount: 0,
+      results: [],
+    }
+  );
 }
 
 async function resolveCompanyIdForAppUrls(
@@ -2042,7 +2101,7 @@ Before implementing, use create_api_key to generate an API key and save it to .e
           type: "array",
           items: { type: "string" },
           description:
-            "Email addresses to add to the list. Maximum 100 per call.",
+            "Email addresses to add to the list. Larger batches are automatically chunked into 100-email API requests.",
         },
         duplicateStrategy: {
           type: "string",
@@ -4337,17 +4396,24 @@ export async function handleToolCall(
             "double_opt_in",
           ]) ?? "default";
 
-        result = await apiRequest(
-          "POST",
-          `/api/v1/lists/${encodeURIComponent(listId)}/subscribers`,
-          {
-            emails,
-            duplicateStrategy,
-            enrollInSequences: args.enrollInSequences === true,
-            optInMode,
-          },
-          companyId
-        );
+        const responses: AddSubscribersToListResponse[] = [];
+        for (const emailChunk of chunkSubscriberEmails(emails)) {
+          responses.push(
+            await apiRequest<AddSubscribersToListResponse>(
+              "POST",
+              `/api/v1/lists/${encodeURIComponent(listId)}/subscribers`,
+              {
+                emails: emailChunk,
+                duplicateStrategy,
+                enrollInSequences: args.enrollInSequences === true,
+                optInMode,
+              },
+              companyId
+            )
+          );
+        }
+
+        result = combineAddSubscribersToListResponses(listId, responses);
         break;
       }
 

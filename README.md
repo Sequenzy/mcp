@@ -199,7 +199,7 @@ This server currently exposes 59 MCP tools.
 | `list_tags`               | List all tags.                                              |
 | `list_lists`              | List subscriber lists.                                      |
 | `create_list`             | Create a subscriber list.                                   |
-| `add_subscribers_to_list` | Add up to 100 subscribers to a list from an email array.    |
+| `add_subscribers_to_list` | Add subscribers to a list from an email array; large batches are chunked into 100-email API requests. |
 | `list_segments`           | List saved segments and counts.                             |
 | `create_segment`          | Create saved segments from filters or nested AND/OR groups. |
 | `get_segment_count`       | Preview the active subscriber count for a segment.          |
