@@ -190,7 +190,7 @@ This server currently exposes 59 MCP tools.
 | `update_subscriber`  | Update attributes, add tags, or remove tags.                                        |
 | `remove_subscriber`  | Unsubscribe a subscriber or hard-delete them.                                       |
 | `get_subscriber`     | Fetch subscriber details by email or external ID.                                   |
-| `search_subscribers` | Search by query, tags, status, segment, or pagination.                              |
+| `search_subscribers` | Search by query, tags, list, status, segment, or pagination.                        |
 
 ### Lists, Tags, Segments
 
@@ -199,10 +199,25 @@ This server currently exposes 59 MCP tools.
 | `list_tags`               | List all tags.                                              |
 | `list_lists`              | List subscriber lists.                                      |
 | `create_list`             | Create a subscriber list.                                   |
-| `add_subscribers_to_list` | Add up to 100 subscribers to a list from an email array.    |
+| `add_subscribers_to_list` | Add up to 500 subscribers to a list from an email array.    |
 | `list_segments`           | List saved segments and counts.                             |
 | `create_segment`          | Create saved segments from filters or nested AND/OR groups. |
 | `get_segment_count`       | Preview the active subscriber count for a segment.          |
+
+For subscriber exports, `search_subscribers` accepts `listId`, exact `listName`, or `list` (ID first, then exact name). If `limit` is omitted, the tool fetches all matching subscribers using 100-row API pages.
+
+For bulk list population, use `add_subscribers_to_list`; the backing API endpoint is `POST /api/v1/lists/{listId}/subscribers` with no `/bulk` suffix:
+
+```json
+{
+  "emails": ["ada@example.com", "grace@example.com"],
+  "duplicateStrategy": "skip",
+  "enrollInSequences": false,
+  "optInMode": "default"
+}
+```
+
+Send at most 500 emails per request. Standard API rate limits still apply: 100 requests per minute per API key and 20 requests per second burst. For CSV-driven CLI imports, accepted email headers include `email`, `e-mail`, `email address`, and `mail`; if no recognized header exists, the CLI reads the first column.
 
 Segment filters support attributes, events, saved segment membership, engagement events, and Stripe product purchase rules. Use `filterJoinOperator: "or"` for match-any segments, or pass a v2 `root` group for nested logic.
 

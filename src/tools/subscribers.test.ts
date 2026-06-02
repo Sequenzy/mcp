@@ -62,6 +62,28 @@ describe("subscriber MCP tools", () => {
       "one@example.com",
       "two@example.com",
     ]);
+    expect(mockApiRequest.mock.calls[0]?.[1]).toContain("limit=100");
+  });
+
+  it("passes list filters to search_subscribers", async () => {
+    mockApiRequest.mockResolvedValue({
+      success: true,
+      subscribers: [],
+      pagination: { page: 1, limit: 100, total: 0, totalPages: 0 },
+    });
+
+    const result = await handleToolCall("search_subscribers", {
+      companyId: "comp_123",
+      listName: "Master List",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/subscribers?listName=Master+List&page=1&limit=100",
+      undefined,
+      "comp_123"
+    );
   });
 
   it("builds get_subscriber_activity from the detailed subscriber response", async () => {
@@ -246,18 +268,18 @@ describe("subscriber MCP tools", () => {
     expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
-  it("rejects add_subscribers_to_list calls with more than 100 emails before hitting the API", async () => {
+  it("rejects add_subscribers_to_list calls with more than 500 emails before hitting the API", async () => {
     const result = await handleToolCall("add_subscribers_to_list", {
       listId: "list_123",
       emails: Array.from(
-        { length: 101 },
+        { length: 501 },
         (_value, index) => `batch-${index}@example.com`
       ),
     });
 
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain(
-      "`emails` must include no more than 100 email addresses"
+      "`emails` must include no more than 500 email addresses"
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
   });

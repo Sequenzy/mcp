@@ -17,7 +17,7 @@ const replacementEmailBlocksDescription =
 const sequenceEmailBlocksDescription =
   "Sequenzy email blocks. Provide blocks or html for email steps. Use `styles` for per-block background, background opacity, text color, padding, border radius, border width, and border color. Top-level style aliases such as `backgroundColor`, `backgroundOpacity`, `borderColor`, `borderWidth`, and `borderRadius` are also accepted and saved under `styles`. Blocks can include repeat blocks over array variables such as items.";
 
-const ADD_SUBSCRIBERS_TO_LIST_EMAIL_LIMIT = 100;
+const ADD_SUBSCRIBERS_TO_LIST_EMAIL_LIMIT = 500;
 
 const segmentOperatorsByField = {
   status: ["is", "is_not"],
@@ -1019,6 +1019,9 @@ function normalizeSubscriberTag(tag: string): string {
 function buildSubscriberSearchParams(input: {
   query?: unknown;
   tags?: unknown;
+  list?: unknown;
+  listId?: unknown;
+  listName?: unknown;
   segmentId?: unknown;
   status?: unknown;
   page: number;
@@ -1039,6 +1042,18 @@ function buildSubscriberSearchParams(input: {
         )
         .join(",")
     );
+  }
+
+  if (typeof input.list === "string" && input.list.trim() !== "") {
+    params.set("list", input.list.trim());
+  }
+
+  if (typeof input.listId === "string" && input.listId.trim() !== "") {
+    params.set("listId", input.listId.trim());
+  }
+
+  if (typeof input.listName === "string" && input.listName.trim() !== "") {
+    params.set("listName", input.listName.trim());
   }
 
   if (typeof input.segmentId === "string" && input.segmentId.trim() !== "") {
@@ -1075,6 +1090,9 @@ async function fetchAllSubscribers(
     const searchParams = buildSubscriberSearchParams({
       query: args.query,
       tags: args.tags,
+      list: args.list,
+      listId: args.listId,
+      listName: args.listName,
       segmentId: args.segmentId,
       status: args.status,
       page,
@@ -1932,7 +1950,7 @@ Before implementing, use create_api_key to generate an API key and save it to .e
   {
     name: "search_subscribers",
     description:
-      "Search subscribers by free-text query, tags, or segment. If you omit limit, the tool fetches all pages and returns every match.",
+      "Search subscribers by free-text query, tags, list, or segment. If you omit limit, the tool fetches all pages and returns every match.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1949,6 +1967,20 @@ Before implementing, use create_api_key to generate an API key and save it to .e
           type: "array",
           items: { type: "string" },
           description: "Filter by tags",
+        },
+        list: {
+          type: "string",
+          description:
+            "Filter by subscriber list ID or exact list name. Prefer listId when known.",
+        },
+        listId: {
+          type: "string",
+          description: "Filter by subscriber list ID.",
+        },
+        listName: {
+          type: "string",
+          description:
+            "Filter by exact subscriber list name when the list ID is not known.",
         },
         segmentId: {
           type: "string",
@@ -2042,7 +2074,7 @@ Before implementing, use create_api_key to generate an API key and save it to .e
           type: "array",
           items: { type: "string" },
           description:
-            "Email addresses to add to the list. Maximum 100 per call.",
+            "Email addresses to add to the list. Maximum 500 per call.",
         },
         duplicateStrategy: {
           type: "string",
