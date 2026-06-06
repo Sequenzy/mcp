@@ -2989,6 +2989,12 @@ OTHER BUILT-IN EVENTS:
           description:
             "Number of days of inactivity (required for inactivity trigger, must be >= 1)",
         },
+        inactivityBaseline: {
+          type: "string",
+          enum: ["sequence_created_at", "subscriber_created_at"],
+          description:
+            "When to start counting inactivity for subscribers who never had the event. Defaults to sequence_created_at.",
+        },
         // frequency trigger options
         minCount: {
           type: "number",

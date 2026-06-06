@@ -296,6 +296,7 @@ Sequence creation supports:
 
 - `trigger: "segment_entered"` plus `segmentId` for saved-segment entry automations.
 - `trigger: "event_received"` plus `{{event.*}}` merge tags in subjects or body content.
+- `trigger: "inactivity"` plus `eventName`, `inactiveDays`, and optional `inactivityBaseline` (`sequence_created_at` or `subscriber_created_at`).
 - `goal` for AI-generated email content.
 - Explicit `steps` with Sequenzy `blocks`.
 - Explicit `steps` with HTML, which Sequenzy converts into editable blocks.
