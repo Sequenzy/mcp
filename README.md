@@ -7,9 +7,12 @@ Connect Sequenzy to Claude Desktop, Claude Code, Codex, Cursor, Windsurf, VS Cod
 ## What You Can Do
 
 - Manage subscribers, tags, lists, and dynamic segments.
+- Manage products and attach digital delivery files for purchase automations.
 - Draft, update, schedule, and inspect campaigns.
 - Create and edit email sequences, including event-triggered and segment-entry automations.
+- Cancel, pause, resume, duplicate, or delete campaigns and enroll contacts into sequences.
 - Manage transactional email templates and send single transactional emails.
+- Manage team invitations, inbox conversations, and outbound webhook endpoints.
 - Generate email copy, subject lines, and multi-step sequences.
 - Inspect analytics, subscriber activity, deliverability health, and dashboard URLs.
 - Configure sender websites and pull integration examples for common frameworks.
@@ -165,7 +168,7 @@ Personal keys start with `seq_user_`. You can revoke them any time in the dashbo
 
 ## Tools
 
-This server currently exposes 59 MCP tools.
+This server currently exposes 98 MCP tools.
 
 ### Account, Companies, Setup
 
@@ -192,17 +195,38 @@ This server currently exposes 59 MCP tools.
 | `get_subscriber`     | Fetch subscriber details by email or external ID.                                   |
 | `search_subscribers` | Search by query, tags, list, status, segment, or pagination.                        |
 
+### Products & Digital Delivery
+
+| Tool                  | Description                                                                           |
+| --------------------- | ------------------------------------------------------------------------------------- |
+| `list_products`       | List synced products from Stripe, Shopify, WooCommerce, manual, or Commerce API data. |
+| `upsert_products`     | Create or update up to 100 Commerce API products keyed by your product ID.            |
+| `delete_product`      | Delete a product previously pushed through the Commerce API.                          |
+| `attach_product_file` | Attach a hosted or locally uploaded delivery file to a product.                       |
+| `remove_product_file` | Remove an attached product delivery file.                                             |
+| `sync_products`       | Queue a Stripe product catalog sync.                                                  |
+
+After a product delivery file is attached, matching purchase events include `download.url` and `download.name`, so purchase-triggered emails can use merge tags like `{{event.download.url}}`.
+
 ### Lists, Tags, Segments
 
-| Tool                      | Description                                                 |
-| ------------------------- | ----------------------------------------------------------- |
-| `list_tags`               | List all tags.                                              |
-| `list_lists`              | List subscriber lists.                                      |
-| `create_list`             | Create a subscriber list.                                   |
-| `add_subscribers_to_list` | Add up to 500 subscribers to a list from an email array.    |
-| `list_segments`           | List saved segments and counts.                             |
-| `create_segment`          | Create saved segments from filters or nested AND/OR groups. |
-| `get_segment_count`       | Preview the active subscriber count for a segment.          |
+| Tool                           | Description                                                 |
+| ------------------------------ | ----------------------------------------------------------- |
+| `list_tags`                    | List all tags.                                              |
+| `create_tag`                   | Create a tag definition with an optional color.             |
+| `update_tag`                   | Update a tag color.                                         |
+| `delete_tag`                   | Delete a tag and remove it from subscribers.                |
+| `list_lists`                   | List subscriber lists.                                      |
+| `create_list`                  | Create a subscriber list.                                   |
+| `update_list`                  | Rename or describe a subscriber list.                       |
+| `delete_list`                  | Delete a subscriber list.                                   |
+| `add_subscribers_to_list`      | Add up to 500 subscribers to a list from an email array.    |
+| `remove_subscribers_from_list` | Remove up to 500 subscribers from a list.                   |
+| `list_segments`                | List saved segments and counts.                             |
+| `create_segment`               | Create saved segments from filters or nested AND/OR groups. |
+| `update_segment`               | Update segment name, filters, root group, or join operator. |
+| `delete_segment`               | Delete a saved segment.                                     |
+| `get_segment_count`            | Preview the active subscriber count for a segment.          |
 
 For subscriber exports, `search_subscribers` accepts `listId`, exact `listName`, or `list` (ID first, then exact name). If `limit` is omitted, the tool fetches all matching subscribers using 100-row API pages.
 
@@ -263,34 +287,45 @@ Engagement fields such as `emailSent`, `emailDelivered`, `emailOpened`, `emailCl
 | `list_ab_tests`          | List A/B tests and variants, optionally scoped by sequence.    |
 | `get_ab_test`            | Get variants, content, and localization status.                |
 | `get_ab_test_stats`      | Get aggregate and per-variant stats.                           |
+| `restart_ab_test`        | Restart a stopped or completed A/B test.                       |
 | `update_ab_test_variant` | Update a draft variant subject, preview text, HTML, or blocks. |
+| `create_ab_test`         | Create a campaign or sequence A/B test.                        |
+| `add_ab_test_variant`    | Add a variant to an existing A/B test.                         |
+| `delete_ab_test_variant` | Delete a draft A/B test variant.                               |
+| `delete_ab_test`         | Delete an A/B test.                                            |
 
 Use `get_ab_test` to discover variant IDs before editing. Variant updates accept either `html` or `blocks`, not both.
 
 ### Campaigns
 
-| Tool                | Description                                                              |
-| ------------------- | ------------------------------------------------------------------------ |
-| `list_campaigns`    | List campaigns, optionally filtered by status.                           |
-| `get_campaign`      | Get campaign details and stats.                                          |
-| `get_email_send`    | Inspect a sent email detail record.                                      |
-| `create_campaign`   | Create a draft campaign from HTML, blocks, a template, or campaign data. |
-| `update_campaign`   | Update a draft campaign, including campaign data and computed lists.     |
-| `schedule_campaign` | Schedule a draft or reschedule an existing scheduled campaign.           |
-| `send_test_email`   | Send a test email to one address.                                        |
+| Tool                 | Description                                                              |
+| -------------------- | ------------------------------------------------------------------------ |
+| `list_campaigns`     | List campaigns, optionally filtered by status.                           |
+| `get_campaign`       | Get campaign details and stats.                                          |
+| `get_email_send`     | Inspect a sent email detail record.                                      |
+| `create_campaign`    | Create a draft campaign from HTML, blocks, a template, or campaign data. |
+| `update_campaign`    | Update a draft campaign, including campaign data and computed lists.     |
+| `schedule_campaign`  | Schedule a draft or reschedule an existing scheduled campaign.           |
+| `send_test_email`    | Send a test email to one address.                                        |
+| `cancel_campaign`    | Cancel a scheduled or sending campaign.                                  |
+| `pause_campaign`     | Pause a sending campaign.                                                |
+| `resume_campaign`    | Resume a paused campaign, optionally spreading delivery over time.       |
+| `delete_campaign`    | Delete a campaign.                                                       |
+| `duplicate_campaign` | Duplicate a campaign into a new draft.                                   |
 
 ### Sequences
 
-| Tool                          | Description                                                                                         |
-| ----------------------------- | --------------------------------------------------------------------------------------------------- |
-| `list_sequences`              | List email sequences and automation status.                                                         |
-| `get_sequence`                | Get sequence details, including step `nodeId`, linked `emailId`, subject, preview text, and blocks. |
-| `create_sequence`             | Create AI-generated or explicit-step sequences.                                                     |
-| `update_sequence`             | Update sequence settings, trigger, enrollment behavior, or specific steps.                          |
-| `enable_sequence`             | Activate a sequence.                                                                                |
-| `disable_sequence`            | Pause a sequence.                                                                                   |
-| `cancel_sequence_enrollments` | Stop active or waiting enrollments by subscriber or entry-event field values.                       |
-| `delete_sequence`             | Delete a sequence.                                                                                  |
+| Tool                             | Description                                                                                         |
+| -------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `list_sequences`                 | List email sequences and automation status.                                                         |
+| `get_sequence`                   | Get sequence details, including step `nodeId`, linked `emailId`, subject, preview text, and blocks. |
+| `create_sequence`                | Create AI-generated or explicit-step sequences.                                                     |
+| `update_sequence`                | Update sequence settings, trigger, enrollment behavior, or specific steps.                          |
+| `enable_sequence`                | Activate a sequence.                                                                                |
+| `disable_sequence`               | Pause a sequence.                                                                                   |
+| `enroll_subscribers_in_sequence` | Enroll up to 500 subscribers into a sequence, optionally at a target node.                          |
+| `cancel_sequence_enrollments`    | Stop active or waiting enrollments by subscriber or entry-event field values.                       |
+| `delete_sequence`                | Delete a sequence.                                                                                  |
 
 Sequence creation supports:
 
@@ -347,6 +382,26 @@ For compatibility with older agent prompts, top-level style keys such as `backgr
 | `get_campaign_stats`      | Get detailed campaign performance.                     |
 | `get_sequence_stats`      | Get sequence performance.                              |
 | `get_subscriber_activity` | Get subscriber email stats, activity, and enrollments. |
+
+### Team, Inbox, Webhooks
+
+| Tool                         | Description                                                         |
+| ---------------------------- | ------------------------------------------------------------------- |
+| `list_team_members`          | List team members and pending invitations.                          |
+| `invite_team_member`         | Invite a teammate as admin or viewer, with optional billing access. |
+| `cancel_team_invitation`     | Cancel a pending team invitation.                                   |
+| `list_conversations`         | List subscriber reply conversations with status and unread filters. |
+| `get_conversation`           | Read a conversation and its message history.                        |
+| `reply_to_conversation`      | Send an outbound reply or add an internal note.                     |
+| `update_conversation_status` | Open or close a conversation.                                       |
+| `mark_conversation_read`     | Mark all messages in a conversation as read.                        |
+| `list_webhooks`              | List outbound webhook endpoints.                                    |
+| `create_webhook`             | Create an outbound webhook and return its one-time signing secret.  |
+| `update_webhook`             | Update webhook name, URL, events, or status.                        |
+| `delete_webhook`             | Permanently delete a webhook endpoint and delivery history.         |
+| `test_webhook`               | Send a test event to a webhook endpoint.                            |
+| `list_webhook_deliveries`    | List recent delivery attempts for a webhook.                        |
+| `replay_webhook_delivery`    | Replay a webhook delivery.                                          |
 
 ### AI Generation
 

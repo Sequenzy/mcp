@@ -12,6 +12,7 @@ const mockApiRequest = mock<ApiRequestMock>(async () => {
 });
 
 await mock.module("../runtime.js", () => ({
+  areLocalFileUploadsEnabled: () => false,
   apiRequest: mockApiRequest,
   getSelectedCompanyId: () => null,
   setSelectedCompanyId: () => undefined,
@@ -1922,6 +1923,1240 @@ describe("create_segment tool", () => {
           ],
         }),
       }),
+      "comp_123"
+    );
+  });
+});
+
+describe("product tools", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("upserts products through the Commerce API", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      upserted: 1,
+      products: [],
+    });
+
+    await handleToolCall("upsert_products", {
+      companyId: "company_123",
+      products: [
+        { productId: "my-ebook", title: "The Ebook", priceCents: 1900 },
+      ],
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/products",
+      {
+        products: [
+          { productId: "my-ebook", title: "The Ebook", priceCents: 1900 },
+        ],
+      },
+      "company_123"
+    );
+  });
+
+  it("rejects upsert_products without a products array", async () => {
+    const result = await handleToolCall("upsert_products", {});
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`products` must be a non-empty array"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("deletes a product by productId", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true, deleted: true });
+
+    await handleToolCall("delete_product", {
+      productId: "my ebook",
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "DELETE",
+      "/api/v1/products/my%20ebook",
+      undefined,
+      undefined
+    );
+  });
+
+  it("rejects attach_product_file with both url and filePath", async () => {
+    const result = await handleToolCall("attach_product_file", {
+      productId: "prod_123",
+      url: "https://example.com/file.pdf",
+      filePath: "./file.pdf",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Provide either `url` or `filePath`"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects attach_product_file with neither url nor filePath", async () => {
+    const result = await handleToolCall("attach_product_file", {
+      productId: "prod_123",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Provide either `url` or `filePath`"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects filePath uploads when local file uploads are disabled", async () => {
+    const result = await handleToolCall("attach_product_file", {
+      productId: "prod_123",
+      filePath: "./guide.pdf",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "only supported when the MCP server runs locally"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("attaches an external delivery URL", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true, product: {} });
+
+    await handleToolCall("attach_product_file", {
+      productId: "prod_123",
+      url: "https://example.com/guide.pdf",
+      fileName: "guide.pdf",
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/products/prod_123/delivery",
+      { url: "https://example.com/guide.pdf", fileName: "guide.pdf" },
+      undefined
+    );
+  });
+});
+
+describe("campaign lifecycle tools", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("publishes campaign lifecycle tools", () => {
+    const toolNames = tools.map((tool) => tool.name);
+
+    expect(toolNames).toContain("cancel_campaign");
+    expect(toolNames).toContain("pause_campaign");
+    expect(toolNames).toContain("resume_campaign");
+    expect(toolNames).toContain("delete_campaign");
+    expect(toolNames).toContain("duplicate_campaign");
+  });
+
+  it("calls the campaign cancel API", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      campaign: { id: "camp_123", name: "Launch", status: "cancelled" },
+    });
+
+    const result = await handleToolCall("cancel_campaign", {
+      companyId: "comp_123",
+      campaignId: "camp_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/campaigns/camp_123/cancel",
+      undefined,
+      "comp_123"
+    );
+  });
+
+  it("requires campaignId when cancelling a campaign", async () => {
+    const result = await handleToolCall("cancel_campaign", {});
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`campaignId` is required when calling `cancel_campaign`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("calls the campaign pause API", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      campaign: { id: "camp_123", name: "Launch", status: "paused" },
+    });
+
+    const result = await handleToolCall("pause_campaign", {
+      campaignId: "camp_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/campaigns/camp_123/pause",
+      undefined,
+      undefined
+    );
+  });
+
+  it("forwards spreadOverHours when resuming a campaign", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      campaign: { id: "camp_123", name: "Launch", status: "sending" },
+    });
+
+    const result = await handleToolCall("resume_campaign", {
+      companyId: "comp_123",
+      campaignId: "camp_123",
+      spreadOverHours: 6,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/campaigns/camp_123/resume",
+      { spreadOverHours: 6 },
+      "comp_123"
+    );
+  });
+
+  it("resumes a campaign with an empty body when spreadOverHours is omitted", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      campaign: { id: "camp_123", name: "Launch", status: "sending" },
+    });
+
+    const result = await handleToolCall("resume_campaign", {
+      campaignId: "camp_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/campaigns/camp_123/resume",
+      {},
+      undefined
+    );
+  });
+
+  it("rejects invalid spreadOverHours before hitting the API", async () => {
+    const result = await handleToolCall("resume_campaign", {
+      campaignId: "camp_123",
+      spreadOverHours: 100,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`spreadOverHours` must be an integer between 1 and 72 when calling `resume_campaign`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("calls the campaign delete API", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true });
+
+    const result = await handleToolCall("delete_campaign", {
+      companyId: "comp_123",
+      campaignId: "camp_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "DELETE",
+      "/api/v1/campaigns/camp_123",
+      undefined,
+      "comp_123"
+    );
+  });
+
+  it("duplicates a campaign with mode and variantId", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      campaign: { id: "camp_456", name: "Launch (Copy)", status: "draft" },
+    });
+
+    const result = await handleToolCall("duplicate_campaign", {
+      campaignId: "camp_123",
+      mode: "variant",
+      variantId: "var_b",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/campaigns/camp_123/duplicate",
+      { mode: "variant", variantId: "var_b" },
+      undefined
+    );
+  });
+
+  it("rejects duplicate_campaign variant mode without variantId", async () => {
+    const result = await handleToolCall("duplicate_campaign", {
+      campaignId: "camp_123",
+      mode: "variant",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`variantId` is required when calling `duplicate_campaign` with mode `variant`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+});
+
+describe("A/B test lifecycle tools", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("publishes A/B test lifecycle tools", () => {
+    const toolNames = tools.map((tool) => tool.name);
+
+    expect(toolNames).toContain("create_ab_test");
+    expect(toolNames).toContain("add_ab_test_variant");
+    expect(toolNames).toContain("delete_ab_test_variant");
+    expect(toolNames).toContain("delete_ab_test");
+  });
+
+  it("creates an A/B test with supported fields", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      abTest: { id: "ab_123", status: "draft" },
+    });
+
+    const result = await handleToolCall("create_ab_test", {
+      companyId: "comp_123",
+      campaignId: "camp_123",
+      name: "Subject test",
+      testPercentage: 30,
+      testDurationMinutes: 60,
+      winnerCriteria: "click_rate",
+      variants: [{ subject: "Variant B subject" }],
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/ab-tests",
+      {
+        campaignId: "camp_123",
+        name: "Subject test",
+        testPercentage: 30,
+        testDurationMinutes: 60,
+        winnerCriteria: "click_rate",
+        variants: [{ subject: "Variant B subject" }],
+      },
+      "comp_123"
+    );
+  });
+
+  it("rejects out-of-range testPercentage before hitting the API", async () => {
+    const result = await handleToolCall("create_ab_test", {
+      campaignId: "camp_123",
+      testPercentage: 60,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`testPercentage` must be an integer between 5 and 50 when calling `create_ab_test`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects variants without subjects before hitting the API", async () => {
+    const result = await handleToolCall("create_ab_test", {
+      campaignId: "camp_123",
+      variants: [{ previewText: "No subject here" }],
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`variants` item 1 must include a non-empty `subject` when calling `create_ab_test`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("adds a variant to a draft A/B test", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      abTest: { id: "ab_123", status: "draft" },
+    });
+
+    const result = await handleToolCall("add_ab_test_variant", {
+      abTestId: "ab_123",
+      subject: "Variant C subject",
+      previewText: "Preview",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/ab-tests/ab_123/variants",
+      { subject: "Variant C subject", previewText: "Preview" },
+      undefined
+    );
+  });
+
+  it("deletes an A/B test variant", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      abTest: { id: "ab_123", status: "draft" },
+    });
+
+    const result = await handleToolCall("delete_ab_test_variant", {
+      abTestId: "ab_123",
+      variantId: "var_b",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "DELETE",
+      "/api/v1/ab-tests/ab_123/variants/var_b",
+      undefined,
+      undefined
+    );
+  });
+
+  it("deletes an A/B test", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true });
+
+    const result = await handleToolCall("delete_ab_test", {
+      companyId: "comp_123",
+      abTestId: "ab_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "DELETE",
+      "/api/v1/ab-tests/ab_123",
+      undefined,
+      "comp_123"
+    );
+  });
+});
+
+describe("list management tools", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("updates a list with only the provided fields", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      list: { id: "list_123", name: "Newsletter", isPrivate: true },
+    });
+
+    const result = await handleToolCall("update_list", {
+      companyId: "comp_123",
+      listId: "list_123",
+      name: "Newsletter",
+      isPrivate: true,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/lists/list_123",
+      { name: "Newsletter", isPrivate: true },
+      "comp_123"
+    );
+  });
+
+  it("rejects update_list calls without update fields", async () => {
+    const result = await handleToolCall("update_list", {
+      listId: "list_123",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Provide at least one of `name`, `description`, or `isPrivate` when calling `update_list`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("deletes a list", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      removedMemberships: 12,
+    });
+
+    const result = await handleToolCall("delete_list", {
+      listId: "list_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "DELETE",
+      "/api/v1/lists/list_123",
+      undefined,
+      undefined
+    );
+  });
+
+  it("removes subscribers from a list by email", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      removed: 2,
+      notFound: ["missing@example.com"],
+    });
+
+    const result = await handleToolCall("remove_subscribers_from_list", {
+      companyId: "comp_123",
+      listId: "list_123",
+      emails: ["a@example.com", " b@example.com ", "missing@example.com"],
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/lists/list_123/subscribers/remove",
+      {
+        emails: ["a@example.com", "b@example.com", "missing@example.com"],
+      },
+      "comp_123"
+    );
+  });
+
+  it("rejects remove_subscribers_from_list calls without emails", async () => {
+    const result = await handleToolCall("remove_subscribers_from_list", {
+      listId: "list_123",
+      emails: [],
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`emails` must include at least one email address when calling `remove_subscribers_from_list`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects remove_subscribers_from_list batches above 500 emails", async () => {
+    const emails = Array.from(
+      { length: 501 },
+      (_, index) => `user${index}@example.com`
+    );
+
+    const result = await handleToolCall("remove_subscribers_from_list", {
+      listId: "list_123",
+      emails,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`emails` must include no more than 500 email addresses when calling `remove_subscribers_from_list`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+});
+
+describe("update_segment tool", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("normalizes filters and passes updates through to the API", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      segment: { id: "seg_123", name: "VIPs", filters: [] },
+    });
+
+    const result = await handleToolCall("update_segment", {
+      companyId: "comp_123",
+      segmentId: "seg_123",
+      name: "VIPs",
+      filterJoinOperator: "or",
+      filters: [
+        {
+          field: "tag",
+          operator: "contains",
+          value: "vip",
+        },
+      ],
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/segments/seg_123",
+      {
+        name: "VIPs",
+        filterJoinOperator: "or",
+        filters: [
+          expect.objectContaining({
+            id: expect.any(String),
+            field: "tag",
+            operator: "contains",
+            value: "vip",
+          }),
+        ],
+      },
+      "comp_123"
+    );
+  });
+
+  it("rejects update_segment calls without update fields", async () => {
+    const result = await handleToolCall("update_segment", {
+      segmentId: "seg_123",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Provide at least one of `name`, `filters`, `root`, or `filterJoinOperator` when calling `update_segment`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects update_segment calls with both filters and root", async () => {
+    const result = await handleToolCall("update_segment", {
+      segmentId: "seg_123",
+      filters: [{ field: "tag", operator: "contains", value: "vip" }],
+      root: { kind: "group", joinOperator: "and", children: [] },
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Provide either `filters` or `root` when calling `update_segment`, not both."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects unsupported segment operators before hitting the API", async () => {
+    const result = await handleToolCall("update_segment", {
+      segmentId: "seg_123",
+      filters: [{ field: "tag", operator: "is_not", value: "vip" }],
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      'Operator "is_not" is not supported for tag filters'
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("deletes a segment", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true });
+
+    const result = await handleToolCall("delete_segment", {
+      companyId: "comp_123",
+      segmentId: "seg_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "DELETE",
+      "/api/v1/segments/seg_123",
+      undefined,
+      "comp_123"
+    );
+  });
+});
+
+describe("tag management tools", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("creates a tag with a color", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      tag: { id: "tag_123", name: "vip", color: "emerald" },
+    });
+
+    const result = await handleToolCall("create_tag", {
+      companyId: "comp_123",
+      name: "vip",
+      color: "emerald",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/tags",
+      { name: "vip", color: "emerald" },
+      "comp_123"
+    );
+  });
+
+  it("creates a tag without a color", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      tag: { id: "tag_123", name: "vip", color: "gray" },
+    });
+
+    const result = await handleToolCall("create_tag", {
+      name: "vip",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/tags",
+      { name: "vip" },
+      undefined
+    );
+  });
+
+  it("rejects invalid tag colors before hitting the API", async () => {
+    const result = await handleToolCall("create_tag", {
+      name: "vip",
+      color: "magenta",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`color` must be one of gray, red, orange, amber, yellow, lime, green, emerald, teal, cyan, sky, blue, indigo, violet, purple, fuchsia, pink, rose when calling `create_tag`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("updates a tag color", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      tag: { id: "tag_123", name: "vip", color: "blue" },
+    });
+
+    const result = await handleToolCall("update_tag", {
+      tagId: "tag_123",
+      color: "blue",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/tags/tag_123",
+      { color: "blue" },
+      undefined
+    );
+  });
+
+  it("requires color when updating a tag", async () => {
+    const result = await handleToolCall("update_tag", {
+      tagId: "tag_123",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`color` is required when calling `update_tag`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("deletes a tag", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true });
+
+    const result = await handleToolCall("delete_tag", {
+      companyId: "comp_123",
+      tagId: "tag_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "DELETE",
+      "/api/v1/tags/tag_123",
+      undefined,
+      "comp_123"
+    );
+  });
+});
+
+describe("enroll_subscribers_in_sequence tool", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("enrolls subscribers with a target node", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      enrolled: 2,
+      skipped: 0,
+      notFound: [],
+      targetNodeId: "node_email_1",
+      scheduledFor: "2026-06-11T00:00:00.000Z",
+    });
+
+    const result = await handleToolCall("enroll_subscribers_in_sequence", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      emails: ["a@example.com", "b@example.com"],
+      targetNodeId: "node_email_1",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/sequences/seq_123/enroll",
+      {
+        emails: ["a@example.com", "b@example.com"],
+        targetNodeId: "node_email_1",
+      },
+      "comp_123"
+    );
+  });
+
+  it("rejects enrollment batches above 500 emails", async () => {
+    const emails = Array.from(
+      { length: 501 },
+      (_, index) => `user${index}@example.com`
+    );
+
+    const result = await handleToolCall("enroll_subscribers_in_sequence", {
+      sequenceId: "seq_123",
+      emails,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`emails` must include no more than 500 email addresses when calling `enroll_subscribers_in_sequence`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects enrollment calls without emails", async () => {
+    const result = await handleToolCall("enroll_subscribers_in_sequence", {
+      sequenceId: "seq_123",
+      emails: [],
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`emails` must include at least one email address when calling `enroll_subscribers_in_sequence`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+});
+
+describe("team tools", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("lists team members", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      members: [],
+    });
+
+    const result = await handleToolCall("list_team_members", {
+      companyId: "comp_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/team",
+      undefined,
+      "comp_123"
+    );
+  });
+
+  it("invites a team member with role and billing access", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      invitation: {
+        id: "inv_123",
+        email: "teammate@example.com",
+        role: "admin",
+        canManageBilling: true,
+        status: "pending",
+      },
+    });
+
+    const result = await handleToolCall("invite_team_member", {
+      companyId: "comp_123",
+      email: "teammate@example.com",
+      role: "admin",
+      canManageBilling: true,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/team/invitations",
+      {
+        email: "teammate@example.com",
+        role: "admin",
+        canManageBilling: true,
+      },
+      "comp_123"
+    );
+  });
+
+  it("rejects unsupported team roles before hitting the API", async () => {
+    const result = await handleToolCall("invite_team_member", {
+      email: "teammate@example.com",
+      role: "owner",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`role` must be one of admin, viewer when calling `invite_team_member`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("cancels a team invitation", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true });
+
+    const result = await handleToolCall("cancel_team_invitation", {
+      invitationId: "inv_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "DELETE",
+      "/api/v1/team/invitations/inv_123",
+      undefined,
+      undefined
+    );
+  });
+});
+
+describe("inbox tools", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("lists conversations with filters", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      conversations: [],
+      pagination: { page: 2, limit: 50, total: 0, totalPages: 0 },
+    });
+
+    const result = await handleToolCall("list_conversations", {
+      companyId: "comp_123",
+      status: "open",
+      search: "refund",
+      unread: true,
+      page: 2,
+      limit: 50,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/conversations?status=open&search=refund&unread=true&page=2&limit=50",
+      undefined,
+      "comp_123"
+    );
+  });
+
+  it("lists conversations without filters", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      conversations: [],
+      pagination: { page: 1, limit: 20, total: 0, totalPages: 0 },
+    });
+
+    const result = await handleToolCall("list_conversations", {});
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/conversations",
+      undefined,
+      undefined
+    );
+  });
+
+  it("gets a conversation by ID", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      conversation: { id: "conv_123", status: "open", messages: [] },
+    });
+
+    const result = await handleToolCall("get_conversation", {
+      conversationId: "conv_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/conversations/conv_123",
+      undefined,
+      undefined
+    );
+  });
+
+  it("replies to a conversation with an outbound message", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      message: { id: "msg_123", type: "outbound" },
+    });
+
+    const result = await handleToolCall("reply_to_conversation", {
+      companyId: "comp_123",
+      conversationId: "conv_123",
+      bodyText: "Thanks for reaching out!",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/conversations/conv_123/messages",
+      {
+        type: "outbound",
+        bodyText: "Thanks for reaching out!",
+      },
+      "comp_123"
+    );
+  });
+
+  it("adds an internal note to a conversation", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      message: { id: "msg_123", type: "note" },
+    });
+
+    const result = await handleToolCall("reply_to_conversation", {
+      conversationId: "conv_123",
+      type: "note",
+      bodyText: "Customer is on the enterprise plan.",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/conversations/conv_123/messages",
+      {
+        type: "note",
+        bodyText: "Customer is on the enterprise plan.",
+      },
+      undefined
+    );
+  });
+
+  it("rejects outbound replies without a body before hitting the API", async () => {
+    const result = await handleToolCall("reply_to_conversation", {
+      conversationId: "conv_123",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Provide `bodyText` or `bodyHtml` when calling `reply_to_conversation` with an outbound message."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("updates conversation status", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      conversation: { id: "conv_123", status: "closed" },
+    });
+
+    const result = await handleToolCall("update_conversation_status", {
+      conversationId: "conv_123",
+      status: "closed",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/conversations/conv_123/status",
+      { status: "closed" },
+      undefined
+    );
+  });
+
+  it("marks a conversation as read", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      updated: 3,
+    });
+
+    const result = await handleToolCall("mark_conversation_read", {
+      conversationId: "conv_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/conversations/conv_123/read",
+      undefined,
+      undefined
+    );
+  });
+});
+
+describe("outbound webhook tools", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("lists webhooks", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      webhooks: [],
+    });
+
+    const result = await handleToolCall("list_webhooks", {
+      companyId: "comp_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/webhooks",
+      undefined,
+      "comp_123"
+    );
+  });
+
+  it("creates a webhook with subscribed events", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      webhook: { id: "wh_123", name: "Prod", status: "enabled" },
+      signingSecret: "whsec_test",
+    });
+
+    const result = await handleToolCall("create_webhook", {
+      companyId: "comp_123",
+      name: "Prod",
+      url: "https://example.com/webhooks/sequenzy",
+      events: ["email.delivered", "subscriber.unsubscribed"],
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/webhooks",
+      {
+        name: "Prod",
+        url: "https://example.com/webhooks/sequenzy",
+        events: ["email.delivered", "subscriber.unsubscribed"],
+      },
+      "comp_123"
+    );
+
+    const payload = JSON.parse(result.content[0]?.text ?? "{}") as {
+      signingSecret: string;
+    };
+    expect(payload.signingSecret).toBe("whsec_test");
+  });
+
+  it("rejects unsupported webhook event types before hitting the API", async () => {
+    const result = await handleToolCall("create_webhook", {
+      name: "Prod",
+      url: "https://example.com/webhooks/sequenzy",
+      events: ["email.delivered", "campaign.sent"],
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("`events` item 2 must be one of");
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("updates a webhook with provided fields only", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      webhook: { id: "wh_123", status: "disabled" },
+    });
+
+    const result = await handleToolCall("update_webhook", {
+      webhookId: "wh_123",
+      status: "disabled",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/webhooks/wh_123",
+      { status: "disabled" },
+      undefined
+    );
+  });
+
+  it("rejects update_webhook calls without update fields", async () => {
+    const result = await handleToolCall("update_webhook", {
+      webhookId: "wh_123",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Provide at least one of `name`, `url`, `events`, or `status` when calling `update_webhook`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("deletes a webhook", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true });
+
+    const result = await handleToolCall("delete_webhook", {
+      webhookId: "wh_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "DELETE",
+      "/api/v1/webhooks/wh_123",
+      undefined,
+      undefined
+    );
+  });
+
+  it("sends a webhook test event", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      delivery: { id: "del_123", status: "succeeded" },
+    });
+
+    const result = await handleToolCall("test_webhook", {
+      webhookId: "wh_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/webhooks/wh_123/test",
+      undefined,
+      undefined
+    );
+  });
+
+  it("lists webhook deliveries with a limit", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      deliveries: [],
+      limit: 5,
+    });
+
+    const result = await handleToolCall("list_webhook_deliveries", {
+      webhookId: "wh_123",
+      limit: 5,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/webhooks/wh_123/deliveries?limit=5",
+      undefined,
+      undefined
+    );
+  });
+
+  it("replays a webhook delivery", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      delivery: { id: "del_123", status: "pending" },
+    });
+
+    const result = await handleToolCall("replay_webhook_delivery", {
+      companyId: "comp_123",
+      webhookId: "wh_123",
+      deliveryId: "del_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/webhooks/wh_123/deliveries/del_123/replay",
+      undefined,
       "comp_123"
     );
   });

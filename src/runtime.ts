@@ -16,6 +16,21 @@ export interface McpRequestContext {
 
 const requestContextStorage = new AsyncLocalStorage<McpRequestContext>();
 
+/**
+ * Whether tools may read files from the local filesystem (e.g. uploading a
+ * product delivery file from a path). Only the local stdio server enables
+ * this; the hosted remote MCP server must never read server-side paths.
+ */
+let localFileUploadsEnabled = false;
+
+export function enableLocalFileUploads(): void {
+  localFileUploadsEnabled = true;
+}
+
+export function areLocalFileUploadsEnabled(): boolean {
+  return localFileUploadsEnabled;
+}
+
 let selectedCompanyId: string | null = null;
 
 export function getSelectedCompanyId(): string | null {

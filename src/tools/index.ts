@@ -1,9 +1,13 @@
+import { readFileSync, statSync } from "node:fs";
+import { basename } from "node:path";
+
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 
 import { buildSequenzyAppUrls, type AppUrlInput } from "../app-urls.js";
 import { formatMcpError } from "../error-output.js";
 import {
   apiRequest,
+  areLocalFileUploadsEnabled,
   getSelectedCompanyId,
   setSelectedCompanyId,
 } from "../runtime.js";
@@ -18,6 +22,44 @@ const sequenceEmailBlocksDescription =
   "Sequenzy email blocks. Provide blocks or html for email steps. Use `styles` for per-block background, background opacity, text color, padding, border radius, border width, and border color. Top-level style aliases such as `backgroundColor`, `backgroundOpacity`, `borderColor`, `borderWidth`, and `borderRadius` are also accepted and saved under `styles`. Blocks can include repeat blocks over array variables such as items.";
 
 const ADD_SUBSCRIBERS_TO_LIST_EMAIL_LIMIT = 500;
+
+const AVAILABLE_TAG_COLORS = [
+  "gray",
+  "red",
+  "orange",
+  "amber",
+  "yellow",
+  "lime",
+  "green",
+  "emerald",
+  "teal",
+  "cyan",
+  "sky",
+  "blue",
+  "indigo",
+  "violet",
+  "purple",
+  "fuchsia",
+  "pink",
+  "rose",
+] as const;
+
+// Mirrors OUTBOUND_WEBHOOK_EVENT_TYPES in @emailer/shared.
+const OUTBOUND_WEBHOOK_EVENT_TYPES = [
+  "email.sent",
+  "email.delivered",
+  "email.delivery_delayed",
+  "email.bounced",
+  "email.complained",
+  "email.opened",
+  "email.clicked",
+  "email.unsubscribed",
+  "subscriber.invalid",
+  "subscriber.updated",
+  "subscriber.unsubscribed",
+  "sequence.finished",
+  "sequence.failed",
+] as const;
 
 const segmentOperatorsByField = {
   status: ["is", "is_not"],
@@ -643,6 +685,61 @@ function validateCreateSegmentArgs(args: Record<string, unknown>): void {
   }
 }
 
+function validateUpdateSegmentArgs(args: Record<string, unknown>): void {
+  const hasFilters = args.filters !== undefined;
+  const hasRoot = args.root !== undefined;
+
+  if (hasFilters && hasRoot) {
+    throw new Error(
+      "Provide either `filters` or `root` when calling `update_segment`, not both."
+    );
+  }
+
+  if (
+    args.name === undefined &&
+    args.filterJoinOperator === undefined &&
+    !hasFilters &&
+    !hasRoot
+  ) {
+    throw new Error(
+      "Provide at least one of `name`, `filters`, `root`, or `filterJoinOperator` when calling `update_segment`."
+    );
+  }
+
+  if (hasFilters) {
+    if (!Array.isArray(args.filters)) {
+      throw new Error(
+        "`filters` must be an array when calling `update_segment`."
+      );
+    }
+
+    if (args.filters.length === 0) {
+      throw new Error(
+        "`filters` must include at least one filter when calling `update_segment`."
+      );
+    }
+  }
+
+  if (hasRoot && (typeof args.root !== "object" || args.root === null)) {
+    throw new Error("`root` must be an object when calling `update_segment`.");
+  }
+
+  const validationErrors = hasFilters
+    ? (args.filters as unknown[]).flatMap((filter) => {
+        const error = getSegmentFilterValidationError(filter);
+        return error ? [error] : [];
+      })
+    : hasRoot
+      ? collectSegmentFilterValidationErrors(args.root)
+      : [];
+
+  if (validationErrors.length > 0) {
+    throw new Error(
+      validationErrors[0] ?? "Invalid segment filter in `update_segment`."
+    );
+  }
+}
+
 function buildUpdateSequenceBody(
   args: Record<string, unknown>
 ): Record<string, unknown> {
@@ -1251,6 +1348,84 @@ function optionalAllowedString(
   return value;
 }
 
+function requiredAllowedString(
+  toolName: string,
+  record: Record<string, unknown>,
+  key: string,
+  allowedValues: readonly string[]
+): string {
+  const value = requiredString(toolName, record, key);
+  if (!allowedValues.includes(value)) {
+    throw new Error(
+      `\`${key}\` must be one of ${allowedValues.join(", ")} when calling \`${toolName}\`.`
+    );
+  }
+
+  return value;
+}
+
+function optionalIntegerInRange(
+  toolName: string,
+  record: Record<string, unknown>,
+  key: string,
+  min: number,
+  max: number
+): number | undefined {
+  const value = record[key];
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (
+    typeof value !== "number" ||
+    !Number.isInteger(value) ||
+    value < min ||
+    value > max
+  ) {
+    throw new Error(
+      `\`${key}\` must be an integer between ${min} and ${max} when calling \`${toolName}\`.`
+    );
+  }
+
+  return value;
+}
+
+function optionalWebhookEvents(
+  toolName: string,
+  args: Record<string, unknown>
+): string[] | undefined {
+  if (args.events === undefined) {
+    return undefined;
+  }
+
+  if (!Array.isArray(args.events)) {
+    throw new Error(
+      `\`events\` must be an array when calling \`${toolName}\`.`
+    );
+  }
+
+  const events = args.events.map((event, index) => {
+    if (
+      typeof event !== "string" ||
+      !(OUTBOUND_WEBHOOK_EVENT_TYPES as readonly string[]).includes(event)
+    ) {
+      throw new Error(
+        `\`events\` item ${index + 1} must be one of ${OUTBOUND_WEBHOOK_EVENT_TYPES.join(", ")} when calling \`${toolName}\`.`
+      );
+    }
+
+    return event;
+  });
+
+  if (events.length === 0) {
+    throw new Error(
+      `\`events\` must include at least one event type when calling \`${toolName}\`.`
+    );
+  }
+
+  return events;
+}
+
 function requireEmailArray(
   toolName: string,
   args: Record<string, unknown>
@@ -1289,6 +1464,103 @@ function requireEmailArray(
   }
 
   return emails;
+}
+
+/**
+ * Content types allowed for product delivery files, by file extension.
+ * Mirrors the server-side allowlist (no HTML/SVG/executables).
+ */
+const DELIVERY_CONTENT_TYPE_BY_EXTENSION: Record<string, string> = {
+  pdf: "application/pdf",
+  epub: "application/epub+zip",
+  zip: "application/zip",
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  webp: "image/webp",
+  mp3: "audio/mpeg",
+  wav: "audio/wav",
+  mp4: "video/mp4",
+  txt: "text/plain",
+  csv: "text/csv",
+};
+
+function resolveDeliveryContentType(filePath: string): string | null {
+  const extension = filePath.split(".").pop()?.toLowerCase() ?? "";
+  return DELIVERY_CONTENT_TYPE_BY_EXTENSION[extension] ?? null;
+}
+
+/** Max size for product delivery files (100MB). Mirrors the server-side limit. */
+const DELIVERY_FILE_MAX_SIZE_BYTES = 100 * 1024 * 1024;
+
+interface UploadedDeliveryFile {
+  url: string;
+  fileName: string;
+  fileSizeBytes: number;
+  mimeType: string;
+}
+
+/**
+ * Upload a local file as a product delivery file via a presigned URL.
+ * Only available on the local stdio server - the hosted remote MCP server
+ * must never read server-side paths.
+ */
+async function uploadLocalDeliveryFile(
+  filePath: string,
+  companyId: string | undefined
+): Promise<UploadedDeliveryFile> {
+  if (!areLocalFileUploadsEnabled()) {
+    throw new Error(
+      "`filePath` is only supported when the MCP server runs locally on your machine. Host the file somewhere public and pass `url` instead."
+    );
+  }
+
+  const contentType = resolveDeliveryContentType(filePath);
+  if (!contentType) {
+    throw new Error(
+      "Unsupported file type. Use PDF, ePub, ZIP, image, audio, video, or text files."
+    );
+  }
+
+  // Reject oversized files from the stat alone - reading them first would
+  // load the whole file into memory before the API could say no.
+  const fileSizeBytes = statSync(filePath).size;
+  if (fileSizeBytes > DELIVERY_FILE_MAX_SIZE_BYTES) {
+    throw new Error(
+      `File is too large (${Math.round(fileSizeBytes / (1024 * 1024))}MB). Delivery files must be 100MB or smaller.`
+    );
+  }
+
+  const fileBytes = readFileSync(filePath);
+
+  const presigned = await apiRequest<{
+    uploadUrl: string;
+    publicUrl: string;
+    fileName: string;
+  }>(
+    "POST",
+    "/api/v1/products/delivery/upload-url",
+    { filename: basename(filePath), contentType, fileSizeBytes },
+    companyId
+  );
+
+  const uploadResponse = await fetch(presigned.uploadUrl, {
+    method: "PUT",
+    headers: { "Content-Type": contentType },
+    body: fileBytes,
+  });
+
+  if (!uploadResponse.ok) {
+    throw new Error(`File upload failed (${uploadResponse.status})`);
+  }
+
+  return {
+    url: presigned.publicUrl,
+    fileName: presigned.fileName,
+    fileSizeBytes,
+    mimeType: contentType,
+  };
 }
 
 async function resolveCompanyIdForAppUrls(
@@ -1422,6 +1694,10 @@ const dashboardUrlToolNames = new Set([
   "update_campaign",
   "schedule_campaign",
   "send_test_email",
+  "cancel_campaign",
+  "pause_campaign",
+  "resume_campaign",
+  "duplicate_campaign",
   "list_sequences",
   "get_sequence",
   "create_sequence",
@@ -1777,12 +2053,17 @@ CRITICAL - FOR SAAS/SUBSCRIPTION APPS:
 If the app uses Stripe, Polar, Paddle, Dodo, or Creem - tell the user to connect it in Sequenzy dashboard (Settings → Integrations).
 The native integration automatically handles all payment events and customer tags - no code needed!
 
+CRITICAL - FOR E-COMMERCE STORES:
+If the store runs on Shopify or WooCommerce - tell the user to connect the native integration in the dashboard instead (it syncs products, orders, and customers automatically).
+For any other e-commerce stack (custom checkouts, CheckoutChamp, Sticky.io, headless storefronts), use the 'ecommerce' use case to integrate via the Commerce API.
+
 Only provide manual event tracking code if the user explicitly asks for it.
 
 Use cases:
 - 'transactional': Sending one-off emails (welcome, password reset, receipts)
 - 'subscribe_form': Adding subscribers from signup forms
 - 'event_tracking': Tracking CUSTOM events only (not payment events - those come from the integration)
+- 'ecommerce': Connecting a custom e-commerce platform via the Commerce API (sync products, push orders/checkouts, power abandoned cart + back-in-stock automations)
 
 Before implementing, use create_api_key to generate an API key and save it to .env as SEQUENZY_API_KEY.`,
     inputSchema: {
@@ -1795,7 +2076,7 @@ Before implementing, use create_api_key to generate an API key and save it to .e
         use_case: {
           type: "string",
           description:
-            "Use case: 'transactional' (sending emails), 'subscribe_form' (adding subscribers), 'event_tracking' (tracking CUSTOM events only - payment events should come from Stripe/Polar/etc integration)",
+            "Use case: 'transactional' (sending emails), 'subscribe_form' (adding subscribers), 'event_tracking' (tracking CUSTOM events only - payment events should come from Stripe/Polar/etc integration), 'ecommerce' (connecting a custom e-commerce platform via the Commerce API)",
         },
       },
     },
@@ -2001,6 +2282,181 @@ Before implementing, use create_api_key to generate an API key and save it to .e
   },
 
   // ============================================================================
+  // Products & Digital Delivery
+  // ============================================================================
+  {
+    name: "list_products",
+    description:
+      "List synced products (Stripe, Shopify, WooCommerce) including any attached digital delivery file. Useful before attaching a file or building a purchase sequence for a specific product.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID to list products for. If not provided, uses the currently selected company.",
+        },
+        provider: {
+          type: "string",
+          description:
+            "Filter by provider: stripe, shopify, woocommerce, or manual.",
+        },
+        search: {
+          type: "string",
+          description: "Filter products by title.",
+        },
+      },
+    },
+  },
+  {
+    name: "upsert_products",
+    description:
+      "Create or update products in the catalog (Commerce API, keyed by your productId, stored under the api provider). Use this to add products that are not synced from Stripe/Shopify/WooCommerce, then attach a deliverable file with attach_product_file and build a purchase sequence for them.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        products: {
+          type: "array",
+          description: "Products to create or update (max 100).",
+          items: {
+            type: "object",
+            properties: {
+              productId: {
+                type: "string",
+                description:
+                  "Your stable product identifier (used for upserts and order line items).",
+              },
+              title: { type: "string", description: "Product title." },
+              description: {
+                type: "string",
+                description: "Product description.",
+              },
+              imageUrl: {
+                type: "string",
+                description: "Product image URL.",
+              },
+              url: {
+                type: "string",
+                description: "Product page URL.",
+              },
+              priceCents: {
+                type: "number",
+                description: "Price in the smallest currency unit.",
+              },
+              currency: {
+                type: "string",
+                description: "ISO currency code, e.g. USD.",
+              },
+              inStock: {
+                type: "boolean",
+                description: "Whether the product is in stock.",
+              },
+            },
+            required: ["productId", "title"],
+          },
+        },
+      },
+      required: ["products"],
+    },
+  },
+  {
+    name: "delete_product",
+    description:
+      "Delete a product previously pushed via upsert_products (Commerce API products only), identified by your productId.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        productId: {
+          type: "string",
+          description: "Your productId used when upserting the product.",
+        },
+      },
+      required: ["productId"],
+    },
+  },
+  {
+    name: "attach_product_file",
+    description:
+      "Attach a distributable file to a product, either by public URL or by uploading a local file (filePath, local MCP server only). After a purchase of the product, sequence emails can link to it with {{event.download.url}} and {{event.download.name}}.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        productId: {
+          type: "string",
+          description:
+            "Product ID from list_products, or your own productId for products pushed via upsert_products.",
+        },
+        url: {
+          type: "string",
+          description:
+            "Public http(s) URL of the file to deliver. Provide url or filePath, not both.",
+        },
+        filePath: {
+          type: "string",
+          description:
+            "Local path of a file to upload and attach (PDF, ePub, ZIP, image, audio, video, or text, up to 100MB). Only available when the MCP server runs locally on this machine.",
+        },
+        fileName: {
+          type: "string",
+          description:
+            "Display name for the file (e.g. guide.pdf). Used as {{event.download.name}}.",
+        },
+      },
+      required: ["productId"],
+    },
+  },
+  {
+    name: "remove_product_file",
+    description: "Remove the attached distributable file from a product.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        productId: {
+          type: "string",
+          description:
+            "Product ID from list_products, or your own productId for products pushed via upsert_products.",
+        },
+      },
+      required: ["productId"],
+    },
+  },
+  {
+    name: "sync_products",
+    description:
+      "Queue a sync of the Stripe product catalog into the products list. Requires an active Stripe integration.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+      },
+    },
+  },
+
+  // ============================================================================
   // Tags, Lists, Segments
   // ============================================================================
   {
@@ -2015,6 +2471,75 @@ Before implementing, use create_api_key to generate an API key and save it to .e
             "Company ID to list tags for. If not provided, uses the currently selected company.",
         },
       },
+    },
+  },
+  {
+    name: "create_tag",
+    description:
+      "Create a new tag definition. The name is normalized to lowercase with hyphens (e.g. 'VIP Customer' becomes 'vip-customer'). Color defaults to gray.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        name: {
+          type: "string",
+          description: "Tag name. Normalized to lowercase with hyphens.",
+        },
+        color: {
+          type: "string",
+          enum: [...AVAILABLE_TAG_COLORS],
+          description: "Tag color. Defaults to gray.",
+        },
+      },
+      required: ["name"],
+    },
+  },
+  {
+    name: "update_tag",
+    description: "Update a tag's color. System tags cannot be updated.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        tagId: {
+          type: "string",
+          description: "Tag ID. Use list_tags to find tag IDs.",
+        },
+        color: {
+          type: "string",
+          enum: [...AVAILABLE_TAG_COLORS],
+          description: "New tag color.",
+        },
+      },
+      required: ["tagId", "color"],
+    },
+  },
+  {
+    name: "delete_tag",
+    description:
+      "Permanently delete a tag and remove it from all subscribers. This cannot be undone. System tags and tags used by sequences cannot be deleted.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        tagId: {
+          type: "string",
+          description: "Tag ID. Use list_tags to find tag IDs.",
+        },
+      },
+      required: ["tagId"],
     },
   },
   {
@@ -2055,6 +2580,58 @@ Before implementing, use create_api_key to generate an API key and save it to .e
     },
   },
   {
+    name: "update_list",
+    description:
+      "Update a subscriber list's name, description, or privacy. Only the provided fields are changed.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        listId: {
+          type: "string",
+          description: "Subscriber list ID to update.",
+        },
+        name: {
+          type: "string",
+          description: "New list name.",
+        },
+        description: {
+          type: ["string", "null"],
+          description: "New list description. Pass null to clear it.",
+        },
+        isPrivate: {
+          type: "boolean",
+          description: "Whether the list is private.",
+        },
+      },
+      required: ["listId"],
+    },
+  },
+  {
+    name: "delete_list",
+    description:
+      "Permanently delete a subscriber list and remove all of its memberships. Subscribers themselves are kept. This cannot be undone.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        listId: {
+          type: "string",
+          description: "Subscriber list ID to delete.",
+        },
+      },
+      required: ["listId"],
+    },
+  },
+  {
     name: "add_subscribers_to_list",
     description:
       "Bulk add existing or new subscribers to a subscriber list from an email array. Existing subscribers are added to the list without requiring a per-subscriber update call.",
@@ -2090,6 +2667,32 @@ Before implementing, use create_api_key to generate an API key and save it to .e
           type: "string",
           description:
             "Consent mode for newly created subscribers: default, confirmed, or double_opt_in. Defaults to default.",
+        },
+      },
+      required: ["listId", "emails"],
+    },
+  },
+  {
+    name: "remove_subscribers_from_list",
+    description:
+      "Remove subscribers from a list by email address. Maximum 500 emails per call. Subscribers stay in the account; only the list membership is removed. Returns the removed count plus a notFound array of emails that did not match a subscriber.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        listId: {
+          type: "string",
+          description: "Subscriber list ID to remove subscribers from.",
+        },
+        emails: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Email addresses to remove from the list. Maximum 500 per call.",
         },
       },
       required: ["listId", "emails"],
@@ -2145,6 +2748,68 @@ Before implementing, use create_api_key to generate an API key and save it to .e
         },
       },
       required: ["name"],
+    },
+  },
+  {
+    name: "update_segment",
+    description:
+      "Update a segment's name and/or filter rules. Use the same `filters` plus `filterJoinOperator` or nested `root` shapes as create_segment; providing `filters` or `root` replaces the segment's existing rules.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        segmentId: {
+          type: "string",
+          description: "Segment ID to update.",
+        },
+        name: {
+          type: "string",
+          description: "New segment name.",
+        },
+        filterJoinOperator: {
+          type: "string",
+          enum: ["and", "or"],
+          description:
+            'How top-level filters combine. Use `"and"` to require every filter or `"or"` to match any filter.',
+        },
+        filters: {
+          type: "array",
+          items: segmentFilterItemSchema,
+          minItems: 1,
+          description:
+            "Replacement segment filters. Same shape and validation rules as create_segment. Mutually exclusive with `root`.",
+        },
+        root: {
+          ...segmentFilterGroupSchema,
+          description:
+            "Replacement nested filter root. Mutually exclusive with `filters` and `filterJoinOperator`.",
+        },
+      },
+      required: ["segmentId"],
+    },
+  },
+  {
+    name: "delete_segment",
+    description:
+      "Permanently delete a segment. This cannot be undone. Subscribers are not affected.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        segmentId: {
+          type: "string",
+          description: "Segment ID to delete.",
+        },
+      },
+      required: ["segmentId"],
     },
   },
   {
@@ -2473,6 +3138,146 @@ Before implementing, use create_api_key to generate an API key and save it to .e
       additionalProperties: false,
     },
   },
+  {
+    name: "create_ab_test",
+    description:
+      "Create a campaign A/B test. Control variant A is created automatically from the campaign's current email; optionally provide extra variants. The campaign must be in draft or rejected status, and each campaign can only have one A/B test.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        campaignId: {
+          type: "string",
+          description: "Draft campaign ID to create the A/B test for.",
+        },
+        name: {
+          type: "string",
+          description: "Optional A/B test name.",
+        },
+        testPercentage: {
+          type: "number",
+          description:
+            "Percentage of the audience used for the test phase, from 5 to 50. Defaults to 20.",
+        },
+        testDurationMinutes: {
+          type: "number",
+          description:
+            "Test phase duration in minutes before the winner is selected, from 15 to 1440. Defaults to 240.",
+        },
+        winnerCriteria: {
+          type: "string",
+          enum: ["open_rate", "click_rate"],
+          description: "Winner selection criteria. Defaults to open_rate.",
+        },
+        variants: {
+          type: "array",
+          description:
+            "Optional extra variants to create in addition to control variant A.",
+          items: {
+            type: "object",
+            properties: {
+              subject: {
+                type: "string",
+                description: "Variant subject line.",
+              },
+              previewText: {
+                type: "string",
+                description: "Variant preview text.",
+              },
+              blocks: {
+                type: "array",
+                description: replacementEmailBlocksDescription,
+                items: { type: "object" },
+              },
+            },
+            required: ["subject"],
+          },
+        },
+      },
+      required: ["campaignId"],
+    },
+  },
+  {
+    name: "add_ab_test_variant",
+    description:
+      "Add a variant to a draft campaign A/B test. Variants cannot be added after the test has started.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        abTestId: {
+          type: "string",
+          description: "A/B test ID",
+        },
+        subject: {
+          type: "string",
+          description: "Variant subject line.",
+        },
+        previewText: {
+          type: "string",
+          description: "Variant preview text.",
+        },
+        blocks: {
+          type: "array",
+          description: replacementEmailBlocksDescription,
+          items: { type: "object" },
+        },
+      },
+      required: ["abTestId", "subject"],
+    },
+  },
+  {
+    name: "delete_ab_test_variant",
+    description:
+      "Permanently delete a variant from a draft campaign A/B test. This cannot be undone. Variant A is the control and cannot be deleted, and the test must keep at least the minimum number of variants. Variants cannot be removed after the test has started.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        abTestId: {
+          type: "string",
+          description: "A/B test ID",
+        },
+        variantId: {
+          type: "string",
+          description: "A/B test variant ID to delete.",
+        },
+      },
+      required: ["abTestId", "variantId"],
+    },
+  },
+  {
+    name: "delete_ab_test",
+    description:
+      "Permanently delete a campaign A/B test and all of its variants. This cannot be undone. Running tests (testing or winner_selected) cannot be deleted, and the linked campaign must be in draft or rejected status.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        abTestId: {
+          type: "string",
+          description: "A/B test ID to delete.",
+        },
+      },
+      required: ["abTestId"],
+    },
+  },
 
   // ============================================================================
   // Campaigns
@@ -2762,6 +3567,121 @@ Before implementing, use create_api_key to generate an API key and save it to .e
       required: ["campaignId", "to"],
     },
   },
+  {
+    name: "cancel_campaign",
+    description:
+      "Cancel a campaign. Stops scheduled and sending campaigns (also works for paused and approval-pending ones). Remaining emails will not be sent and the campaign cannot be restarted - this cannot be undone.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        campaignId: {
+          type: "string",
+          description: "Campaign ID to cancel.",
+        },
+      },
+      required: ["campaignId"],
+    },
+  },
+  {
+    name: "pause_campaign",
+    description:
+      "Pause a campaign that is currently sending. Only campaigns in sending status can be paused. Use resume_campaign to continue delivery later.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        campaignId: {
+          type: "string",
+          description: "Campaign ID to pause.",
+        },
+      },
+      required: ["campaignId"],
+    },
+  },
+  {
+    name: "resume_campaign",
+    description:
+      "Resume a paused campaign. Only campaigns in paused status can be resumed. Optionally spread the remaining delivery over a number of hours.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        campaignId: {
+          type: "string",
+          description: "Campaign ID to resume.",
+        },
+        spreadOverHours: {
+          type: "number",
+          description:
+            "Spread the remaining delivery over an integer number of hours from 1 to 72.",
+        },
+      },
+      required: ["campaignId"],
+    },
+  },
+  {
+    name: "delete_campaign",
+    description:
+      "Permanently delete a campaign. This cannot be undone. Sending, scheduled, or paused campaigns must be cancelled with cancel_campaign first.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        campaignId: {
+          type: "string",
+          description: "Campaign ID to delete.",
+        },
+      },
+      required: ["campaignId"],
+    },
+  },
+  {
+    name: "duplicate_campaign",
+    description:
+      "Duplicate a campaign as a new draft. mode 'campaign' (default) copies the campaign and its email, 'ab_test' also duplicates the campaign's A/B test with all variants, and 'variant' copies a single variant's content as the new campaign email (requires variantId).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        campaignId: {
+          type: "string",
+          description: "Campaign ID to duplicate.",
+        },
+        mode: {
+          type: "string",
+          enum: ["campaign", "ab_test", "variant"],
+          description: "Duplication mode. Defaults to campaign.",
+        },
+        variantId: {
+          type: "string",
+          description:
+            "A/B test variant ID whose content becomes the new campaign email. Required when mode is variant.",
+        },
+      },
+      required: ["campaignId"],
+    },
+  },
 
   // ============================================================================
   // Sequences
@@ -2873,6 +3793,11 @@ IMPORTANT GUIDELINES:
 	   - enrollmentMode: "matching_field", enrollmentFieldPath: "order.id"
 	   - Goal: Run one active sequence per specific order without duplicate active runs for the same order
 
+	   SINGLE-PRODUCT PURCHASE SEQUENCE (e.g. digital product delivery):
+	   - trigger: event_received, eventName: "ecommerce.order_placed", propertyFilters: [{ path: "lineItems[].providerProductId", operator: "equals", value: "<productId>" }]
+	   - For Stripe purchases use eventName: "saas.purchase" with propertyFilters: [{ path: "productIds", operator: "equals", value: "prod_XXX" }]
+	   - Goal: Only start the sequence when a specific product was purchased
+
    WELCOME SERIES:
    - trigger: contact_added (optionally with listId)
    - No auto-stop (runs to completion)
@@ -2982,6 +3907,40 @@ OTHER BUILT-IN EVENTS:
           type: "string",
           description:
             "Event name to trigger on (required for event_received, inactivity, and frequency triggers)",
+        },
+        propertyFilters: {
+          type: "array",
+          description:
+            "Optional event property filters for event_received triggers. The sequence only starts when the triggering event's properties match ALL filters. Use a dot-path into the event properties; use [] to match inside arrays. Examples: scope a purchase sequence to one product with { path: 'lineItems[].providerProductId', operator: 'equals', value: 'prod_123' } (ecommerce.order_placed) or { path: 'productIds', operator: 'equals', value: 'prod_123' } (saas.purchase). Max 10 filters.",
+          items: {
+            type: "object",
+            properties: {
+              path: {
+                type: "string",
+                description:
+                  "Dot-path into the event properties, e.g. 'lineItems[].providerProductId' or 'plan'.",
+              },
+              operator: {
+                type: "string",
+                enum: [
+                  "exists",
+                  "not_exists",
+                  "equals",
+                  "not_equals",
+                  "contains",
+                  "greater_than",
+                  "less_than",
+                ],
+                description: "Comparison operator.",
+              },
+              value: {
+                type: ["string", "number", "boolean"],
+                description:
+                  "Value to compare against. Required for every operator except exists/not_exists.",
+              },
+            },
+            required: ["path", "operator"],
+          },
         },
         // inactivity trigger options
         inactiveDays: {
@@ -3578,6 +4537,37 @@ OTHER BUILT-IN EVENTS:
     },
   },
   {
+    name: "enroll_subscribers_in_sequence",
+    description:
+      "Manually enroll subscribers in a sequence by email address. Maximum 500 emails per call. Only active subscribers are enrolled: unknown emails are returned in `notFound`, while inactive subscribers and subscribers already actively enrolled in the sequence are counted in `skipped`. By default enrollment starts at the first step after the trigger; pass targetNodeId to start at a specific step.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        sequenceId: {
+          type: "string",
+          description: "Sequence ID to enroll subscribers in.",
+        },
+        emails: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Email addresses of subscribers to enroll. Maximum 500 per call.",
+        },
+        targetNodeId: {
+          type: "string",
+          description:
+            "Optional node ID to start enrollment at. Use a non-trigger nodeId from get_sequence. Defaults to the first step after the trigger.",
+        },
+      },
+      required: ["sequenceId", "emails"],
+    },
+  },
+  {
     name: "cancel_sequence_enrollments",
     description:
       "Cancel active/waiting enrollments in one sequence. Provide sequenceId and exactly one target: subscriberId for one subscriber, or fieldValues to match stored entry event properties. For fieldValues, fieldPath is optional when the sequence has enrollmentFieldPath configured; otherwise provide a dot path such as order.id.",
@@ -3924,6 +4914,404 @@ OTHER BUILT-IN EVENTS:
         },
       },
       required: [],
+    },
+  },
+
+  // ============================================================================
+  // Team
+  // ============================================================================
+  {
+    name: "list_team_members",
+    description:
+      "List team members for the company, including the owner, members with their roles, and pending or expired invitations.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+      },
+    },
+  },
+  {
+    name: "invite_team_member",
+    description:
+      "Invite a team member by email with role admin or viewer. Existing Sequenzy users are added to the team immediately; others receive an email invitation. Billing access (canManageBilling) can only be granted by the company owner.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        email: {
+          type: "string",
+          description: "Email address of the person to invite.",
+        },
+        role: {
+          type: "string",
+          enum: ["admin", "viewer"],
+          description:
+            "Team role. Admins can manage the workspace; viewers have read-only access.",
+        },
+        canManageBilling: {
+          type: "boolean",
+          description:
+            "Whether the member can manage billing. Only the company owner can grant billing access. Defaults to false.",
+        },
+      },
+      required: ["email", "role"],
+    },
+  },
+  {
+    name: "cancel_team_invitation",
+    description:
+      "Cancel a pending team invitation. Invitations that have already been accepted cannot be cancelled.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        invitationId: {
+          type: "string",
+          description:
+            "Invitation ID to cancel. Use list_team_members to find pending invitations.",
+        },
+      },
+      required: ["invitationId"],
+    },
+  },
+
+  // ============================================================================
+  // Inbox (Conversations)
+  // ============================================================================
+  {
+    name: "list_conversations",
+    description:
+      "List inbox conversations (email replies from subscribers). Filter by status, free-text search, or unread state, with pagination.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        status: {
+          type: "string",
+          enum: ["open", "closed", "all"],
+          description: "Filter by conversation status. Defaults to all.",
+        },
+        search: {
+          type: "string",
+          description:
+            "Free-text search across conversation subjects and participants.",
+        },
+        unread: {
+          type: "boolean",
+          description:
+            "Set true to only return conversations with unread messages.",
+        },
+        page: {
+          type: "number",
+          description: "Page number. Defaults to 1.",
+        },
+        limit: {
+          type: "number",
+          description: "Results per page, from 1 to 100. Defaults to 20.",
+        },
+      },
+    },
+  },
+  {
+    name: "get_conversation",
+    description:
+      "Get a conversation with its full message history, subscriber details, and context.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        conversationId: {
+          type: "string",
+          description: "Conversation ID.",
+        },
+      },
+      required: ["conversationId"],
+    },
+  },
+  {
+    name: "reply_to_conversation",
+    description:
+      "Send a reply in a conversation, or add an internal note. type 'outbound' (default) emails the subscriber and requires bodyText or bodyHtml; type 'note' adds a private team-only note. Replying to a closed conversation reopens it.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        conversationId: {
+          type: "string",
+          description: "Conversation ID to reply in.",
+        },
+        type: {
+          type: "string",
+          enum: ["outbound", "note"],
+          description:
+            "Message type: outbound emails the subscriber, note is internal-only. Defaults to outbound.",
+        },
+        subject: {
+          type: "string",
+          description:
+            "Optional subject override. Defaults to the conversation subject.",
+        },
+        bodyText: {
+          type: "string",
+          description: "Plain-text message body.",
+        },
+        bodyHtml: {
+          type: "string",
+          description: "HTML message body.",
+        },
+      },
+      required: ["conversationId"],
+    },
+  },
+  {
+    name: "update_conversation_status",
+    description: "Open or close a conversation.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        conversationId: {
+          type: "string",
+          description: "Conversation ID.",
+        },
+        status: {
+          type: "string",
+          enum: ["open", "closed"],
+          description: "New conversation status.",
+        },
+      },
+      required: ["conversationId", "status"],
+    },
+  },
+  {
+    name: "mark_conversation_read",
+    description: "Mark all unread inbound messages in a conversation as read.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        conversationId: {
+          type: "string",
+          description: "Conversation ID.",
+        },
+      },
+      required: ["conversationId"],
+    },
+  },
+
+  // ============================================================================
+  // Outbound Webhooks
+  // ============================================================================
+  {
+    name: "list_webhooks",
+    description:
+      "List outbound webhook endpoints and their subscribed event types.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+      },
+    },
+  },
+  {
+    name: "create_webhook",
+    description:
+      "Create an outbound webhook endpoint. IMPORTANT: the response includes a signingSecret that is returned only once - show it to the user immediately so they can store it and verify webhook signatures. If events is omitted, a default set of event types is subscribed.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        name: {
+          type: "string",
+          description: "Webhook endpoint name.",
+        },
+        url: {
+          type: "string",
+          description: "HTTPS URL that will receive webhook events.",
+        },
+        events: {
+          type: "array",
+          items: {
+            type: "string",
+            enum: [...OUTBOUND_WEBHOOK_EVENT_TYPES],
+          },
+          description:
+            "Event types to subscribe to. If omitted, a default set is used.",
+        },
+      },
+      required: ["name", "url"],
+    },
+  },
+  {
+    name: "update_webhook",
+    description:
+      "Update an outbound webhook endpoint's name, URL, subscribed events, or status (enabled/disabled). Providing events replaces the existing event list.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        webhookId: {
+          type: "string",
+          description: "Webhook endpoint ID.",
+        },
+        name: {
+          type: "string",
+          description: "New webhook endpoint name.",
+        },
+        url: {
+          type: "string",
+          description: "New HTTPS URL that will receive webhook events.",
+        },
+        events: {
+          type: "array",
+          items: {
+            type: "string",
+            enum: [...OUTBOUND_WEBHOOK_EVENT_TYPES],
+          },
+          description: "Replacement event type subscriptions.",
+        },
+        status: {
+          type: "string",
+          enum: ["enabled", "disabled"],
+          description: "Enable or disable deliveries to this endpoint.",
+        },
+      },
+      required: ["webhookId"],
+    },
+  },
+  {
+    name: "delete_webhook",
+    description:
+      "Permanently delete an outbound webhook endpoint along with its delivery history. This cannot be undone. To keep the endpoint but stop deliveries, use update_webhook with status disabled instead.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        webhookId: {
+          type: "string",
+          description: "Webhook endpoint ID to delete.",
+        },
+      },
+      required: ["webhookId"],
+    },
+  },
+  {
+    name: "test_webhook",
+    description:
+      "Send a test event to an outbound webhook endpoint to verify it is reachable and signatures can be validated.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        webhookId: {
+          type: "string",
+          description: "Webhook endpoint ID to test.",
+        },
+      },
+      required: ["webhookId"],
+    },
+  },
+  {
+    name: "list_webhook_deliveries",
+    description:
+      "List recent delivery attempts for an outbound webhook endpoint, including status and response codes.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        webhookId: {
+          type: "string",
+          description: "Webhook endpoint ID.",
+        },
+        limit: {
+          type: "number",
+          description:
+            "Maximum number of deliveries to return, from 1 to 100. Defaults to 20.",
+        },
+      },
+      required: ["webhookId"],
+    },
+  },
+  {
+    name: "replay_webhook_delivery",
+    description:
+      "Replay a previous webhook delivery, re-sending the same event payload to the endpoint.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        webhookId: {
+          type: "string",
+          description: "Webhook endpoint ID.",
+        },
+        deliveryId: {
+          type: "string",
+          description:
+            "Delivery ID to replay. Use list_webhook_deliveries to find delivery IDs.",
+        },
+      },
+      required: ["webhookId", "deliveryId"],
     },
   },
 
@@ -4334,10 +5722,179 @@ export async function handleToolCall(
         break;
       }
 
+      // Products & Digital Delivery
+      case "list_products": {
+        const companyId = args.companyId as string | undefined;
+        const params = new URLSearchParams();
+        if (typeof args.provider === "string" && args.provider.trim()) {
+          params.set("provider", args.provider.trim());
+        }
+        if (typeof args.search === "string" && args.search.trim()) {
+          params.set("search", args.search.trim());
+        }
+        const query = params.size > 0 ? `?${params.toString()}` : "";
+        result = await apiRequest(
+          "GET",
+          `/api/v1/products${query}`,
+          undefined,
+          companyId
+        );
+        break;
+      }
+
+      case "upsert_products": {
+        const companyId = args.companyId as string | undefined;
+        if (!Array.isArray(args.products) || args.products.length === 0) {
+          throw new Error(
+            "`products` must be a non-empty array when calling `upsert_products`."
+          );
+        }
+        result = await apiRequest(
+          "POST",
+          "/api/v1/products",
+          { products: args.products },
+          companyId
+        );
+        break;
+      }
+
+      case "delete_product": {
+        const companyId = args.companyId as string | undefined;
+        const productId = requiredString("delete_product", args, "productId");
+        result = await apiRequest(
+          "DELETE",
+          `/api/v1/products/${encodeURIComponent(productId)}`,
+          undefined,
+          companyId
+        );
+        break;
+      }
+
+      case "attach_product_file": {
+        const companyId = args.companyId as string | undefined;
+        const productId = requiredString(
+          "attach_product_file",
+          args,
+          "productId"
+        );
+        const url = optionalString(args, "url");
+        const filePath = optionalString(args, "filePath");
+
+        if ((url === undefined) === (filePath === undefined)) {
+          throw new Error(
+            "Provide either `url` or `filePath` (not both) when calling `attach_product_file`."
+          );
+        }
+
+        let body: Record<string, unknown>;
+        if (filePath !== undefined) {
+          const uploaded = await uploadLocalDeliveryFile(filePath, companyId);
+          body = {
+            url: uploaded.url,
+            source: "upload",
+            fileName: optionalString(args, "fileName") ?? uploaded.fileName,
+            fileSizeBytes: uploaded.fileSizeBytes,
+            mimeType: uploaded.mimeType,
+          };
+        } else {
+          body = { url };
+          const fileName = optionalString(args, "fileName");
+          if (fileName) {
+            body.fileName = fileName;
+          }
+        }
+
+        result = await apiRequest(
+          "PUT",
+          `/api/v1/products/${encodeURIComponent(productId)}/delivery`,
+          body,
+          companyId
+        );
+        break;
+      }
+
+      case "remove_product_file": {
+        const companyId = args.companyId as string | undefined;
+        const productId = requiredString(
+          "remove_product_file",
+          args,
+          "productId"
+        );
+        result = await apiRequest(
+          "DELETE",
+          `/api/v1/products/${encodeURIComponent(productId)}/delivery`,
+          undefined,
+          companyId
+        );
+        break;
+      }
+
+      case "sync_products": {
+        const companyId = args.companyId as string | undefined;
+        result = await apiRequest(
+          "POST",
+          "/api/v1/products/sync",
+          undefined,
+          companyId
+        );
+        break;
+      }
+
       // Tags, Lists, Segments
       case "list_tags": {
         const companyId = args.companyId as string | undefined;
         result = await apiRequest("GET", "/api/v1/tags", undefined, companyId);
+        break;
+      }
+
+      case "create_tag": {
+        const companyId = args.companyId as string | undefined;
+        const name = requiredString("create_tag", args, "name");
+        const color = optionalAllowedString(
+          "create_tag",
+          args,
+          "color",
+          AVAILABLE_TAG_COLORS
+        );
+        result = await apiRequest(
+          "POST",
+          "/api/v1/tags",
+          {
+            name,
+            ...(color !== undefined && { color }),
+          },
+          companyId
+        );
+        break;
+      }
+
+      case "update_tag": {
+        const companyId = args.companyId as string | undefined;
+        const tagId = requiredString("update_tag", args, "tagId");
+        const color = requiredAllowedString(
+          "update_tag",
+          args,
+          "color",
+          AVAILABLE_TAG_COLORS
+        );
+        result = await apiRequest(
+          "PATCH",
+          `/api/v1/tags/${encodeURIComponent(tagId)}`,
+          { color },
+          companyId
+        );
+        break;
+      }
+
+      case "delete_tag": {
+        const companyId = args.companyId as string | undefined;
+        const tagId = requiredString("delete_tag", args, "tagId");
+        result = await apiRequest(
+          "DELETE",
+          `/api/v1/tags/${encodeURIComponent(tagId)}`,
+          undefined,
+          companyId
+        );
         break;
       }
 
@@ -4350,6 +5907,75 @@ export async function handleToolCall(
       case "create_list": {
         const companyId = args.companyId as string | undefined;
         result = await apiRequest("POST", "/api/v1/lists", args, companyId);
+        break;
+      }
+
+      case "update_list": {
+        const companyId = args.companyId as string | undefined;
+        const listId = requiredString("update_list", args, "listId");
+
+        if (
+          args.name === undefined &&
+          args.description === undefined &&
+          args.isPrivate === undefined
+        ) {
+          throw new Error(
+            "Provide at least one of `name`, `description`, or `isPrivate` when calling `update_list`."
+          );
+        }
+
+        if (
+          args.name !== undefined &&
+          optionalString(args, "name") === undefined
+        ) {
+          throw new Error("`name` cannot be empty when calling `update_list`.");
+        }
+
+        if (
+          args.description !== undefined &&
+          args.description !== null &&
+          typeof args.description !== "string"
+        ) {
+          throw new Error(
+            "`description` must be a string or null when calling `update_list`."
+          );
+        }
+
+        if (
+          args.isPrivate !== undefined &&
+          typeof args.isPrivate !== "boolean"
+        ) {
+          throw new Error(
+            "`isPrivate` must be a boolean when calling `update_list`."
+          );
+        }
+
+        result = await apiRequest(
+          "PATCH",
+          `/api/v1/lists/${encodeURIComponent(listId)}`,
+          {
+            ...(args.name !== undefined && {
+              name: optionalString(args, "name"),
+            }),
+            ...(args.description !== undefined && {
+              description: args.description,
+            }),
+            ...(args.isPrivate !== undefined && { isPrivate: args.isPrivate }),
+          },
+          companyId
+        );
+        break;
+      }
+
+      case "delete_list": {
+        const companyId = args.companyId as string | undefined;
+        const listId = requiredString("delete_list", args, "listId");
+        result = await apiRequest(
+          "DELETE",
+          `/api/v1/lists/${encodeURIComponent(listId)}`,
+          undefined,
+          companyId
+        );
         break;
       }
 
@@ -4389,6 +6015,23 @@ export async function handleToolCall(
         break;
       }
 
+      case "remove_subscribers_from_list": {
+        const companyId = args.companyId as string | undefined;
+        const listId = requiredString(
+          "remove_subscribers_from_list",
+          args,
+          "listId"
+        );
+        const emails = requireEmailArray("remove_subscribers_from_list", args);
+        result = await apiRequest(
+          "POST",
+          `/api/v1/lists/${encodeURIComponent(listId)}/subscribers/remove`,
+          { emails },
+          companyId
+        );
+        break;
+      }
+
       case "list_segments": {
         const companyId = args.companyId as string | undefined;
         result = await apiRequest(
@@ -4416,6 +6059,49 @@ export async function handleToolCall(
               ? { root: normalizeSegmentRoot(args.root) }
               : {}),
           },
+          companyId
+        );
+        break;
+      }
+
+      case "update_segment": {
+        validateUpdateSegmentArgs(args);
+
+        const companyId = args.companyId as string | undefined;
+        const segmentId = requiredString("update_segment", args, "segmentId");
+        const name = optionalString(args, "name");
+        const filterJoinOperator = optionalAllowedString(
+          "update_segment",
+          args,
+          "filterJoinOperator",
+          ["and", "or"]
+        );
+
+        result = await apiRequest(
+          "PATCH",
+          `/api/v1/segments/${encodeURIComponent(segmentId)}`,
+          {
+            ...(name !== undefined && { name }),
+            ...(filterJoinOperator !== undefined && { filterJoinOperator }),
+            ...(args.filters !== undefined
+              ? { filters: normalizeSegmentFilters(args.filters) }
+              : {}),
+            ...(args.root !== undefined
+              ? { root: normalizeSegmentRoot(args.root) }
+              : {}),
+          },
+          companyId
+        );
+        break;
+      }
+
+      case "delete_segment": {
+        const companyId = args.companyId as string | undefined;
+        const segmentId = requiredString("delete_segment", args, "segmentId");
+        result = await apiRequest(
+          "DELETE",
+          `/api/v1/segments/${encodeURIComponent(segmentId)}`,
+          undefined,
           companyId
         );
         break;
@@ -4688,6 +6374,138 @@ export async function handleToolCall(
         break;
       }
 
+      case "create_ab_test": {
+        const companyId = args.companyId as string | undefined;
+        const campaignId = requiredString("create_ab_test", args, "campaignId");
+        const name = optionalString(args, "name");
+        const testPercentage = optionalIntegerInRange(
+          "create_ab_test",
+          args,
+          "testPercentage",
+          5,
+          50
+        );
+        const testDurationMinutes = optionalIntegerInRange(
+          "create_ab_test",
+          args,
+          "testDurationMinutes",
+          15,
+          1440
+        );
+        const winnerCriteria = optionalAllowedString(
+          "create_ab_test",
+          args,
+          "winnerCriteria",
+          ["open_rate", "click_rate"]
+        );
+
+        if (args.variants !== undefined) {
+          if (!Array.isArray(args.variants)) {
+            throw new Error(
+              "`variants` must be an array when calling `create_ab_test`."
+            );
+          }
+
+          args.variants.forEach((variant, index) => {
+            if (
+              !isRecord(variant) ||
+              typeof variant.subject !== "string" ||
+              variant.subject.trim() === ""
+            ) {
+              throw new Error(
+                `\`variants\` item ${index + 1} must include a non-empty \`subject\` when calling \`create_ab_test\`.`
+              );
+            }
+
+            if (
+              variant.blocks !== undefined &&
+              !Array.isArray(variant.blocks)
+            ) {
+              throw new Error(
+                `\`variants\` item ${index + 1} \`blocks\` must be an array when calling \`create_ab_test\`.`
+              );
+            }
+          });
+        }
+
+        result = await apiRequest(
+          "POST",
+          "/api/v1/ab-tests",
+          {
+            campaignId,
+            ...(name !== undefined && { name }),
+            ...(testPercentage !== undefined && { testPercentage }),
+            ...(testDurationMinutes !== undefined && { testDurationMinutes }),
+            ...(winnerCriteria !== undefined && { winnerCriteria }),
+            ...(args.variants !== undefined && { variants: args.variants }),
+          },
+          companyId
+        );
+        break;
+      }
+
+      case "add_ab_test_variant": {
+        const companyId = args.companyId as string | undefined;
+        const abTestId = requiredString(
+          "add_ab_test_variant",
+          args,
+          "abTestId"
+        );
+        const subject = requiredString("add_ab_test_variant", args, "subject");
+        const previewText = optionalString(args, "previewText");
+
+        if (args.blocks !== undefined && !Array.isArray(args.blocks)) {
+          throw new Error(
+            "`blocks` must be an array when calling `add_ab_test_variant`."
+          );
+        }
+
+        result = await apiRequest(
+          "POST",
+          `/api/v1/ab-tests/${encodeURIComponent(abTestId)}/variants`,
+          {
+            subject,
+            ...(previewText !== undefined && { previewText }),
+            ...(args.blocks !== undefined && { blocks: args.blocks }),
+          },
+          companyId
+        );
+        break;
+      }
+
+      case "delete_ab_test_variant": {
+        const companyId = args.companyId as string | undefined;
+        const abTestId = requiredString(
+          "delete_ab_test_variant",
+          args,
+          "abTestId"
+        );
+        const variantId = requiredString(
+          "delete_ab_test_variant",
+          args,
+          "variantId"
+        );
+        result = await apiRequest(
+          "DELETE",
+          `/api/v1/ab-tests/${encodeURIComponent(abTestId)}/variants/${encodeURIComponent(variantId)}`,
+          undefined,
+          companyId
+        );
+        break;
+      }
+
+      case "delete_ab_test": {
+        const companyId = args.companyId as string | undefined;
+        const abTestId = requiredString("delete_ab_test", args, "abTestId");
+        result = await apiRequest(
+          "DELETE",
+          `/api/v1/ab-tests/${encodeURIComponent(abTestId)}`,
+          undefined,
+          companyId
+        );
+        break;
+      }
+
       // Campaigns
       case "list_campaigns": {
         const companyId = args.companyId as string | undefined;
@@ -4918,6 +6736,107 @@ export async function handleToolCall(
         break;
       }
 
+      case "cancel_campaign": {
+        const companyId = args.companyId as string | undefined;
+        const campaignId = requiredString(
+          "cancel_campaign",
+          args,
+          "campaignId"
+        );
+        result = await apiRequest(
+          "POST",
+          `/api/v1/campaigns/${encodeURIComponent(campaignId)}/cancel`,
+          undefined,
+          companyId
+        );
+        break;
+      }
+
+      case "pause_campaign": {
+        const companyId = args.companyId as string | undefined;
+        const campaignId = requiredString("pause_campaign", args, "campaignId");
+        result = await apiRequest(
+          "POST",
+          `/api/v1/campaigns/${encodeURIComponent(campaignId)}/pause`,
+          undefined,
+          companyId
+        );
+        break;
+      }
+
+      case "resume_campaign": {
+        const companyId = args.companyId as string | undefined;
+        const campaignId = requiredString(
+          "resume_campaign",
+          args,
+          "campaignId"
+        );
+        const spreadOverHours = optionalIntegerInRange(
+          "resume_campaign",
+          args,
+          "spreadOverHours",
+          1,
+          72
+        );
+        result = await apiRequest(
+          "POST",
+          `/api/v1/campaigns/${encodeURIComponent(campaignId)}/resume`,
+          {
+            ...(spreadOverHours !== undefined && { spreadOverHours }),
+          },
+          companyId
+        );
+        break;
+      }
+
+      case "delete_campaign": {
+        const companyId = args.companyId as string | undefined;
+        const campaignId = requiredString(
+          "delete_campaign",
+          args,
+          "campaignId"
+        );
+        result = await apiRequest(
+          "DELETE",
+          `/api/v1/campaigns/${encodeURIComponent(campaignId)}`,
+          undefined,
+          companyId
+        );
+        break;
+      }
+
+      case "duplicate_campaign": {
+        const companyId = args.companyId as string | undefined;
+        const campaignId = requiredString(
+          "duplicate_campaign",
+          args,
+          "campaignId"
+        );
+        const mode = optionalAllowedString("duplicate_campaign", args, "mode", [
+          "campaign",
+          "ab_test",
+          "variant",
+        ]);
+        const variantId = optionalString(args, "variantId");
+
+        if (mode === "variant" && variantId === undefined) {
+          throw new Error(
+            "`variantId` is required when calling `duplicate_campaign` with mode `variant`."
+          );
+        }
+
+        result = await apiRequest(
+          "POST",
+          `/api/v1/campaigns/${encodeURIComponent(campaignId)}/duplicate`,
+          {
+            ...(mode !== undefined && { mode }),
+            ...(variantId !== undefined && { variantId }),
+          },
+          companyId
+        );
+        break;
+      }
+
       // Sequences
       case "list_sequences": {
         const companyId = args.companyId as string | undefined;
@@ -5080,6 +6999,31 @@ export async function handleToolCall(
           "POST",
           `/api/v1/sequences/${args.sequenceId}/disable`,
           undefined,
+          companyId
+        );
+        break;
+      }
+
+      case "enroll_subscribers_in_sequence": {
+        const companyId = args.companyId as string | undefined;
+        const sequenceId = requiredString(
+          "enroll_subscribers_in_sequence",
+          args,
+          "sequenceId"
+        );
+        const emails = requireEmailArray(
+          "enroll_subscribers_in_sequence",
+          args
+        );
+        const targetNodeId = optionalString(args, "targetNodeId");
+
+        result = await apiRequest(
+          "POST",
+          `/api/v1/sequences/${encodeURIComponent(sequenceId)}/enroll`,
+          {
+            emails,
+            ...(targetNodeId !== undefined && { targetNodeId }),
+          },
           companyId
         );
         break;
@@ -5412,6 +7356,355 @@ export async function handleToolCall(
           activity: detail.subscriber.activity ?? [],
           sequenceEnrollments: detail.subscriber.sequenceEnrollments ?? [],
         };
+        break;
+      }
+
+      // Team
+      case "list_team_members": {
+        const companyId = args.companyId as string | undefined;
+        result = await apiRequest("GET", "/api/v1/team", undefined, companyId);
+        break;
+      }
+
+      case "invite_team_member": {
+        const companyId = args.companyId as string | undefined;
+        const email = requiredString("invite_team_member", args, "email");
+        const role = requiredAllowedString("invite_team_member", args, "role", [
+          "admin",
+          "viewer",
+        ]);
+
+        if (
+          args.canManageBilling !== undefined &&
+          typeof args.canManageBilling !== "boolean"
+        ) {
+          throw new Error(
+            "`canManageBilling` must be a boolean when calling `invite_team_member`."
+          );
+        }
+
+        result = await apiRequest(
+          "POST",
+          "/api/v1/team/invitations",
+          {
+            email,
+            role,
+            ...(args.canManageBilling !== undefined && {
+              canManageBilling: args.canManageBilling,
+            }),
+          },
+          companyId
+        );
+        break;
+      }
+
+      case "cancel_team_invitation": {
+        const companyId = args.companyId as string | undefined;
+        const invitationId = requiredString(
+          "cancel_team_invitation",
+          args,
+          "invitationId"
+        );
+        result = await apiRequest(
+          "DELETE",
+          `/api/v1/team/invitations/${encodeURIComponent(invitationId)}`,
+          undefined,
+          companyId
+        );
+        break;
+      }
+
+      // Inbox (Conversations)
+      case "list_conversations": {
+        const companyId = args.companyId as string | undefined;
+        const conversationParams = new URLSearchParams();
+        const status = optionalAllowedString(
+          "list_conversations",
+          args,
+          "status",
+          ["open", "closed", "all"]
+        );
+        if (status) conversationParams.set("status", status);
+        const search = optionalString(args, "search");
+        if (search) conversationParams.set("search", search);
+
+        if (args.unread !== undefined) {
+          if (typeof args.unread !== "boolean") {
+            throw new Error(
+              "`unread` must be a boolean when calling `list_conversations`."
+            );
+          }
+
+          if (args.unread) {
+            conversationParams.set("unread", "true");
+          }
+        }
+
+        if (args.page !== undefined) {
+          if (
+            typeof args.page !== "number" ||
+            !Number.isInteger(args.page) ||
+            args.page < 1
+          ) {
+            throw new Error(
+              "`page` must be a positive integer when calling `list_conversations`."
+            );
+          }
+
+          conversationParams.set("page", String(args.page));
+        }
+
+        const limit = optionalIntegerInRange(
+          "list_conversations",
+          args,
+          "limit",
+          1,
+          100
+        );
+        if (limit !== undefined) {
+          conversationParams.set("limit", String(limit));
+        }
+
+        result = await apiRequest(
+          "GET",
+          `/api/v1/conversations${conversationParams.size > 0 ? `?${conversationParams}` : ""}`,
+          undefined,
+          companyId
+        );
+        break;
+      }
+
+      case "get_conversation": {
+        const companyId = args.companyId as string | undefined;
+        const conversationId = requiredString(
+          "get_conversation",
+          args,
+          "conversationId"
+        );
+        result = await apiRequest(
+          "GET",
+          `/api/v1/conversations/${encodeURIComponent(conversationId)}`,
+          undefined,
+          companyId
+        );
+        break;
+      }
+
+      case "reply_to_conversation": {
+        const companyId = args.companyId as string | undefined;
+        const conversationId = requiredString(
+          "reply_to_conversation",
+          args,
+          "conversationId"
+        );
+        const type =
+          optionalAllowedString("reply_to_conversation", args, "type", [
+            "outbound",
+            "note",
+          ]) ?? "outbound";
+        const subject = optionalString(args, "subject");
+        const bodyText = optionalString(args, "bodyText");
+        const bodyHtml = optionalString(args, "bodyHtml");
+
+        if (
+          type === "outbound" &&
+          bodyText === undefined &&
+          bodyHtml === undefined
+        ) {
+          throw new Error(
+            "Provide `bodyText` or `bodyHtml` when calling `reply_to_conversation` with an outbound message."
+          );
+        }
+
+        result = await apiRequest(
+          "POST",
+          `/api/v1/conversations/${encodeURIComponent(conversationId)}/messages`,
+          {
+            type,
+            ...(subject !== undefined && { subject }),
+            ...(bodyText !== undefined && { bodyText }),
+            ...(bodyHtml !== undefined && { bodyHtml }),
+          },
+          companyId
+        );
+        break;
+      }
+
+      case "update_conversation_status": {
+        const companyId = args.companyId as string | undefined;
+        const conversationId = requiredString(
+          "update_conversation_status",
+          args,
+          "conversationId"
+        );
+        const status = requiredAllowedString(
+          "update_conversation_status",
+          args,
+          "status",
+          ["open", "closed"]
+        );
+        result = await apiRequest(
+          "POST",
+          `/api/v1/conversations/${encodeURIComponent(conversationId)}/status`,
+          { status },
+          companyId
+        );
+        break;
+      }
+
+      case "mark_conversation_read": {
+        const companyId = args.companyId as string | undefined;
+        const conversationId = requiredString(
+          "mark_conversation_read",
+          args,
+          "conversationId"
+        );
+        result = await apiRequest(
+          "POST",
+          `/api/v1/conversations/${encodeURIComponent(conversationId)}/read`,
+          undefined,
+          companyId
+        );
+        break;
+      }
+
+      // Outbound Webhooks
+      case "list_webhooks": {
+        const companyId = args.companyId as string | undefined;
+        result = await apiRequest(
+          "GET",
+          "/api/v1/webhooks",
+          undefined,
+          companyId
+        );
+        break;
+      }
+
+      case "create_webhook": {
+        const companyId = args.companyId as string | undefined;
+        const name = requiredString("create_webhook", args, "name");
+        const url = requiredString("create_webhook", args, "url");
+        const events = optionalWebhookEvents("create_webhook", args);
+
+        result = await apiRequest(
+          "POST",
+          "/api/v1/webhooks",
+          {
+            name,
+            url,
+            ...(events !== undefined && { events }),
+          },
+          companyId
+        );
+        break;
+      }
+
+      case "update_webhook": {
+        const companyId = args.companyId as string | undefined;
+        const webhookId = requiredString("update_webhook", args, "webhookId");
+        const name = optionalString(args, "name");
+        const url = optionalString(args, "url");
+        const events = optionalWebhookEvents("update_webhook", args);
+        const status = optionalAllowedString("update_webhook", args, "status", [
+          "enabled",
+          "disabled",
+        ]);
+
+        if (
+          name === undefined &&
+          url === undefined &&
+          events === undefined &&
+          status === undefined
+        ) {
+          throw new Error(
+            "Provide at least one of `name`, `url`, `events`, or `status` when calling `update_webhook`."
+          );
+        }
+
+        result = await apiRequest(
+          "PATCH",
+          `/api/v1/webhooks/${encodeURIComponent(webhookId)}`,
+          {
+            ...(name !== undefined && { name }),
+            ...(url !== undefined && { url }),
+            ...(events !== undefined && { events }),
+            ...(status !== undefined && { status }),
+          },
+          companyId
+        );
+        break;
+      }
+
+      case "delete_webhook": {
+        const companyId = args.companyId as string | undefined;
+        const webhookId = requiredString("delete_webhook", args, "webhookId");
+        result = await apiRequest(
+          "DELETE",
+          `/api/v1/webhooks/${encodeURIComponent(webhookId)}`,
+          undefined,
+          companyId
+        );
+        break;
+      }
+
+      case "test_webhook": {
+        const companyId = args.companyId as string | undefined;
+        const webhookId = requiredString("test_webhook", args, "webhookId");
+        result = await apiRequest(
+          "POST",
+          `/api/v1/webhooks/${encodeURIComponent(webhookId)}/test`,
+          undefined,
+          companyId
+        );
+        break;
+      }
+
+      case "list_webhook_deliveries": {
+        const companyId = args.companyId as string | undefined;
+        const webhookId = requiredString(
+          "list_webhook_deliveries",
+          args,
+          "webhookId"
+        );
+        const limit = optionalIntegerInRange(
+          "list_webhook_deliveries",
+          args,
+          "limit",
+          1,
+          100
+        );
+        const deliveryParams = new URLSearchParams();
+        if (limit !== undefined) {
+          deliveryParams.set("limit", String(limit));
+        }
+
+        result = await apiRequest(
+          "GET",
+          `/api/v1/webhooks/${encodeURIComponent(webhookId)}/deliveries${deliveryParams.size > 0 ? `?${deliveryParams}` : ""}`,
+          undefined,
+          companyId
+        );
+        break;
+      }
+
+      case "replay_webhook_delivery": {
+        const companyId = args.companyId as string | undefined;
+        const webhookId = requiredString(
+          "replay_webhook_delivery",
+          args,
+          "webhookId"
+        );
+        const deliveryId = requiredString(
+          "replay_webhook_delivery",
+          args,
+          "deliveryId"
+        );
+        result = await apiRequest(
+          "POST",
+          `/api/v1/webhooks/${encodeURIComponent(webhookId)}/deliveries/${encodeURIComponent(deliveryId)}/replay`,
+          undefined,
+          companyId
+        );
         break;
       }
 
