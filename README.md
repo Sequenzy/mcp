@@ -7,6 +7,7 @@ Connect Sequenzy to Claude Desktop, Claude Code, Codex, Cursor, Windsurf, VS Cod
 ## What You Can Do
 
 - Manage subscribers, tags, lists, and dynamic segments.
+- Sync segments to Meta custom audiences for Facebook and Instagram retargeting.
 - Manage products and attach digital delivery files for purchase automations.
 - Draft, update, schedule, and inspect campaigns.
 - Create and edit email sequences, including event-triggered and segment-entry automations.
@@ -279,6 +280,21 @@ Commerce product filters match products purchased through commerce orders. Value
 ```
 
 Engagement fields such as `emailSent`, `emailDelivered`, `emailOpened`, `emailClicked`, `emailBounced`, and `emailComplained` accept rolling windows like `7d`, `30d`, `90d`, `180d`, `all`, threshold values like `5:30d`, or a campaign scope like `campaign:cmp_123`.
+
+### Audience Syncs (Meta Ads)
+
+| Tool                   | Description                                                          |
+| ---------------------- | -------------------------------------------------------------------- |
+| `list_audience_syncs`  | List segment-to-audience syncs with schedule and last sync status.   |
+| `list_ad_accounts`     | List the Meta ad accounts available for syncing.                     |
+| `create_audience_sync` | Push a segment to a Meta custom audience on a schedule.              |
+| `update_audience_sync` | Change sync frequency (`hourly`, `daily`, `weekly`) or pause/resume. |
+| `delete_audience_sync` | Remove a sync mapping; the Meta audience itself is kept.             |
+| `sync_audience_now`    | Trigger an immediate upload outside the regular schedule.            |
+
+Requires the Meta Ads integration to be connected in the Sequenzy dashboard (Settings -> Integrations). `create_audience_sync` accepts an existing segment (`segmentId`) or a ready-made template (`predefinedSegmentId`, for example `zero-ltv`, `no-purchase-1y`, `recent-buyers`, `high-spenders-ecom`, `non-buyers`, `engaged`) - the template segment is created automatically on first use, and the first upload runs immediately.
+
+Audiences are add-only: subscribers who later leave the segment stay in the Meta audience. Meta requires 100+ matched people before an audience can be used for ad delivery.
 
 ### Templates
 

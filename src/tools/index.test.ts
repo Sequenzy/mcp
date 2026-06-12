@@ -3358,3 +3358,125 @@ describe("outbound webhook tools", () => {
     );
   });
 });
+
+describe("audience sync tools", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("registers all audience sync tools", () => {
+    const names = new Set(tools.map((tool) => tool.name));
+
+    for (const expected of [
+      "list_audience_syncs",
+      "list_ad_accounts",
+      "create_audience_sync",
+      "update_audience_sync",
+      "delete_audience_sync",
+      "sync_audience_now",
+    ]) {
+      expect(names.has(expected)).toBe(true);
+    }
+  });
+
+  it("lists audience syncs", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true, audienceSyncs: [] });
+
+    const result = await handleToolCall("list_audience_syncs", {
+      companyId: "comp_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/audience-syncs",
+      undefined,
+      "comp_123"
+    );
+  });
+
+  it("rejects create_audience_sync without a segment input before hitting the API", async () => {
+    const result = await handleToolCall("create_audience_sync", {
+      adAccountId: "act_123",
+      audienceName: "Recent buyers",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Provide either `segmentId` or `predefinedSegmentId`"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects create_audience_sync with both segment inputs", async () => {
+    const result = await handleToolCall("create_audience_sync", {
+      segmentId: "seg_123",
+      predefinedSegmentId: "recent-buyers",
+      adAccountId: "act_123",
+      audienceName: "Recent buyers",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("creates an audience sync from a predefined template", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      audienceSync: { id: "sync_123" },
+    });
+
+    const result = await handleToolCall("create_audience_sync", {
+      companyId: "comp_123",
+      predefinedSegmentId: "recent-buyers",
+      adAccountId: "act_123",
+      audienceName: "Sequenzy - Recent buyers",
+      frequency: "hourly",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/audience-syncs",
+      {
+        segmentId: undefined,
+        predefinedSegmentId: "recent-buyers",
+        adAccountId: "act_123",
+        audienceName: "Sequenzy - Recent buyers",
+        frequency: "hourly",
+      },
+      "comp_123"
+    );
+  });
+
+  it("updates, deletes, and runs a sync via the expected endpoints", async () => {
+    mockApiRequest.mockResolvedValue({ success: true });
+
+    await handleToolCall("update_audience_sync", {
+      syncId: "sync_123",
+      isActive: false,
+    });
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/audience-syncs/sync_123",
+      { isActive: false },
+      undefined
+    );
+
+    await handleToolCall("delete_audience_sync", { syncId: "sync_123" });
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "DELETE",
+      "/api/v1/audience-syncs/sync_123",
+      undefined,
+      undefined
+    );
+
+    await handleToolCall("sync_audience_now", { syncId: "sync_123" });
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/audience-syncs/sync_123/sync",
+      undefined,
+      undefined
+    );
+  });
+});
