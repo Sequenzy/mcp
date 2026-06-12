@@ -21,6 +21,12 @@ const replacementEmailBlocksDescription =
 const sequenceEmailBlocksDescription =
   "Sequenzy email blocks. Provide blocks or html for email steps. Use `styles` for per-block background, background opacity, text color, padding, border radius, border width, and border color. Top-level style aliases such as `backgroundColor`, `backgroundOpacity`, `borderColor`, `borderWidth`, and `borderRadius` are also accepted and saved under `styles`. Blocks can include repeat blocks over array variables such as items.";
 
+const landingPageContentDescription =
+  "Complete Sequenzy landing page content JSON. Use this when replacing the page structure. The content must be the editor-compatible landing page schema with version, template, seo, theme, and blocks. Landing pages must include exactly one footer block and at most one form block.";
+
+const landingPageTemplateDescription =
+  "Optional template key for default content, such as from-scratch, waitlist, lead-magnet, launch, demo-request, webinar, newsletter, product-hunt, pricing-offer, agency-lead-gen, or feature-announcement.";
+
 const ADD_SUBSCRIBERS_TO_LIST_EMAIL_LIMIT = 500;
 
 const AVAILABLE_TAG_COLORS = [
@@ -100,6 +106,7 @@ const segmentOperatorsByField = {
   stripeProduct: ["is", "is_not", "at_least", "less_than_count"],
   stripeCurrentProduct: ["is", "is_not", "gte", "lte", "gt", "lt"],
   stripeTrialProduct: ["is", "is_not", "gte", "lte", "gt", "lt"],
+  commerceProduct: ["is", "is_not", "at_least", "less_than_count"],
 } as const satisfies Record<string, readonly string[]>;
 
 const segmentFilterOperatorHelp = Object.entries(segmentOperatorsByField)
@@ -137,9 +144,10 @@ const segmentFilterItemSchema = {
         "stripeProduct",
         "stripeCurrentProduct",
         "stripeTrialProduct",
+        "commerceProduct",
       ],
       description:
-        "Filter field. Use `event` for custom subscriber events, `segment` for saved segment membership, and `stripeProduct`/`stripeCurrentProduct`/`stripeTrialProduct` for Stripe product-based segments. Engagement fields (`emailSent`, `emailDelivered`, `emailOpened`, `emailClicked`, `emailBounced`, `emailComplained`) accept a time range as the value or a specific campaign via `campaign:<campaign_id>`.",
+        "Filter field. Use `event` for custom subscriber events, `segment` for saved segment membership, `stripeProduct`/`stripeCurrentProduct`/`stripeTrialProduct` for Stripe product-based segments, and `commerceProduct` for products purchased through commerce orders - the value is `provider:productId` (provider one of `shopify`, `woocommerce`, `api`; product ids are provider-scoped), optionally with an order-count threshold (`provider:productId:count`) for at_least/less_than_count; a bare product id matches the id on any provider. Engagement fields (`emailSent`, `emailDelivered`, `emailOpened`, `emailClicked`, `emailBounced`, `emailComplained`) accept a time range as the value or a specific campaign via `campaign:<campaign_id>`.",
     },
     operator: {
       type: "string",
@@ -468,6 +476,48 @@ function getSegmentStripeValueValidationError(
     : 'Stripe date filters must include a value like "productId:end_at:2026-05-26".';
 }
 
+const COMMERCE_PRODUCT_PROVIDERS = new Set(["shopify", "woocommerce", "api"]);
+
+function getSegmentCommerceProductValueValidationError(
+  operator: string,
+  value: string
+): string | null {
+  // Format: [provider:]productId[:count] - product ids are provider-scoped
+  let remainder = value.trim();
+  const providerColonIndex = remainder.indexOf(":");
+  if (
+    providerColonIndex !== -1 &&
+    COMMERCE_PRODUCT_PROVIDERS.has(
+      remainder.substring(0, providerColonIndex).trim()
+    )
+  ) {
+    remainder = remainder.substring(providerColonIndex + 1).trim();
+  }
+
+  if (!remainder) {
+    return 'Purchased Product filters must include a product ID, like "shopify:42".';
+  }
+
+  if (operator !== "at_least" && operator !== "less_than_count") {
+    return null;
+  }
+
+  const colonIndex = remainder.lastIndexOf(":");
+  if (colonIndex === -1) {
+    return null;
+  }
+
+  const productId = remainder.substring(0, colonIndex).trim();
+  const threshold = Number.parseInt(
+    remainder.substring(colonIndex + 1).trim(),
+    10
+  );
+
+  return productId && Number.isInteger(threshold) && threshold >= 1
+    ? null
+    : 'Purchased Product threshold filters must use "provider:productId:count" with a count of at least 1.';
+}
+
 function getSegmentFilterValidationError(filter: unknown): string | null {
   if (typeof filter !== "object" || filter === null) {
     return "Segment filters must be objects.";
@@ -537,6 +587,16 @@ function getSegmentFilterValidationError(filter: unknown): string | null {
     );
     if (stripeValueError) {
       return stripeValueError;
+    }
+  }
+
+  if (field === "commerceProduct" && typeof value === "string") {
+    const commerceValueError = getSegmentCommerceProductValueValidationError(
+      operator,
+      value
+    );
+    if (commerceValueError) {
+      return commerceValueError;
     }
   }
 
@@ -881,6 +941,72 @@ function validateScheduleCampaignArgs(args: Record<string, unknown>): void {
       );
     }
   }
+}
+
+function buildLandingPageUpdateBody(
+  toolName: string,
+  args: Record<string, unknown>,
+  options: { requireUpdate: boolean }
+): Record<string, unknown> {
+  const allowedKeys = new Set([
+    "companyId",
+    "landingPageId",
+    "name",
+    "slug",
+    "content",
+  ]);
+  const unsupportedKeys = Object.keys(args).filter(
+    (key) => !allowedKeys.has(key)
+  );
+
+  if (unsupportedKeys.length > 0) {
+    throw new Error(
+      `\`${toolName}\` accepts only \`name\`, \`slug\`, and \`content\` update fields. Unsupported field${unsupportedKeys.length === 1 ? "" : "s"}: ${unsupportedKeys.map((key) => `\`${key}\``).join(", ")}.`
+    );
+  }
+
+  if (
+    options.requireUpdate &&
+    args.name === undefined &&
+    args.slug === undefined &&
+    args.content === undefined
+  ) {
+    throw new Error(
+      `Provide at least one of \`name\`, \`slug\`, or \`content\` when calling \`${toolName}\`.`
+    );
+  }
+
+  return {
+    ...(args.name !== undefined && { name: args.name }),
+    ...(args.slug !== undefined && { slug: args.slug }),
+    ...(args.content !== undefined && { content: args.content }),
+  };
+}
+
+function buildLandingPageDomainSettingsBody(
+  args: Record<string, unknown>
+): Record<string, unknown> {
+  const allowedKeys = new Set(["companyId", "domain", "verify"]);
+  const unsupportedKeys = Object.keys(args).filter(
+    (key) => !allowedKeys.has(key)
+  );
+
+  if (unsupportedKeys.length > 0) {
+    throw new Error(
+      `\`update_landing_page_domain_settings\` accepts only \`domain\` and \`verify\`. Unsupported field${unsupportedKeys.length === 1 ? "" : "s"}: ${unsupportedKeys.map((key) => `\`${key}\``).join(", ")}.`
+    );
+  }
+
+  if (args.domain === undefined && args.verify !== true) {
+    throw new Error(
+      "Provide `domain` or `verify: true` when calling `update_landing_page_domain_settings`."
+    );
+  }
+
+  return {
+    ...(args.domain !== undefined && { domain: args.domain }),
+    ...(typeof args.verify === "boolean" && { verify: args.verify }),
+  };
 }
 
 function validateCreateTransactionalContentArgs(
@@ -1618,7 +1744,7 @@ function addCampaignUrlsToRecord(
 function addListItemUrls(
   value: unknown,
   companyId: string | undefined,
-  kind: "campaign" | "sequence" | "template" | "transactional"
+  kind: "campaign" | "landingPage" | "sequence" | "template" | "transactional"
 ): unknown {
   if (!Array.isArray(value) || !companyId) {
     return value;
@@ -1637,6 +1763,7 @@ function addListItemUrls(
     const appUrls = buildSequenzyAppUrls({
       companyId,
       ...(kind === "campaign" && { campaignId: id }),
+      ...(kind === "landingPage" && { landingPageId: id }),
       ...(kind === "sequence" && { sequenceId: id }),
       ...(kind === "template" && { emailId: id }),
       ...(kind === "transactional" && { transactionalId: id }),
@@ -1649,9 +1776,11 @@ function addListItemUrls(
     const url =
       kind === "sequence"
         ? appUrls.urls.sequence
-        : kind === "template"
-          ? appUrls.urls.email
-          : appUrls.urls.transactionalEmail;
+        : kind === "landingPage"
+          ? appUrls.urls.landingPage
+          : kind === "template"
+            ? appUrls.urls.email
+            : appUrls.urls.transactionalEmail;
 
     return addUrlToRecord(item, url);
   });
@@ -1698,6 +1827,13 @@ const dashboardUrlToolNames = new Set([
   "pause_campaign",
   "resume_campaign",
   "duplicate_campaign",
+  "list_landing_pages",
+  "get_landing_page",
+  "create_landing_page",
+  "update_landing_page",
+  "publish_landing_page",
+  "unpublish_landing_page",
+  "delete_landing_page",
   "list_sequences",
   "get_sequence",
   "create_sequence",
@@ -1748,6 +1884,9 @@ async function addAppUrlsToToolResult(
   const sequenceRecord = isRecord(result.sequence)
     ? result.sequence
     : undefined;
+  const landingPageRecord = isRecord(result.landingPage)
+    ? result.landingPage
+    : undefined;
   const templateRecord = isRecord(result.template)
     ? result.template
     : undefined;
@@ -1762,6 +1901,10 @@ async function addAppUrlsToToolResult(
       optionalString(args, "campaignId") ??
       optionalString(result, "campaignId") ??
       (campaignRecord ? optionalString(campaignRecord, "id") : undefined),
+    landingPageId:
+      optionalString(args, "landingPageId") ??
+      optionalString(result, "landingPageId") ??
+      (landingPageRecord ? optionalString(landingPageRecord, "id") : undefined),
     sequenceId:
       optionalString(args, "sequenceId") ??
       optionalString(result, "sequenceId") ??
@@ -1800,6 +1943,13 @@ async function addAppUrlsToToolResult(
     ...(Array.isArray(result.campaigns) && {
       campaigns: addListItemUrls(result.campaigns, companyId, "campaign"),
     }),
+    ...(Array.isArray(result.landingPages) && {
+      landingPages: addListItemUrls(
+        result.landingPages,
+        companyId,
+        "landingPage"
+      ),
+    }),
     ...(Array.isArray(result.sequences) && {
       sequences: addListItemUrls(result.sequences, companyId, "sequence"),
     }),
@@ -1828,6 +1978,13 @@ async function addAppUrlsToToolResult(
     ...(sequenceRecord &&
       appUrls.urls.sequence !== undefined && {
         sequence: addUrlToRecord(sequenceRecord, appUrls.urls.sequence),
+      }),
+    ...(landingPageRecord &&
+      appUrls.urls.landingPage !== undefined && {
+        landingPage: addUrlToRecord(
+          landingPageRecord,
+          appUrls.urls.landingPage
+        ),
       }),
     ...(templateRecord &&
       appUrls.urls.email !== undefined && {
@@ -1896,6 +2053,10 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
         campaignId: {
           type: "string",
           description: "Campaign ID for the campaign editor URL.",
+        },
+        landingPageId: {
+          type: "string",
+          description: "Landing page ID for the landing page editor URL.",
         },
         sequenceId: {
           type: "string",
@@ -2739,7 +2900,7 @@ Before implementing, use create_api_key to generate an API key and save it to .e
           items: segmentFilterItemSchema,
           minItems: 1,
           description:
-            'Array of segment filters. Example custom attribute empty check: [{"id":"filter-1","field":"attribute","operator":"is_empty","value":"last_logged_in:"}]. Example Stripe purchase filter: [{"id":"filter-1","field":"stripeProduct","operator":"is","value":"prod_123"}]. Example threshold filter: [{"id":"filter-1","field":"stripeProduct","operator":"at_least","value":"prod_123:3"}]. Example trial cancellation filter: [{"id":"filter-1","field":"stripeTrialProduct","operator":"is","value":"prod_123:is_canceled"}]. Example trial end filter: [{"id":"filter-1","field":"stripeTrialProduct","operator":"is","value":"prod_123:end_at:2026-05-26"}]. Example campaign-specific engagement combo: [{"id":"filter-1","field":"emailBounced","operator":"is","value":"campaign:cmp_abc"},{"id":"filter-2","field":"emailBounced","operator":"is_not","value":"campaign:cmp_xyz"}]. Combine them with `filterJoinOperator: "or"` to match any filter.',
+            'Array of segment filters. Example custom attribute empty check: [{"id":"filter-1","field":"attribute","operator":"is_empty","value":"last_logged_in:"}]. Example Stripe purchase filter: [{"id":"filter-1","field":"stripeProduct","operator":"is","value":"prod_123"}]. Example threshold filter: [{"id":"filter-1","field":"stripeProduct","operator":"at_least","value":"prod_123:3"}]. Example commerce product purchase filter (value is provider:productId since product ids are provider-scoped): [{"id":"filter-1","field":"commerceProduct","operator":"is","value":"api:prod-starter-kit"}]. Example repeat-buyer filter: [{"id":"filter-1","field":"commerceProduct","operator":"at_least","value":"shopify:42:2"}]. Example trial cancellation filter: [{"id":"filter-1","field":"stripeTrialProduct","operator":"is","value":"prod_123:is_canceled"}]. Example trial end filter: [{"id":"filter-1","field":"stripeTrialProduct","operator":"is","value":"prod_123:end_at:2026-05-26"}]. Example campaign-specific engagement combo: [{"id":"filter-1","field":"emailBounced","operator":"is","value":"campaign:cmp_abc"},{"id":"filter-2","field":"emailBounced","operator":"is_not","value":"campaign:cmp_xyz"}]. Combine them with `filterJoinOperator: "or"` to match any filter.',
         },
         root: {
           ...segmentFilterGroupSchema,
@@ -3684,6 +3845,248 @@ Before implementing, use create_api_key to generate an API key and save it to .e
   },
 
   // ============================================================================
+  // Landing Pages
+  // ============================================================================
+  {
+    name: "list_landing_pages",
+    description: "List all landing pages for a company",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID to list landing pages for. If not provided, uses the currently selected company.",
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_landing_page",
+    description: "Get landing page details, content, metrics, and URLs",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        landingPageId: {
+          type: "string",
+          description: "Landing page ID.",
+        },
+      },
+      required: ["landingPageId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "create_landing_page",
+    description:
+      "Create a draft landing page. Provide content for an exact page, or a template for generated starter content.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID to create the landing page in. If not provided, uses the currently selected company.",
+        },
+        name: {
+          type: "string",
+          description:
+            "Landing page name. Optional; defaults to a template-specific name.",
+        },
+        slug: {
+          type: "string",
+          description:
+            "Optional URL slug. It will be normalized and made unique within the company.",
+        },
+        template: {
+          type: "string",
+          description: landingPageTemplateDescription,
+        },
+        content: {
+          type: "object",
+          description: landingPageContentDescription,
+          additionalProperties: true,
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "update_landing_page",
+    description:
+      "Edit a landing page's name, slug, or full content. Provide at least one update field.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        landingPageId: {
+          type: "string",
+          description: "Landing page ID.",
+        },
+        name: {
+          type: "string",
+          description: "Landing page name.",
+        },
+        slug: {
+          type: "string",
+          description:
+            "Landing page URL slug. It will be normalized and made unique within the company.",
+        },
+        content: {
+          type: "object",
+          description: landingPageContentDescription,
+          additionalProperties: true,
+        },
+      },
+      required: ["landingPageId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "delete_landing_page",
+    description: "Delete a landing page",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        landingPageId: {
+          type: "string",
+          description: "Landing page ID.",
+        },
+      },
+      required: ["landingPageId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "publish_landing_page",
+    description:
+      "Publish a landing page. Optional name, slug, or content updates are saved before publishing.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        landingPageId: {
+          type: "string",
+          description: "Landing page ID.",
+        },
+        name: {
+          type: "string",
+          description: "Optional landing page name update.",
+        },
+        slug: {
+          type: "string",
+          description: "Optional slug update before publishing.",
+        },
+        content: {
+          type: "object",
+          description: landingPageContentDescription,
+          additionalProperties: true,
+        },
+      },
+      required: ["landingPageId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "unpublish_landing_page",
+    description:
+      "Unpublish a landing page and return it to draft status. Optional name, slug, or content updates are saved first.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        landingPageId: {
+          type: "string",
+          description: "Landing page ID.",
+        },
+        name: {
+          type: "string",
+          description: "Optional landing page name update.",
+        },
+        slug: {
+          type: "string",
+          description: "Optional slug update before unpublishing.",
+        },
+        content: {
+          type: "object",
+          description: landingPageContentDescription,
+          additionalProperties: true,
+        },
+      },
+      required: ["landingPageId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "connect_landing_page_domain",
+    description:
+      "Connect a custom domain for published landing pages. Returns the DNS target and verification records.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        domain: {
+          type: "string",
+          description: "Custom domain, for example pages.example.com.",
+        },
+      },
+      required: ["domain"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "update_landing_page_domain_settings",
+    description:
+      "Update landing page domain settings. Provide domain to replace the custom domain, verify true to refresh verification, or both.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        domain: {
+          type: "string",
+          description: "Replacement custom domain.",
+        },
+        verify: {
+          type: "boolean",
+          description: "Refresh domain verification after any domain update.",
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+
+  // ============================================================================
   // Sequences
   // ============================================================================
   {
@@ -3796,6 +4199,7 @@ IMPORTANT GUIDELINES:
 	   SINGLE-PRODUCT PURCHASE SEQUENCE (e.g. digital product delivery):
 	   - trigger: event_received, eventName: "ecommerce.order_placed", propertyFilters: [{ path: "lineItems[].providerProductId", operator: "equals", value: "<productId>" }]
 	   - For Stripe purchases use eventName: "saas.purchase" with propertyFilters: [{ path: "productIds", operator: "equals", value: "prod_XXX" }]
+	   - To match any of several products, use operator "one_of" with an array value: [{ path: "lineItems[].providerProductId", operator: "one_of", value: ["<productId1>", "<productId2>"] }]
 	   - Goal: Only start the sequence when a specific product was purchased
 
    WELCOME SERIES:
@@ -3911,7 +4315,7 @@ OTHER BUILT-IN EVENTS:
         propertyFilters: {
           type: "array",
           description:
-            "Optional event property filters for event_received triggers. The sequence only starts when the triggering event's properties match ALL filters. Use a dot-path into the event properties; use [] to match inside arrays. Examples: scope a purchase sequence to one product with { path: 'lineItems[].providerProductId', operator: 'equals', value: 'prod_123' } (ecommerce.order_placed) or { path: 'productIds', operator: 'equals', value: 'prod_123' } (saas.purchase). Max 10 filters.",
+            "Optional event property filters for event_received triggers. The sequence only starts when the triggering event's properties match ALL filters. Use a dot-path into the event properties; use [] to match inside arrays. Examples: scope a purchase sequence to one product with { path: 'lineItems[].providerProductId', operator: 'equals', value: 'prod_123' } (ecommerce.order_placed) or { path: 'productIds', operator: 'equals', value: 'prod_123' } (saas.purchase); to match any of several products use { path: 'lineItems[].providerProductId', operator: 'one_of', value: ['prod_123', 'prod_456'] }. Max 10 filters.",
           items: {
             type: "object",
             properties: {
@@ -3927,16 +4331,21 @@ OTHER BUILT-IN EVENTS:
                   "not_exists",
                   "equals",
                   "not_equals",
+                  "one_of",
                   "contains",
                   "greater_than",
                   "less_than",
                 ],
-                description: "Comparison operator.",
+                description:
+                  "Comparison operator. one_of matches when the property equals any entry of the value array.",
               },
               value: {
-                type: ["string", "number", "boolean"],
+                type: ["string", "number", "boolean", "array"],
+                // items/maxItems only apply to the array branch (one_of).
+                items: { type: ["string", "number"] },
+                maxItems: 50,
                 description:
-                  "Value to compare against. Required for every operator except exists/not_exists.",
+                  "Value to compare against. Required for every operator except exists/not_exists. For one_of, pass an array of strings or numbers (max 50 values); all other operators take a single value.",
               },
             },
             required: ["path", "operator"],
@@ -4823,7 +5232,7 @@ OTHER BUILT-IN EVENTS:
         subscriberExternalId: {
           type: "string",
           description:
-            "Customer-owned subscriber ID for attaching analytics/localization on single-recipient sends.",
+            "Customer-owned subscriber ID for attaching analytics/localization on single-recipient sends. Maximum length: 255 characters.",
         },
       },
       required: ["to"],
@@ -4853,7 +5262,8 @@ OTHER BUILT-IN EVENTS:
   },
   {
     name: "get_campaign_stats",
-    description: "Get detailed statistics for a campaign",
+    description:
+      "Get detailed statistics for a campaign, including attributed conversions and revenue (revenueCents)",
     inputSchema: {
       type: "object",
       properties: {
@@ -4873,7 +5283,7 @@ OTHER BUILT-IN EVENTS:
   {
     name: "get_sequence_stats",
     description:
-      "Get statistics for a sequence, including per-step failed subscribers and failure reasons",
+      "Get statistics for a sequence, including attributed conversions and revenue (revenueCents) plus per-step failed subscribers and failure reasons",
     inputSchema: {
       type: "object",
       properties: {
@@ -5457,6 +5867,7 @@ export async function handleToolCall(
         const appUrls = buildSequenzyAppUrls({
           companyId,
           campaignId: optionalString(args, "campaignId"),
+          landingPageId: optionalString(args, "landingPageId"),
           sequenceId: optionalString(args, "sequenceId"),
           emailId:
             optionalString(args, "emailId") ??
@@ -6832,6 +7243,142 @@ export async function handleToolCall(
             ...(mode !== undefined && { mode }),
             ...(variantId !== undefined && { variantId }),
           },
+          companyId
+        );
+        break;
+      }
+
+      // Landing Pages
+      case "list_landing_pages": {
+        const companyId = args.companyId as string | undefined;
+        result = await apiRequest(
+          "GET",
+          "/api/v1/landing-pages",
+          undefined,
+          companyId
+        );
+        break;
+      }
+
+      case "get_landing_page": {
+        const companyId = args.companyId as string | undefined;
+        result = await apiRequest(
+          "GET",
+          `/api/v1/landing-pages/${args.landingPageId}`,
+          undefined,
+          companyId
+        );
+        break;
+      }
+
+      case "create_landing_page": {
+        const companyId = args.companyId as string | undefined;
+        const allowedKeys = new Set([
+          "companyId",
+          "name",
+          "slug",
+          "template",
+          "content",
+        ]);
+        const unsupportedKeys = Object.keys(args).filter(
+          (key) => !allowedKeys.has(key)
+        );
+
+        if (unsupportedKeys.length > 0) {
+          throw new Error(
+            `\`create_landing_page\` accepts only \`name\`, \`slug\`, \`template\`, and \`content\` fields. Unsupported field${unsupportedKeys.length === 1 ? "" : "s"}: ${unsupportedKeys.map((key) => `\`${key}\``).join(", ")}.`
+          );
+        }
+
+        result = await apiRequest(
+          "POST",
+          "/api/v1/landing-pages",
+          {
+            ...(args.name !== undefined && { name: args.name }),
+            ...(args.slug !== undefined && { slug: args.slug }),
+            ...(args.template !== undefined && { template: args.template }),
+            ...(args.content !== undefined && { content: args.content }),
+          },
+          companyId
+        );
+        break;
+      }
+
+      case "update_landing_page": {
+        const companyId = args.companyId as string | undefined;
+        const body = buildLandingPageUpdateBody("update_landing_page", args, {
+          requireUpdate: true,
+        });
+        result = await apiRequest(
+          "PUT",
+          `/api/v1/landing-pages/${args.landingPageId}`,
+          body,
+          companyId
+        );
+        break;
+      }
+
+      case "publish_landing_page": {
+        const companyId = args.companyId as string | undefined;
+        const body = buildLandingPageUpdateBody("publish_landing_page", args, {
+          requireUpdate: false,
+        });
+        result = await apiRequest(
+          "POST",
+          `/api/v1/landing-pages/${args.landingPageId}/publish`,
+          body,
+          companyId
+        );
+        break;
+      }
+
+      case "unpublish_landing_page": {
+        const companyId = args.companyId as string | undefined;
+        const body = buildLandingPageUpdateBody(
+          "unpublish_landing_page",
+          args,
+          {
+            requireUpdate: false,
+          }
+        );
+        result = await apiRequest(
+          "POST",
+          `/api/v1/landing-pages/${args.landingPageId}/unpublish`,
+          body,
+          companyId
+        );
+        break;
+      }
+
+      case "delete_landing_page": {
+        const companyId = args.companyId as string | undefined;
+        result = await apiRequest(
+          "DELETE",
+          `/api/v1/landing-pages/${args.landingPageId}`,
+          undefined,
+          companyId
+        );
+        break;
+      }
+
+      case "connect_landing_page_domain": {
+        const companyId = args.companyId as string | undefined;
+        result = await apiRequest(
+          "POST",
+          "/api/v1/landing-pages/domain",
+          { domain: args.domain },
+          companyId
+        );
+        break;
+      }
+
+      case "update_landing_page_domain_settings": {
+        const companyId = args.companyId as string | undefined;
+        const body = buildLandingPageDomainSettingsBody(args);
+        result = await apiRequest(
+          "PUT",
+          "/api/v1/landing-pages/domain",
+          body,
           companyId
         );
         break;

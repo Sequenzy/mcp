@@ -999,6 +999,193 @@ describe("label list filters", () => {
   });
 });
 
+describe("landing page tools", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("publishes landing page management tools with plain object schemas", () => {
+    const toolNames = tools.map((tool) => tool.name);
+    const createTool = tools.find(
+      (tool) => tool.name === "create_landing_page"
+    );
+    const updateTool = tools.find(
+      (tool) => tool.name === "update_landing_page"
+    );
+    const domainTool = tools.find(
+      (tool) => tool.name === "update_landing_page_domain_settings"
+    );
+    const createSchema = createTool?.inputSchema as
+      | {
+          additionalProperties?: boolean;
+          properties?: Record<string, unknown>;
+          required?: string[];
+        }
+      | undefined;
+    const updateSchema = updateTool?.inputSchema as
+      | {
+          additionalProperties?: boolean;
+          properties?: Record<string, unknown>;
+          required?: string[];
+        }
+      | undefined;
+    const domainSchema = domainTool?.inputSchema as
+      | {
+          additionalProperties?: boolean;
+          properties?: Record<string, unknown>;
+        }
+      | undefined;
+
+    expect(toolNames).toContain("list_landing_pages");
+    expect(toolNames).toContain("get_landing_page");
+    expect(toolNames).toContain("create_landing_page");
+    expect(toolNames).toContain("update_landing_page");
+    expect(toolNames).toContain("delete_landing_page");
+    expect(toolNames).toContain("publish_landing_page");
+    expect(toolNames).toContain("unpublish_landing_page");
+    expect(toolNames).toContain("connect_landing_page_domain");
+    expect(toolNames).toContain("update_landing_page_domain_settings");
+    expect(createSchema?.additionalProperties).toBe(false);
+    expect(createSchema?.required).toBeUndefined();
+    expect(createSchema?.properties).toHaveProperty("content");
+    expect(createSchema?.properties).toHaveProperty("template");
+    expect(updateSchema?.required).toEqual(["landingPageId"]);
+    expect(updateSchema?.additionalProperties).toBe(false);
+    expect(updateSchema?.properties).toHaveProperty("content");
+    expect(domainSchema?.additionalProperties).toBe(false);
+    expect(domainSchema?.properties).toHaveProperty("domain");
+    expect(domainSchema?.properties).toHaveProperty("verify");
+  });
+
+  it("routes list_landing_pages to the landing page API", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      companyId: "comp_123",
+      landingPages: [],
+    });
+
+    const result = await handleToolCall("list_landing_pages", {
+      companyId: "comp_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/landing-pages",
+      undefined,
+      "comp_123"
+    );
+  });
+
+  it("routes create_landing_page to the landing page API", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      landingPage: {
+        id: "lp_123",
+        companyId: "comp_123",
+        name: "Launch",
+      },
+    });
+
+    const result = await handleToolCall("create_landing_page", {
+      companyId: "comp_123",
+      name: "Launch",
+      template: "waitlist",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/landing-pages",
+      {
+        name: "Launch",
+        template: "waitlist",
+      },
+      "comp_123"
+    );
+  });
+
+  it("rejects empty update_landing_page calls before hitting the API", async () => {
+    const result = await handleToolCall("update_landing_page", {
+      companyId: "comp_123",
+      landingPageId: "lp_123",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Provide at least one of `name`, `slug`, or `content`"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("routes publish_landing_page and unpublish_landing_page", async () => {
+    mockApiRequest
+      .mockResolvedValueOnce({
+        success: true,
+        landingPage: { id: "lp_123", companyId: "comp_123" },
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        landingPage: { id: "lp_123", companyId: "comp_123" },
+      });
+
+    await handleToolCall("publish_landing_page", {
+      companyId: "comp_123",
+      landingPageId: "lp_123",
+    });
+    await handleToolCall("unpublish_landing_page", {
+      companyId: "comp_123",
+      landingPageId: "lp_123",
+      slug: "draft-page",
+    });
+
+    expect(mockApiRequest).toHaveBeenNthCalledWith(
+      1,
+      "POST",
+      "/api/v1/landing-pages/lp_123/publish",
+      {},
+      "comp_123"
+    );
+    expect(mockApiRequest).toHaveBeenNthCalledWith(
+      2,
+      "POST",
+      "/api/v1/landing-pages/lp_123/unpublish",
+      { slug: "draft-page" },
+      "comp_123"
+    );
+  });
+
+  it("routes landing page domain tools and validates empty settings updates", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      domain: { domain: "pages.example.com" },
+    });
+
+    const connectResult = await handleToolCall("connect_landing_page_domain", {
+      companyId: "comp_123",
+      domain: "pages.example.com",
+    });
+    const emptyUpdateResult = await handleToolCall(
+      "update_landing_page_domain_settings",
+      {
+        companyId: "comp_123",
+      }
+    );
+
+    expect(connectResult.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/landing-pages/domain",
+      { domain: "pages.example.com" },
+      "comp_123"
+    );
+    expect(emptyUpdateResult.isError).toBe(true);
+    expect(emptyUpdateResult.content[0]?.text).toContain(
+      "Provide `domain` or `verify: true`"
+    );
+  });
+});
+
 describe("create_campaign tool validation", () => {
   beforeEach(() => {
     mockApiRequest.mockClear();
@@ -1571,10 +1758,15 @@ describe("dashboard URL helpers", () => {
   });
 
   it("generates dashboard URLs from explicit IDs", async () => {
+    const urlTool = tools.find((tool) => tool.name === "get_app_urls");
+    const urlSchema = urlTool?.inputSchema as
+      | { properties?: Record<string, unknown> }
+      | undefined;
     const result = await handleToolCall("get_app_urls", {
       companyId: "comp_123",
       sequenceId: "seq_123",
       campaignId: "camp_123",
+      landingPageId: "lp_123",
       emailSendId: "send_123",
       settingsTab: "integrations",
     });
@@ -1584,16 +1776,21 @@ describe("dashboard URL helpers", () => {
       urls: {
         sequence: string;
         campaign: string;
+        landingPage: string;
         emailSend: string;
         settingsTab: string;
       };
     };
 
+    expect(urlSchema?.properties).toHaveProperty("landingPageId");
     expect(payload.urls.sequence).toBe(
       "https://sequenzy.com/dashboard/company/comp_123/sequences/seq_123"
     );
     expect(payload.urls.campaign).toBe(
       "https://sequenzy.com/dashboard/company/comp_123/campaign/camp_123"
+    );
+    expect(payload.urls.landingPage).toBe(
+      "https://sequenzy.com/dashboard/company/comp_123/landing-pages/lp_123"
     );
     expect(payload.urls.emailSend).toBe(
       "https://sequenzy.com/dashboard/company/comp_123/sent-emails/send_123"

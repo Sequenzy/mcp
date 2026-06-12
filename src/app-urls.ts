@@ -27,6 +27,8 @@ export const routeTemplates = {
   campaignPreview:
     "/dashboard/company/{companyId}/campaign/{campaignId}?step=review",
   campaignList: "/dashboard/company/{companyId}/campaign/list/{status}",
+  landingPages: "/dashboard/company/{companyId}/landing-pages",
+  landingPage: "/dashboard/company/{companyId}/landing-pages/{landingPageId}",
   sequences: "/dashboard/company/{companyId}/sequences",
   sequence: "/dashboard/company/{companyId}/sequences/{sequenceId}",
   sequenceList: "/dashboard/company/{companyId}/sequences/list/{status}",
@@ -50,6 +52,7 @@ export const routeTemplates = {
 export interface AppUrlInput {
   companyId?: string | null;
   campaignId?: string | null;
+  landingPageId?: string | null;
   sequenceId?: string | null;
   emailId?: string | null;
   templateId?: string | null;
@@ -132,6 +135,7 @@ export function buildSequenzyAppUrls(
 
   urls.dashboard = joinUrl(appUrl, companyPath(companyId));
   urls.campaigns = joinUrl(appUrl, companyPath(companyId, "/campaign"));
+  urls.landingPages = joinUrl(appUrl, companyPath(companyId, "/landing-pages"));
   urls.sequences = joinUrl(appUrl, companyPath(companyId, "/sequences"));
   urls.settings = joinUrl(appUrl, companyPath(companyId, "/settings"));
   urls.emails = joinUrl(appUrl, companyPath(companyId, "/emails"));
@@ -151,6 +155,14 @@ export function buildSequenzyAppUrls(
       companyPath(companyId, `/campaign/${pathSegment(campaignId)}`)
     );
     urls.campaignPreview = `${urls.campaign}?step=review`;
+  }
+
+  const landingPageId = clean(input.landingPageId);
+  if (landingPageId) {
+    urls.landingPage = joinUrl(
+      appUrl,
+      companyPath(companyId, `/landing-pages/${pathSegment(landingPageId)}`)
+    );
   }
 
   const sequenceId = clean(input.sequenceId);

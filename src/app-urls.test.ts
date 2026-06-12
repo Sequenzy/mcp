@@ -8,6 +8,7 @@ describe("buildSequenzyAppUrls", () => {
       {
         companyId: "comp_123",
         campaignId: "camp_123",
+        landingPageId: "lp_123",
         sequenceId: "seq_123",
         templateId: "email_123",
         emailSendId: "send_123",
@@ -20,6 +21,9 @@ describe("buildSequenzyAppUrls", () => {
     );
     expect(appUrls.urls.campaignPreview).toBe(
       "https://app.example.com/dashboard/company/comp_123/campaign/camp_123?step=review"
+    );
+    expect(appUrls.urls.landingPage).toBe(
+      "https://app.example.com/dashboard/company/comp_123/landing-pages/lp_123"
     );
     expect(appUrls.urls.sequence).toBe(
       "https://app.example.com/dashboard/company/comp_123/sequences/seq_123"
@@ -38,6 +42,9 @@ describe("buildSequenzyAppUrls", () => {
     expect(appUrls.urls).toEqual({});
     expect(appUrls.routeTemplates.settingsTab).toBe(
       "/dashboard/company/{companyId}/settings?tab={tab}"
+    );
+    expect(appUrls.routeTemplates.landingPage).toBe(
+      "/dashboard/company/{companyId}/landing-pages/{landingPageId}"
     );
     expect(appUrls.settingsTabValues).toContain("integrations");
   });

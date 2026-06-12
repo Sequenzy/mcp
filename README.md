@@ -12,6 +12,8 @@ Connect Sequenzy to Claude Desktop, Claude Code, Codex, Cursor, Windsurf, VS Cod
 - Create and edit email sequences, including event-triggered and segment-entry automations.
 - Cancel, pause, resume, duplicate, or delete campaigns and enroll contacts into sequences.
 - Manage transactional email templates and send single transactional emails.
+- Create, edit, publish, unpublish, and delete landing pages.
+- Connect and verify custom domains for published landing pages.
 - Manage team invitations, inbox conversations, and outbound webhook endpoints.
 - Generate email copy, subject lines, and multi-step sequences.
 - Inspect analytics, subscriber activity, deliverability health, and dashboard URLs.
@@ -168,7 +170,7 @@ Personal keys start with `seq_user_`. You can revoke them any time in the dashbo
 
 ## Tools
 
-This server currently exposes 98 MCP tools.
+This server currently exposes 107 MCP tools.
 
 ### Account, Companies, Setup
 
@@ -176,7 +178,7 @@ This server currently exposes 98 MCP tools.
 | ----------------------- | ------------------------------------------------------------------------------------------------- |
 | `get_account`           | Get account info, available companies, and the current company.                                   |
 | `select_company`        | Set the active company for future tool calls.                                                     |
-| `get_app_urls`          | Build dashboard URLs for campaigns, sequences, emails, settings, domains, and sent email details. |
+| `get_app_urls`          | Build dashboard URLs for campaigns, landing pages, sequences, emails, settings, domains, and sent email details. |
 | `create_company`        | Create a new company or brand.                                                                    |
 | `get_company`           | Read company details and localization settings.                                                   |
 | `create_api_key`        | Create an API key for a company.                                                                  |
@@ -243,7 +245,7 @@ For bulk list population, use `add_subscribers_to_list`; the backing API endpoin
 
 Send at most 500 emails per request. Standard API rate limits still apply: 100 requests per minute per API key and 20 requests per second burst. For CSV-driven CLI imports, accepted email headers include `email`, `e-mail`, `email address`, and `mail`; if no recognized header exists, the CLI reads the first column.
 
-Segment filters support attributes, events, saved segment membership, engagement events, and Stripe product purchase rules. Use `filterJoinOperator: "or"` for match-any segments, or pass a v2 `root` group for nested logic.
+Segment filters support attributes, events, saved segment membership, engagement events, Stripe product purchase rules, and commerce product purchase rules. Use `filterJoinOperator: "or"` for match-any segments, or pass a v2 `root` group for nested logic.
 
 Each segment filter field validates its own operators:
 
@@ -258,6 +260,7 @@ Each segment filter field validates its own operators:
 - `emailBounced`: also supports `is_temporary_bounce`, `is_permanent_bounce`
 - `stripeProduct`: `is`, `is_not`, `at_least`, `less_than_count`
 - `stripeCurrentProduct`, `stripeTrialProduct`: `is`, `is_not`, `gte`, `lte`, `gt`, `lt`
+- `commerceProduct`: `is`, `is_not`, `at_least`, `less_than_count`
 
 Stripe product filter examples:
 
@@ -266,6 +269,13 @@ Stripe product filter examples:
 { "field": "stripeProduct", "operator": "is_not", "value": "prod_pro" }
 { "field": "stripeProduct", "operator": "at_least", "value": "prod_pro:3" }
 { "field": "stripeProduct", "operator": "less_than_count", "value": "prod_pro:3" }
+```
+
+Commerce product filters match products purchased through commerce orders. Values can be `provider:productId` for provider-scoped IDs (`shopify`, `woocommerce`, or `api`), a bare product ID to match any provider, or `provider:productId:count` for threshold operators:
+
+```json
+{ "field": "commerceProduct", "operator": "is", "value": "api:starter-kit" }
+{ "field": "commerceProduct", "operator": "at_least", "value": "shopify:42:2" }
 ```
 
 Engagement fields such as `emailSent`, `emailDelivered`, `emailOpened`, `emailClicked`, `emailBounced`, and `emailComplained` accept rolling windows like `7d`, `30d`, `90d`, `180d`, `all`, threshold values like `5:30d`, or a campaign scope like `campaign:cmp_123`.
@@ -312,6 +322,22 @@ Use `get_ab_test` to discover variant IDs before editing. Variant updates accept
 | `resume_campaign`    | Resume a paused campaign, optionally spreading delivery over time.       |
 | `delete_campaign`    | Delete a campaign.                                                       |
 | `duplicate_campaign` | Duplicate a campaign into a new draft.                                   |
+
+### Landing Pages
+
+| Tool                                  | Description                                                              |
+| ------------------------------------- | ------------------------------------------------------------------------ |
+| `list_landing_pages`                  | List landing pages with status, metrics, content, and URLs.              |
+| `get_landing_page`                    | Get landing page details, builder content, metrics, and public URLs.     |
+| `create_landing_page`                 | Create a draft landing page from default template content or JSON.       |
+| `update_landing_page`                 | Edit a landing page name, slug, or full editor-compatible content.       |
+| `publish_landing_page`                | Publish a landing page, optionally saving edits first.                   |
+| `unpublish_landing_page`              | Return a landing page to draft status, optionally saving edits first.    |
+| `delete_landing_page`                 | Delete an unpublished landing page.                                      |
+| `connect_landing_page_domain`         | Connect a custom landing page domain and return DNS setup details.       |
+| `update_landing_page_domain_settings` | Replace or verify landing page custom domain settings.                   |
+
+Landing page content uses Sequenzy's editor-compatible JSON schema with `version`, `template`, `seo`, `theme`, and `blocks`. Custom landing page domains require a CNAME record pointing to `pages.sequenzydns.com`; call `update_landing_page_domain_settings` with `verify: true` after DNS changes propagate.
 
 ### Sequences
 
