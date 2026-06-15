@@ -2005,8 +2005,107 @@ async function addAppUrlsToToolResult(
   };
 }
 
+type ToolAnnotations = NonNullable<Tool["annotations"]>;
+
+const readOnlyToolNames = [
+  "get_account",
+  "get_app_urls",
+  "get_company",
+  "list_websites",
+  "check_website",
+  "get_integration_guide",
+  "get_subscriber",
+  "search_subscribers",
+  "list_products",
+  "list_tags",
+  "list_lists",
+  "list_segments",
+  "get_segment_count",
+  "list_audience_syncs",
+  "list_ad_accounts",
+  "list_templates",
+  "get_template",
+  "list_ab_tests",
+  "get_ab_test",
+  "get_ab_test_stats",
+  "list_campaigns",
+  "get_campaign",
+  "get_email_send",
+  "list_landing_pages",
+  "get_landing_page",
+  "list_sequences",
+  "get_sequence",
+  "list_transactional_emails",
+  "get_transactional_email",
+  "get_stats",
+  "get_campaign_stats",
+  "get_sequence_stats",
+  "get_subscriber_activity",
+  "list_team_members",
+  "list_conversations",
+  "get_conversation",
+  "list_webhooks",
+  "list_webhook_deliveries",
+  "generate_email",
+  "generate_sequence",
+  "generate_subject_lines",
+] as const;
+
+const openWorldToolNames = [
+  "send_test_email",
+  "schedule_campaign",
+  "resume_campaign",
+  "publish_landing_page",
+  "connect_landing_page_domain",
+  "update_landing_page_domain_settings",
+  "enable_sequence",
+  "send_email",
+  "invite_team_member",
+  "reply_to_conversation",
+  "create_webhook",
+  "update_webhook",
+  "test_webhook",
+  "replay_webhook_delivery",
+] as const;
+
+const destructiveToolNames = [
+  "remove_subscriber",
+  "delete_product",
+  "remove_product_file",
+  "delete_tag",
+  "delete_list",
+  "remove_subscribers_from_list",
+  "delete_segment",
+  "delete_audience_sync",
+  "delete_template",
+  "restart_ab_test",
+  "delete_ab_test_variant",
+  "delete_ab_test",
+  "cancel_campaign",
+  "delete_campaign",
+  "delete_landing_page",
+  "unpublish_landing_page",
+  "disable_sequence",
+  "cancel_sequence_enrollments",
+  "delete_sequence",
+  "cancel_team_invitation",
+  "delete_webhook",
+] as const;
+
+const readOnlyTools = new Set<string>(readOnlyToolNames);
+const openWorldTools = new Set<string>(openWorldToolNames);
+const destructiveTools = new Set<string>(destructiveToolNames);
+
+function getToolAnnotations(name: string): ToolAnnotations {
+  return {
+    readOnlyHint: readOnlyTools.has(name),
+    openWorldHint: openWorldTools.has(name),
+    destructiveHint: destructiveTools.has(name),
+  };
+}
+
 // Tool definitions
-export const tools: Tool[] = [
+const toolDefinitions: Tool[] = [
   // ============================================================================
   // Account & Setup
   // ============================================================================
@@ -5950,6 +6049,11 @@ OTHER BUILT-IN EVENTS:
     },
   },
 ];
+
+export const tools: Tool[] = toolDefinitions.map((tool) => ({
+  ...tool,
+  annotations: getToolAnnotations(tool.name),
+}));
 
 // Tool call handler
 export async function handleToolCall(

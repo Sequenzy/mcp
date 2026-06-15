@@ -76,6 +76,32 @@ function collectArraySchemasWithoutItems(
 }
 
 describe("tool schema compatibility", () => {
+  it("publishes explicit ChatGPT Apps annotations for every tool", () => {
+    const violations = tools.flatMap((tool) => {
+      const annotations = tool.annotations as
+        | {
+            readOnlyHint?: unknown;
+            openWorldHint?: unknown;
+            destructiveHint?: unknown;
+          }
+        | undefined;
+
+      return [
+        typeof annotations?.readOnlyHint === "boolean"
+          ? undefined
+          : `${tool.name}.readOnlyHint`,
+        typeof annotations?.openWorldHint === "boolean"
+          ? undefined
+          : `${tool.name}.openWorldHint`,
+        typeof annotations?.destructiveHint === "boolean"
+          ? undefined
+          : `${tool.name}.destructiveHint`,
+      ].filter((violation): violation is string => violation !== undefined);
+    });
+
+    expect(violations).toEqual([]);
+  });
+
   it("does not publish unsupported root-level composition keywords", () => {
     const unsupportedRootKeywords = ["anyOf", "oneOf", "allOf", "enum", "not"];
     const violations: string[] = [];

@@ -1,0 +1,1452 @@
+{
+  "$schema": "https://developers.openai.com/apps-sdk/schemas/chatgpt-app-submission.v1.json",
+  "schema_version": 1,
+  "app_info": {
+    "display_name": "Sequenzy",
+    "subtitle": "Manage Sequenzy",
+    "description": "Sequenzy helps users manage company workspaces, sender websites, subscribers, email campaigns, landing pages, sequences, transactional email, team access, inbox conversations, webhooks, and reporting from ChatGPT.",
+    "category": "BUSINESS"
+  },
+  "tools": {
+    "get_account": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves, computes, or generates data to return to the user without changing Sequenzy records.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "select_company": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "get_app_urls": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves, computes, or generates data to return to the user without changing Sequenzy records.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "create_company": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "get_company": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves, computes, or generates data to return to the user without changing Sequenzy records.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "create_api_key": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "list_websites": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves, computes, or generates data to return to the user without changing Sequenzy records.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "add_website": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "check_website": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves, computes, or generates data to return to the user without changing Sequenzy records.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "get_integration_guide": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves, computes, or generates data to return to the user without changing Sequenzy records.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "add_subscriber": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "update_subscriber": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "remove_subscriber": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Can delete, cancel, unsubscribe, unpublish, disable, remove, or restart records or deliveries in a way that may not be automatically reversible."
+      }
+    },
+    "get_subscriber": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves, computes, or generates data to return to the user without changing Sequenzy records.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "search_subscribers": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves, computes, or generates data to return to the user without changing Sequenzy records.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "list_products": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves, computes, or generates data to return to the user without changing Sequenzy records.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "upsert_products": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "delete_product": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Can delete, cancel, unsubscribe, unpublish, disable, remove, or restart records or deliveries in a way that may not be automatically reversible."
+      }
+    },
+    "attach_product_file": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "remove_product_file": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Can delete, cancel, unsubscribe, unpublish, disable, remove, or restart records or deliveries in a way that may not be automatically reversible."
+      }
+    },
+    "sync_products": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "list_tags": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves, computes, or generates data to return to the user without changing Sequenzy records.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "create_tag": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "update_tag": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "delete_tag": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Can delete, cancel, unsubscribe, unpublish, disable, remove, or restart records or deliveries in a way that may not be automatically reversible."
+      }
+    },
+    "list_lists": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves, computes, or generates data to return to the user without changing Sequenzy records.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "create_list": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "update_list": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "delete_list": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Can delete, cancel, unsubscribe, unpublish, disable, remove, or restart records or deliveries in a way that may not be automatically reversible."
+      }
+    },
+    "add_subscribers_to_list": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "remove_subscribers_from_list": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Can delete, cancel, unsubscribe, unpublish, disable, remove, or restart records or deliveries in a way that may not be automatically reversible."
+      }
+    },
+    "list_segments": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves, computes, or generates data to return to the user without changing Sequenzy records.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "create_segment": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "update_segment": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "delete_segment": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Can delete, cancel, unsubscribe, unpublish, disable, remove, or restart records or deliveries in a way that may not be automatically reversible."
+      }
+    },
+    "get_segment_count": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves, computes, or generates data to return to the user without changing Sequenzy records.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "list_audience_syncs": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves, computes, or generates data to return to the user without changing Sequenzy records.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "list_ad_accounts": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves, computes, or generates data to return to the user without changing Sequenzy records.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "create_audience_sync": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "update_audience_sync": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "delete_audience_sync": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Can delete, cancel, unsubscribe, unpublish, disable, remove, or restart records or deliveries in a way that may not be automatically reversible."
+      }
+    },
+    "sync_audience_now": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "list_templates": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves, computes, or generates data to return to the user without changing Sequenzy records.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "get_template": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves, computes, or generates data to return to the user without changing Sequenzy records.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "create_template": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "update_template": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "delete_template": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Can delete, cancel, unsubscribe, unpublish, disable, remove, or restart records or deliveries in a way that may not be automatically reversible."
+      }
+    },
+    "list_ab_tests": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves, computes, or generates data to return to the user without changing Sequenzy records.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "get_ab_test": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves, computes, or generates data to return to the user without changing Sequenzy records.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "get_ab_test_stats": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves, computes, or generates data to return to the user without changing Sequenzy records.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "restart_ab_test": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Can delete, cancel, unsubscribe, unpublish, disable, remove, or restart records or deliveries in a way that may not be automatically reversible."
+      }
+    },
+    "update_ab_test_variant": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "create_ab_test": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "add_ab_test_variant": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "delete_ab_test_variant": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Can delete, cancel, unsubscribe, unpublish, disable, remove, or restart records or deliveries in a way that may not be automatically reversible."
+      }
+    },
+    "delete_ab_test": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Can delete, cancel, unsubscribe, unpublish, disable, remove, or restart records or deliveries in a way that may not be automatically reversible."
+      }
+    },
+    "list_campaigns": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves, computes, or generates data to return to the user without changing Sequenzy records.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "get_campaign": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves, computes, or generates data to return to the user without changing Sequenzy records.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "get_email_send": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves, computes, or generates data to return to the user without changing Sequenzy records.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "create_campaign": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "update_campaign": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "schedule_campaign": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Can send email, publish public content, invite users, trigger webhook delivery, or configure future outbound delivery to external systems.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "send_test_email": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Can send email, publish public content, invite users, trigger webhook delivery, or configure future outbound delivery to external systems.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "cancel_campaign": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Can delete, cancel, unsubscribe, unpublish, disable, remove, or restart records or deliveries in a way that may not be automatically reversible."
+      }
+    },
+    "pause_campaign": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "resume_campaign": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Can send email, publish public content, invite users, trigger webhook delivery, or configure future outbound delivery to external systems.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "delete_campaign": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Can delete, cancel, unsubscribe, unpublish, disable, remove, or restart records or deliveries in a way that may not be automatically reversible."
+      }
+    },
+    "duplicate_campaign": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "list_landing_pages": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves, computes, or generates data to return to the user without changing Sequenzy records.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "get_landing_page": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves, computes, or generates data to return to the user without changing Sequenzy records.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "create_landing_page": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "update_landing_page": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "delete_landing_page": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Can delete, cancel, unsubscribe, unpublish, disable, remove, or restart records or deliveries in a way that may not be automatically reversible."
+      }
+    },
+    "publish_landing_page": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Can send email, publish public content, invite users, trigger webhook delivery, or configure future outbound delivery to external systems.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "unpublish_landing_page": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Can delete, cancel, unsubscribe, unpublish, disable, remove, or restart records or deliveries in a way that may not be automatically reversible."
+      }
+    },
+    "connect_landing_page_domain": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Can send email, publish public content, invite users, trigger webhook delivery, or configure future outbound delivery to external systems.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "update_landing_page_domain_settings": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Can send email, publish public content, invite users, trigger webhook delivery, or configure future outbound delivery to external systems.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "list_sequences": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves, computes, or generates data to return to the user without changing Sequenzy records.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "get_sequence": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves, computes, or generates data to return to the user without changing Sequenzy records.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "create_sequence": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "update_sequence": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "enable_sequence": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Can send email, publish public content, invite users, trigger webhook delivery, or configure future outbound delivery to external systems.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "disable_sequence": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Can delete, cancel, unsubscribe, unpublish, disable, remove, or restart records or deliveries in a way that may not be automatically reversible."
+      }
+    },
+    "enroll_subscribers_in_sequence": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "cancel_sequence_enrollments": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Can delete, cancel, unsubscribe, unpublish, disable, remove, or restart records or deliveries in a way that may not be automatically reversible."
+      }
+    },
+    "delete_sequence": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Can delete, cancel, unsubscribe, unpublish, disable, remove, or restart records or deliveries in a way that may not be automatically reversible."
+      }
+    },
+    "list_transactional_emails": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves, computes, or generates data to return to the user without changing Sequenzy records.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "get_transactional_email": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves, computes, or generates data to return to the user without changing Sequenzy records.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "create_transactional_email": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "update_transactional_email": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "send_email": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Can send email, publish public content, invite users, trigger webhook delivery, or configure future outbound delivery to external systems.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "get_stats": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves, computes, or generates data to return to the user without changing Sequenzy records.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "get_campaign_stats": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves, computes, or generates data to return to the user without changing Sequenzy records.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "get_sequence_stats": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves, computes, or generates data to return to the user without changing Sequenzy records.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "get_subscriber_activity": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves, computes, or generates data to return to the user without changing Sequenzy records.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "list_team_members": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves, computes, or generates data to return to the user without changing Sequenzy records.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "invite_team_member": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Can send email, publish public content, invite users, trigger webhook delivery, or configure future outbound delivery to external systems.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "cancel_team_invitation": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Can delete, cancel, unsubscribe, unpublish, disable, remove, or restart records or deliveries in a way that may not be automatically reversible."
+      }
+    },
+    "list_conversations": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves, computes, or generates data to return to the user without changing Sequenzy records.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "get_conversation": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves, computes, or generates data to return to the user without changing Sequenzy records.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "reply_to_conversation": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Can send email, publish public content, invite users, trigger webhook delivery, or configure future outbound delivery to external systems.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "update_conversation_status": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "mark_conversation_read": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "list_webhooks": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves, computes, or generates data to return to the user without changing Sequenzy records.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "create_webhook": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Can send email, publish public content, invite users, trigger webhook delivery, or configure future outbound delivery to external systems.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "update_webhook": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Can send email, publish public content, invite users, trigger webhook delivery, or configure future outbound delivery to external systems.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "delete_webhook": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": true
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Can delete, cancel, unsubscribe, unpublish, disable, remove, or restart records or deliveries in a way that may not be automatically reversible."
+      }
+    },
+    "test_webhook": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Can send email, publish public content, invite users, trigger webhook delivery, or configure future outbound delivery to external systems.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "list_webhook_deliveries": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves, computes, or generates data to return to the user without changing Sequenzy records.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "replay_webhook_delivery": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
+        "open_world_justification": "Can send email, publish public content, invite users, trigger webhook delivery, or configure future outbound delivery to external systems.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "generate_email": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves, computes, or generates data to return to the user without changing Sequenzy records.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "generate_sequence": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves, computes, or generates data to return to the user without changing Sequenzy records.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "generate_subject_lines": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only retrieves, computes, or generates data to return to the user without changing Sequenzy records.",
+        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
+        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    }
+  },
+  "test_cases": [
+    {
+      "description": "Select the active company before workspace operations.",
+      "user_prompt": "Show my Sequenzy account companies and switch to the Acme workspace.",
+      "file_attachment_urls": null,
+      "tools_triggered": "get_account, select_company",
+      "expected_output": "Lists available companies and selects the requested company for follow-up actions.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Create a brand workspace from a website domain.",
+      "user_prompt": "Create a Sequenzy company for example.com and tell me when it is ready.",
+      "file_attachment_urls": null,
+      "tools_triggered": "create_company",
+      "expected_output": "Creates the company, polls processing status, selects it, and returns the company details.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Prepare website sending domain setup.",
+      "user_prompt": "Add newsletter.example.com as a sender website and check whether it has finished processing.",
+      "file_attachment_urls": null,
+      "tools_triggered": "add_website, check_website",
+      "expected_output": "Adds the website and reports processing or readiness status.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Create and test an outbound webhook endpoint.",
+      "user_prompt": "Create a webhook named CRM Sync for https://hooks.example.com/sequenzy and send a test event.",
+      "file_attachment_urls": null,
+      "tools_triggered": "create_webhook, test_webhook",
+      "expected_output": "Creates the webhook endpoint, returns the one-time signing secret, and reports the test delivery result.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Invite a teammate to the workspace.",
+      "user_prompt": "Invite taylor@example.com as a viewer to this Sequenzy workspace.",
+      "file_attachment_urls": null,
+      "tools_triggered": "invite_team_member",
+      "expected_output": "Creates or sends the team invitation and reports the invited user and role.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Build dashboard links for generated assets.",
+      "user_prompt": "Give me dashboard links for campaign cmp_123 and sequence seq_456.",
+      "file_attachment_urls": null,
+      "tools_triggered": "get_app_urls",
+      "expected_output": "Returns concrete Sequenzy dashboard URLs for the requested resources.",
+      "expected_output_url": null
+    }
+  ],
+  "negative_test_cases": [
+    {
+      "description": "Do not trigger for unrelated calendar management.",
+      "user_prompt": "Move my meeting with Sam to next Tuesday.",
+      "file_attachment_urls": null,
+      "tools_triggered": null,
+      "expected_output": "The app should not be invoked because calendar scheduling is outside Sequenzy workflows.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Do not trigger for personal finance advice.",
+      "user_prompt": "Which ETF should I buy this month?",
+      "file_attachment_urls": null,
+      "tools_triggered": null,
+      "expected_output": "The app should not be invoked because investment advice is unrelated to Sequenzy email marketing or workspace operations.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Do not trigger for generic image editing.",
+      "user_prompt": "Remove the background from this product photo.",
+      "file_attachment_urls": null,
+      "tools_triggered": null,
+      "expected_output": "The app should not be invoked because image editing is outside the MCP server capabilities.",
+      "expected_output_url": null
+    },
+    {
+      "description": "Do not trigger when the user asks for another email platform.",
+      "user_prompt": "Create this campaign in Mailchimp instead of Sequenzy.",
+      "file_attachment_urls": null,
+      "tools_triggered": null,
+      "expected_output": "The app should not be invoked because the request targets a different email platform.",
+      "expected_output_url": null
+    }
+  ]
+}
