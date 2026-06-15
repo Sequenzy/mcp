@@ -76,28 +76,25 @@ function collectArraySchemasWithoutItems(
 }
 
 describe("tool schema compatibility", () => {
-  it("publishes explicit ChatGPT Apps annotations for every tool", () => {
-    const violations = tools.flatMap((tool) => {
+  it("publishes required boolean tool annotations", () => {
+    const requiredHints = [
+      "readOnlyHint",
+      "destructiveHint",
+      "openWorldHint",
+    ] as const;
+    const violations: string[] = [];
+
+    for (const tool of tools) {
       const annotations = tool.annotations as
-        | {
-            readOnlyHint?: unknown;
-            openWorldHint?: unknown;
-            destructiveHint?: unknown;
-          }
+        | Record<(typeof requiredHints)[number], unknown>
         | undefined;
 
-      return [
-        typeof annotations?.readOnlyHint === "boolean"
-          ? undefined
-          : `${tool.name}.readOnlyHint`,
-        typeof annotations?.openWorldHint === "boolean"
-          ? undefined
-          : `${tool.name}.openWorldHint`,
-        typeof annotations?.destructiveHint === "boolean"
-          ? undefined
-          : `${tool.name}.destructiveHint`,
-      ].filter((violation): violation is string => violation !== undefined);
-    });
+      for (const hint of requiredHints) {
+        if (typeof annotations?.[hint] !== "boolean") {
+          violations.push(`${tool.name}.annotations.${hint}`);
+        }
+      }
+    }
 
     expect(violations).toEqual([]);
   });

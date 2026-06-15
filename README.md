@@ -20,6 +20,8 @@ Connect Sequenzy to Claude Desktop, Claude Code, Codex, Cursor, Windsurf, VS Cod
 - Inspect analytics, subscriber activity, deliverability health, and dashboard URLs.
 - Configure sender websites and pull integration examples for common frameworks.
 
+Every published MCP tool includes explicit `readOnlyHint`, `destructiveHint`, and `openWorldHint` annotations so compatible clients can display accurate tool-use affordances.
+
 ## Quick Setup
 
 The easiest setup path is the Sequenzy wizard:
@@ -171,7 +173,7 @@ Personal keys start with `seq_user_`. You can revoke them any time in the dashbo
 
 ## Tools
 
-This server currently exposes 107 MCP tools.
+This server currently exposes 113 MCP tools.
 
 ### Account, Companies, Setup
 
