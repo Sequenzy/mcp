@@ -75,6 +75,15 @@ function collectArraySchemasWithoutItems(
   return paths;
 }
 
+function getPublishedToolSchemas(tool: (typeof tools)[number]) {
+  return [
+    { name: `${tool.name}.inputSchema`, schema: tool.inputSchema },
+    ...(tool.outputSchema
+      ? [{ name: `${tool.name}.outputSchema`, schema: tool.outputSchema }]
+      : []),
+  ];
+}
+
 describe("tool schema compatibility", () => {
   it("publishes required boolean tool annotations", () => {
     const requiredHints = [
@@ -99,16 +108,41 @@ describe("tool schema compatibility", () => {
     expect(violations).toEqual([]);
   });
 
+  it("publishes an output schema for every tool", () => {
+    const violations = tools
+      .filter((tool) => tool.outputSchema === undefined)
+      .map((tool) => tool.name);
+
+    expect(violations).toEqual([]);
+  });
+
+  it("publishes plain object roots for input and output schemas", () => {
+    const violations: string[] = [];
+
+    for (const tool of tools) {
+      for (const { name, schema } of getPublishedToolSchemas(tool)) {
+        const schemaRecord = schema as Record<string, unknown>;
+        if (schemaRecord.type !== "object") {
+          violations.push(name);
+        }
+      }
+    }
+
+    expect(violations).toEqual([]);
+  });
+
   it("does not publish unsupported root-level composition keywords", () => {
     const unsupportedRootKeywords = ["anyOf", "oneOf", "allOf", "enum", "not"];
     const violations: string[] = [];
 
     for (const tool of tools) {
-      const inputSchema = tool.inputSchema as Record<string, unknown>;
+      for (const { name, schema } of getPublishedToolSchemas(tool)) {
+        const schemaRecord = schema as Record<string, unknown>;
 
-      for (const keyword of unsupportedRootKeywords) {
-        if (Object.prototype.hasOwnProperty.call(inputSchema, keyword)) {
-          violations.push(`${tool.name}.${keyword}`);
+        for (const keyword of unsupportedRootKeywords) {
+          if (Object.prototype.hasOwnProperty.call(schemaRecord, keyword)) {
+            violations.push(`${name}.${keyword}`);
+          }
         }
       }
     }
@@ -118,7 +152,9 @@ describe("tool schema compatibility", () => {
 
   it("does not publish anyOf anywhere in tool schemas", () => {
     const violations = tools.flatMap((tool) =>
-      collectSchemaKeywordPaths(tool.inputSchema, "anyOf", tool.name)
+      getPublishedToolSchemas(tool).flatMap(({ name, schema }) =>
+        collectSchemaKeywordPaths(schema, "anyOf", name)
+      )
     );
 
     expect(violations).toEqual([]);
@@ -126,7 +162,9 @@ describe("tool schema compatibility", () => {
 
   it("publishes items for every array schema", () => {
     const violations = tools.flatMap((tool) =>
-      collectArraySchemasWithoutItems(tool.inputSchema, tool.name)
+      getPublishedToolSchemas(tool).flatMap(({ name, schema }) =>
+        collectArraySchemasWithoutItems(schema, name)
+      )
     );
 
     expect(violations).toEqual([]);

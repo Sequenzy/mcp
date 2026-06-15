@@ -1,7 +1,11 @@
 import { readFileSync, statSync } from "node:fs";
 import { basename } from "node:path";
 
-import type { Tool, ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
+import type {
+  CallToolResult,
+  Tool,
+  ToolAnnotations,
+} from "@modelcontextprotocol/sdk/types.js";
 
 import { buildSequenzyAppUrls, type AppUrlInput } from "../app-urls.js";
 import { formatMcpError } from "../error-output.js";
@@ -2195,6 +2199,586 @@ async function addAppUrlsToToolResult(
       }),
     appUrls: appUrls.urls,
   };
+}
+
+type ToolOutputSchema = NonNullable<Tool["outputSchema"]>;
+type SequenzyToolCallResult = CallToolResult & {
+  content: Array<{ type: "text"; text: string }>;
+  structuredContent?: Record<string, unknown>;
+};
+type OutputSchemaProperty = {
+  type?: "object" | "array" | "string" | "number" | "integer" | "boolean";
+  description?: string;
+  properties?: Record<string, OutputSchemaProperty>;
+  items?: OutputSchemaProperty;
+  required?: string[];
+  additionalProperties?: boolean | OutputSchemaProperty;
+  enum?: string[];
+};
+type OutputSchemaProperties = Record<string, OutputSchemaProperty>;
+
+const successOutputProperty: OutputSchemaProperty = {
+  type: "boolean",
+  description: "Whether the Sequenzy operation succeeded.",
+};
+
+const messageOutputProperty: OutputSchemaProperty = {
+  type: "string",
+  description: "Human-readable status, confirmation, or next-step message.",
+};
+
+const noteOutputProperty: OutputSchemaProperty = {
+  type: "string",
+  description: "Additional context about the result.",
+};
+
+function objectOutputProperty(description: string): OutputSchemaProperty {
+  return {
+    type: "object",
+    description,
+    additionalProperties: true,
+  };
+}
+
+function arrayOutputProperty(description: string): OutputSchemaProperty {
+  return {
+    type: "array",
+    description,
+    items: objectOutputProperty("One item in the returned collection."),
+  };
+}
+
+function stringOutputProperty(description: string): OutputSchemaProperty {
+  return {
+    type: "string",
+    description,
+  };
+}
+
+function numberOutputProperty(description: string): OutputSchemaProperty {
+  return {
+    type: "number",
+    description,
+  };
+}
+
+function booleanOutputProperty(description: string): OutputSchemaProperty {
+  return {
+    type: "boolean",
+    description,
+  };
+}
+
+function resourceOutputProperty(resourceName: string): OutputSchemaProperty {
+  return objectOutputProperty(
+    `The ${resourceName} record returned by Sequenzy.`
+  );
+}
+
+function resourceListOutputProperty(
+  resourceName: string
+): OutputSchemaProperty {
+  return arrayOutputProperty(
+    `List of ${resourceName} records returned by Sequenzy.`
+  );
+}
+
+const dashboardUrlOutputProperties: OutputSchemaProperties = {
+  appUrls: objectOutputProperty(
+    "Dashboard URLs for relevant Sequenzy resources."
+  ),
+  url: stringOutputProperty("Primary dashboard URL for this result."),
+  settingsUrl: stringOutputProperty("Company settings URL when available."),
+};
+
+const genericOutputProperties: OutputSchemaProperties = {
+  success: successOutputProperty,
+  message: messageOutputProperty,
+  note: noteOutputProperty,
+  items: {
+    type: "array",
+    description:
+      "Fallback array wrapper used only when a tool returns a bare array.",
+    items: objectOutputProperty("One returned item."),
+  },
+  value: objectOutputProperty(
+    "Fallback object wrapper used only when a tool returns a non-object value."
+  ),
+};
+
+const outputPropertiesByToolName: Record<string, OutputSchemaProperties> = {
+  get_account: {
+    account: resourceOutputProperty("account"),
+    companies: resourceListOutputProperty("company"),
+    currentCompanyId: stringOutputProperty(
+      "Company ID selected by the authenticated API key, when available."
+    ),
+    selectedCompanyId: stringOutputProperty(
+      "Company ID selected locally for subsequent MCP calls, when available."
+    ),
+  },
+  select_company: {
+    companyId: stringOutputProperty("Selected company ID."),
+    companyName: stringOutputProperty("Selected company name."),
+  },
+  get_app_urls: {
+    dashboard: stringOutputProperty("Company dashboard URL."),
+    settings: stringOutputProperty("Company settings URL."),
+    campaign: stringOutputProperty("Campaign editor URL."),
+    landingPage: stringOutputProperty("Landing page editor URL."),
+    sequence: stringOutputProperty("Sequence editor URL."),
+    email: stringOutputProperty("Email editor URL."),
+    transactionalEmail: stringOutputProperty("Transactional email URL."),
+    emailSend: stringOutputProperty("Sent email detail URL."),
+    domain: stringOutputProperty("Sending domain settings URL."),
+    urls: objectOutputProperty("All generated URLs keyed by resource type."),
+  },
+  create_company: {
+    company: resourceOutputProperty("company"),
+    autoSelected: booleanOutputProperty(
+      "Whether the new company was selected for subsequent MCP calls."
+    ),
+  },
+  get_company: {
+    company: resourceOutputProperty("company"),
+  },
+  create_api_key: {
+    apiKey: stringOutputProperty(
+      "Newly created API key. This secret is returned only once."
+    ),
+    key: stringOutputProperty(
+      "Newly created API key if the API response uses the short key field."
+    ),
+  },
+  list_websites: {
+    websites: resourceListOutputProperty("sender website"),
+  },
+  add_website: {
+    website: resourceOutputProperty("sender website"),
+  },
+  check_website: {
+    website: resourceOutputProperty("sender website"),
+    ready: booleanOutputProperty("Whether the sender website is ready."),
+    status: stringOutputProperty("Current processing or verification status."),
+  },
+  get_integration_guide: {
+    guide: resourceOutputProperty("integration guide"),
+    code: stringOutputProperty("Generated integration code or example."),
+    steps: {
+      type: "array",
+      description: "Setup steps for the requested integration.",
+      items: objectOutputProperty("One setup step."),
+    },
+  },
+  add_subscriber: {
+    subscriber: resourceOutputProperty("subscriber"),
+  },
+  update_subscriber: {
+    subscriber: resourceOutputProperty("subscriber"),
+  },
+  remove_subscriber: {
+    subscriber: resourceOutputProperty("subscriber"),
+    hardDeleted: booleanOutputProperty(
+      "Whether the subscriber was permanently deleted."
+    ),
+  },
+  get_subscriber: {
+    subscriber: resourceOutputProperty("subscriber"),
+  },
+  search_subscribers: {
+    subscribers: resourceListOutputProperty("subscriber"),
+    pagination: objectOutputProperty("Pagination metadata."),
+    returned: numberOutputProperty("Number of subscribers returned."),
+    truncated: booleanOutputProperty(
+      "Whether the result was truncated by the requested limit."
+    ),
+  },
+  list_products: {
+    products: resourceListOutputProperty("product"),
+  },
+  upsert_products: {
+    products: resourceListOutputProperty("product"),
+    created: numberOutputProperty("Number of products created."),
+    updated: numberOutputProperty("Number of products updated."),
+  },
+  delete_product: {
+    productId: stringOutputProperty("Deleted product ID."),
+  },
+  attach_product_file: {
+    product: resourceOutputProperty("product"),
+    delivery: resourceOutputProperty("digital delivery file"),
+  },
+  remove_product_file: {
+    product: resourceOutputProperty("product"),
+  },
+  sync_products: {
+    job: resourceOutputProperty("product sync job"),
+    jobId: stringOutputProperty("Queued product sync job ID."),
+  },
+  list_tags: {
+    tags: resourceListOutputProperty("tag"),
+  },
+  create_tag: {
+    tag: resourceOutputProperty("tag"),
+  },
+  update_tag: {
+    tag: resourceOutputProperty("tag"),
+  },
+  delete_tag: {
+    tagId: stringOutputProperty("Deleted tag ID."),
+  },
+  list_lists: {
+    lists: resourceListOutputProperty("list"),
+  },
+  create_list: {
+    list: resourceOutputProperty("list"),
+  },
+  update_list: {
+    list: resourceOutputProperty("list"),
+  },
+  delete_list: {
+    listId: stringOutputProperty("Deleted list ID."),
+  },
+  add_subscribers_to_list: {
+    list: resourceOutputProperty("list"),
+    added: numberOutputProperty("Number of subscribers added to the list."),
+    skipped: numberOutputProperty("Number of subscribers skipped."),
+  },
+  remove_subscribers_from_list: {
+    list: resourceOutputProperty("list"),
+    removed: numberOutputProperty(
+      "Number of subscribers removed from the list."
+    ),
+    skipped: numberOutputProperty("Number of subscribers skipped."),
+  },
+  list_segments: {
+    segments: resourceListOutputProperty("segment"),
+  },
+  create_segment: {
+    segment: resourceOutputProperty("segment"),
+  },
+  update_segment: {
+    segment: resourceOutputProperty("segment"),
+  },
+  delete_segment: {
+    segmentId: stringOutputProperty("Deleted segment ID."),
+  },
+  get_segment_count: {
+    count: numberOutputProperty("Number of subscribers matching the segment."),
+    segmentId: stringOutputProperty("Segment ID that was counted."),
+  },
+  list_audience_syncs: {
+    audienceSyncs: resourceListOutputProperty("audience sync"),
+  },
+  list_ad_accounts: {
+    adAccounts: resourceListOutputProperty("ad account"),
+  },
+  create_audience_sync: {
+    audienceSync: resourceOutputProperty("audience sync"),
+  },
+  update_audience_sync: {
+    audienceSync: resourceOutputProperty("audience sync"),
+  },
+  delete_audience_sync: {
+    audienceSyncId: stringOutputProperty("Deleted audience sync ID."),
+  },
+  sync_audience_now: {
+    audienceSync: resourceOutputProperty("audience sync"),
+    job: resourceOutputProperty("audience sync job"),
+    jobId: stringOutputProperty("Queued audience sync job ID."),
+  },
+  list_templates: {
+    templates: resourceListOutputProperty("email template"),
+  },
+  get_template: {
+    template: resourceOutputProperty("email template"),
+  },
+  create_template: {
+    template: resourceOutputProperty("email template"),
+  },
+  update_template: {
+    template: resourceOutputProperty("email template"),
+  },
+  delete_template: {
+    templateId: stringOutputProperty("Deleted template ID."),
+  },
+  list_ab_tests: {
+    abTests: resourceListOutputProperty("A/B test"),
+  },
+  get_ab_test: {
+    abTest: resourceOutputProperty("A/B test"),
+  },
+  get_ab_test_stats: {
+    abTest: resourceOutputProperty("A/B test"),
+    stats: resourceOutputProperty("A/B test statistics"),
+  },
+  restart_ab_test: {
+    abTest: resourceOutputProperty("A/B test"),
+  },
+  update_ab_test_variant: {
+    abTest: resourceOutputProperty("A/B test"),
+    variant: resourceOutputProperty("A/B test variant"),
+  },
+  create_ab_test: {
+    abTest: resourceOutputProperty("A/B test"),
+  },
+  add_ab_test_variant: {
+    abTest: resourceOutputProperty("A/B test"),
+    variant: resourceOutputProperty("A/B test variant"),
+  },
+  delete_ab_test_variant: {
+    abTest: resourceOutputProperty("A/B test"),
+    variantId: stringOutputProperty("Deleted A/B test variant ID."),
+  },
+  delete_ab_test: {
+    abTestId: stringOutputProperty("Deleted A/B test ID."),
+  },
+  list_campaigns: {
+    campaigns: resourceListOutputProperty("campaign"),
+  },
+  get_campaign: {
+    campaign: resourceOutputProperty("campaign"),
+  },
+  get_email_send: {
+    emailSend: resourceOutputProperty("email send"),
+  },
+  create_campaign: {
+    campaign: resourceOutputProperty("campaign"),
+  },
+  update_campaign: {
+    campaign: resourceOutputProperty("campaign"),
+  },
+  schedule_campaign: {
+    campaign: resourceOutputProperty("campaign"),
+    scheduledAt: stringOutputProperty("Scheduled send timestamp."),
+  },
+  send_test_email: {
+    emailSend: resourceOutputProperty("test email send"),
+    recipient: stringOutputProperty("Test email recipient."),
+  },
+  cancel_campaign: {
+    campaign: resourceOutputProperty("campaign"),
+  },
+  pause_campaign: {
+    campaign: resourceOutputProperty("campaign"),
+  },
+  resume_campaign: {
+    campaign: resourceOutputProperty("campaign"),
+  },
+  delete_campaign: {
+    campaignId: stringOutputProperty("Deleted campaign ID."),
+  },
+  duplicate_campaign: {
+    campaign: resourceOutputProperty("duplicated campaign"),
+  },
+  list_landing_pages: {
+    landingPages: resourceListOutputProperty("landing page"),
+  },
+  get_landing_page: {
+    landingPage: resourceOutputProperty("landing page"),
+  },
+  create_landing_page: {
+    landingPage: resourceOutputProperty("landing page"),
+  },
+  update_landing_page: {
+    landingPage: resourceOutputProperty("landing page"),
+  },
+  delete_landing_page: {
+    landingPageId: stringOutputProperty("Deleted landing page ID."),
+  },
+  publish_landing_page: {
+    landingPage: resourceOutputProperty("landing page"),
+  },
+  unpublish_landing_page: {
+    landingPage: resourceOutputProperty("landing page"),
+  },
+  connect_landing_page_domain: {
+    landingPage: resourceOutputProperty("landing page"),
+    domain: stringOutputProperty("Connected landing page domain."),
+  },
+  update_landing_page_domain_settings: {
+    landingPage: resourceOutputProperty("landing page"),
+    domain: stringOutputProperty("Landing page domain."),
+  },
+  list_sequences: {
+    sequences: resourceListOutputProperty("sequence"),
+  },
+  get_sequence: {
+    sequence: resourceOutputProperty("sequence"),
+  },
+  create_sequence: {
+    sequence: resourceOutputProperty("sequence"),
+  },
+  update_sequence: {
+    sequence: resourceOutputProperty("sequence"),
+  },
+  enable_sequence: {
+    sequence: resourceOutputProperty("sequence"),
+  },
+  disable_sequence: {
+    sequence: resourceOutputProperty("sequence"),
+  },
+  enroll_subscribers_in_sequence: {
+    sequence: resourceOutputProperty("sequence"),
+    enrollments: resourceListOutputProperty("sequence enrollment"),
+    enrolled: numberOutputProperty("Number of subscribers enrolled."),
+    skipped: numberOutputProperty("Number of subscribers skipped."),
+  },
+  cancel_sequence_enrollments: {
+    sequence: resourceOutputProperty("sequence"),
+    cancelled: numberOutputProperty("Number of enrollments cancelled."),
+    skipped: numberOutputProperty("Number of enrollments skipped."),
+  },
+  delete_sequence: {
+    sequenceId: stringOutputProperty("Deleted sequence ID."),
+  },
+  list_transactional_emails: {
+    transactional: resourceListOutputProperty("transactional email"),
+  },
+  get_transactional_email: {
+    transactional: resourceOutputProperty("transactional email"),
+  },
+  create_transactional_email: {
+    transactional: resourceOutputProperty("transactional email"),
+  },
+  update_transactional_email: {
+    transactional: resourceOutputProperty("transactional email"),
+  },
+  send_email: {
+    emailSend: resourceOutputProperty("transactional email send"),
+    transactional: resourceOutputProperty("transactional email"),
+  },
+  get_stats: {
+    stats: resourceOutputProperty("account or company statistics"),
+  },
+  get_campaign_stats: {
+    campaign: resourceOutputProperty("campaign"),
+    stats: resourceOutputProperty("campaign statistics"),
+  },
+  get_sequence_stats: {
+    sequence: resourceOutputProperty("sequence"),
+    stats: resourceOutputProperty("sequence statistics"),
+  },
+  get_subscriber_activity: {
+    activity: resourceListOutputProperty("subscriber activity event"),
+    subscribers: resourceListOutputProperty("subscriber"),
+    pagination: objectOutputProperty("Pagination metadata."),
+  },
+  list_team_members: {
+    members: resourceListOutputProperty("team member"),
+    invitations: resourceListOutputProperty("team invitation"),
+  },
+  invite_team_member: {
+    invitation: resourceOutputProperty("team invitation"),
+  },
+  cancel_team_invitation: {
+    invitationId: stringOutputProperty("Cancelled invitation ID."),
+  },
+  list_conversations: {
+    conversations: resourceListOutputProperty("inbox conversation"),
+    pagination: objectOutputProperty("Pagination metadata."),
+  },
+  get_conversation: {
+    conversation: resourceOutputProperty("inbox conversation"),
+    messages: resourceListOutputProperty("conversation message"),
+  },
+  reply_to_conversation: {
+    conversation: resourceOutputProperty("inbox conversation"),
+    message: resourceOutputProperty("conversation message"),
+  },
+  update_conversation_status: {
+    conversation: resourceOutputProperty("inbox conversation"),
+  },
+  mark_conversation_read: {
+    conversation: resourceOutputProperty("inbox conversation"),
+  },
+  list_webhooks: {
+    webhooks: resourceListOutputProperty("outbound webhook"),
+  },
+  create_webhook: {
+    webhook: resourceOutputProperty("outbound webhook"),
+  },
+  update_webhook: {
+    webhook: resourceOutputProperty("outbound webhook"),
+  },
+  delete_webhook: {
+    webhookId: stringOutputProperty("Deleted outbound webhook ID."),
+  },
+  test_webhook: {
+    webhook: resourceOutputProperty("outbound webhook"),
+    delivery: resourceOutputProperty("test webhook delivery"),
+  },
+  list_webhook_deliveries: {
+    deliveries: resourceListOutputProperty("webhook delivery"),
+  },
+  replay_webhook_delivery: {
+    delivery: resourceOutputProperty("webhook delivery"),
+    job: resourceOutputProperty("webhook replay job"),
+  },
+  generate_email: {
+    email: resourceOutputProperty("generated email"),
+    html: stringOutputProperty("Generated HTML email body."),
+    blocks: {
+      type: "array",
+      description: "Generated Sequenzy email blocks.",
+      items: objectOutputProperty("One generated email block."),
+    },
+    subject: stringOutputProperty("Generated subject line."),
+    previewText: stringOutputProperty("Generated inbox preview text."),
+  },
+  generate_sequence: {
+    sequence: resourceOutputProperty("generated sequence"),
+    steps: resourceListOutputProperty("generated sequence step"),
+  },
+  generate_subject_lines: {
+    subjectLines: {
+      type: "array",
+      description: "Generated subject line variants.",
+      items: stringOutputProperty("One generated subject line."),
+    },
+    variants: resourceListOutputProperty("generated subject line variant"),
+  },
+};
+
+function getToolOutputSchema(toolName: string): ToolOutputSchema {
+  const toolOutputProperties = outputPropertiesByToolName[toolName];
+  if (toolOutputProperties === undefined) {
+    throw new Error(
+      `MCP tool "${toolName}" must define outputSchema properties.`
+    );
+  }
+
+  return {
+    type: "object",
+    description: `Structured content returned by the \`${toolName}\` MCP tool.`,
+    properties: {
+      ...genericOutputProperties,
+      ...toolOutputProperties,
+      ...(dashboardUrlToolNames.has(toolName)
+        ? dashboardUrlOutputProperties
+        : {}),
+    },
+    additionalProperties: true,
+  };
+}
+
+function withToolOutputSchema(tool: Tool): Tool {
+  return {
+    ...tool,
+    outputSchema: getToolOutputSchema(tool.name),
+  };
+}
+
+function toStructuredContent(result: unknown): Record<string, unknown> {
+  if (isRecord(result)) {
+    return result;
+  }
+
+  if (Array.isArray(result)) {
+    return { items: result };
+  }
+
+  return { value: result };
 }
 
 // Tool definitions
@@ -6143,16 +6727,15 @@ OTHER BUILT-IN EVENTS:
   },
 ];
 
-export const tools: Tool[] = toolDefinitions.map(withRequiredToolHints);
+export const tools: Tool[] = toolDefinitions
+  .map(withToolOutputSchema)
+  .map(withRequiredToolHints);
 
 // Tool call handler
 export async function handleToolCall(
   name: string,
   args: Record<string, unknown>
-): Promise<{
-  content: Array<{ type: "text"; text: string }>;
-  isError?: boolean;
-}> {
+): Promise<SequenzyToolCallResult> {
   try {
     let result: unknown;
 
@@ -8742,6 +9325,7 @@ export async function handleToolCall(
     result = await addAppUrlsToToolResult(name, args, result);
 
     return {
+      structuredContent: toStructuredContent(result),
       content: [
         {
           type: "text",
