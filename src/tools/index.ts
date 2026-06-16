@@ -32,6 +32,7 @@ const landingPageTemplateDescription =
   "Optional template key for default content, such as from-scratch, waitlist, lead-magnet, launch, demo-request, webinar, newsletter, product-hunt, pricing-offer, agency-lead-gen, or feature-announcement.";
 
 const ADD_SUBSCRIBERS_TO_LIST_EMAIL_LIMIT = 500;
+const SEQUENCE_ENROLLMENT_TARGET_LIMIT = 500;
 
 const AVAILABLE_TAG_COLORS = [
   "gray",
@@ -1786,6 +1787,85 @@ function requireEmailArray(
   }
 
   return emails;
+}
+
+function optionalNonEmptyStringArray(
+  toolName: string,
+  args: Record<string, unknown>,
+  key: string,
+  itemLabel: string
+): string[] | undefined {
+  const value = args[key];
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (!Array.isArray(value)) {
+    throw new Error(
+      `\`${key}\` must be an array when calling \`${toolName}\`.`
+    );
+  }
+
+  const normalizedValues: string[] = [];
+  value.forEach((item, index) => {
+    if (typeof item !== "string") {
+      throw new Error(
+        `\`${key}\` item ${index + 1} must be a string when calling \`${toolName}\`.`
+      );
+    }
+
+    const trimmed = item.trim();
+    if (trimmed.length > 0) {
+      normalizedValues.push(trimmed);
+    }
+  });
+
+  if (normalizedValues.length === 0) {
+    throw new Error(
+      `\`${key}\` must include at least one ${itemLabel} when calling \`${toolName}\`.`
+    );
+  }
+
+  return normalizedValues;
+}
+
+function buildSequenceEnrollmentBody(
+  args: Record<string, unknown>
+): Record<string, unknown> {
+  const toolName = "enroll_subscribers_in_sequence";
+  const emails = optionalNonEmptyStringArray(
+    toolName,
+    args,
+    "emails",
+    "email address"
+  );
+  const subscriberIds = optionalNonEmptyStringArray(
+    toolName,
+    args,
+    "subscriberIds",
+    "subscriber ID"
+  );
+  const targetCount = (emails?.length ?? 0) + (subscriberIds?.length ?? 0);
+
+  if (targetCount === 0) {
+    throw new Error(
+      "Provide `emails` or `subscriberIds` when calling `enroll_subscribers_in_sequence`."
+    );
+  }
+
+  if (targetCount > SEQUENCE_ENROLLMENT_TARGET_LIMIT) {
+    throw new Error(
+      `\`emails\` and \`subscriberIds\` must include no more than ${SEQUENCE_ENROLLMENT_TARGET_LIMIT} total targets when calling \`enroll_subscribers_in_sequence\`. Split larger batches into multiple calls.`
+    );
+  }
+
+  const targetNodeId = optionalString(args, "targetNodeId");
+
+  return {
+    ...(emails !== undefined && { emails }),
+    ...(subscriberIds !== undefined && { subscriberIds }),
+    ...(targetNodeId !== undefined && { targetNodeId }),
+  };
 }
 
 /**
@@ -5866,7 +5946,7 @@ OTHER BUILT-IN EVENTS:
   {
     name: "enroll_subscribers_in_sequence",
     description:
-      "Manually enroll subscribers in a sequence by email address. Maximum 500 emails per call. Only active subscribers are enrolled: unknown emails are returned in `notFound`, while inactive subscribers and subscribers already actively enrolled in the sequence are counted in `skipped`. By default enrollment starts at the first step after the trigger; pass targetNodeId to start at a specific step.",
+      "Manually enroll subscribers in a sequence by email address or subscriber ID. Maximum 500 total targets per call across emails and subscriberIds. Only active subscribers are enrolled: unknown emails are returned in `notFound`, while inactive, unavailable, and already actively enrolled subscribers are counted in `skipped`. By default enrollment starts at the first step after the trigger; pass targetNodeId to start at a specific step.",
     inputSchema: {
       type: "object",
       properties: {
@@ -5883,7 +5963,13 @@ OTHER BUILT-IN EVENTS:
           type: "array",
           items: { type: "string" },
           description:
-            "Email addresses of subscribers to enroll. Maximum 500 per call.",
+            "Email addresses of subscribers to enroll. Combined with subscriberIds, maximum 500 total targets per call.",
+        },
+        subscriberIds: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Subscriber IDs to enroll. Combined with emails, maximum 500 total targets per call.",
         },
         targetNodeId: {
           type: "string",
@@ -5891,7 +5977,7 @@ OTHER BUILT-IN EVENTS:
             "Optional node ID to start enrollment at. Use a non-trigger nodeId from get_sequence. Defaults to the first step after the trigger.",
         },
       },
-      required: ["sequenceId", "emails"],
+      required: ["sequenceId"],
     },
   },
   {
@@ -8582,19 +8668,12 @@ export async function handleToolCall(
           args,
           "sequenceId"
         );
-        const emails = requireEmailArray(
-          "enroll_subscribers_in_sequence",
-          args
-        );
-        const targetNodeId = optionalString(args, "targetNodeId");
+        const body = buildSequenceEnrollmentBody(args);
 
         result = await apiRequest(
           "POST",
           `/api/v1/sequences/${encodeURIComponent(sequenceId)}/enroll`,
-          {
-            emails,
-            ...(targetNodeId !== undefined && { targetNodeId }),
-          },
+          body,
           companyId
         );
         break;

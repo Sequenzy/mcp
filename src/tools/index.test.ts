@@ -2928,6 +2928,23 @@ describe("enroll_subscribers_in_sequence tool", () => {
     mockApiRequest.mockClear();
   });
 
+  it("publishes optional email and subscriber ID targets", () => {
+    const tool = tools.find(
+      (candidate) => candidate.name === "enroll_subscribers_in_sequence"
+    );
+    const inputSchema = tool?.inputSchema as
+      | {
+          required?: string[];
+          properties?: Record<string, unknown>;
+        }
+      | undefined;
+
+    expect(inputSchema?.required).toEqual(["sequenceId"]);
+    expect(inputSchema?.properties).toHaveProperty("emails");
+    expect(inputSchema?.properties).toHaveProperty("subscriberIds");
+    expect(inputSchema?.properties).toHaveProperty("targetNodeId");
+  });
+
   it("enrolls subscribers with a target node", async () => {
     mockApiRequest.mockResolvedValueOnce({
       success: true,
@@ -2957,33 +2974,103 @@ describe("enroll_subscribers_in_sequence tool", () => {
     );
   });
 
-  it("rejects enrollment batches above 500 emails", async () => {
+  it("enrolls subscribers by ID with a target node", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      enrolled: 2,
+      skipped: 0,
+      notFound: [],
+      targetNodeId: "node_email_1",
+      scheduledFor: "2026-06-11T00:00:00.000Z",
+    });
+
+    const result = await handleToolCall("enroll_subscribers_in_sequence", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      subscriberIds: [" sub_123 ", "sub_456"],
+      targetNodeId: "node_email_1",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/sequences/seq_123/enroll",
+      {
+        subscriberIds: ["sub_123", "sub_456"],
+        targetNodeId: "node_email_1",
+      },
+      "comp_123"
+    );
+  });
+
+  it("enrolls subscribers by email and ID in one call", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      enrolled: 2,
+      skipped: 0,
+      notFound: [],
+      targetNodeId: "node_email_1",
+      scheduledFor: "2026-06-11T00:00:00.000Z",
+    });
+
+    const result = await handleToolCall("enroll_subscribers_in_sequence", {
+      sequenceId: "seq_123",
+      emails: ["a@example.com"],
+      subscriberIds: ["sub_123"],
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/sequences/seq_123/enroll",
+      {
+        emails: ["a@example.com"],
+        subscriberIds: ["sub_123"],
+      },
+      undefined
+    );
+  });
+
+  it("rejects enrollment batches above 500 total targets", async () => {
     const emails = Array.from(
-      { length: 501 },
+      { length: 500 },
       (_, index) => `user${index}@example.com`
     );
 
     const result = await handleToolCall("enroll_subscribers_in_sequence", {
       sequenceId: "seq_123",
       emails,
+      subscriberIds: ["sub_501"],
     });
 
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain(
-      "`emails` must include no more than 500 email addresses when calling `enroll_subscribers_in_sequence`."
+      "`emails` and `subscriberIds` must include no more than 500 total targets when calling `enroll_subscribers_in_sequence`."
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
-  it("rejects enrollment calls without emails", async () => {
+  it("rejects enrollment calls without emails or subscriber IDs", async () => {
     const result = await handleToolCall("enroll_subscribers_in_sequence", {
       sequenceId: "seq_123",
-      emails: [],
     });
 
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain(
-      "`emails` must include at least one email address when calling `enroll_subscribers_in_sequence`."
+      "Provide `emails` or `subscriberIds` when calling `enroll_subscribers_in_sequence`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects empty subscriber ID arrays", async () => {
+    const result = await handleToolCall("enroll_subscribers_in_sequence", {
+      sequenceId: "seq_123",
+      subscriberIds: [],
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`subscriberIds` must include at least one subscriber ID when calling `enroll_subscribers_in_sequence`."
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
   });
