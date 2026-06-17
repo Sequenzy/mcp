@@ -33,8 +33,14 @@
       ]
     }
   ],
-  "defaultInputModes": ["application/json", "text/plain"],
-  "defaultOutputModes": ["application/json", "text/plain"],
+  "defaultInputModes": [
+    "application/json",
+    "text/plain"
+  ],
+  "defaultOutputModes": [
+    "application/json",
+    "text/plain"
+  ],
   "securitySchemes": {
     "sequenzyApiKey": {
       "type": "http",
@@ -52,5 +58,10 @@
       "transport": "streamable-http",
       "url": "https://api.sequenzy.com/v1/mcp"
     }
+  },
+  "externalUrl": "https://www.moltbook.com/u/sequenzy",
+  "metadata": {
+    "moltbook_profile": "https://www.moltbook.com/u/sequenzy",
+    "moltbook_status": "pending_claim"
   }
 }
