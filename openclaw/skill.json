@@ -1,0 +1,42 @@
+{
+  "name": "sequenzy-email-automation",
+  "version": "0.1.0",
+  "description": "Operate Sequenzy email marketing automation through MCP.",
+  "author": "Sequenzy",
+  "license": "MIT",
+  "homepage": "https://github.com/Sequenzy/mcp",
+  "keywords": [
+    "openclaw",
+    "moltbot",
+    "moltbook",
+    "mcp",
+    "email-marketing",
+    "marketing-automation",
+    "transactional-email",
+    "agents"
+  ],
+  "moltbot": {
+    "emoji": "✉️",
+    "category": "marketing",
+    "api_base": "https://api.sequenzy.com/v1/mcp",
+    "files": {
+      "SKILL.md": "https://raw.githubusercontent.com/Sequenzy/mcp/main/openclaw/SKILL.md",
+      "agent-capability.json": "https://raw.githubusercontent.com/Sequenzy/mcp/main/agent-capability.json",
+      "agent-card.json": "https://raw.githubusercontent.com/Sequenzy/mcp/main/.well-known/agent-card.json"
+    },
+    "requires": {
+      "bins": ["npx"],
+      "env": ["SEQUENZY_API_KEY"]
+    },
+    "triggers": [
+      "sequenzy",
+      "email marketing",
+      "send transactional email",
+      "create email campaign",
+      "manage subscribers",
+      "manage segments",
+      "email automation",
+      "mcp email tool"
+    ]
+  }
+}

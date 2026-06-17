@@ -554,3 +554,16 @@ This standalone repository mirrors the MCP package maintained in the main Sequen
 ## License
 
 MIT
+
+
+## Agent-native discovery
+
+Sequenzy publishes machine-readable manifests for agent networks and A2A-style discovery:
+
+- Remote MCP endpoint: `https://api.sequenzy.com/v1/mcp`
+- Agent capability manifest: [`agent-capability.json`](./agent-capability.json)
+- A2A-style agent card: [`.well-known/agent-card.json`](./.well-known/agent-card.json)
+- OpenClaw/Moltbot skill metadata: [`openclaw/skill.json`](./openclaw/skill.json)
+- OpenClaw/Moltbot operating guide: [`openclaw/SKILL.md`](./openclaw/SKILL.md)
+
+These files describe Sequenzy as an authorized email automation capability for agents. They explicitly exclude scraping, spam, and unsolicited cold outreach use cases.

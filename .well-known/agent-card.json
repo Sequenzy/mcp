@@ -1,0 +1,56 @@
+{
+  "name": "Sequenzy Email Automation Agent Capability",
+  "description": "Allows A2A-capable agents and orchestrators to discover Sequenzy as an email marketing automation tool exposed through MCP.",
+  "url": "https://api.sequenzy.com/v1/mcp",
+  "provider": {
+    "organization": "Sequenzy",
+    "url": "https://sequenzy.com"
+  },
+  "version": "0.0.61",
+  "documentationUrl": "https://github.com/Sequenzy/mcp",
+  "capabilities": {
+    "streaming": false,
+    "pushNotifications": false,
+    "stateTransitionHistory": true
+  },
+  "skills": [
+    {
+      "id": "sequenzy.email_automation",
+      "name": "Email marketing automation",
+      "description": "Manage subscribers, lists, segments, templates, campaigns, sequences, transactional email, analytics, and AI-generated email content.",
+      "tags": [
+        "email-marketing",
+        "marketing-automation",
+        "transactional-email",
+        "campaigns",
+        "subscribers",
+        "mcp"
+      ],
+      "examples": [
+        "Create a draft lifecycle email campaign for users who started onboarding but did not finish.",
+        "Add this customer to the beta announcements segment.",
+        "Show recent email performance for the activation sequence."
+      ]
+    }
+  ],
+  "defaultInputModes": ["application/json", "text/plain"],
+  "defaultOutputModes": ["application/json", "text/plain"],
+  "securitySchemes": {
+    "sequenzyApiKey": {
+      "type": "http",
+      "scheme": "bearer",
+      "description": "Sequenzy API key or OAuth access token."
+    }
+  },
+  "security": [
+    {
+      "sequenzyApiKey": []
+    }
+  ],
+  "protocols": {
+    "mcp": {
+      "transport": "streamable-http",
+      "url": "https://api.sequenzy.com/v1/mcp"
+    }
+  }
+}
