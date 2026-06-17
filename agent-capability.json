@@ -21,8 +21,13 @@
     },
     "stdio": {
       "command": "npx",
-      "args": ["-y", "@sequenzy/mcp"],
-      "env": ["SEQUENZY_API_KEY"]
+      "args": [
+        "-y",
+        "@sequenzy/mcp"
+      ],
+      "env": [
+        "SEQUENZY_API_KEY"
+      ]
     }
   },
   "capabilities": [
@@ -55,5 +60,12 @@
     "requires_auth": true,
     "mutating_actions": true,
     "recommended_policy": "Agents should use dry-run or draft flows where available and ask for human approval before sending campaigns or transactional email to real recipients."
+  },
+  "agent_profiles": {
+    "moltbook": {
+      "name": "sequenzy",
+      "url": "https://www.moltbook.com/u/sequenzy",
+      "status": "pending_claim"
+    }
   }
 }
