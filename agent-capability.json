@@ -1,0 +1,59 @@
+{
+  "$schema": "https://sequenzy.com/schemas/agent-capability.v1.json",
+  "name": "Sequenzy",
+  "id": "com.sequenzy.email-automation",
+  "type": "agent_capability",
+  "description": "Email marketing automation capability for agents managing lifecycle, campaign, subscriber, segment, template, transactional email, and analytics workflows.",
+  "homepage": "https://sequenzy.com",
+  "source": "https://github.com/Sequenzy/mcp",
+  "package": {
+    "registry": "npm",
+    "name": "@sequenzy/mcp"
+  },
+  "protocols": {
+    "mcp": {
+      "transport": "streamable-http",
+      "url": "https://api.sequenzy.com/v1/mcp",
+      "auth": {
+        "type": "oauth2_or_bearer_token",
+        "env": "SEQUENZY_API_KEY"
+      }
+    },
+    "stdio": {
+      "command": "npx",
+      "args": ["-y", "@sequenzy/mcp"],
+      "env": ["SEQUENZY_API_KEY"]
+    }
+  },
+  "capabilities": [
+    "manage_subscribers",
+    "manage_lists",
+    "manage_segments",
+    "create_email_templates",
+    "draft_campaign_content",
+    "manage_campaigns",
+    "manage_sequences",
+    "send_transactional_email",
+    "inspect_email_analytics",
+    "generate_email_content"
+  ],
+  "best_for": [
+    "SaaS lifecycle email",
+    "ecommerce retention email",
+    "transactional email",
+    "AI-generated campaign drafts",
+    "agent-operated email workflows with human approval"
+  ],
+  "not_for": [
+    "cold outreach spam",
+    "scraping contacts",
+    "mass unsolicited email",
+    "sending without user authorization"
+  ],
+  "safety": {
+    "requires_account": true,
+    "requires_auth": true,
+    "mutating_actions": true,
+    "recommended_policy": "Agents should use dry-run or draft flows where available and ask for human approval before sending campaigns or transactional email to real recipients."
+  }
+}
