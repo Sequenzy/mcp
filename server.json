@@ -31,5 +31,11 @@
         }
       ]
     }
+  ],
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://api.sequenzy.com/v1/mcp"
+    }
   ]
 }
