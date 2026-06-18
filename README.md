@@ -32,6 +32,23 @@ npx @sequenzy/setup
 
 The wizard opens the browser login flow, creates a personal API key, detects supported AI clients, and configures them automatically when possible.
 
+## Hosted Remote MCP
+
+For clients that support Streamable HTTP MCP, use Sequenzy's hosted endpoint instead of running a local stdio process:
+
+```text
+https://api.sequenzy.com/v1/mcp
+```
+
+Remote clients should authenticate with the Sequenzy OAuth flow when supported. Local and automation clients can still use the stdio package below with `SEQUENZY_API_KEY`.
+
+Machine-readable discovery files:
+
+- MCP server manifest: [`server.json`](server.json)
+- Agent card: [`.well-known/agent-card.json`](.well-known/agent-card.json)
+- Agent capability manifest: [`agent-capability.json`](agent-capability.json)
+- OpenClaw skill metadata: [`openclaw/skill.json`](openclaw/skill.json)
+
 ## Manual Setup
 
 All stdio MCP clients use the same command:

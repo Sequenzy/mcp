@@ -6,7 +6,7 @@
     "organization": "Sequenzy",
     "url": "https://sequenzy.com"
   },
-  "version": "0.0.61",
+  "version": "0.0.64",
   "documentationUrl": "https://github.com/Sequenzy/mcp",
   "capabilities": {
     "streaming": false,
