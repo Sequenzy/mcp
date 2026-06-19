@@ -194,18 +194,18 @@ This server currently exposes 113 MCP tools.
 
 ### Account, Companies, Setup
 
-| Tool                    | Description                                                                                       |
-| ----------------------- | ------------------------------------------------------------------------------------------------- |
-| `get_account`           | Get account info, available companies, and the current company.                                   |
-| `select_company`        | Set the active company for future tool calls.                                                     |
+| Tool                    | Description                                                                                                      |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `get_account`           | Get account info, available companies, and the current company.                                                  |
+| `select_company`        | Set the active company for future tool calls.                                                                    |
 | `get_app_urls`          | Build dashboard URLs for campaigns, landing pages, sequences, emails, settings, domains, and sent email details. |
-| `create_company`        | Create a new company or brand.                                                                    |
-| `get_company`           | Read company details and localization settings.                                                   |
-| `create_api_key`        | Create an API key for a company.                                                                  |
-| `list_websites`         | List configured sender websites and domains.                                                      |
-| `add_website`           | Add a sender website. Processing can take around 30 seconds.                                      |
-| `check_website`         | Check whether a website is processed and ready.                                                   |
-| `get_integration_guide` | Get framework-specific integration examples.                                                      |
+| `create_company`        | Create a new company or brand.                                                                                   |
+| `get_company`           | Read company details and localization settings.                                                                  |
+| `create_api_key`        | Create an API key for a company.                                                                                 |
+| `list_websites`         | List configured sender websites and domains.                                                                     |
+| `add_website`           | Add a sender website. Processing can take around 30 seconds.                                                     |
+| `check_website`         | Check whether a website is processed and ready.                                                                  |
+| `get_integration_guide` | Get framework-specific integration examples.                                                                     |
 
 ### Subscribers
 
@@ -360,17 +360,17 @@ Use `get_ab_test` to discover variant IDs before editing. Variant updates accept
 
 ### Landing Pages
 
-| Tool                                  | Description                                                              |
-| ------------------------------------- | ------------------------------------------------------------------------ |
-| `list_landing_pages`                  | List landing pages with status, metrics, content, and URLs.              |
-| `get_landing_page`                    | Get landing page details, builder content, metrics, and public URLs.     |
-| `create_landing_page`                 | Create a draft landing page from default template content or JSON.       |
-| `update_landing_page`                 | Edit a landing page name, slug, or full editor-compatible content.       |
-| `publish_landing_page`                | Publish a landing page, optionally saving edits first.                   |
-| `unpublish_landing_page`              | Return a landing page to draft status, optionally saving edits first.    |
-| `delete_landing_page`                 | Delete an unpublished landing page.                                      |
-| `connect_landing_page_domain`         | Connect a custom landing page domain and return DNS setup details.       |
-| `update_landing_page_domain_settings` | Replace or verify landing page custom domain settings.                   |
+| Tool                                  | Description                                                           |
+| ------------------------------------- | --------------------------------------------------------------------- |
+| `list_landing_pages`                  | List landing pages with status, metrics, content, and URLs.           |
+| `get_landing_page`                    | Get landing page details, builder content, metrics, and public URLs.  |
+| `create_landing_page`                 | Create a draft landing page from default template content or JSON.    |
+| `update_landing_page`                 | Edit a landing page name, slug, or full editor-compatible content.    |
+| `publish_landing_page`                | Publish a landing page, optionally saving edits first.                |
+| `unpublish_landing_page`              | Return a landing page to draft status, optionally saving edits first. |
+| `delete_landing_page`                 | Delete an unpublished landing page.                                   |
+| `connect_landing_page_domain`         | Connect a custom landing page domain and return DNS setup details.    |
+| `update_landing_page_domain_settings` | Replace or verify landing page custom domain settings.                |
 
 Landing page content uses Sequenzy's editor-compatible JSON schema with `version`, `template`, `seo`, `theme`, and `blocks`. Custom landing page domains require a CNAME record pointing to `pages.sequenzydns.com`; call `update_landing_page_domain_settings` with `verify: true` after DNS changes propagate.
 
@@ -443,6 +443,8 @@ For compatibility with older agent prompts, top-level style keys such as `backgr
 | `get_campaign_stats`      | Get detailed campaign performance.                     |
 | `get_sequence_stats`      | Get sequence performance.                              |
 | `get_subscriber_activity` | Get subscriber email stats, activity, and enrollments. |
+
+Analytics tools exclude detected bot, scanner, link-preview, and tracked asset opens/clicks by default. Pass `includeMachineEngagement: true` to `get_stats`, `get_campaign_stats`, `get_sequence_stats`, `get_ab_test_stats`, `get_subscriber`, or `get_subscriber_activity` when you need raw engagement diagnostics; included open/click activity rows expose `machine`, `engagementQuality`, and `classificationReasons` fields where the API returns event-level activity.
 
 ### Team, Inbox, Webhooks
 
@@ -571,7 +573,6 @@ This standalone repository mirrors the MCP package maintained in the main Sequen
 ## License
 
 MIT
-
 
 ## Agent-native discovery
 

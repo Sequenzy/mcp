@@ -34,6 +34,47 @@ const landingPageTemplateDescription =
 const ADD_SUBSCRIBERS_TO_LIST_EMAIL_LIMIT = 500;
 const SEQUENCE_ENROLLMENT_TARGET_LIMIT = 500;
 
+const includeMachineEngagementToolProperty = {
+  type: "boolean",
+  description:
+    "If true, include machine-classified bot/scanner opens and clicks. Defaults to false, so metrics and activity are human-only.",
+};
+
+const sequenceSendingWindowSchema = {
+  type: "object",
+  description:
+    "Optional send window for every email step in the sequence. When set, email actions that become due outside the window wait until the next allowed local time. Omit days to allow every day.",
+  properties: {
+    enabled: {
+      type: "boolean",
+      description:
+        "Set false to disable the sending window when creating a sequence. For updates, prefer clearSendingWindow.",
+    },
+    timezone: {
+      type: "string",
+      description:
+        "IANA timezone for the window, e.g. Europe/Kiev or America/New_York.",
+    },
+    startTime: {
+      type: "string",
+      description:
+        "Earliest local send time in 24-hour HH:mm format, e.g. 08:00.",
+    },
+    endTime: {
+      type: "string",
+      description:
+        "Latest local send cutoff in 24-hour HH:mm format, e.g. 20:00. Must be later than startTime.",
+    },
+    days: {
+      type: "array",
+      description:
+        "Allowed local days. Use full names or short names such as monday, tuesday, mon, tue. Omit for every day.",
+      items: { type: "string" },
+    },
+  },
+  additionalProperties: false,
+};
+
 const AVAILABLE_TAG_COLORS = [
   "gray",
   "red",
@@ -1008,12 +1049,21 @@ function buildUpdateSequenceBody(
       "Provide either `enrollmentFieldPath` or `clearEnrollmentFieldPath` when calling `update_sequence`, not both."
     );
   }
+  if (args.clearSendingWindow === true && args.sendingWindow !== undefined) {
+    throw new Error(
+      "Provide either `sendingWindow` or `clearSendingWindow` when calling `update_sequence`, not both."
+    );
+  }
 
   const body = { ...args };
   delete body.clearEnrollmentFieldPath;
+  delete body.clearSendingWindow;
 
   if (args.clearEnrollmentFieldPath === true) {
     body.enrollmentFieldPath = null;
+  }
+  if (args.clearSendingWindow === true) {
+    body.sendingWindow = null;
   }
 
   return body;
@@ -1600,26 +1650,36 @@ function requireSubscriberIdentifier(
   return identifier;
 }
 
-function getSubscriberDetailPath(identifier: {
-  email?: string;
-  externalId?: string;
-}): string {
+function getSubscriberDetailPath(
+  identifier: {
+    email?: string;
+    externalId?: string;
+  },
+  options?: { includeMachineEngagement?: boolean | undefined }
+): string {
+  const params = new URLSearchParams();
+  if (options?.includeMachineEngagement) {
+    params.set("includeMachineEngagement", "true");
+  }
+  const query = params.toString();
+  const suffix = query ? `?${query}` : "";
+
   if (identifier.email) {
-    return `/api/v1/subscribers/${encodeURIComponent(identifier.email)}`;
+    return `/api/v1/subscribers/${encodeURIComponent(identifier.email)}${suffix}`;
   }
 
-  return `/api/v1/subscribers/external?externalId=${encodeURIComponent(
-    String(identifier.externalId)
-  )}`;
+  params.set("externalId", String(identifier.externalId));
+  return `/api/v1/subscribers/external?${params.toString()}`;
 }
 
 async function fetchDetailedSubscriberByIdentifier(
   identifier: { email?: string; externalId?: string },
-  companyId: string | undefined
+  companyId: string | undefined,
+  options?: { includeMachineEngagement?: boolean | undefined }
 ): Promise<DetailedSubscriberResult> {
   return apiRequest<DetailedSubscriberResult>(
     "GET",
-    getSubscriberDetailPath(identifier),
+    getSubscriberDetailPath(identifier, options),
     undefined,
     companyId
   );
@@ -3241,6 +3301,7 @@ Before implementing, use create_api_key to generate an API key and save it to .e
           description:
             "Customer-owned subscriber ID. Provide email or externalId to identify the subscriber.",
         },
+        includeMachineEngagement: includeMachineEngagementToolProperty,
       },
       required: [],
     },
@@ -4208,6 +4269,7 @@ Before implementing, use create_api_key to generate an API key and save it to .e
           type: "string",
           description: "Custom range end as ISO 8601. Requires start.",
         },
+        includeMachineEngagement: includeMachineEngagementToolProperty,
       },
       required: ["abTestId"],
     },
@@ -4505,7 +4567,8 @@ Before implementing, use create_api_key to generate an API key and save it to .e
   },
   {
     name: "create_campaign",
-    description: "Create a new campaign (as draft)",
+    description:
+      "Create a new campaign. Defaults to draft; use status 'sent' only to archive an already-sent campaign without sending email.",
     inputSchema: {
       type: "object",
       properties: {
@@ -4527,6 +4590,16 @@ Before implementing, use create_api_key to generate an API key and save it to .e
           type: "string",
           description:
             "Optional campaign tracking code for UTM templates. Use only when explicitly requested.",
+        },
+        status: {
+          type: "string",
+          description:
+            "Initial status: draft or sent. Defaults to draft. Use sent only for imported/already-sent campaigns; it does not send email or create delivery history.",
+        },
+        sentAt: {
+          type: "string",
+          description:
+            "ISO date-time for an imported/already-sent campaign. Only valid when status is sent; defaults to now if omitted.",
         },
         html: {
           type: "string",
@@ -5393,10 +5466,11 @@ OTHER BUILT-IN EVENTS:
           description:
             "Dot-path event property used by enrollmentMode='matching_field', such as 'order.id' or 'product.providerVariantId'. Leave omitted for Shopify back-in-stock/replenishment product-variant defaults.",
         },
+        sendingWindow: sequenceSendingWindowSchema,
         stopCondition: {
           type: "object",
           description:
-            "Optional explicit auto-stop condition. Use { type: 'has_tag', value: 'customer' } to end the sequence when a subscriber gets a tag, { type: 'does_not_have_tag', value: 'trial' } when a tag is removed, { type: 'removed_from_list', value: 'list_123' } when they leave a list, { type: 'event_received', value: 'onboarding.completed' } when an event is tracked, or { type: 'none', value: null } for no auto-stop.",
+            "Optional explicit auto-stop condition. Use { type: 'has_tag', value: 'customer' } to end the sequence when a subscriber gets a tag, { type: 'does_not_have_tag', value: 'trial' } when a tag is removed, { type: 'entered_segment', value: 'segment_123' } when they enter a segment, { type: 'field_changed', value: 'plan' } when a subscriber field changes, { type: 'removed_from_list', value: 'list_123' } when they leave a list, { type: 'event_received', value: 'onboarding.completed' } when an event is tracked, or { type: 'none', value: null } for no auto-stop.",
           properties: {
             type: {
               type: "string",
@@ -5406,6 +5480,8 @@ OTHER BUILT-IN EVENTS:
                 "does_not_have_tag",
                 "added_to_list",
                 "removed_from_list",
+                "entered_segment",
+                "field_changed",
                 "event_received",
               ],
               description: "Stop condition type.",
@@ -5413,7 +5489,7 @@ OTHER BUILT-IN EVENTS:
             value: {
               type: ["string", "null"],
               description:
-                "Tag name, list ID, or event name for the stop condition. Use null or omit for type 'none'.",
+                "Tag name, list ID, segment ID, field path, or event name for the stop condition. Use null or omit for type 'none'.",
             },
           },
           required: ["type"],
@@ -5666,10 +5742,16 @@ OTHER BUILT-IN EVENTS:
           description:
             "Set true to clear enrollmentFieldPath without sending a nullable schema value.",
         },
+        sendingWindow: sequenceSendingWindowSchema,
+        clearSendingWindow: {
+          type: "boolean",
+          description:
+            "Set true to remove the sequence sending window. Do not provide this together with sendingWindow.",
+        },
         stopCondition: {
           type: "object",
           description:
-            "Update the sequence auto-stop condition. Example: { type: 'has_tag', value: 'customer' } ends the sequence when the subscriber has that tag. Use { type: 'removed_from_list', value: 'list_123' } to stop when they leave a list, or { type: 'none', value: null } to clear it.",
+            "Update the sequence auto-stop condition. Example: { type: 'has_tag', value: 'customer' } ends the sequence when the subscriber has that tag. Use { type: 'entered_segment', value: 'segment_123' } to stop when they enter a segment, { type: 'field_changed', value: 'plan' } to stop when a subscriber field changes, { type: 'removed_from_list', value: 'list_123' } to stop when they leave a list, or { type: 'none', value: null } to clear it.",
           properties: {
             type: {
               type: "string",
@@ -5679,13 +5761,15 @@ OTHER BUILT-IN EVENTS:
                 "does_not_have_tag",
                 "added_to_list",
                 "removed_from_list",
+                "entered_segment",
+                "field_changed",
                 "event_received",
               ],
             },
             value: {
               type: ["string", "null"],
               description:
-                "Tag name, list ID, or event name for the stop condition.",
+                "Tag name, list ID, segment ID, field path, or event name for the stop condition.",
             },
           },
           required: ["type"],
@@ -6261,6 +6345,7 @@ OTHER BUILT-IN EVENTS:
           type: "string",
           description: "Time period: 7d, 30d, or 90d (default: 7d)",
         },
+        includeMachineEngagement: includeMachineEngagementToolProperty,
       },
     },
   },
@@ -6280,6 +6365,7 @@ OTHER BUILT-IN EVENTS:
           type: "string",
           description: "Campaign ID",
         },
+        includeMachineEngagement: includeMachineEngagementToolProperty,
       },
       required: ["campaignId"],
     },
@@ -6300,6 +6386,7 @@ OTHER BUILT-IN EVENTS:
           type: "string",
           description: "Sequence ID",
         },
+        includeMachineEngagement: includeMachineEngagementToolProperty,
       },
       required: ["sequenceId"],
     },
@@ -6326,6 +6413,7 @@ OTHER BUILT-IN EVENTS:
           description:
             "Customer-owned subscriber ID. Provide email or externalId to identify the subscriber.",
         },
+        includeMachineEngagement: includeMachineEngagementToolProperty,
       },
       required: [],
     },
@@ -7127,7 +7215,10 @@ export async function handleToolCall(
         const identifier = requireSubscriberIdentifier("get_subscriber", args);
         result = await fetchDetailedSubscriberByIdentifier(
           identifier,
-          companyId
+          companyId,
+          {
+            includeMachineEngagement: args.includeMachineEngagement === true,
+          }
         );
         break;
       }
@@ -7767,6 +7858,9 @@ export async function handleToolCall(
         if (period) abTestStatsParams.set("period", period);
         if (start) abTestStatsParams.set("start", start);
         if (end) abTestStatsParams.set("end", end);
+        if (args.includeMachineEngagement === true) {
+          abTestStatsParams.set("includeMachineEngagement", "true");
+        }
 
         result = await apiRequest(
           "GET",
@@ -8123,6 +8217,12 @@ export async function handleToolCall(
               }),
               ...(args.trackingCode !== undefined && {
                 trackingCode: args.trackingCode,
+              }),
+              ...(args.status !== undefined && {
+                status: args.status,
+              }),
+              ...(args.sentAt !== undefined && {
+                sentAt: args.sentAt,
               }),
               ...(args.campaignData !== undefined && {
                 campaignData: args.campaignData,
@@ -8958,9 +9058,13 @@ export async function handleToolCall(
       case "get_stats": {
         const companyId = args.companyId as string | undefined;
         const period = args.period ?? "7d";
+        const params = new URLSearchParams({ period: String(period) });
+        if (args.includeMachineEngagement === true) {
+          params.set("includeMachineEngagement", "true");
+        }
         result = await apiRequest(
           "GET",
-          `/api/v1/metrics?period=${period}`,
+          `/api/v1/metrics?${params.toString()}`,
           undefined,
           companyId
         );
@@ -8969,9 +9073,14 @@ export async function handleToolCall(
 
       case "get_campaign_stats": {
         const companyId = args.companyId as string | undefined;
+        const params = new URLSearchParams();
+        if (args.includeMachineEngagement === true) {
+          params.set("includeMachineEngagement", "true");
+        }
+        const query = params.toString();
         result = await apiRequest(
           "GET",
-          `/api/v1/metrics/campaigns/${args.campaignId}`,
+          `/api/v1/metrics/campaigns/${args.campaignId}${query ? `?${query}` : ""}`,
           undefined,
           companyId
         );
@@ -8980,9 +9089,14 @@ export async function handleToolCall(
 
       case "get_sequence_stats": {
         const companyId = args.companyId as string | undefined;
+        const params = new URLSearchParams();
+        if (args.includeMachineEngagement === true) {
+          params.set("includeMachineEngagement", "true");
+        }
+        const query = params.toString();
         result = await apiRequest(
           "GET",
-          `/api/v1/metrics/sequences/${args.sequenceId}`,
+          `/api/v1/metrics/sequences/${args.sequenceId}${query ? `?${query}` : ""}`,
           undefined,
           companyId
         );
@@ -8997,7 +9111,10 @@ export async function handleToolCall(
         );
         const detail = await fetchDetailedSubscriberByIdentifier(
           identifier,
-          companyId
+          companyId,
+          {
+            includeMachineEngagement: args.includeMachineEngagement === true,
+          }
         );
         result = {
           success: detail.success,
