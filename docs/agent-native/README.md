@@ -4,12 +4,12 @@ This directory documents Sequenzy's machine-readable discovery surfaces for AI a
 
 ## Manifests
 
-| File | Purpose |
-| --- | --- |
-| [`/agent-capability.json`](../../agent-capability.json) | General capability manifest for agent directories and tool routers. |
-| [`/.well-known/agent-card.json`](../../.well-known/agent-card.json) | A2A-style card for agent-to-agent discovery. |
-| [`/openclaw/skill.json`](../../openclaw/skill.json) | OpenClaw/Moltbot-style skill metadata. |
-| [`/openclaw/SKILL.md`](../../openclaw/SKILL.md) | Agent-readable operating guide and safety policy. |
+| File                                                                | Purpose                                                             |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| [`/agent-capability.json`](../../agent-capability.json)             | General capability manifest for agent directories and tool routers. |
+| [`/.well-known/agent-card.json`](../../.well-known/agent-card.json) | A2A-style card for agent-to-agent discovery.                        |
+| [`/openclaw/skill.json`](../../openclaw/skill.json)                 | OpenClaw/Moltbot-style skill metadata.                              |
+| [`/openclaw/SKILL.md`](../../openclaw/SKILL.md)                     | Agent-readable operating guide and safety policy.                   |
 
 ## Canonical MCP endpoints
 

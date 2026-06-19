@@ -21,13 +21,8 @@
     },
     "stdio": {
       "command": "npx",
-      "args": [
-        "-y",
-        "@sequenzy/mcp"
-      ],
-      "env": [
-        "SEQUENZY_API_KEY"
-      ]
+      "args": ["-y", "@sequenzy/mcp"],
+      "env": ["SEQUENZY_API_KEY"]
     }
   },
   "capabilities": [

@@ -18,14 +18,7 @@
       "id": "sequenzy.email_automation",
       "name": "Email marketing automation",
       "description": "Manage subscribers, lists, segments, templates, campaigns, sequences, transactional email, analytics, and AI-generated email content.",
-      "tags": [
-        "email-marketing",
-        "marketing-automation",
-        "transactional-email",
-        "campaigns",
-        "subscribers",
-        "mcp"
-      ],
+      "tags": ["email-marketing", "marketing-automation", "transactional-email", "campaigns", "subscribers", "mcp"],
       "examples": [
         "Create a draft lifecycle email campaign for users who started onboarding but did not finish.",
         "Add this customer to the beta announcements segment.",
@@ -33,14 +26,8 @@
       ]
     }
   ],
-  "defaultInputModes": [
-    "application/json",
-    "text/plain"
-  ],
-  "defaultOutputModes": [
-    "application/json",
-    "text/plain"
-  ],
+  "defaultInputModes": ["application/json", "text/plain"],
+  "defaultOutputModes": ["application/json", "text/plain"],
   "securitySchemes": {
     "sequenzyApiKey": {
       "type": "http",
