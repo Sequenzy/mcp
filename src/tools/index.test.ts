@@ -1600,6 +1600,7 @@ describe("create_sequence tool", () => {
 
     expect(inputSchema?.required).toEqual(["name", "trigger"]);
     expect(inputSchema?.properties).toHaveProperty("goal");
+    expect(inputSchema?.properties).toHaveProperty("durationDays");
     expect(inputSchema?.properties).toHaveProperty("steps");
     expect(inputSchema?.properties).toHaveProperty("sendingWindow");
     expect(inputSchema?.properties).toHaveProperty("stopCondition");
@@ -1734,6 +1735,7 @@ describe("update_sequence tool", () => {
     expect(inputSchema?.required).toEqual(["sequenceId"]);
     expect(inputSchema?.properties).toHaveProperty("enrollmentFieldPath");
     expect(inputSchema?.properties).toHaveProperty("clearEnrollmentFieldPath");
+    expect(inputSchema?.properties).toHaveProperty("enrollmentPaused");
     expect(inputSchema?.properties).toHaveProperty("sendingWindow");
     expect(inputSchema?.properties).toHaveProperty("clearSendingWindow");
     expect(inputSchema?.properties).toHaveProperty("stopCondition");
@@ -1862,6 +1864,36 @@ describe("update_sequence tool", () => {
     );
   });
 
+  it("passes enrollment pause updates through to the API", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      sequence: {
+        id: "seq_123",
+        name: "Activation Sequence",
+        status: "active",
+        enrollmentPaused: true,
+      },
+    });
+
+    const result = await handleToolCall("update_sequence", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      enrollmentPaused: true,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/sequences/seq_123",
+      {
+        companyId: "comp_123",
+        sequenceId: "seq_123",
+        enrollmentPaused: true,
+      },
+      "comp_123"
+    );
+  });
+
   it("maps clearEnrollmentFieldPath to a null API update", async () => {
     mockApiRequest.mockResolvedValueOnce({
       success: true,
@@ -1957,6 +1989,75 @@ describe("update_sequence tool", () => {
       "Provide either `sendingWindow` or `clearSendingWindow` when calling `update_sequence`, not both."
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+});
+
+describe("sequence enrollment pause tools", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("publishes plain object schemas with sequenceId required", () => {
+    for (const toolName of [
+      "pause_sequence_enrollments",
+      "resume_sequence_enrollments",
+    ]) {
+      const tool = tools.find((candidate) => candidate.name === toolName);
+      const inputSchema = tool?.inputSchema as
+        | {
+            type?: string;
+            required?: string[];
+            properties?: Record<string, unknown>;
+          }
+        | undefined;
+
+      expect(inputSchema?.type).toBe("object");
+      expect(inputSchema?.required).toEqual(["sequenceId"]);
+      expect(inputSchema?.properties).toHaveProperty("companyId");
+      expect(inputSchema?.properties).toHaveProperty("sequenceId");
+    }
+  });
+
+  it("pauses and resumes sequence enrollments through dedicated API routes", async () => {
+    mockApiRequest
+      .mockResolvedValueOnce({
+        success: true,
+        message: "Sequence enrollment paused",
+        sequenceId: "seq_123",
+        enrollmentPaused: true,
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        message: "Sequence enrollment resumed",
+        sequenceId: "seq_123",
+        enrollmentPaused: false,
+      });
+
+    const pauseResult = await handleToolCall("pause_sequence_enrollments", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+    });
+    const resumeResult = await handleToolCall("resume_sequence_enrollments", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+    });
+
+    expect(pauseResult.isError).toBeUndefined();
+    expect(resumeResult.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenNthCalledWith(
+      1,
+      "POST",
+      "/api/v1/sequences/seq_123/pause-enrollments",
+      undefined,
+      "comp_123"
+    );
+    expect(mockApiRequest).toHaveBeenNthCalledWith(
+      2,
+      "POST",
+      "/api/v1/sequences/seq_123/resume-enrollments",
+      undefined,
+      "comp_123"
+    );
   });
 });
 

@@ -219,6 +219,8 @@ const MUTATING_TOOL_NAMES = new Set([
   "update_sequence",
   "enable_sequence",
   "disable_sequence",
+  "pause_sequence_enrollments",
+  "resume_sequence_enrollments",
   "enroll_subscribers_in_sequence",
   "cancel_sequence_enrollments",
   "delete_sequence",
@@ -245,6 +247,7 @@ const OPEN_WORLD_TOOL_NAMES = new Set([
   "connect_landing_page_domain",
   "update_landing_page_domain_settings",
   "enable_sequence",
+  "resume_sequence_enrollments",
   "send_email",
   "invite_team_member",
   "reply_to_conversation",
@@ -2176,6 +2179,8 @@ const dashboardUrlToolNames = new Set([
   "update_sequence",
   "enable_sequence",
   "disable_sequence",
+  "pause_sequence_enrollments",
+  "resume_sequence_enrollments",
   "cancel_sequence_enrollments",
   "list_ab_tests",
   "get_ab_test",
@@ -2757,6 +2762,18 @@ const outputPropertiesByToolName: Record<string, OutputSchemaProperties> = {
   },
   disable_sequence: {
     sequence: resourceOutputProperty("sequence"),
+  },
+  pause_sequence_enrollments: {
+    sequenceId: stringOutputProperty("Sequence ID."),
+    enrollmentPaused: booleanOutputProperty(
+      "Whether new sequence enrollments are paused."
+    ),
+  },
+  resume_sequence_enrollments: {
+    sequenceId: stringOutputProperty("Sequence ID."),
+    enrollmentPaused: booleanOutputProperty(
+      "Whether new sequence enrollments are paused."
+    ),
   },
   enroll_subscribers_in_sequence: {
     sequence: resourceOutputProperty("sequence"),
@@ -5450,6 +5467,11 @@ OTHER BUILT-IN EVENTS:
           type: "number",
           description: "Number of emails in the sequence (default: 5, max: 10)",
         },
+        durationDays: {
+          type: "number",
+          description:
+            "Total duration in days used to space AI-generated sequence emails. Only applies when using goal-based AI generation.",
+        },
         goal: {
           type: "string",
           description:
@@ -5725,6 +5747,11 @@ OTHER BUILT-IN EVENTS:
         name: {
           type: "string",
           description: "Sequence name",
+        },
+        enrollmentPaused: {
+          type: "boolean",
+          description:
+            "Set true to stop new enrollments for an active sequence while current recipients continue. Set false to resume new enrollments. The sequence must already be active.",
         },
         enrollmentMode: {
           type: "string",
@@ -6010,7 +6037,48 @@ OTHER BUILT-IN EVENTS:
   },
   {
     name: "disable_sequence",
-    description: "Disable/pause a sequence",
+    description:
+      "Disable/freeze a sequence. This blocks new enrollments and holds current recipients until the sequence is enabled again. To only stop new enrollments while current recipients continue, use pause_sequence_enrollments.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        sequenceId: {
+          type: "string",
+          description: "Sequence ID",
+        },
+      },
+      required: ["sequenceId"],
+    },
+  },
+  {
+    name: "pause_sequence_enrollments",
+    description:
+      "Stop new enrollments for an active sequence while current recipients continue through the sequence. This matches the dashboard 'Stop new enrollments' control and does not freeze current recipients.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        sequenceId: {
+          type: "string",
+          description: "Sequence ID",
+        },
+      },
+      required: ["sequenceId"],
+    },
+  },
+  {
+    name: "resume_sequence_enrollments",
+    description:
+      "Resume new enrollments for an active sequence whose enrollment gate was paused. Use enable_sequence instead for a fully disabled/frozen sequence.",
     inputSchema: {
       type: "object",
       properties: {
@@ -8755,6 +8823,28 @@ export async function handleToolCall(
         result = await apiRequest(
           "POST",
           `/api/v1/sequences/${args.sequenceId}/disable`,
+          undefined,
+          companyId
+        );
+        break;
+      }
+
+      case "pause_sequence_enrollments": {
+        const companyId = args.companyId as string | undefined;
+        result = await apiRequest(
+          "POST",
+          `/api/v1/sequences/${args.sequenceId}/pause-enrollments`,
+          undefined,
+          companyId
+        );
+        break;
+      }
+
+      case "resume_sequence_enrollments": {
+        const companyId = args.companyId as string | undefined;
+        result = await apiRequest(
+          "POST",
+          `/api/v1/sequences/${args.sequenceId}/resume-enrollments`,
           undefined,
           companyId
         );
