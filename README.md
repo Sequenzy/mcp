@@ -376,19 +376,19 @@ Landing page content uses Sequenzy's editor-compatible JSON schema with `version
 
 ### Sequences
 
-| Tool                             | Description                                                                                         |
-| -------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `list_sequences`                 | List email sequences and automation status.                                                         |
-| `get_sequence`                   | Get sequence details, including step `nodeId`, linked `emailId`, subject, preview text, and blocks. |
-| `create_sequence`                | Create AI-generated or explicit-step sequences.                                                     |
-| `update_sequence`                | Update sequence settings, trigger, enrollment behavior, or specific steps.                          |
-| `enable_sequence`                | Activate a sequence.                                                                                |
-| `disable_sequence`               | Freeze a sequence, blocking new enrollments and holding current recipients.                         |
-| `pause_sequence_enrollments`     | Stop new enrollments for an active sequence while current recipients continue.                      |
-| `resume_sequence_enrollments`    | Reopen new enrollments for an active sequence without changing current recipients.                  |
-| `enroll_subscribers_in_sequence` | Enroll up to 500 subscribers by email, subscriber ID, or both, optionally at a target node.         |
-| `cancel_sequence_enrollments`    | Stop active or waiting enrollments by subscriber or entry-event field values.                       |
-| `delete_sequence`                | Delete a sequence.                                                                                  |
+| Tool                             | Description                                                                                          |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `list_sequences`                 | List email sequences and automation status.                                                          |
+| `get_sequence`                   | Get sequence details, including step `nodeId`, linked `emailId`, subject, preview text, and blocks.  |
+| `create_sequence`                | Create AI-generated or explicit-step sequences.                                                      |
+| `update_sequence`                | Update sequence settings, enrollment behavior, existing steps, branch logic, or insert linear steps. |
+| `enable_sequence`                | Activate a sequence.                                                                                 |
+| `disable_sequence`               | Freeze a sequence, blocking new enrollments and holding current recipients.                          |
+| `pause_sequence_enrollments`     | Stop new enrollments for an active sequence while current recipients continue.                       |
+| `resume_sequence_enrollments`    | Reopen new enrollments for an active sequence without changing current recipients.                   |
+| `enroll_subscribers_in_sequence` | Enroll up to 500 subscribers by email, subscriber ID, or both, optionally at a target node.          |
+| `cancel_sequence_enrollments`    | Stop active or waiting enrollments by subscriber or entry-event field values.                        |
+| `delete_sequence`                | Delete a sequence.                                                                                   |
 
 Sequence creation supports:
 
@@ -400,6 +400,8 @@ Sequence creation supports:
 - Explicit `steps` with HTML, which Sequenzy converts into editable blocks.
 - Discount action steps that expose merge tags like `{{discount.code}}` and `{{discount.percentOff}}`.
 - `enrollmentMode: "matching_field"` and `enrollmentFieldPath` for product-, variant-, order-, or subscription-specific event automations.
+
+Sequence updates support `insertSteps` for adding new linear steps after a `nodeId` returned by `get_sequence`. Omit `afterNodeId` only when appending to a sequence with exactly one linear tail. `insertSteps` supports addable steps that do not require companion records, such as email, delay, tag/list actions, attribute updates, discounts, conditions, wait-for-event steps, and webhooks. Use `branch` for multi-path if/else branches; provide either `branch` or `insertSteps`, not both.
 
 Run `cancel_sequence_enrollments` with `dryRun: true` before applying bulk cancellation.
 

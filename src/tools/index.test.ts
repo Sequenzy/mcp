@@ -1740,6 +1740,7 @@ describe("update_sequence tool", () => {
     expect(inputSchema?.properties).toHaveProperty("clearSendingWindow");
     expect(inputSchema?.properties).toHaveProperty("stopCondition");
     expect(inputSchema?.properties).toHaveProperty("branch");
+    expect(inputSchema?.properties).toHaveProperty("insertSteps");
     const enrollmentFieldPath = inputSchema?.properties?.[
       "enrollmentFieldPath"
     ] as
@@ -1779,6 +1780,31 @@ describe("update_sequence tool", () => {
       "activityScope"
     );
     expect(branch?.properties).toHaveProperty("elseSteps");
+    const insertSteps = inputSchema?.properties?.["insertSteps"] as
+      | {
+          required?: string[];
+          properties?: {
+            afterNodeId?: unknown;
+            steps?: { items?: { properties?: Record<string, unknown> } };
+          };
+        }
+      | undefined;
+    expect(insertSteps?.required).toEqual(["steps"]);
+    expect(insertSteps?.properties).toHaveProperty("afterNodeId");
+    expect(insertSteps?.properties?.steps?.items?.properties).toHaveProperty(
+      "subject"
+    );
+    expect(insertSteps?.properties?.steps?.items?.properties).toHaveProperty(
+      "blocks"
+    );
+    const insertedStepType = insertSteps?.properties?.steps?.items?.properties
+      ?.type as { enum?: string[] } | undefined;
+    const insertedStepNodeType = insertSteps?.properties?.steps?.items
+      ?.properties?.nodeType as { enum?: string[] } | undefined;
+    expect(insertedStepType?.enum).toContain("condition");
+    expect(insertedStepType?.enum).not.toContain("ab_test");
+    expect(insertedStepNodeType?.enum).toContain("logic_condition");
+    expect(insertedStepNodeType?.enum).not.toContain("action_ab_test");
     const stopCondition = inputSchema?.properties?.["stopCondition"] as
       | {
           properties?: {
@@ -1793,6 +1819,56 @@ describe("update_sequence tool", () => {
     expect(stopCondition?.properties?.type?.enum).toContain("entered_segment");
     expect(stopCondition?.properties?.type?.enum).toContain("field_changed");
     expect(stopCondition?.properties?.value?.type).toEqual(["string", "null"]);
+  });
+
+  it("passes linear step insertion through to the API", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      sequence: {
+        id: "seq_123",
+        name: "Activation Sequence",
+        status: "draft",
+        updatedEmailCount: 0,
+        insertedNodeIds: ["node_inserted"],
+        insertedEmailIds: ["email_inserted"],
+        insertedEmailCount: 1,
+      },
+    });
+
+    const insertSteps = {
+      afterNodeId: "node_migration_email",
+      steps: [
+        {
+          name: "Migration check-in",
+          subject: "Need help migrating?",
+          blocks: [
+            {
+              id: "inserted-body",
+              type: "text",
+              content: "<p>Here is one more migration resource.</p>",
+            },
+          ],
+        },
+      ],
+    };
+
+    const result = await handleToolCall("update_sequence", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      insertSteps,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/sequences/seq_123",
+      {
+        companyId: "comp_123",
+        sequenceId: "seq_123",
+        insertSteps,
+      },
+      "comp_123"
+    );
   });
 
   it("passes branch and stop condition updates through to the API", async () => {
@@ -1987,6 +2063,40 @@ describe("update_sequence tool", () => {
     expect(result.content[0]?.type).toBe("text");
     expect(result.content[0]?.text).toContain(
       "Provide either `sendingWindow` or `clearSendingWindow` when calling `update_sequence`, not both."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects branch and linear insertion together before hitting the API", async () => {
+    const result = await handleToolCall("update_sequence", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      branch: {
+        afterNodeId: "node_email_1",
+        branches: [{ conditionType: "has_tag", tagName: "activated" }],
+        allowEmptyPaths: true,
+      },
+      insertSteps: {
+        afterNodeId: "node_email_1",
+        steps: [
+          {
+            subject: "Inserted",
+            blocks: [
+              {
+                id: "inserted-body",
+                type: "text",
+                content: "<p>Inserted.</p>",
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.type).toBe("text");
+    expect(result.content[0]?.text).toContain(
+      "Provide either `branch` or `insertSteps` when calling `update_sequence`, not both."
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
   });

@@ -1057,6 +1057,11 @@ function buildUpdateSequenceBody(
       "Provide either `sendingWindow` or `clearSendingWindow` when calling `update_sequence`, not both."
     );
   }
+  if (args.branch !== undefined && args.insertSteps !== undefined) {
+    throw new Error(
+      "Provide either `branch` or `insertSteps` when calling `update_sequence`, not both."
+    );
+  }
 
   const body = { ...args };
   delete body.clearEnrollmentFieldPath;
@@ -1299,16 +1304,23 @@ function validateCreateTransactionalContentArgs(
   }
 }
 
-const sequenceBranchPathStepSchema = {
+const sequencePathStepSchema = {
   type: "object",
   description:
-    "A step to create inside a branch path. Use type:'delay' for a standalone delay, type:'email' for an email, or type:'create_discount' for a discount action.",
+    "A step to create inside a sequence path. Use type:'delay' for a standalone delay, type:'email' for an email, type:'create_discount' for a discount action, or type:'condition' for a condition gate.",
   properties: {
     type: {
       type: "string",
-      enum: ["email", "delay", "create_discount", "discount", "webhook"],
+      enum: [
+        "email",
+        "delay",
+        "create_discount",
+        "discount",
+        "condition",
+        "webhook",
+      ],
       description:
-        "Branch path step type. Omit for email steps; use delay for standalone waits.",
+        "Sequence path step type. Omit for email steps; use delay for standalone waits.",
     },
     nodeType: {
       type: "string",
@@ -1322,15 +1334,16 @@ const sequenceBranchPathStepSchema = {
         "action_remove_from_list",
         "action_update_attributes",
         "logic_wait_for_event",
+        "logic_condition",
         "action_webhook",
       ],
       description:
-        "Advanced branch path node type. Prefer type unless creating a non-email action.",
+        "Advanced sequence path node type. Prefer type unless creating a non-email action.",
     },
     config: {
       type: "object",
       description:
-        "Config for advanced nodeType steps such as tag/list/webhook/wait-for-event actions.",
+        "Config for advanced nodeType steps such as tag/list/webhook/wait-for-event/condition actions.",
       additionalProperties: true,
     },
     subject: {
@@ -5731,7 +5744,7 @@ OTHER BUILT-IN EVENTS:
   {
     name: "update_sequence",
     description:
-      "Update an existing sequence. To target a specific step, use the emailId or nodeId returned in get_sequence.sequence.emails. You can also update enrollmentMode and enrollmentFieldPath for event-triggered matching-field enrollment. When inserting an if/else branch, include steps for every branch arm and elseSteps so the branch is usable immediately. Branch conditions support tags, lists, saved segments, custom events, clicked links, and subscriber field comparisons.",
+      "Update an existing sequence. To target a specific existing step, use the emailId or nodeId returned in get_sequence.sequence.emails. To insert new linear steps, use insertSteps with an afterNodeId from get_sequence; omit afterNodeId only to append to an unambiguous linear tail. You can also update enrollmentMode and enrollmentFieldPath for event-triggered matching-field enrollment. When inserting an if/else branch, include steps for every branch arm and elseSteps so the branch is usable immediately. Branch conditions support tags, lists, saved segments, custom events, clicked links, and subscriber field comparisons.",
     inputSchema: {
       type: "object",
       properties: {
@@ -5897,7 +5910,7 @@ OTHER BUILT-IN EVENTS:
                     type: "array",
                     description:
                       "Steps to create inside this branch path. Required by default so the branch is not an empty placeholder.",
-                    items: sequenceBranchPathStepSchema,
+                    items: sequencePathStepSchema,
                   },
                 },
                 required: ["conditionType"],
@@ -5907,7 +5920,7 @@ OTHER BUILT-IN EVENTS:
               type: "array",
               description:
                 "Steps to create inside the else fallback path. Required by default so the else arm is usable.",
-              items: sequenceBranchPathStepSchema,
+              items: sequencePathStepSchema,
             },
             allowEmptyPaths: {
               type: "boolean",
@@ -5916,6 +5929,25 @@ OTHER BUILT-IN EVENTS:
             },
           },
           required: ["afterNodeId", "branches"],
+        },
+        insertSteps: {
+          type: "object",
+          description:
+            "Insert one or more new linear steps into an existing sequence. Use get_sequence first, then pass afterNodeId to insert after a specific node. If afterNodeId is omitted, the steps are appended only when the sequence has exactly one linear tail. Inserted email steps require subject plus blocks or html.",
+          properties: {
+            afterNodeId: {
+              type: "string",
+              description:
+                "Existing node ID to insert after. Use a nodeId from get_sequence.sequence.nodes or get_sequence.sequence.emails. Omit only to append to an unambiguous linear tail.",
+            },
+            steps: {
+              type: "array",
+              description:
+                "New steps to insert. Supports emails, delays, create_discount actions, webhooks, and other supported sequence path node types.",
+              items: sequencePathStepSchema,
+            },
+          },
+          required: ["steps"],
         },
         emails: {
           type: "array",
