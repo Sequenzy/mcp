@@ -401,7 +401,7 @@ Sequence creation supports:
 - Discount action steps that expose merge tags like `{{discount.code}}` and `{{discount.percentOff}}`.
 - `enrollmentMode: "matching_field"` and `enrollmentFieldPath` for product-, variant-, order-, or subscription-specific event automations.
 
-Sequence updates support `insertSteps` for adding new linear steps after a `nodeId` returned by `get_sequence`. Omit `afterNodeId` only when appending to a sequence with exactly one linear tail. `insertSteps` supports addable steps that do not require companion records, such as email, delay, tag/list actions, attribute updates, discounts, conditions, wait-for-event steps, and webhooks. Use `branch` for multi-path if/else branches; provide either `branch` or `insertSteps`, not both.
+Sequence updates support `insertSteps` for adding new linear steps after a `nodeId` returned by `get_sequence`. Omit `afterNodeId` only when appending to a sequence with exactly one linear tail. `insertSteps` supports addable steps that do not require companion records, such as email, delay, tag/list actions, attribute updates, discounts, conditions, wait-for-event steps, and webhooks. Use `branch` for multi-path if/else branches; provide either `branch` or `insertSteps`, not both. The `emails` and `steps` arrays only edit existing email steps by `nodeId`, `emailId`, or array order; use `insertSteps` to create new steps and include a step-level `delay` when the inserted email needs a timer. For active sequences, pass `confirmStructuralChange: true` with `insertSteps` or `branch` only after confirming the live-flow impact.
 
 Run `cancel_sequence_enrollments` with `dryRun: true` before applying bulk cancellation.
 

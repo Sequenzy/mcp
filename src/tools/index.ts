@@ -105,6 +105,7 @@ const OUTBOUND_WEBHOOK_EVENT_TYPES = [
   "email.complained",
   "email.opened",
   "email.clicked",
+  "email.replied",
   "email.unsubscribed",
   "subscriber.invalid",
   "subscriber.updated",
@@ -5744,7 +5745,7 @@ OTHER BUILT-IN EVENTS:
   {
     name: "update_sequence",
     description:
-      "Update an existing sequence. To target a specific existing step, use the emailId or nodeId returned in get_sequence.sequence.emails. To insert new linear steps, use insertSteps with an afterNodeId from get_sequence; omit afterNodeId only to append to an unambiguous linear tail. You can also update enrollmentMode and enrollmentFieldPath for event-triggered matching-field enrollment. When inserting an if/else branch, include steps for every branch arm and elseSteps so the branch is usable immediately. Branch conditions support tags, lists, saved segments, custom events, clicked links, and subscriber field comparisons.",
+      "Update an existing sequence. To target a specific existing step, use the emailId or nodeId returned in get_sequence.sequence.emails. To insert new linear steps, use insertSteps with an afterNodeId from get_sequence; omit afterNodeId only to append to an unambiguous linear tail. The emails/steps arrays edit existing email steps only; items without emailId/nodeId are matched by existing step order and do not create new steps. For active sequences, structural changes such as insertSteps or branch require confirmStructuralChange:true after the user confirms the live-flow impact. You can also update enrollmentMode and enrollmentFieldPath for event-triggered matching-field enrollment. When inserting an if/else branch, include steps for every branch arm and elseSteps so the branch is usable immediately. Branch conditions support tags, lists, saved segments, custom events, clicked links, and subscriber field comparisons.",
     inputSchema: {
       type: "object",
       properties: {
@@ -5765,6 +5766,11 @@ OTHER BUILT-IN EVENTS:
           type: "boolean",
           description:
             "Set true to stop new enrollments for an active sequence while current recipients continue. Set false to resume new enrollments. The sequence must already be active.",
+        },
+        confirmStructuralChange: {
+          type: "boolean",
+          description:
+            "Set true only after the user explicitly confirms a structural edit to an active sequence. Required for insertSteps or branch when the sequence is active; not needed for content-only email edits.",
         },
         enrollmentMode: {
           type: "string",
@@ -5952,7 +5958,7 @@ OTHER BUILT-IN EVENTS:
         emails: {
           type: "array",
           description:
-            "Updated sequence emails. If you omit emailId/nodeId, items are matched by existing step order.",
+            "Updated existing sequence emails. If you omit emailId/nodeId, items are matched by existing step order. This field does not create new steps; use insertSteps for insertion and include delay on inserted email steps when a timer is needed.",
           items: {
             type: "object",
             properties: {
@@ -5999,7 +6005,7 @@ OTHER BUILT-IN EVENTS:
         steps: {
           type: "array",
           description:
-            "Alias for emails. Supports the same fields and matching rules.",
+            "Alias for emails. Supports the same fields and matching rules, and only edits existing email steps. Use insertSteps to create new steps.",
           items: {
             type: "object",
             properties: {

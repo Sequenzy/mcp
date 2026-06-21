@@ -1736,6 +1736,7 @@ describe("update_sequence tool", () => {
     expect(inputSchema?.properties).toHaveProperty("enrollmentFieldPath");
     expect(inputSchema?.properties).toHaveProperty("clearEnrollmentFieldPath");
     expect(inputSchema?.properties).toHaveProperty("enrollmentPaused");
+    expect(inputSchema?.properties).toHaveProperty("confirmStructuralChange");
     expect(inputSchema?.properties).toHaveProperty("sendingWindow");
     expect(inputSchema?.properties).toHaveProperty("clearSendingWindow");
     expect(inputSchema?.properties).toHaveProperty("stopCondition");
@@ -1855,6 +1856,7 @@ describe("update_sequence tool", () => {
     const result = await handleToolCall("update_sequence", {
       companyId: "comp_123",
       sequenceId: "seq_123",
+      confirmStructuralChange: true,
       insertSteps,
     });
 
@@ -1865,6 +1867,7 @@ describe("update_sequence tool", () => {
       {
         companyId: "comp_123",
         sequenceId: "seq_123",
+        confirmStructuralChange: true,
         insertSteps,
       },
       "comp_123"
@@ -3798,7 +3801,7 @@ describe("outbound webhook tools", () => {
       companyId: "comp_123",
       name: "Prod",
       url: "https://example.com/webhooks/sequenzy",
-      events: ["email.delivered", "subscriber.unsubscribed"],
+      events: ["email.delivered", "email.replied", "subscriber.unsubscribed"],
     });
 
     expect(result.isError).toBeUndefined();
@@ -3808,7 +3811,7 @@ describe("outbound webhook tools", () => {
       {
         name: "Prod",
         url: "https://example.com/webhooks/sequenzy",
-        events: ["email.delivered", "subscriber.unsubscribed"],
+        events: ["email.delivered", "email.replied", "subscriber.unsubscribed"],
       },
       "comp_123"
     );
