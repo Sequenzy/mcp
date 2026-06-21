@@ -190,7 +190,7 @@ Personal keys start with `seq_user_`. You can revoke them any time in the dashbo
 
 ## Tools
 
-This server currently exposes 115 MCP tools.
+This server currently exposes 116 MCP tools.
 
 ### Account, Companies, Setup
 
@@ -382,6 +382,7 @@ Landing page content uses Sequenzy's editor-compatible JSON schema with `version
 | `get_sequence`                   | Get sequence details, including step `nodeId`, linked `emailId`, subject, preview text, and blocks.  |
 | `create_sequence`                | Create AI-generated or explicit-step sequences.                                                      |
 | `update_sequence`                | Update sequence settings, enrollment behavior, existing steps, branch logic, or insert linear steps. |
+| `insert_sequence_step`           | Insert one new email step, optionally with a delay node before it.                                   |
 | `enable_sequence`                | Activate a sequence.                                                                                 |
 | `disable_sequence`               | Freeze a sequence, blocking new enrollments and holding current recipients.                          |
 | `pause_sequence_enrollments`     | Stop new enrollments for an active sequence while current recipients continue.                       |

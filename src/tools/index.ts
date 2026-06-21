@@ -218,6 +218,7 @@ const MUTATING_TOOL_NAMES = new Set([
   "update_landing_page_domain_settings",
   "create_sequence",
   "update_sequence",
+  "insert_sequence_step",
   "enable_sequence",
   "disable_sequence",
   "pause_sequence_enrollments",
@@ -1076,6 +1077,44 @@ function buildUpdateSequenceBody(
   }
 
   return body;
+}
+
+function buildInsertSequenceStepBody(
+  args: Record<string, unknown>
+): Record<string, unknown> {
+  validateHtmlOrBlocksArgs("insert_sequence_step", args, {
+    requireContent: true,
+  });
+
+  const step: Record<string, unknown> = {
+    subject: requiredString("insert_sequence_step", args, "subject"),
+  };
+  for (const key of [
+    "name",
+    "previewText",
+    "html",
+    "blocks",
+    "delay",
+    "delayMs",
+  ]) {
+    if (args[key] !== undefined) {
+      step[key] = args[key];
+    }
+  }
+
+  const insertSteps: Record<string, unknown> = {
+    steps: [step],
+  };
+  if (args.afterNodeId !== undefined) {
+    insertSteps.afterNodeId = args.afterNodeId;
+  }
+
+  return {
+    ...(args.confirmStructuralChange !== undefined && {
+      confirmStructuralChange: args.confirmStructuralChange,
+    }),
+    insertSteps,
+  };
 }
 
 function buildCancelSequenceEnrollmentBody(
@@ -2191,6 +2230,7 @@ const dashboardUrlToolNames = new Set([
   "get_sequence",
   "create_sequence",
   "update_sequence",
+  "insert_sequence_step",
   "enable_sequence",
   "disable_sequence",
   "pause_sequence_enrollments",
@@ -2770,6 +2810,23 @@ const outputPropertiesByToolName: Record<string, OutputSchemaProperties> = {
   },
   update_sequence: {
     sequence: resourceOutputProperty("sequence"),
+  },
+  insert_sequence_step: {
+    sequence: resourceOutputProperty("sequence"),
+    insertedNodeIds: {
+      type: "array",
+      description:
+        "Node IDs created for the inserted step, including any delay node.",
+      items: stringOutputProperty("Inserted automation node ID."),
+    },
+    insertedEmailIds: {
+      type: "array",
+      description: "Email template IDs created for the inserted step.",
+      items: stringOutputProperty("Inserted email template ID."),
+    },
+    insertedEmailCount: numberOutputProperty(
+      "Number of email steps inserted."
+    ),
   },
   enable_sequence: {
     sequence: resourceOutputProperty("sequence"),
@@ -6054,6 +6111,74 @@ OTHER BUILT-IN EVENTS:
     },
   },
   {
+    name: "insert_sequence_step",
+    description:
+      "Insert one new email step into an existing sequence. Prefer this over update_sequence.steps/emails when adding a step: it creates a new email template, a new action_email node, and, when delay or delayMs is provided, a logic_delay node immediately before the email. Use get_sequence first, then pass afterNodeId from sequence.nodes or sequence.emails to choose the insertion point. If afterNodeId is omitted, the step is appended only when the sequence has exactly one linear tail. For active sequences, set confirmStructuralChange:true only after the user confirms the live-flow impact.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        sequenceId: {
+          type: "string",
+          description: "Sequence ID.",
+        },
+        afterNodeId: {
+          type: "string",
+          description:
+            "Existing node ID to insert after. Use a nodeId from get_sequence.sequence.nodes or get_sequence.sequence.emails. Omit only to append to an unambiguous linear tail.",
+        },
+        confirmStructuralChange: {
+          type: "boolean",
+          description:
+            "Set true only after the user explicitly confirms a structural edit to an active sequence.",
+        },
+        name: {
+          type: "string",
+          description: "Optional email template and step name.",
+        },
+        subject: {
+          type: "string",
+          description: "Email subject for the new step.",
+        },
+        previewText: {
+          type: "string",
+          description: "Optional email preview text for the new step.",
+        },
+        blocks: {
+          type: "array",
+          description: sequenceEmailBlocksDescription,
+          items: { type: "object" },
+        },
+        html: {
+          type: "string",
+          description:
+            "HTML content for the new step. Will be converted to Sequenzy blocks. Provide either html or blocks, not both.",
+        },
+        delay: {
+          type: "object",
+          description:
+            "Optional wait before the new email step. Creates a logic_delay node in front of the email.",
+          properties: {
+            days: { type: "number" },
+            hours: { type: "number" },
+            minutes: { type: "number" },
+          },
+        },
+        delayMs: {
+          type: "number",
+          description:
+            "Optional wait in milliseconds before the new email step. Prefer delay for readability.",
+        },
+      },
+      required: ["sequenceId", "subject"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "enable_sequence",
     description:
       "Enable/activate a sequence. IMPORTANT: Only call this when the user EXPLICITLY asks to enable or activate a sequence. Never enable sequences automatically after creation - the user must review the content first.",
@@ -8836,6 +8961,18 @@ export async function handleToolCall(
       case "update_sequence": {
         const companyId = args.companyId as string | undefined;
         const body = buildUpdateSequenceBody(args);
+        result = await apiRequest(
+          "PUT",
+          `/api/v1/sequences/${args.sequenceId}`,
+          body,
+          companyId
+        );
+        break;
+      }
+
+      case "insert_sequence_step": {
+        const companyId = args.companyId as string | undefined;
+        const body = buildInsertSequenceStepBody(args);
         result = await apiRequest(
           "PUT",
           `/api/v1/sequences/${args.sequenceId}`,

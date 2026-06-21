@@ -2105,6 +2105,122 @@ describe("update_sequence tool", () => {
   });
 });
 
+describe("insert_sequence_step tool", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("publishes a focused insertion schema", () => {
+    const insertSequenceStepTool = tools.find(
+      (tool) => tool.name === "insert_sequence_step"
+    );
+    const inputSchema = insertSequenceStepTool?.inputSchema as
+      | {
+          required?: string[];
+          additionalProperties?: boolean;
+          properties?: Record<string, unknown>;
+        }
+      | undefined;
+
+    expect(inputSchema?.required).toEqual(["sequenceId", "subject"]);
+    expect(inputSchema?.additionalProperties).toBe(false);
+    expect(inputSchema?.properties).toHaveProperty("afterNodeId");
+    expect(inputSchema?.properties).toHaveProperty("confirmStructuralChange");
+    expect(inputSchema?.properties).toHaveProperty("subject");
+    expect(inputSchema?.properties).toHaveProperty("previewText");
+    expect(inputSchema?.properties).toHaveProperty("html");
+    expect(inputSchema?.properties).toHaveProperty("blocks");
+    expect(inputSchema?.properties).toHaveProperty("delay");
+  });
+
+  it("wraps one new delayed email step in update_sequence insertSteps", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      sequence: {
+        id: "seq_123",
+        name: "Activation Sequence",
+        status: "draft",
+        updatedEmailCount: 0,
+        insertedNodeIds: ["delay_inserted", "node_inserted"],
+        insertedEmailIds: ["email_inserted"],
+        insertedEmailCount: 1,
+      },
+    });
+
+    const blocks = [
+      {
+        id: "inserted-body",
+        type: "text",
+        content: "<p>Here is one more migration resource.</p>",
+      },
+    ];
+
+    const result = await handleToolCall("insert_sequence_step", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      afterNodeId: "node_migration_email",
+      confirmStructuralChange: true,
+      delay: { days: 2 },
+      name: "Migration check-in",
+      subject: "Need help migrating?",
+      previewText: "A migration resource",
+      blocks,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/sequences/seq_123",
+      {
+        confirmStructuralChange: true,
+        insertSteps: {
+          afterNodeId: "node_migration_email",
+          steps: [
+            {
+              subject: "Need help migrating?",
+              name: "Migration check-in",
+              previewText: "A migration resource",
+              blocks,
+              delay: { days: 2 },
+            },
+          ],
+        },
+      },
+      "comp_123"
+    );
+  });
+
+  it("rejects insert_sequence_step without email content before hitting the API", async () => {
+    const result = await handleToolCall("insert_sequence_step", {
+      sequenceId: "seq_123",
+      subject: "Need help migrating?",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.type).toBe("text");
+    expect(result.content[0]?.text).toContain(
+      "Provide either `html` or `blocks` when calling `insert_sequence_step`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects mixed html and blocks content before hitting the API", async () => {
+    const result = await handleToolCall("insert_sequence_step", {
+      sequenceId: "seq_123",
+      subject: "Need help migrating?",
+      html: "<p>Hello</p>",
+      blocks: [{ id: "body", type: "text", content: "<p>Hello</p>" }],
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.type).toBe("text");
+    expect(result.content[0]?.text).toContain(
+      "Provide either `html` or `blocks` when calling `insert_sequence_step`, not both."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+});
+
 describe("sequence enrollment pause tools", () => {
   beforeEach(() => {
     mockApiRequest.mockClear();
