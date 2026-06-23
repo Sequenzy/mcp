@@ -166,6 +166,7 @@ const READ_ONLY_TOOL_NAMES = new Set([
 const MUTATING_TOOL_NAMES = new Set([
   "select_company",
   "create_company",
+  "update_company",
   "create_api_key",
   "add_website",
   "add_subscriber",
@@ -1041,6 +1042,120 @@ function validateUpdateSegmentArgs(args: Record<string, unknown>): void {
       validationErrors[0] ?? "Invalid segment filter in `update_segment`."
     );
   }
+}
+
+const COMPANY_UPDATE_FIELDS = [
+  "name",
+  "description",
+  "logoUrl",
+  "founderName",
+  "primaryColor",
+  "brandColors",
+  "valueProps",
+  "testimonials",
+  "toneVoice",
+  "companyContext",
+  "emailLengthPreference",
+  "socialLinks",
+  "privacyPolicyUrl",
+  "termsUrl",
+  "address",
+  "language",
+  "pricing",
+  "fontFamily",
+  "emailDirection",
+] as const;
+
+function validateOptionalObjectArg(
+  toolName: string,
+  args: Record<string, unknown>,
+  key: string
+): void {
+  if (args[key] !== undefined && !isRecord(args[key])) {
+    throw new Error(
+      `\`${key}\` must be an object when calling \`${toolName}\`.`
+    );
+  }
+}
+
+function validateOptionalArrayArg(
+  toolName: string,
+  args: Record<string, unknown>,
+  key: string
+): void {
+  if (args[key] !== undefined && !Array.isArray(args[key])) {
+    throw new Error(
+      `\`${key}\` must be an array when calling \`${toolName}\`.`
+    );
+  }
+}
+
+function buildUpdateCompanyBody(
+  args: Record<string, unknown>
+): Record<string, unknown> {
+  const allowedKeys = new Set(["companyId", ...COMPANY_UPDATE_FIELDS]);
+  const unsupportedKeys = Object.keys(args).filter(
+    (key) => !allowedKeys.has(key)
+  );
+
+  if (unsupportedKeys.length > 0) {
+    throw new Error(
+      `\`update_company\` accepts only company product-info fields. Unsupported field${unsupportedKeys.length === 1 ? "" : "s"}: ${unsupportedKeys.map((key) => `\`${key}\``).join(", ")}.`
+    );
+  }
+
+  const body: Record<string, unknown> = {};
+  for (const key of COMPANY_UPDATE_FIELDS) {
+    if (args[key] !== undefined) {
+      body[key] = args[key];
+    }
+  }
+
+  if (Object.keys(body).length === 0) {
+    throw new Error(
+      `Provide at least one of ${COMPANY_UPDATE_FIELDS.map((key) => `\`${key}\``).join(", ")} when calling \`update_company\`.`
+    );
+  }
+
+  for (const key of [
+    "name",
+    "description",
+    "logoUrl",
+    "founderName",
+    "primaryColor",
+    "toneVoice",
+    "companyContext",
+    "emailLengthPreference",
+    "privacyPolicyUrl",
+    "termsUrl",
+    "address",
+    "language",
+    "fontFamily",
+    "emailDirection",
+  ]) {
+    if (args[key] !== undefined && typeof args[key] !== "string") {
+      throw new Error(
+        `\`${key}\` must be a string when calling \`update_company\`.`
+      );
+    }
+  }
+
+  validateOptionalObjectArg("update_company", args, "brandColors");
+  validateOptionalObjectArg("update_company", args, "socialLinks");
+  validateOptionalObjectArg("update_company", args, "pricing");
+  validateOptionalArrayArg("update_company", args, "valueProps");
+  validateOptionalArrayArg("update_company", args, "testimonials");
+
+  if (
+    typeof args.primaryColor === "string" &&
+    !/^#[0-9a-f]{6}$/i.test(args.primaryColor.trim())
+  ) {
+    throw new Error(
+      "`primaryColor` must be a 6-digit hex color such as #f97316 when calling `update_company`."
+    );
+  }
+
+  return body;
 }
 
 function buildUpdateSequenceBody(
@@ -2105,6 +2220,20 @@ async function resolveCompanyIdForAppUrls(
   }
 }
 
+async function resolveRequiredCompanyId(
+  toolName: string,
+  args: Record<string, unknown>
+): Promise<string> {
+  const companyId = await resolveCompanyIdForAppUrls(args);
+  if (!companyId) {
+    throw new Error(
+      `A company is required when calling \`${toolName}\`. Call \`get_account\`, then \`select_company\`, or pass \`companyId\` explicitly.`
+    );
+  }
+
+  return companyId;
+}
+
 function addUrlToRecord(value: unknown, url: string | undefined): unknown {
   if (!isRecord(value) || !url) {
     return value;
@@ -2208,6 +2337,7 @@ const dashboardUrlToolNames = new Set([
   "select_company",
   "create_company",
   "get_company",
+  "update_company",
   "list_campaigns",
   "get_campaign",
   "get_email_send",
@@ -2538,6 +2668,9 @@ const outputPropertiesByToolName: Record<string, OutputSchemaProperties> = {
       "Whether the new company was selected for subsequent MCP calls."
     ),
   },
+  update_company: {
+    company: resourceOutputProperty("company"),
+  },
   get_company: {
     company: resourceOutputProperty("company"),
   },
@@ -2824,9 +2957,7 @@ const outputPropertiesByToolName: Record<string, OutputSchemaProperties> = {
       description: "Email template IDs created for the inserted step.",
       items: stringOutputProperty("Inserted email template ID."),
     },
-    insertedEmailCount: numberOutputProperty(
-      "Number of email steps inserted."
-    ),
+    insertedEmailCount: numberOutputProperty("Number of email steps inserted."),
   },
   enable_sequence: {
     sequence: resourceOutputProperty("sequence"),
@@ -3121,7 +3252,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "get_company",
     description:
-      "Get company details, processing status, and effective email localization settings",
+      "Get company details, processing status, product info, brand colors, AI writing context, and effective email localization settings",
     inputSchema: {
       type: "object",
       properties: {
@@ -3131,6 +3262,117 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
         },
       },
       required: ["companyId"],
+    },
+  },
+  {
+    name: "update_company",
+    description:
+      "Edit company product info and brand context that AI uses for generated emails. Use this to adjust primaryColor, basic company knowledge, tone voice, value props, testimonials, social/legal links, and default writing preferences. Provide at least one editable field.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If omitted, uses the selected/current company when available.",
+        },
+        name: {
+          type: "string",
+          description: "Company display name.",
+        },
+        description: {
+          type: "string",
+          description:
+            "Short product or company summary for AI writing context.",
+        },
+        logoUrl: {
+          type: "string",
+          description: "Public logo URL.",
+        },
+        founderName: {
+          type: "string",
+          description: "Founder or sender name for personal email signatures.",
+        },
+        primaryColor: {
+          type: "string",
+          description:
+            "Primary brand color as a 6-digit hex value, e.g. #f97316.",
+        },
+        brandColors: {
+          type: "object",
+          description:
+            "Stored brand color object. Prefer primaryColor for the main color.",
+          additionalProperties: true,
+        },
+        valueProps: {
+          type: "array",
+          description:
+            "Value propositions, usually objects with title and description.",
+          items: {
+            type: "object",
+            additionalProperties: true,
+          },
+        },
+        testimonials: {
+          type: "array",
+          description:
+            "Testimonials, usually objects with quote/text and author.",
+          items: {
+            type: "object",
+            additionalProperties: true,
+          },
+        },
+        toneVoice: {
+          type: "string",
+          description: "Tone of voice guidance for AI-written content.",
+        },
+        companyContext: {
+          type: "string",
+          description:
+            "Basic product/company knowledge AI should use when writing emails.",
+        },
+        emailLengthPreference: {
+          type: "string",
+          description:
+            "Email length preference: concise, balanced, or detailed.",
+        },
+        socialLinks: {
+          type: "object",
+          description: "Social profile URLs keyed by platform.",
+          additionalProperties: {
+            type: "string",
+          },
+        },
+        privacyPolicyUrl: {
+          type: "string",
+          description: "Privacy policy URL.",
+        },
+        termsUrl: {
+          type: "string",
+          description: "Terms of service URL.",
+        },
+        address: {
+          type: "string",
+          description: "Physical mailing address for email footers.",
+        },
+        language: {
+          type: "string",
+          description: "Primary language code, e.g. en, es, de.",
+        },
+        pricing: {
+          type: "object",
+          description: "Pricing information used as product context.",
+          additionalProperties: true,
+        },
+        fontFamily: {
+          type: "string",
+          description: "Default email font family stack.",
+        },
+        emailDirection: {
+          type: "string",
+          description: "Default email text direction: ltr or rtl.",
+        },
+      },
     },
   },
   {
@@ -7283,6 +7525,20 @@ export async function handleToolCall(
       case "get_company": {
         const companyId = args.companyId as string;
         result = await apiRequest("GET", `/api/v1/companies/${companyId}`);
+        break;
+      }
+
+      case "update_company": {
+        const companyId = await resolveRequiredCompanyId(
+          "update_company",
+          args
+        );
+        const body = buildUpdateCompanyBody(args);
+        result = await apiRequest(
+          "PATCH",
+          `/api/v1/companies/${companyId}`,
+          body
+        );
         break;
       }
 

@@ -18,7 +18,7 @@ Connect Sequenzy to Claude Desktop, Claude Code, Codex, Cursor, Windsurf, VS Cod
 - Manage team invitations, inbox conversations, and outbound webhook endpoints.
 - Generate email copy, subject lines, and multi-step sequences.
 - Inspect analytics, subscriber activity, deliverability health, and dashboard URLs.
-- Configure sender websites and pull integration examples for common frameworks.
+- Configure company product info, sender websites, and integration examples for common frameworks.
 
 Every published MCP tool includes explicit `readOnlyHint`, `destructiveHint`, and `openWorldHint` annotations so compatible clients can display accurate tool-use affordances. Tools also publish `outputSchema` definitions and return `structuredContent`, giving clients and models machine-readable result shapes for follow-up calls.
 
@@ -190,7 +190,7 @@ Personal keys start with `seq_user_`. You can revoke them any time in the dashbo
 
 ## Tools
 
-This server currently exposes 116 MCP tools.
+This server currently exposes 117 MCP tools.
 
 ### Account, Companies, Setup
 
@@ -200,7 +200,8 @@ This server currently exposes 116 MCP tools.
 | `select_company`        | Set the active company for future tool calls.                                                                    |
 | `get_app_urls`          | Build dashboard URLs for campaigns, landing pages, sequences, emails, settings, domains, and sent email details. |
 | `create_company`        | Create a new company or brand.                                                                                   |
-| `get_company`           | Read company details and localization settings.                                                                  |
+| `get_company`           | Read company details, product info, brand colors, AI writing context, and localization settings.                  |
+| `update_company`        | Edit product info and brand context AI uses for generated emails.                                                |
 | `create_api_key`        | Create an API key for a company.                                                                                 |
 | `list_websites`         | List configured sender websites and domains.                                                                     |
 | `add_website`           | Add a sender website. Processing can take around 30 seconds.                                                     |

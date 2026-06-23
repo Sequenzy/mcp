@@ -267,6 +267,84 @@ describe("update_template tool validation", () => {
   });
 });
 
+describe("update_company tool validation", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("publishes an update_company tool with editable product info fields", () => {
+    const updateCompanyTool = tools.find(
+      (tool) => tool.name === "update_company"
+    );
+    const inputSchema = updateCompanyTool?.inputSchema as
+      | {
+          additionalProperties?: boolean;
+          properties?: Record<string, unknown>;
+        }
+      | undefined;
+
+    expect(updateCompanyTool).toBeDefined();
+    expect(inputSchema?.additionalProperties).toBeUndefined();
+    expect(inputSchema?.properties).toHaveProperty("primaryColor");
+    expect(inputSchema?.properties).toHaveProperty("companyContext");
+    expect(inputSchema?.properties).toHaveProperty("toneVoice");
+    expect(inputSchema?.properties).toHaveProperty("valueProps");
+  });
+
+  it("calls the company PATCH API with editable fields", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      company: {
+        id: "company_123",
+        primaryColor: "#0ea5e9",
+      },
+    });
+
+    const result = await handleToolCall("update_company", {
+      companyId: "company_123",
+      primaryColor: "#0EA5E9",
+      companyContext: "Lifecycle emails for SaaS teams.",
+      toneVoice: "clear, direct, warm",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/companies/company_123",
+      {
+        primaryColor: "#0EA5E9",
+        toneVoice: "clear, direct, warm",
+        companyContext: "Lifecycle emails for SaaS teams.",
+      }
+    );
+  });
+
+  it("rejects update_company calls without update fields", async () => {
+    const result = await handleToolCall("update_company", {
+      companyId: "company_123",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Provide at least one of `name`, `description`"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid update_company primary colors", async () => {
+    const result = await handleToolCall("update_company", {
+      companyId: "company_123",
+      primaryColor: "blue",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`primaryColor` must be a 6-digit hex color"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+});
+
 describe("A/B test tools", () => {
   beforeEach(() => {
     mockApiRequest.mockClear();
