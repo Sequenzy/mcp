@@ -17,13 +17,13 @@ import {
 } from "../runtime.js";
 
 const emailBlocksDescription =
-  "Sequenzy email blocks. Use `styles` for per-block background, background opacity, text color, padding, border radius, border width, and border color. Top-level style aliases such as `backgroundColor`, `backgroundOpacity`, `borderColor`, `borderWidth`, and `borderRadius` are also accepted and saved under `styles`. Use this for editor-compatible content, including conditional and repeat blocks. Repeat blocks use { type: 'repeat', source: 'items', itemAlias: 'item', children: [...] }.";
+  "Sequenzy email blocks. Use this for editor-compatible content, including conditional and repeat blocks. For provider-migrated HTML from another email platform, prefer the `html` field instead; Sequenzy stores it as one raw HTML block to preserve the original design. Use `styles` for per-block background, background opacity, text color, padding, border radius, border width, and border color. Top-level style aliases such as `backgroundColor`, `backgroundOpacity`, `borderColor`, `borderWidth`, and `borderRadius` are also accepted and saved under `styles`. Repeat blocks use { type: 'repeat', source: 'items', itemAlias: 'item', children: [...] }.";
 
 const replacementEmailBlocksDescription =
   "Replacement Sequenzy email blocks. Use `styles` for per-block background, background opacity, text color, padding, border radius, border width, and border color. Top-level style aliases such as `backgroundColor`, `backgroundOpacity`, `borderColor`, `borderWidth`, and `borderRadius` are also accepted and saved under `styles`.";
 
 const sequenceEmailBlocksDescription =
-  "Sequenzy email blocks. Provide blocks or html for email steps. Use `styles` for per-block background, background opacity, text color, padding, border radius, border width, and border color. Top-level style aliases such as `backgroundColor`, `backgroundOpacity`, `borderColor`, `borderWidth`, and `borderRadius` are also accepted and saved under `styles`. Blocks can include repeat blocks over array variables such as items.";
+  "Sequenzy email blocks. Provide blocks or html for email steps. For migrated provider HTML, prefer `html`; Sequenzy stores it as one raw HTML block and does not recreate it as native blocks. Use `styles` for per-block background, background opacity, text color, padding, border radius, border width, and border color. Top-level style aliases such as `backgroundColor`, `backgroundOpacity`, `borderColor`, `borderWidth`, and `borderRadius` are also accepted and saved under `styles`. Blocks can include repeat blocks over array variables such as items.";
 
 const landingPageContentDescription =
   "Complete Sequenzy landing page content JSON. Use this when replacing the page structure. The content must be the editor-compatible landing page schema with version, template, seo, theme, and blocks. Landing pages must include exactly one footer block and at most one form block.";
@@ -74,6 +74,119 @@ const sequenceSendingWindowSchema = {
   },
   additionalProperties: false,
 };
+
+const sequenceDelayOffsetSchema = {
+  type: "object",
+  description: "Offset relative to a wait-until date.",
+  properties: {
+    days: { type: "number" },
+    hours: { type: "number" },
+    minutes: { type: "number" },
+  },
+  additionalProperties: false,
+} as const;
+
+const sequenceWaitUntilSchema = {
+  type: "object",
+  description:
+    "Wait until a date from the trigger event before this step. Use this for renewal reminders, appointment follow-ups, trial-expiry nudges, and other subscriber-specific dates. The field value must be an ISO date string or Unix timestamp.",
+  properties: {
+    field: {
+      type: "string",
+      description:
+        "Dot-path into the trigger event properties, e.g. renews_at or booking.startsAt.",
+    },
+    untilDateField: {
+      type: "string",
+      description: "Alias for field.",
+    },
+    offset: sequenceDelayOffsetSchema,
+    days: {
+      type: "number",
+      description: "Offset days shorthand. Ignored when offset is provided.",
+    },
+    hours: {
+      type: "number",
+      description: "Offset hours shorthand. Ignored when offset is provided.",
+    },
+    minutes: {
+      type: "number",
+      description: "Offset minutes shorthand. Ignored when offset is provided.",
+    },
+    direction: {
+      type: "string",
+      enum: ["before", "after"],
+      description:
+        "Whether the offset applies before or after the resolved date. Defaults to after.",
+    },
+    untilOffsetDirection: {
+      type: "string",
+      enum: ["before", "after"],
+      description: "Alias for direction.",
+    },
+    missingAction: {
+      type: "string",
+      enum: ["continue", "exit"],
+      description:
+        "What to do if the event field is missing or invalid. Defaults to continue.",
+    },
+    untilMissingAction: {
+      type: "string",
+      enum: ["continue", "exit"],
+      description: "Alias for missingAction.",
+    },
+  },
+  additionalProperties: false,
+} as const;
+
+const sequenceDelaySchema = {
+  type: "object",
+  description:
+    "Fixed delay before this step. For a dynamic wait-until-date delay, either set mode:'until_date' plus untilDateField here, or use waitUntil.",
+  properties: {
+    days: { type: "number" },
+    hours: { type: "number" },
+    minutes: { type: "number" },
+    mode: {
+      type: "string",
+      enum: ["duration", "until_date"],
+      description:
+        "Use duration for a fixed wait, or until_date to resolve a date from the trigger event.",
+    },
+    untilDateField: {
+      type: "string",
+      description:
+        "For mode:'until_date', dot-path into the trigger event properties.",
+    },
+    field: {
+      type: "string",
+      description: "Alias for untilDateField.",
+    },
+    untilOffsetDirection: {
+      type: "string",
+      enum: ["before", "after"],
+      description:
+        "For mode:'until_date', whether days/hours/minutes are before or after the event date. Defaults to after.",
+    },
+    direction: {
+      type: "string",
+      enum: ["before", "after"],
+      description: "Alias for untilOffsetDirection.",
+    },
+    untilMissingAction: {
+      type: "string",
+      enum: ["continue", "exit"],
+      description:
+        "For mode:'until_date', what to do when the field is missing or invalid. Defaults to continue.",
+    },
+    missingAction: {
+      type: "string",
+      enum: ["continue", "exit"],
+      description: "Alias for untilMissingAction.",
+    },
+  },
+  additionalProperties: false,
+} as const;
 
 const AVAILABLE_TAG_COLORS = [
   "gray",
@@ -1211,6 +1324,7 @@ function buildInsertSequenceStepBody(
     "blocks",
     "delay",
     "delayMs",
+    "waitUntil",
   ]) {
     if (args[key] !== undefined) {
       step[key] = args[key];
@@ -1516,23 +1630,16 @@ const sequencePathStepSchema = {
     },
     html: {
       type: "string",
-      description: "HTML content for email steps.",
-    },
-    delay: {
-      type: "object",
       description:
-        "Delay before this step, or the delay duration when type is delay.",
-      properties: {
-        days: { type: "number" },
-        hours: { type: "number" },
-        minutes: { type: "number" },
-      },
+        "HTML content for email steps. Stored as one raw HTML block. Use this for imported provider HTML.",
     },
+    delay: sequenceDelaySchema,
     delayMs: {
       type: "number",
       description:
         "Delay in milliseconds. Useful for standalone type:'delay' steps.",
     },
+    waitUntil: sequenceWaitUntilSchema,
     name: {
       type: "string",
       description: "Email template name for email steps.",
@@ -4441,7 +4548,8 @@ Before implementing, use create_api_key to generate an API key and save it to .e
         },
         html: {
           type: "string",
-          description: "Email HTML content. Mutually exclusive with `blocks`.",
+          description:
+            "Email HTML content. Mutually exclusive with `blocks`. Use this for imported provider templates; Sequenzy stores it as one raw HTML block to preserve the design.",
         },
         blocks: {
           type: "array",
@@ -4488,7 +4596,8 @@ Before implementing, use create_api_key to generate an API key and save it to .e
         },
         html: {
           type: "string",
-          description: "Email HTML content. Mutually exclusive with `blocks`.",
+          description:
+            "Email HTML content. Mutually exclusive with `blocks`. Use this for imported provider templates; Sequenzy stores it as one raw HTML block to preserve the design.",
         },
         blocks: {
           type: "array",
@@ -4933,7 +5042,8 @@ Before implementing, use create_api_key to generate an API key and save it to .e
         },
         html: {
           type: "string",
-          description: "Email HTML content. Mutually exclusive with `blocks`.",
+          description:
+            "Email HTML content. Mutually exclusive with `blocks`. Use this for imported provider campaigns; Sequenzy stores it as one raw HTML block to preserve the design.",
         },
         blocks: {
           type: "array",
@@ -5020,7 +5130,8 @@ Before implementing, use create_api_key to generate an API key and save it to .e
         },
         html: {
           type: "string",
-          description: "Email HTML content. Mutually exclusive with `blocks`.",
+          description:
+            "Email HTML content. Mutually exclusive with `blocks`. Use this for imported provider campaigns; Sequenzy stores it as one raw HTML block to preserve the design.",
         },
         blocks: {
           type: "array",
@@ -5529,6 +5640,8 @@ Before implementing, use create_api_key to generate an API key and save it to .e
     name: "create_sequence",
     description: `Create a new email sequence. Provide either a goal for AI generation or explicit steps. Explicit steps can include email content and create_discount actions; emails after a discount action can use merge tags such as {{discount.code}} and {{discount.percentOff}}. For AI-generated sequences, the tool polls until emails are generated (typically 30-60 seconds).
 
+MIGRATIONS: When moving sequences or flows from Brevo, Mailchimp, Klaviyo, MailerLite, or another provider, pass the exact provider HTML in each email step's html field and pass fixed waits as delay or delayMs. Use waitUntil when a wait should resolve from the trigger event payload, for example { "field": "renews_at", "direction": "before", "offset": { "days": 1 } }. The API stores provider HTML as raw HTML blocks and creates real logic_delay nodes for waits.
+
 IMPORTANT GUIDELINES:
 
 1. NEVER ENABLE SEQUENCES AUTOMATICALLY:
@@ -5858,17 +5971,15 @@ OTHER BUILT-IN EVENTS:
               html: {
                 type: "string",
                 description:
-                  "HTML content for email steps. Will be converted to Sequenzy blocks.",
+                  "HTML content for email steps. Stored as one raw HTML block. Use this for imported provider HTML.",
               },
-              delay: {
-                type: "object",
-                description: "Delay before this step.",
-                properties: {
-                  days: { type: "number" },
-                  hours: { type: "number" },
-                  minutes: { type: "number" },
-                },
+              delay: sequenceDelaySchema,
+              delayMs: {
+                type: "number",
+                description:
+                  "Delay before this step in milliseconds. Prefer delay for readability; use delayMs when importing provider waits.",
               },
+              waitUntil: sequenceWaitUntilSchema,
               name: {
                 type: "string",
                 description: "Email template name for email steps.",
@@ -6286,12 +6397,12 @@ OTHER BUILT-IN EVENTS:
               html: {
                 type: "string",
                 description:
-                  "Updated HTML content. Will be converted to Sequenzy blocks.",
+                  "Updated HTML content. Stored as one raw HTML block. Use this to preserve imported provider HTML.",
               },
               htmlContent: {
                 type: "string",
                 description:
-                  "Alias for html. Use this when updating HTML content for a step.",
+                  "Alias for html. Stored as one raw HTML block. Use this when updating imported provider HTML for a step.",
               },
               blocks: {
                 type: "array",
@@ -6333,12 +6444,12 @@ OTHER BUILT-IN EVENTS:
               html: {
                 type: "string",
                 description:
-                  "Updated HTML content. Will be converted to Sequenzy blocks.",
+                  "Updated HTML content. Stored as one raw HTML block. Use this to preserve imported provider HTML.",
               },
               htmlContent: {
                 type: "string",
                 description:
-                  "Alias for html. Use this when updating HTML content for a step.",
+                  "Alias for html. Stored as one raw HTML block. Use this when updating HTML content for a step.",
               },
               blocks: {
                 type: "array",
@@ -6398,23 +6509,15 @@ OTHER BUILT-IN EVENTS:
         html: {
           type: "string",
           description:
-            "HTML content for the new step. Will be converted to Sequenzy blocks. Provide either html or blocks, not both.",
+            "HTML content for the new step. Stored as one raw HTML block. Use this for imported provider HTML. Provide either html or blocks, not both.",
         },
-        delay: {
-          type: "object",
-          description:
-            "Optional wait before the new email step. Creates a logic_delay node in front of the email.",
-          properties: {
-            days: { type: "number" },
-            hours: { type: "number" },
-            minutes: { type: "number" },
-          },
-        },
+        delay: sequenceDelaySchema,
         delayMs: {
           type: "number",
           description:
             "Optional wait in milliseconds before the new email step. Prefer delay for readability.",
         },
+        waitUntil: sequenceWaitUntilSchema,
       },
       required: ["sequenceId", "subject"],
       additionalProperties: false,
@@ -6675,7 +6778,8 @@ OTHER BUILT-IN EVENTS:
         },
         html: {
           type: "string",
-          description: "Email HTML content. Mutually exclusive with `blocks`.",
+          description:
+            "Email HTML content. Mutually exclusive with `blocks`. Sequenzy stores it as one raw HTML block.",
         },
         blocks: {
           type: "array",
@@ -6744,7 +6848,8 @@ OTHER BUILT-IN EVENTS:
         },
         html: {
           type: "string",
-          description: "Email HTML content. Mutually exclusive with `blocks`.",
+          description:
+            "Email HTML content. Mutually exclusive with `blocks`. Sequenzy stores it as one raw HTML block.",
         },
         blocks: {
           type: "array",

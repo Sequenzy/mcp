@@ -1682,6 +1682,20 @@ describe("create_sequence tool", () => {
     expect(inputSchema?.properties).toHaveProperty("steps");
     expect(inputSchema?.properties).toHaveProperty("sendingWindow");
     expect(inputSchema?.properties).toHaveProperty("stopCondition");
+    const steps = inputSchema?.properties?.["steps"] as
+      | {
+          items?: {
+            properties?: Record<string, unknown>;
+          };
+        }
+      | undefined;
+    expect(steps?.items?.properties).toHaveProperty("delayMs");
+    expect(steps?.items?.properties).toHaveProperty("waitUntil");
+    const delay = steps?.items?.properties?.["delay"] as
+      | { properties?: Record<string, unknown> }
+      | undefined;
+    expect(delay?.properties).toHaveProperty("mode");
+    expect(delay?.properties).toHaveProperty("untilDateField");
     const stopCondition = inputSchema?.properties?.["stopCondition"] as
       | {
           properties?: {
@@ -1713,6 +1727,7 @@ describe("create_sequence tool", () => {
       },
       {
         subject: "Come back with {{discount.code}}",
+        delayMs: 86_400_000,
         html: "<p>Use {{discount.code}}</p>",
       },
     ];
@@ -1875,6 +1890,9 @@ describe("update_sequence tool", () => {
     );
     expect(insertSteps?.properties?.steps?.items?.properties).toHaveProperty(
       "blocks"
+    );
+    expect(insertSteps?.properties?.steps?.items?.properties).toHaveProperty(
+      "waitUntil"
     );
     const insertedStepType = insertSteps?.properties?.steps?.items?.properties
       ?.type as { enum?: string[] } | undefined;
@@ -2209,6 +2227,8 @@ describe("insert_sequence_step tool", () => {
     expect(inputSchema?.properties).toHaveProperty("html");
     expect(inputSchema?.properties).toHaveProperty("blocks");
     expect(inputSchema?.properties).toHaveProperty("delay");
+    expect(inputSchema?.properties).toHaveProperty("delayMs");
+    expect(inputSchema?.properties).toHaveProperty("waitUntil");
   });
 
   it("wraps one new delayed email step in update_sequence insertSteps", async () => {
@@ -2260,6 +2280,59 @@ describe("insert_sequence_step tool", () => {
               previewText: "A migration resource",
               blocks,
               delay: { days: 2 },
+            },
+          ],
+        },
+      },
+      "comp_123"
+    );
+  });
+
+  it("wraps one new wait-until-date email step in update_sequence insertSteps", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      sequence: {
+        id: "seq_123",
+        name: "Renewal Sequence",
+        status: "draft",
+        updatedEmailCount: 0,
+        insertedNodeIds: ["delay_inserted", "node_inserted"],
+        insertedEmailIds: ["email_inserted"],
+        insertedEmailCount: 1,
+      },
+    });
+
+    const result = await handleToolCall("insert_sequence_step", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      afterNodeId: "node_renewal_email",
+      waitUntil: {
+        field: "renews_at",
+        direction: "before",
+        offset: { days: 2 },
+        missingAction: "exit",
+      },
+      subject: "Renewal reminder",
+      html: "<p>Your renewal is coming up.</p>",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/sequences/seq_123",
+      {
+        insertSteps: {
+          afterNodeId: "node_renewal_email",
+          steps: [
+            {
+              subject: "Renewal reminder",
+              html: "<p>Your renewal is coming up.</p>",
+              waitUntil: {
+                field: "renews_at",
+                direction: "before",
+                offset: { days: 2 },
+                missingAction: "exit",
+              },
             },
           ],
         },
