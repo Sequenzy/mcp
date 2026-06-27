@@ -190,7 +190,7 @@ Personal keys start with `seq_user_`. You can revoke them any time in the dashbo
 
 ## Tools
 
-This server currently exposes 117 MCP tools.
+This server currently exposes 120 MCP tools.
 
 ### Account, Companies, Setup
 
@@ -200,7 +200,7 @@ This server currently exposes 117 MCP tools.
 | `select_company`        | Set the active company for future tool calls.                                                                    |
 | `get_app_urls`          | Build dashboard URLs for campaigns, landing pages, sequences, emails, settings, domains, and sent email details. |
 | `create_company`        | Create a new company or brand.                                                                                   |
-| `get_company`           | Read company details, product info, brand colors, AI writing context, and localization settings.                  |
+| `get_company`           | Read company details, product info, brand colors, AI writing context, and localization settings.                 |
 | `update_company`        | Edit product info and brand context AI uses for generated emails.                                                |
 | `create_api_key`        | Create an API key for a company.                                                                                 |
 | `list_websites`         | List configured sender websites and domains.                                                                     |
@@ -344,20 +344,21 @@ Use `get_ab_test` to discover variant IDs before editing. Variant updates accept
 
 ### Campaigns
 
-| Tool                 | Description                                                              |
-| -------------------- | ------------------------------------------------------------------------ |
-| `list_campaigns`     | List campaigns, optionally filtered by status.                           |
-| `get_campaign`       | Get campaign details and stats.                                          |
-| `get_email_send`     | Inspect a sent email detail record.                                      |
-| `create_campaign`    | Create a draft campaign from HTML, blocks, a template, or campaign data. |
-| `update_campaign`    | Update a draft campaign, including campaign data and computed lists.     |
-| `schedule_campaign`  | Schedule a draft or reschedule an existing scheduled campaign.           |
-| `send_test_email`    | Send a test email to one address.                                        |
-| `cancel_campaign`    | Cancel a scheduled or sending campaign.                                  |
-| `pause_campaign`     | Pause a sending campaign.                                                |
-| `resume_campaign`    | Resume a paused campaign, optionally spreading delivery over time.       |
-| `delete_campaign`    | Delete a campaign.                                                       |
-| `duplicate_campaign` | Duplicate a campaign into a new draft.                                   |
+| Tool                             | Description                                                                               |
+| -------------------------------- | ----------------------------------------------------------------------------------------- |
+| `list_campaigns`                 | List campaigns, optionally filtered by status.                                            |
+| `get_campaign`                   | Get campaign details and stats.                                                           |
+| `get_email_send`                 | Inspect a sent email detail record.                                                       |
+| `create_campaign`                | Create a draft campaign from HTML, blocks, a template, or campaign data.                  |
+| `update_campaign`                | Update a draft campaign, including campaign data and computed lists.                      |
+| `schedule_campaign`              | Schedule a draft or reschedule an existing scheduled campaign.                            |
+| `send_test_email`                | Send a test email to one address.                                                         |
+| `cancel_campaign`                | Cancel a scheduled or sending campaign.                                                   |
+| `pause_campaign`                 | Pause a sending campaign.                                                                 |
+| `resume_campaign`                | Resume a paused campaign, optionally spreading delivery over time.                        |
+| `delete_campaign`                | Delete a campaign.                                                                        |
+| `duplicate_campaign`             | Duplicate a campaign into a new draft.                                                    |
+| `resend_campaign_to_non_openers` | Create a draft resend for the original audience members who did not open a sent campaign. |
 
 ### Landing Pages
 
@@ -449,6 +450,8 @@ For compatibility with older agent prompts, top-level style keys such as `backgr
 | `get_stats`               | Get overview stats for `7d`, `30d`, or `90d`.          |
 | `get_campaign_stats`      | Get detailed campaign performance.                     |
 | `get_sequence_stats`      | Get sequence performance.                              |
+| `list_campaign_events`    | List paginated raw email events for a campaign.        |
+| `list_sequence_events`    | List paginated raw email events for a sequence.        |
 | `get_subscriber_activity` | Get subscriber email stats, activity, and enrollments. |
 
 Analytics tools exclude detected bot, scanner, link-preview, and tracked asset opens/clicks by default. Pass `includeMachineEngagement: true` to `get_stats`, `get_campaign_stats`, `get_sequence_stats`, `get_ab_test_stats`, `get_subscriber`, or `get_subscriber_activity` when you need raw engagement diagnostics; included open/click activity rows expose `machine`, `engagementQuality`, and `classificationReasons` fields where the API returns event-level activity.

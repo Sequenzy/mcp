@@ -16,14 +16,23 @@ import {
   setSelectedCompanyId,
 } from "../runtime.js";
 
+// Shared guidance so agents can author conditional (show/hide and if/else)
+// content. The plural `conditions` array is the live mechanism; a singular
+// `condition` object is NOT supported and is silently dropped.
+const blockConditionsHint =
+  ' Any block accepts a `conditions` array so it only renders for matching recipients. To branch on a value passed in the transactional send `variables` or an automation `event` payload, use { "id": "c1", "field": "variable", "operator": "is", "value": "plan:pro" } where the text before the colon is a {{merge tag}} path (nested paths like "order.total" or "event.plan" work) and the text after it is the comparison value. `field` may also be "attribute" (same "name:value" form) or "email"/"firstName"/"lastName" (the value is the plain comparison string). Operators: is, is_not, contains, not_contains, gt, gte, lt, lte, is_empty, is_not_empty. For if/else, use a { type: "conditional-group", conditions: [...], ifBranch: { children: [...] }, elseBranch: { children: [...] } } block.';
+
 const emailBlocksDescription =
-  "Sequenzy email blocks. Use this for editor-compatible content, including conditional and repeat blocks. For provider-migrated HTML from another email platform, prefer the `html` field instead; Sequenzy stores it as one raw HTML block to preserve the original design. Use `styles` for per-block background, background opacity, text color, padding, border radius, border width, and border color. Top-level style aliases such as `backgroundColor`, `backgroundOpacity`, `borderColor`, `borderWidth`, and `borderRadius` are also accepted and saved under `styles`. Repeat blocks use { type: 'repeat', source: 'items', itemAlias: 'item', children: [...] }.";
+  "Sequenzy email blocks. Use this for editor-compatible content, including conditional and repeat blocks. For provider-migrated HTML from another email platform, prefer the `html` field instead; Sequenzy stores it as one raw HTML block to preserve the original design. Use `styles` for per-block background, background opacity, text color, padding, border radius, border width, and border color. Top-level style aliases such as `backgroundColor`, `backgroundOpacity`, `borderColor`, `borderWidth`, and `borderRadius` are also accepted and saved under `styles`. Repeat blocks use { type: 'repeat', source: 'items', itemAlias: 'item', children: [...] }." +
+  blockConditionsHint;
 
 const replacementEmailBlocksDescription =
-  "Replacement Sequenzy email blocks. Use `styles` for per-block background, background opacity, text color, padding, border radius, border width, and border color. Top-level style aliases such as `backgroundColor`, `backgroundOpacity`, `borderColor`, `borderWidth`, and `borderRadius` are also accepted and saved under `styles`.";
+  "Replacement Sequenzy email blocks. Use `styles` for per-block background, background opacity, text color, padding, border radius, border width, and border color. Top-level style aliases such as `backgroundColor`, `backgroundOpacity`, `borderColor`, `borderWidth`, and `borderRadius` are also accepted and saved under `styles`." +
+  blockConditionsHint;
 
 const sequenceEmailBlocksDescription =
-  "Sequenzy email blocks. Provide blocks or html for email steps. For migrated provider HTML, prefer `html`; Sequenzy stores it as one raw HTML block and does not recreate it as native blocks. Use `styles` for per-block background, background opacity, text color, padding, border radius, border width, and border color. Top-level style aliases such as `backgroundColor`, `backgroundOpacity`, `borderColor`, `borderWidth`, and `borderRadius` are also accepted and saved under `styles`. Blocks can include repeat blocks over array variables such as items.";
+  "Sequenzy email blocks. Provide blocks or html for email steps. For migrated provider HTML, prefer `html`; Sequenzy stores it as one raw HTML block and does not recreate it as native blocks. Use `styles` for per-block background, background opacity, text color, padding, border radius, border width, and border color. Top-level style aliases such as `backgroundColor`, `backgroundOpacity`, `borderColor`, `borderWidth`, and `borderRadius` are also accepted and saved under `styles`. Blocks can include repeat blocks over array variables such as items." +
+  blockConditionsHint;
 
 const landingPageContentDescription =
   "Complete Sequenzy landing page content JSON. Use this when replacing the page structure. The content must be the editor-compatible landing page schema with version, template, seo, theme, and blocks. Landing pages must include exactly one footer block and at most one form block.";
@@ -39,6 +48,17 @@ const includeMachineEngagementToolProperty = {
   description:
     "If true, include machine-classified bot/scanner opens and clicks. Defaults to false, so metrics and activity are human-only.",
 };
+
+const emailEventTypes = [
+  "send",
+  "delivery",
+  "bounce",
+  "complaint",
+  "open",
+  "click",
+  "unsubscribe",
+  "delivery_delay",
+] as const;
 
 const sequenceSendingWindowSchema = {
   type: "object",
@@ -265,6 +285,8 @@ const READ_ONLY_TOOL_NAMES = new Set([
   "get_stats",
   "get_campaign_stats",
   "get_sequence_stats",
+  "list_campaign_events",
+  "list_sequence_events",
   "get_subscriber_activity",
   "list_team_members",
   "list_conversations",
@@ -323,6 +345,7 @@ const MUTATING_TOOL_NAMES = new Set([
   "resume_campaign",
   "delete_campaign",
   "duplicate_campaign",
+  "resend_campaign_to_non_openers",
   "create_landing_page",
   "update_landing_page",
   "delete_landing_page",
@@ -2051,6 +2074,98 @@ function optionalIntegerInRange(
   return value;
 }
 
+function optionalEmailEventTypes(
+  toolName: string,
+  args: Record<string, unknown>
+): string[] {
+  const eventTypes: string[] = [];
+  const eventType = optionalAllowedString(
+    toolName,
+    args,
+    "eventType",
+    emailEventTypes
+  );
+
+  if (eventType) {
+    eventTypes.push(eventType);
+  }
+
+  if (args.eventTypes !== undefined) {
+    if (!Array.isArray(args.eventTypes)) {
+      throw new Error(
+        `\`eventTypes\` must be an array when calling \`${toolName}\`.`
+      );
+    }
+
+    args.eventTypes.forEach((value, index) => {
+      if (typeof value !== "string") {
+        throw new Error(
+          `\`eventTypes\` item ${index + 1} must be a string when calling \`${toolName}\`.`
+        );
+      }
+
+      const trimmed = value.trim();
+      if (!(emailEventTypes as readonly string[]).includes(trimmed)) {
+        throw new Error(
+          `\`eventTypes\` item ${index + 1} must be one of ${emailEventTypes.join(", ")} when calling \`${toolName}\`.`
+        );
+      }
+
+      eventTypes.push(trimmed);
+    });
+  }
+
+  return [...new Set(eventTypes)];
+}
+
+function buildEmailEventListParams(
+  toolName: string,
+  args: Record<string, unknown>
+): URLSearchParams {
+  const params = new URLSearchParams();
+  const eventTypes = optionalEmailEventTypes(toolName, args);
+  if (eventTypes.length > 0) {
+    params.set("eventTypes", eventTypes.join(","));
+  }
+
+  const period = optionalAllowedString(toolName, args, "period", [
+    "1h",
+    "24h",
+    "7d",
+    "30d",
+    "90d",
+  ]);
+  if (period) {
+    params.set("period", period);
+  }
+
+  const start = optionalString(args, "start");
+  if (start) {
+    params.set("start", start);
+  }
+
+  const end = optionalString(args, "end");
+  if (end) {
+    params.set("end", end);
+  }
+
+  const page = optionalIntegerInRange(toolName, args, "page", 1, 1_000_000);
+  if (page !== undefined) {
+    params.set("page", String(page));
+  }
+
+  const limit = optionalIntegerInRange(toolName, args, "limit", 1, 500);
+  if (limit !== undefined) {
+    params.set("limit", String(limit));
+  }
+
+  if (args.includeMachineEngagement === true) {
+    params.set("includeMachineEngagement", "true");
+  }
+
+  return params;
+}
+
 function optionalWebhookEvents(
   toolName: string,
   args: Record<string, unknown>
@@ -2456,6 +2571,7 @@ const dashboardUrlToolNames = new Set([
   "pause_campaign",
   "resume_campaign",
   "duplicate_campaign",
+  "resend_campaign_to_non_openers",
   "list_landing_pages",
   "get_landing_page",
   "create_landing_page",
@@ -3010,6 +3126,12 @@ const outputPropertiesByToolName: Record<string, OutputSchemaProperties> = {
   duplicate_campaign: {
     campaign: resourceOutputProperty("duplicated campaign"),
   },
+  resend_campaign_to_non_openers: {
+    campaign: resourceOutputProperty("non-opener resend draft campaign"),
+    estimatedNonOpenerCount: numberOutputProperty(
+      "Estimated number of subscribers who haven't opened the original campaign."
+    ),
+  },
   list_landing_pages: {
     landingPages: resourceListOutputProperty("landing page"),
   },
@@ -3124,6 +3246,14 @@ const outputPropertiesByToolName: Record<string, OutputSchemaProperties> = {
   get_sequence_stats: {
     sequence: resourceOutputProperty("sequence"),
     stats: resourceOutputProperty("sequence statistics"),
+  },
+  list_campaign_events: {
+    events: resourceListOutputProperty("campaign email event"),
+    pagination: objectOutputProperty("Pagination metadata."),
+  },
+  list_sequence_events: {
+    events: resourceListOutputProperty("sequence email event"),
+    pagination: objectOutputProperty("Pagination metadata."),
   },
   get_subscriber_activity: {
     activity: resourceListOutputProperty("subscriber activity event"),
@@ -5355,6 +5485,26 @@ Before implementing, use create_api_key to generate an API key and save it to .e
       required: ["campaignId"],
     },
   },
+  {
+    name: "resend_campaign_to_non_openers",
+    description:
+      "Create a draft that resends a sent campaign to everyone in the same audience who didn't open it. Copies the campaign email and reuses the original audience with a 'didn't open this campaign' rule added. Only available 6 hours after the campaign finishes sending. The draft must be scheduled or sent separately. Returns the new draft and an estimate of how many subscribers haven't opened the original.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        campaignId: {
+          type: "string",
+          description: "ID of the sent campaign to resend to non-openers.",
+        },
+      },
+      required: ["campaignId"],
+    },
+  },
 
   // ============================================================================
   // Landing Pages
@@ -6972,6 +7122,116 @@ OTHER BUILT-IN EVENTS:
     },
   },
   {
+    name: "list_campaign_events",
+    description:
+      "List paginated raw email events for a campaign. Defaults to deliveries; use eventType or eventTypes to include opens, clicks, bounces, complaints, unsubscribes, sends, or delivery delays.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        campaignId: {
+          type: "string",
+          description: "Campaign ID",
+        },
+        eventType: {
+          type: "string",
+          description:
+            "Optional single event type. Supported values: send, delivery, bounce, complaint, open, click, unsubscribe, delivery_delay. Defaults to delivery.",
+        },
+        eventTypes: {
+          type: "array",
+          description:
+            "Optional event types to include. Supported values: send, delivery, bounce, complaint, open, click, unsubscribe, delivery_delay. Defaults to delivery.",
+          items: { type: "string" },
+        },
+        period: {
+          type: "string",
+          description:
+            "Optional sliding time window: 1h, 24h, 7d, 30d, or 90d. Ignored when start/end are provided.",
+        },
+        start: {
+          type: "string",
+          description:
+            "Optional ISO 8601 start time. Must be used with end; max range is 90 days.",
+        },
+        end: {
+          type: "string",
+          description:
+            "Optional ISO 8601 end time. Must be used with start; max range is 90 days.",
+        },
+        page: {
+          type: "number",
+          description: "Page number, starting at 1. Defaults to 1.",
+        },
+        limit: {
+          type: "number",
+          description: "Events per page. Defaults to 100; maximum 500.",
+        },
+        includeMachineEngagement: includeMachineEngagementToolProperty,
+      },
+      required: ["campaignId"],
+    },
+  },
+  {
+    name: "list_sequence_events",
+    description:
+      "List paginated raw email events for every email step in a sequence. Defaults to deliveries; use eventType or eventTypes to include opens, clicks, bounces, complaints, unsubscribes, sends, or delivery delays.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        sequenceId: {
+          type: "string",
+          description: "Sequence ID",
+        },
+        eventType: {
+          type: "string",
+          description:
+            "Optional single event type. Supported values: send, delivery, bounce, complaint, open, click, unsubscribe, delivery_delay. Defaults to delivery.",
+        },
+        eventTypes: {
+          type: "array",
+          description:
+            "Optional event types to include. Supported values: send, delivery, bounce, complaint, open, click, unsubscribe, delivery_delay. Defaults to delivery.",
+          items: { type: "string" },
+        },
+        period: {
+          type: "string",
+          description:
+            "Optional sliding time window: 1h, 24h, 7d, 30d, or 90d. Ignored when start/end are provided.",
+        },
+        start: {
+          type: "string",
+          description:
+            "Optional ISO 8601 start time. Must be used with end; max range is 90 days.",
+        },
+        end: {
+          type: "string",
+          description:
+            "Optional ISO 8601 end time. Must be used with start; max range is 90 days.",
+        },
+        page: {
+          type: "number",
+          description: "Page number, starting at 1. Defaults to 1.",
+        },
+        limit: {
+          type: "number",
+          description: "Events per page. Defaults to 100; maximum 500.",
+        },
+        includeMachineEngagement: includeMachineEngagementToolProperty,
+      },
+      required: ["sequenceId"],
+    },
+  },
+  {
     name: "get_subscriber_activity",
     description:
       "Get recent activity, email stats, and current sequence enrollments for a subscriber",
@@ -7020,7 +7280,7 @@ OTHER BUILT-IN EVENTS:
   {
     name: "invite_team_member",
     description:
-      "Invite a team member by email with role admin or viewer. Existing Sequenzy users are added to the team immediately; others receive an email invitation. Billing access (canManageBilling) can only be granted by the company owner.",
+      "Invite a team member by email with role admin, viewer, or restricted. Existing Sequenzy users are added to the team immediately; others receive an email invitation. Billing access (canManageBilling) can only be granted by the company owner and is not available for restricted members.",
     inputSchema: {
       type: "object",
       properties: {
@@ -7035,9 +7295,9 @@ OTHER BUILT-IN EVENTS:
         },
         role: {
           type: "string",
-          enum: ["admin", "viewer"],
+          enum: ["admin", "viewer", "restricted"],
           description:
-            "Team role. Admins can manage the workspace; viewers have read-only access.",
+            "Team role. Admins can manage the workspace; viewers have read-only access; restricted members can open direct campaign links only.",
         },
         canManageBilling: {
           type: "boolean",
@@ -9052,6 +9312,23 @@ export async function handleToolCall(
         break;
       }
 
+      case "resend_campaign_to_non_openers": {
+        const companyId = args.companyId as string | undefined;
+        const campaignId = requiredString(
+          "resend_campaign_to_non_openers",
+          args,
+          "campaignId"
+        );
+
+        result = await apiRequest(
+          "POST",
+          `/api/v1/campaigns/${encodeURIComponent(campaignId)}/resend-to-non-openers`,
+          undefined,
+          companyId
+        );
+        break;
+      }
+
       // Landing Pages
       case "list_landing_pages": {
         const companyId = args.companyId as string | undefined;
@@ -9731,6 +10008,42 @@ export async function handleToolCall(
         break;
       }
 
+      case "list_campaign_events": {
+        const companyId = args.companyId as string | undefined;
+        const campaignId = requiredString(
+          "list_campaign_events",
+          args,
+          "campaignId"
+        );
+        const params = buildEmailEventListParams("list_campaign_events", args);
+        const query = params.toString();
+        result = await apiRequest(
+          "GET",
+          `/api/v1/metrics/campaigns/${encodeURIComponent(campaignId)}/events${query ? `?${query}` : ""}`,
+          undefined,
+          companyId
+        );
+        break;
+      }
+
+      case "list_sequence_events": {
+        const companyId = args.companyId as string | undefined;
+        const sequenceId = requiredString(
+          "list_sequence_events",
+          args,
+          "sequenceId"
+        );
+        const params = buildEmailEventListParams("list_sequence_events", args);
+        const query = params.toString();
+        result = await apiRequest(
+          "GET",
+          `/api/v1/metrics/sequences/${encodeURIComponent(sequenceId)}/events${query ? `?${query}` : ""}`,
+          undefined,
+          companyId
+        );
+        break;
+      }
+
       case "get_subscriber_activity": {
         const companyId = args.companyId as string | undefined;
         const identifier = requireSubscriberIdentifier(
@@ -9767,6 +10080,7 @@ export async function handleToolCall(
         const role = requiredAllowedString("invite_team_member", args, "role", [
           "admin",
           "viewer",
+          "restricted",
         ]);
 
         if (

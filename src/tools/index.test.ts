@@ -501,6 +501,57 @@ describe("A/B test tools", () => {
     );
   });
 
+  it("calls campaign and sequence event APIs with pagination filters", async () => {
+    mockApiRequest.mockResolvedValue({
+      success: true,
+      events: [],
+      pagination: { page: 1, limit: 100, total: 0, totalPages: 0 },
+    });
+
+    await handleToolCall("list_campaign_events", {
+      companyId: "company_123",
+      campaignId: "camp_123",
+      eventTypes: ["delivery", "click"],
+      page: 2,
+      limit: 50,
+      includeMachineEngagement: true,
+    });
+    await handleToolCall("list_sequence_events", {
+      companyId: "company_123",
+      sequenceId: "seq_123",
+      eventType: "delivery",
+      period: "30d",
+    });
+
+    expect(mockApiRequest).toHaveBeenNthCalledWith(
+      1,
+      "GET",
+      "/api/v1/metrics/campaigns/camp_123/events?eventTypes=delivery%2Cclick&page=2&limit=50&includeMachineEngagement=true",
+      undefined,
+      "company_123"
+    );
+    expect(mockApiRequest).toHaveBeenNthCalledWith(
+      2,
+      "GET",
+      "/api/v1/metrics/sequences/seq_123/events?eventTypes=delivery&period=30d",
+      undefined,
+      "company_123"
+    );
+  });
+
+  it("rejects invalid event types before calling the event APIs", async () => {
+    const result = await handleToolCall("list_campaign_events", {
+      campaignId: "camp_123",
+      eventTypes: ["delivery", "purchase"],
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`eventTypes` item 2 must be one of send, delivery, bounce, complaint, open, click, unsubscribe, delivery_delay"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
   it("calls the A/B restart API with control and generation options", async () => {
     mockApiRequest.mockResolvedValueOnce({
       success: true,
@@ -3864,6 +3915,35 @@ describe("team tools", () => {
     );
   });
 
+  it("invites a restricted team member", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      invitation: {
+        id: "inv_123",
+        email: "limited@example.com",
+        role: "restricted",
+        canManageBilling: false,
+        status: "pending",
+      },
+    });
+
+    const result = await handleToolCall("invite_team_member", {
+      email: "limited@example.com",
+      role: "restricted",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/team/invitations",
+      {
+        email: "limited@example.com",
+        role: "restricted",
+      },
+      undefined
+    );
+  });
+
   it("rejects unsupported team roles before hitting the API", async () => {
     const result = await handleToolCall("invite_team_member", {
       email: "teammate@example.com",
@@ -3872,7 +3952,7 @@ describe("team tools", () => {
 
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain(
-      "`role` must be one of admin, viewer when calling `invite_team_member`."
+      "`role` must be one of admin, viewer, restricted when calling `invite_team_member`."
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
   });
