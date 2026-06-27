@@ -6233,7 +6233,7 @@ OTHER BUILT-IN EVENTS:
         branch: {
           type: "object",
           description:
-            "Insert an if/else branch into an existing sequence. The branch is inserted after afterNodeId and creates an if path plus an else fallback path. Use get_sequence first to choose afterNodeId. Each branch condition should include steps, and elseSteps is required unless allowEmptyPaths is true. Conditions support tags, lists, saved segments, events, clicked links, and field comparisons. Use activityScope for event_received and link_clicked checks.",
+            "Insert an if/else branch into an existing sequence. The branch is inserted after afterNodeId and creates an if path plus an else fallback path. Use get_sequence first to choose afterNodeId. Each branch condition should include steps, and elseSteps is required unless allowEmptyPaths is true. Conditions support tag presence/absence, lists, saved segments, events, clicked links, and field comparisons. Use activityScope for event_received and link_clicked checks.",
           properties: {
             afterNodeId: {
               type: "string",
@@ -6264,6 +6264,7 @@ OTHER BUILT-IN EVENTS:
                     type: "string",
                     enum: [
                       "has_tag",
+                      "does_not_have_tag",
                       "in_list",
                       "in_segment",
                       "event_received",
@@ -6278,11 +6279,12 @@ OTHER BUILT-IN EVENTS:
                   tagName: {
                     type: "string",
                     description:
-                      "Tag name for has_tag conditions. This can be used instead of tagId.",
+                      "Tag name for has_tag and does_not_have_tag conditions. This can be used instead of tagId.",
                   },
                   tagId: {
                     type: "string",
-                    description: "Tag ID or tag name for has_tag conditions.",
+                    description:
+                      "Tag ID or tag name for has_tag and does_not_have_tag conditions.",
                   },
                   listId: {
                     type: "string",

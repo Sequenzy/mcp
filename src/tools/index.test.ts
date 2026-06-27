@@ -169,6 +169,34 @@ describe("tool schema compatibility", () => {
 
     expect(violations).toEqual([]);
   });
+
+  it("publishes inverse tag branch conditions for update_sequence", () => {
+    const updateSequenceTool = tools.find(
+      (tool) => tool.name === "update_sequence"
+    );
+    const inputSchema = updateSequenceTool?.inputSchema as
+      | Record<string, unknown>
+      | undefined;
+    const properties = inputSchema?.properties as
+      | Record<string, unknown>
+      | undefined;
+    const branch = properties?.branch as Record<string, unknown> | undefined;
+    const branchProperties = branch?.properties as
+      | Record<string, unknown>
+      | undefined;
+    const branches = branchProperties?.branches as
+      | Record<string, unknown>
+      | undefined;
+    const branchItem = branches?.items as Record<string, unknown> | undefined;
+    const branchItemProperties = branchItem?.properties as
+      | Record<string, unknown>
+      | undefined;
+    const conditionType = branchItemProperties?.conditionType as
+      | Record<string, unknown>
+      | undefined;
+
+    expect(conditionType?.enum).toContain("does_not_have_tag");
+  });
 });
 
 describe("update_template tool validation", () => {
