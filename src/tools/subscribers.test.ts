@@ -225,6 +225,58 @@ describe("subscriber MCP tools", () => {
     );
   });
 
+  it("lists, adds, and deletes subscriber notes", async () => {
+    mockApiRequest
+      .mockResolvedValueOnce({
+        success: true,
+        notes: [{ id: "note-1", body: "Asked about enterprise" }],
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        note: { id: "note-2", body: "Prefers monthly digest" },
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        deleted: true,
+        id: "note-2",
+      });
+
+    const listResult = await handleToolCall("list_subscriber_notes", {
+      email: "notes@example.com",
+    });
+    const addResult = await handleToolCall("add_subscriber_note", {
+      companyId: "comp_123",
+      externalId: "gid://shopify/Customer/123",
+      body: " Prefers monthly digest ",
+    });
+    const deleteResult = await handleToolCall("delete_subscriber_note", {
+      companyId: "comp_123",
+      noteId: "note-2",
+    });
+
+    expect(listResult.isError).toBeUndefined();
+    expect(addResult.isError).toBeUndefined();
+    expect(deleteResult.isError).toBeUndefined();
+    expect(mockApiRequest.mock.calls[0]).toEqual([
+      "GET",
+      "/api/v1/subscribers/notes%40example.com/notes",
+      undefined,
+      undefined,
+    ]);
+    expect(mockApiRequest.mock.calls[1]).toEqual([
+      "POST",
+      "/api/v1/subscribers/external/notes?externalId=gid%3A%2F%2Fshopify%2FCustomer%2F123",
+      { body: "Prefers monthly digest" },
+      "comp_123",
+    ]);
+    expect(mockApiRequest.mock.calls[2]).toEqual([
+      "DELETE",
+      "/api/v1/subscribers/notes/note-2",
+      undefined,
+      "comp_123",
+    ]);
+  });
+
   it("adds subscribers to a list from an email array", async () => {
     mockApiRequest.mockResolvedValue({
       success: true,

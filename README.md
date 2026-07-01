@@ -402,8 +402,25 @@ Sequence creation supports:
 - Explicit `steps` with Sequenzy `blocks`.
 - Explicit `steps` with HTML, which Sequenzy converts into editable blocks.
 - Fixed waits via `delay` / `delayMs`, or dynamic date-field waits via `waitUntil` for renewal reminders, appointment follow-ups, trial-expiry nudges, and other event-specific dates.
-- Discount action steps that expose merge tags like `{{discount.code}}` and `{{discount.percentOff}}`.
+- Dynamic Stripe or Shopify discount action steps. A `create_discount` step creates a fresh provider code when each subscriber reaches it; later emails can use merge tags like `{{discount.code}}`, `{{discount.percentOff}}`, and `{{discount.expiresAt}}`.
 - `enrollmentMode: "matching_field"` and `enrollmentFieldPath` for product-, variant-, order-, or subscription-specific event automations.
+
+Example dynamic Shopify discount step:
+
+```json
+{
+  "type": "create_discount",
+  "discount": {
+    "provider": "shopify",
+    "discountType": "percent",
+    "percentOff": 20,
+    "duration": "once",
+    "appliesToAllPlans": true,
+    "maxRedemptions": 1,
+    "codePrefix": "WINBACK"
+  }
+}
+```
 
 Sequence updates support `insertSteps` for adding new linear steps after a `nodeId` returned by `get_sequence`. Omit `afterNodeId` only when appending to a sequence with exactly one linear tail. `insertSteps` supports addable steps that do not require companion records, such as email, delay, tag/list actions, attribute updates, discounts, conditions, wait-for-event steps, and webhooks. Use `branch` for multi-path if/else branches; provide either `branch` or `insertSteps`, not both. Branch conditions support tag presence and absence checks with `has_tag` and `does_not_have_tag`, plus lists, saved segments, events, clicked links, and field comparisons. The `emails` and `steps` arrays only edit existing email steps by `nodeId`, `emailId`, or array order; use `insertSteps` to create new steps and include a step-level `delay`, `delayMs`, or `waitUntil` when the inserted email needs a timer. `waitUntil` accepts a date field from the trigger event plus optional `offset`, `direction` (`before` or `after`), and `missingAction` (`continue` or `exit`). For active sequences, pass `confirmStructuralChange: true` with `insertSteps` or `branch` only after confirming the live-flow impact.
 

@@ -22,17 +22,17 @@ import {
 const blockConditionsHint =
   ' Any block accepts a `conditions` array so it only renders for matching recipients. To branch on a value passed in the transactional send `variables` or an automation `event` payload, use { "id": "c1", "field": "variable", "operator": "is", "value": "plan:pro" } where the text before the colon is a {{merge tag}} path (nested paths like "order.total" or "event.plan" work) and the text after it is the comparison value. `field` may also be "attribute" (same "name:value" form) or "email"/"firstName"/"lastName" (the value is the plain comparison string). Operators: is, is_not, contains, not_contains, gt, gte, lt, lte, is_empty, is_not_empty. For if/else, use a { type: "conditional-group", conditions: [...], ifBranch: { children: [...] }, elseBranch: { children: [...] } } block.';
 
-const emailBlocksDescription =
-  "Sequenzy email blocks. Use this for editor-compatible content, including conditional and repeat blocks. For provider-migrated HTML from another email platform, prefer the `html` field instead; Sequenzy stores it as one raw HTML block to preserve the original design. Use `styles` for per-block background, background opacity, text color, padding, border radius, border width, and border color. Top-level style aliases such as `backgroundColor`, `backgroundOpacity`, `borderColor`, `borderWidth`, and `borderRadius` are also accepted and saved under `styles`. Repeat blocks use { type: 'repeat', source: 'items', itemAlias: 'item', children: [...] }." +
-  blockConditionsHint;
+const emailBlocksDescription = `Sequenzy email blocks. Use this for editor-compatible content, including conditional and repeat blocks. For provider-migrated HTML from another email platform, prefer the \`html\` field instead; Sequenzy stores it as one raw HTML block to preserve the original design. Use \`styles\` for per-block background, background opacity, text color, padding, border radius, border width, and border color. Top-level style aliases such as \`backgroundColor\`, \`backgroundOpacity\`, \`borderColor\`, \`borderWidth\`, and \`borderRadius\` are also accepted and saved under \`styles\`. Repeat blocks use { type: 'repeat', source: 'items', itemAlias: 'item', children: [...] }.${
+  blockConditionsHint
+}`;
 
-const replacementEmailBlocksDescription =
-  "Replacement Sequenzy email blocks. Use `styles` for per-block background, background opacity, text color, padding, border radius, border width, and border color. Top-level style aliases such as `backgroundColor`, `backgroundOpacity`, `borderColor`, `borderWidth`, and `borderRadius` are also accepted and saved under `styles`." +
-  blockConditionsHint;
+const replacementEmailBlocksDescription = `Replacement Sequenzy email blocks. Use \`styles\` for per-block background, background opacity, text color, padding, border radius, border width, and border color. Top-level style aliases such as \`backgroundColor\`, \`backgroundOpacity\`, \`borderColor\`, \`borderWidth\`, and \`borderRadius\` are also accepted and saved under \`styles\`.${
+  blockConditionsHint
+}`;
 
-const sequenceEmailBlocksDescription =
-  "Sequenzy email blocks. Provide blocks or html for email steps. For migrated provider HTML, prefer `html`; Sequenzy stores it as one raw HTML block and does not recreate it as native blocks. Use `styles` for per-block background, background opacity, text color, padding, border radius, border width, and border color. Top-level style aliases such as `backgroundColor`, `backgroundOpacity`, `borderColor`, `borderWidth`, and `borderRadius` are also accepted and saved under `styles`. Blocks can include repeat blocks over array variables such as items." +
-  blockConditionsHint;
+const sequenceEmailBlocksDescription = `Sequenzy email blocks. Provide blocks or html for email steps. For migrated provider HTML, prefer \`html\`; Sequenzy stores it as one raw HTML block and does not recreate it as native blocks. Use \`styles\` for per-block background, background opacity, text color, padding, border radius, border width, and border color. Top-level style aliases such as \`backgroundColor\`, \`backgroundOpacity\`, \`borderColor\`, \`borderWidth\`, and \`borderRadius\` are also accepted and saved under \`styles\`. Blocks can include repeat blocks over array variables such as items.${
+  blockConditionsHint
+}`;
 
 const landingPageContentDescription =
   "Complete Sequenzy landing page content JSON. Use this when replacing the page structure. The content must be the editor-compatible landing page schema with version, template, seo, theme, and blocks. Landing pages must include exactly one footer block and at most one form block.";
@@ -260,6 +260,7 @@ const READ_ONLY_TOOL_NAMES = new Set([
   "check_website",
   "get_integration_guide",
   "get_subscriber",
+  "list_subscriber_notes",
   "search_subscribers",
   "list_products",
   "list_tags",
@@ -306,7 +307,9 @@ const MUTATING_TOOL_NAMES = new Set([
   "add_website",
   "add_subscriber",
   "update_subscriber",
+  "add_subscriber_note",
   "remove_subscriber",
+  "delete_subscriber_note",
   "upsert_products",
   "delete_product",
   "attach_product_file",
@@ -398,6 +401,7 @@ const OPEN_WORLD_TOOL_NAMES = new Set([
 
 const DESTRUCTIVE_TOOL_NAMES = new Set([
   "remove_subscriber",
+  "delete_subscriber_note",
   "delete_product",
   "remove_product_file",
   "delete_tag",
@@ -1680,6 +1684,8 @@ const sequencePathStepSchema = {
     provider: {
       type: "string",
       enum: ["stripe", "shopify"],
+      description:
+        "Discount provider. Use stripe to dynamically create a Stripe coupon plus promotion code, or shopify to dynamically create a Shopify Admin discount code.",
     },
     discountType: {
       type: "string",
@@ -1971,6 +1977,19 @@ function getSubscriberDetailPath(
 
   params.set("externalId", String(identifier.externalId));
   return `/api/v1/subscribers/external?${params.toString()}`;
+}
+
+function getSubscriberNotesPath(identifier: {
+  email?: string;
+  externalId?: string;
+}): string {
+  if (identifier.email) {
+    return `/api/v1/subscribers/${encodeURIComponent(identifier.email)}/notes`;
+  }
+
+  const params = new URLSearchParams();
+  params.set("externalId", String(identifier.externalId));
+  return `/api/v1/subscribers/external/notes?${params.toString()}`;
 }
 
 async function fetchDetailedSubscriberByIdentifier(
@@ -2940,6 +2959,16 @@ const outputPropertiesByToolName: Record<string, OutputSchemaProperties> = {
   get_subscriber: {
     subscriber: resourceOutputProperty("subscriber"),
   },
+  list_subscriber_notes: {
+    notes: resourceListOutputProperty("subscriber note"),
+  },
+  add_subscriber_note: {
+    note: resourceOutputProperty("subscriber note"),
+  },
+  delete_subscriber_note: {
+    id: stringOutputProperty("Deleted subscriber note ID."),
+    deleted: booleanOutputProperty("Whether the subscriber note was deleted."),
+  },
   search_subscribers: {
     subscribers: resourceListOutputProperty("subscriber"),
     pagination: objectOutputProperty("Pagination metadata."),
@@ -3849,7 +3878,7 @@ Before implementing, use create_api_key to generate an API key and save it to .e
   {
     name: "get_subscriber",
     description:
-      "Get the full subscriber profile, including tags, list memberships, sequence enrollments, email stats, and recent activity",
+      "Get the full subscriber profile, including tags, notes, list memberships, sequence enrollments, email stats, and recent activity",
     inputSchema: {
       type: "object",
       properties: {
@@ -3871,6 +3900,81 @@ Before implementing, use create_api_key to generate an API key and save it to .e
         includeMachineEngagement: includeMachineEngagementToolProperty,
       },
       required: [],
+    },
+  },
+  {
+    name: "list_subscriber_notes",
+    description:
+      "List internal notes for a subscriber. Provide email or externalId to identify the subscriber.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        email: {
+          type: "string",
+          description:
+            "Subscriber email address. Provide email or externalId to identify the subscriber.",
+        },
+        externalId: {
+          type: "string",
+          description:
+            "Customer-owned subscriber ID. Provide email or externalId to identify the subscriber.",
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "add_subscriber_note",
+    description:
+      "Add an internal note to a subscriber. Provide email or externalId to identify the subscriber.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        email: {
+          type: "string",
+          description:
+            "Subscriber email address. Provide email or externalId to identify the subscriber.",
+        },
+        externalId: {
+          type: "string",
+          description:
+            "Customer-owned subscriber ID. Provide email or externalId to identify the subscriber.",
+        },
+        body: {
+          type: "string",
+          description: "Internal note body, up to 5000 characters.",
+        },
+      },
+      required: ["body"],
+    },
+  },
+  {
+    name: "delete_subscriber_note",
+    description: "Delete one internal subscriber note by note ID.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        noteId: {
+          type: "string",
+          description: "Subscriber note ID to delete.",
+        },
+      },
+      required: ["noteId"],
     },
   },
   {
@@ -5155,6 +5259,11 @@ Before implementing, use create_api_key to generate an API key and save it to .e
           description:
             "Email subject line. Optional when `prompt` is provided because the generated subject will be used.",
         },
+        previewText: {
+          type: ["string", "null"],
+          description:
+            "Email preview text. Optional when `prompt` is provided because the generated preview text will be used.",
+        },
         trackingCode: {
           type: "string",
           description:
@@ -5788,7 +5897,7 @@ Before implementing, use create_api_key to generate an API key and save it to .e
   },
   {
     name: "create_sequence",
-    description: `Create a new email sequence. Provide either a goal for AI generation or explicit steps. Explicit steps can include email content and create_discount actions; emails after a discount action can use merge tags such as {{discount.code}} and {{discount.percentOff}}. For AI-generated sequences, the tool polls until emails are generated (typically 30-60 seconds).
+    description: `Create a new email sequence. Provide either a goal for AI generation or explicit steps. Explicit steps can include email content and create_discount actions that dynamically create a provider discount/code when each subscriber reaches the step; emails after a discount action can use merge tags such as {{discount.code}} and {{discount.percentOff}}. For AI-generated sequences, the tool polls until emails are generated (typically 30-60 seconds).
 
 MIGRATIONS: When moving sequences or flows from Brevo, Mailchimp, Klaviyo, MailerLite, or another provider, pass the exact provider HTML in each email step's html field and pass fixed waits as delay or delayMs. Use waitUntil when a wait should resolve from the trigger event payload, for example { "field": "renews_at", "direction": "before", "offset": { "days": 1 } }. The API stores provider HTML as raw HTML blocks and creates real logic_delay nodes for waits.
 
@@ -5884,16 +5993,18 @@ IMPORTANT GUIDELINES:
 IMPORTANT - PAYMENT PROVIDER INTEGRATION:
 If the app uses Stripe, Polar, Paddle, Dodo, or Creem - tell the user to connect it in Sequenzy dashboard (Settings → Integrations).
 Once connected, the native integration automatically handles:
-- All saas.* events (purchase, cancelled, churn, payment_failed, etc.)
+- All saas.* events (purchase, cancelled, trial_cancelled, churn, payment_failed, etc.)
 - All status tags (customer, trial, cancelled, churned, past-due, etc.)
 - Subscription attributes (MRR, plan name, billing interval)
 
 Only offer manual tracking if the user explicitly asks for it.
 
 DISCOUNT ACTION STEPS:
-- Use explicit steps with { "type": "create_discount", "discount": { "discountType": "percent", "percentOff": 20, "duration": "once", "appliesToAllPlans": true, "maxRedemptions": 1, "codePrefix": "SAVE" } }.
+- Use explicit steps with { "type": "create_discount", "discount": { "provider": "stripe", "discountType": "percent", "percentOff": 20, "duration": "once", "appliesToAllPlans": true, "maxRedemptions": 1, "codePrefix": "SAVE" } }.
+- Set "provider": "shopify" to create Shopify Admin discount codes. If provider is omitted, Stripe is used for backwards compatibility.
+- These are dynamic per-subscriber codes created when the automation runs, not references to one static coupon code. Configure the discount terms and put {{discount.code}} in later emails.
 - Optionally add "lockToSubscriber": true for Stripe discounts only when the subscriber is expected to have a matching Stripe customer.
-- Discount actions currently require Stripe; connect Stripe before enabling the sequence.
+- Discount actions require the selected provider integration, such as Stripe or Shopify, before enabling the sequence.
 - Put the discount action before the email that references it with {{discount.code}}.
 
 CUSTOM EVENTS (these DO require manual tracking):
@@ -5920,7 +6031,7 @@ BUILT-IN EVENTS (auto-fired by payment integrations):
 - saas.churn - Subscription ended
 - saas.payment_failed - Card declined/expired
 - saas.upgrade, saas.downgrade - Plan changes
-- saas.trial_started, saas.trial_will_end, saas.trial_ended - Trial lifecycle
+- saas.trial_started, saas.trial_will_end, saas.trial_ended, saas.trial_cancelled - Trial lifecycle
 - saas.refund - Refund issued
 
 OTHER BUILT-IN EVENTS:
@@ -6095,7 +6206,7 @@ OTHER BUILT-IN EVENTS:
         steps: {
           type: "array",
           description:
-            "Explicit sequence steps. Omit type for email steps, or use type: 'create_discount' for a Stripe discount action. Later email steps can reference the most recent discount with {{discount.code}}, {{discount.percentOff}}, {{discount.amountOff}}, and {{discount.expiresAt}}.",
+            "Explicit sequence steps. Omit type for email steps, or use type: 'create_discount' for a dynamic Stripe or Shopify discount action. Later email steps can reference the most recent generated code with {{discount.code}}, {{discount.percentOff}}, {{discount.amountOff}}, and {{discount.expiresAt}}.",
           items: {
             type: "object",
             properties: {
@@ -6103,7 +6214,7 @@ OTHER BUILT-IN EVENTS:
                 type: "string",
                 enum: ["email", "create_discount", "discount"],
                 description:
-                  "Step type. Omit or use 'email' for email content. Use 'create_discount' to generate a discount code before later emails.",
+                  "Step type. Omit or use 'email' for email content. Use 'create_discount' to dynamically generate a discount code before later emails.",
               },
               subject: {
                 type: "string",
@@ -6145,8 +6256,9 @@ OTHER BUILT-IN EVENTS:
                   },
                   provider: {
                     type: "string",
-                    enum: ["stripe"],
-                    description: "Discount provider. Currently only 'stripe'.",
+                    enum: ["stripe", "shopify"],
+                    description:
+                      "Discount provider. Use 'stripe' to dynamically create a Stripe coupon plus promotion code, or 'shopify' to dynamically create a Shopify Admin discount code. Defaults to 'stripe' when omitted.",
                   },
                   discountType: {
                     type: "string",
@@ -6171,7 +6283,7 @@ OTHER BUILT-IN EVENTS:
                   duration: {
                     type: "string",
                     enum: ["once", "forever", "repeating"],
-                    description: "Stripe coupon duration. Defaults to once.",
+                    description: "Discount duration. Defaults to once.",
                   },
                   durationInMonths: {
                     type: "number",
@@ -6185,18 +6297,18 @@ OTHER BUILT-IN EVENTS:
                   planIds: {
                     type: "array",
                     description:
-                      "Stripe product IDs, such as prod_abc123, when appliesToAllPlans is false.",
+                      "Provider product IDs when appliesToAllPlans is false. Stripe uses IDs like prod_abc123; Shopify accepts numeric product IDs or gid://shopify/Product/... IDs.",
                     items: { type: "string" },
                   },
                   codePrefix: {
                     type: "string",
                     description:
-                      "Optional prefix for generated promotion codes.",
+                      "Optional prefix for generated dynamic codes. The final code also includes a subscriber/token suffix.",
                   },
                   maxRedemptions: {
                     type: "number",
                     description:
-                      "Maximum promotion code redemptions. Use 1 for subscriber-specific codes.",
+                      "Maximum redemptions for each generated code. Use 1 for subscriber-specific codes.",
                   },
                   lockToSubscriber: {
                     type: "boolean",
@@ -6215,7 +6327,8 @@ OTHER BUILT-IN EVENTS:
                   },
                   name: {
                     type: "string",
-                    description: "Optional provider coupon name.",
+                    description:
+                      "Optional display name for each dynamically generated provider discount.",
                   },
                 },
               },
@@ -6226,9 +6339,9 @@ OTHER BUILT-IN EVENTS:
               },
               provider: {
                 type: "string",
-                enum: ["stripe"],
+                enum: ["stripe", "shopify"],
                 description:
-                  "Legacy top-level discount provider. Prefer discount.provider.",
+                  "Legacy top-level discount provider. Prefer discount.provider. Supports 'stripe' and 'shopify'.",
               },
               discountType: {
                 type: "string",
@@ -6254,7 +6367,7 @@ OTHER BUILT-IN EVENTS:
               duration: {
                 type: "string",
                 enum: ["once", "forever", "repeating"],
-                description: "Stripe coupon duration. Defaults to once.",
+                description: "Discount duration. Defaults to once.",
               },
               durationInMonths: {
                 type: "number",
@@ -6268,17 +6381,18 @@ OTHER BUILT-IN EVENTS:
               planIds: {
                 type: "array",
                 description:
-                  "Stripe product IDs, such as prod_abc123, when appliesToAllPlans is false.",
+                  "Provider product IDs when appliesToAllPlans is false. Stripe uses IDs like prod_abc123; Shopify accepts numeric product IDs or gid://shopify/Product/... IDs.",
                 items: { type: "string" },
               },
               codePrefix: {
                 type: "string",
-                description: "Optional prefix for generated promotion codes.",
+                description:
+                  "Optional prefix for generated dynamic codes. The final code also includes a subscriber/token suffix.",
               },
               maxRedemptions: {
                 type: "number",
                 description:
-                  "Maximum promotion code redemptions. Use 1 for subscriber-specific codes.",
+                  "Maximum redemptions for each generated code. Use 1 for subscriber-specific codes.",
               },
               lockToSubscriber: {
                 type: "boolean",
@@ -8077,6 +8191,66 @@ export async function handleToolCall(
         break;
       }
 
+      case "list_subscriber_notes": {
+        const companyId = args.companyId as string | undefined;
+        const identifier = requireSubscriberIdentifier(
+          "list_subscriber_notes",
+          args
+        );
+        result = await apiRequest(
+          "GET",
+          getSubscriberNotesPath(identifier),
+          undefined,
+          companyId
+        );
+        break;
+      }
+
+      case "add_subscriber_note": {
+        const companyId = args.companyId as string | undefined;
+        const identifier = requireSubscriberIdentifier(
+          "add_subscriber_note",
+          args
+        );
+        const body =
+          typeof args.body === "string" ? args.body.trim() : undefined;
+        if (!body) {
+          throw new Error(
+            "`body` is required when calling `add_subscriber_note`."
+          );
+        }
+        if (body.length > 5000) {
+          throw new Error(
+            "`body` must be 5000 characters or fewer when calling `add_subscriber_note`."
+          );
+        }
+        result = await apiRequest(
+          "POST",
+          getSubscriberNotesPath(identifier),
+          { body },
+          companyId
+        );
+        break;
+      }
+
+      case "delete_subscriber_note": {
+        const companyId = args.companyId as string | undefined;
+        const noteId =
+          typeof args.noteId === "string" ? args.noteId.trim() : "";
+        if (!noteId) {
+          throw new Error(
+            "`noteId` is required when calling `delete_subscriber_note`."
+          );
+        }
+        result = await apiRequest(
+          "DELETE",
+          `/api/v1/subscribers/notes/${encodeURIComponent(noteId)}`,
+          undefined,
+          companyId
+        );
+        break;
+      }
+
       case "search_subscribers": {
         const companyId = args.companyId as string | undefined;
         result = await fetchAllSubscribers(args, companyId);
@@ -9035,6 +9209,11 @@ export async function handleToolCall(
             generated.subject.trim() !== ""
               ? generated.subject.trim()
               : undefined);
+          const previewText =
+            optionalString(args, "previewText") ??
+            (typeof generated.previewText === "string"
+              ? generated.previewText.trim()
+              : undefined);
 
           if (!subject) {
             throw new Error(
@@ -9063,6 +9242,7 @@ export async function handleToolCall(
             {
               name: args.name,
               subject,
+              ...(previewText !== undefined && { previewText }),
               ...(generatedBlocks !== undefined
                 ? { blocks: generatedBlocks }
                 : { html: generatedHtml }),

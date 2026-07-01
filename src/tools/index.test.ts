@@ -1529,6 +1529,7 @@ describe("create_campaign tool validation", () => {
     expect(inputSchema?.properties).toHaveProperty("trackingCode");
     expect(inputSchema?.properties).toHaveProperty("status");
     expect(inputSchema?.properties).toHaveProperty("sentAt");
+    expect(inputSchema?.properties).toHaveProperty("previewText");
   });
 
   it("requires subject when prompt is not provided", async () => {
@@ -1586,6 +1587,7 @@ describe("create_campaign tool validation", () => {
       .mockResolvedValueOnce({
         success: true,
         subject: "Generated launch subject",
+        previewText: "Generated launch preview",
         html: "<p>Generated launch body</p>",
         blocks: generatedBlocks,
       })
@@ -1628,6 +1630,7 @@ describe("create_campaign tool validation", () => {
       {
         name: "Launch",
         subject: "Generated launch subject",
+        previewText: "Generated launch preview",
         blocks: generatedBlocks,
         labels: ["edm"],
       },
@@ -1770,6 +1773,27 @@ describe("create_sequence tool", () => {
       | undefined;
     expect(steps?.items?.properties).toHaveProperty("delayMs");
     expect(steps?.items?.properties).toHaveProperty("waitUntil");
+    expect(createSequenceTool?.description).toContain(
+      "dynamically create a provider discount/code"
+    );
+    const discount = steps?.items?.properties?.["discount"] as
+      | {
+          properties?: {
+            provider?: { enum?: string[]; description?: string };
+            codePrefix?: { description?: string };
+          };
+        }
+      | undefined;
+    expect(discount?.properties?.provider?.enum).toEqual([
+      "stripe",
+      "shopify",
+    ]);
+    expect(discount?.properties?.provider?.description).toContain(
+      "dynamically create"
+    );
+    expect(discount?.properties?.codePrefix?.description).toContain(
+      "subscriber/token suffix"
+    );
     const delay = steps?.items?.properties?.["delay"] as
       | { properties?: Record<string, unknown> }
       | undefined;
@@ -1789,6 +1813,7 @@ describe("create_sequence tool", () => {
     expect(stopCondition?.properties?.type?.enum).toContain("entered_segment");
     expect(stopCondition?.properties?.type?.enum).toContain("field_changed");
     expect(stopCondition?.properties?.value?.type).toEqual(["string", "null"]);
+    expect(createSequenceTool?.description).toContain("saas.trial_cancelled");
   });
 
   it("creates explicit discount sequences without polling for AI enrichment", async () => {
