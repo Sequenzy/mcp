@@ -202,7 +202,7 @@ This server currently exposes 120 MCP tools.
 | `create_company`        | Create a new company or brand.                                                                                   |
 | `get_company`           | Read company details, product info, brand colors, AI writing context, and localization settings.                 |
 | `update_company`        | Edit product info and brand context AI uses for generated emails.                                                |
-| `create_api_key`        | Create an API key for a company.                                                                                 |
+| `create_api_key`        | Create an API key for a company, with optional permission preset or explicit scopes.                             |
 | `list_websites`         | List configured sender websites and domains.                                                                     |
 | `add_website`           | Add a sender website. Processing can take around 30 seconds.                                                     |
 | `check_website`         | Check whether a website is processed and ready.                                                                  |

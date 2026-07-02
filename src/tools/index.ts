@@ -2917,8 +2917,8 @@ const outputPropertiesByToolName: Record<string, OutputSchemaProperties> = {
     company: resourceOutputProperty("company"),
   },
   create_api_key: {
-    apiKey: stringOutputProperty(
-      "Newly created API key. This secret is returned only once."
+    apiKey: objectOutputProperty(
+      "Created API key metadata: the newly created secret in `key`, plus `scopes` listing the assigned permission scopes (null when the key has full access)."
     ),
     key: stringOutputProperty(
       "Newly created API key if the API response uses the short key field."
@@ -3656,6 +3656,19 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
           type: "string",
           description:
             "Optional name for the API key (e.g., 'Production', 'Development')",
+        },
+        preset: {
+          type: "string",
+          description:
+            "Optional permission preset. Supported values: full_access, read_only, agent_safe, ai_drafting, data_ingest_safe, data_ingest_automations, transactional_sender, marketing_sender. Defaults to full_access when both preset and scopes are omitted; prefer agent_safe when creating a key for an AI agent.",
+        },
+        scopes: {
+          type: "array",
+          description:
+            "Optional explicit API key permission scopes. If provided, this overrides preset and must include at least one supported scope.",
+          items: {
+            type: "string",
+          },
         },
       },
       required: ["companyId"],
@@ -8025,12 +8038,17 @@ export async function handleToolCall(
 
       case "create_api_key": {
         const companyId = args.companyId as string;
-        result = await apiRequest(
-          "POST",
-          "/api/v1/api-keys",
-          { name: args.name },
-          companyId
-        );
+        const body: Record<string, unknown> = {};
+        if (typeof args.name === "string") {
+          body.name = args.name;
+        }
+        if (typeof args.preset === "string") {
+          body.preset = args.preset;
+        }
+        if (Array.isArray(args.scopes)) {
+          body.scopes = args.scopes;
+        }
+        result = await apiRequest("POST", "/api/v1/api-keys", body, companyId);
         break;
       }
 

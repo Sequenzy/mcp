@@ -199,6 +199,22 @@ describe("tool schema compatibility", () => {
   });
 });
 
+describe("create_api_key tool schema", () => {
+  it("exposes permission preset and scopes inputs", () => {
+    const tool = tools.find((candidate) => candidate.name === "create_api_key");
+    expect(tool).toBeDefined();
+
+    const properties = tool?.inputSchema.properties as
+      | Record<string, { type?: string; items?: { type?: string } }>
+      | undefined;
+
+    expect(properties?.["preset"]?.type).toBe("string");
+    expect(properties?.["scopes"]?.type).toBe("array");
+    expect(properties?.["scopes"]?.items?.type).toBe("string");
+    expect(tool?.inputSchema.required).toEqual(["companyId"]);
+  });
+});
+
 describe("update_template tool validation", () => {
   beforeEach(() => {
     mockApiRequest.mockClear();
