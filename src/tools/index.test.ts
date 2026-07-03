@@ -1800,10 +1800,7 @@ describe("create_sequence tool", () => {
           };
         }
       | undefined;
-    expect(discount?.properties?.provider?.enum).toEqual([
-      "stripe",
-      "shopify",
-    ]);
+    expect(discount?.properties?.provider?.enum).toEqual(["stripe", "shopify"]);
     expect(discount?.properties?.provider?.description).toContain(
       "dynamically create"
     );
