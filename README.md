@@ -349,7 +349,7 @@ Use `get_ab_test` to discover variant IDs before editing. Variant updates accept
 | `list_campaigns`                 | List campaigns, optionally filtered by status.                                            |
 | `get_campaign`                   | Get campaign details and stats.                                                           |
 | `get_email_send`                 | Inspect a sent email detail record.                                                       |
-| `create_campaign`                | Create a draft campaign from HTML, blocks, a template, or campaign data.                  |
+| `create_campaign`                | Create a draft campaign from a prompt, HTML, blocks, a template, or campaign data.        |
 | `update_campaign`                | Update a draft campaign, including campaign data and computed lists.                      |
 | `schedule_campaign`              | Schedule a draft or reschedule an existing scheduled campaign.                            |
 | `send_test_email`                | Send a test email to one address.                                                         |
@@ -450,13 +450,13 @@ For compatibility with older agent prompts, top-level style keys such as `backgr
 
 ### Transactional Email
 
-| Tool                         | Description                                            |
-| ---------------------------- | ------------------------------------------------------ |
-| `list_transactional_emails`  | List transactional templates and API slugs.            |
-| `get_transactional_email`    | Read a transactional email by ID or slug.              |
-| `create_transactional_email` | Create a transactional email template.                 |
-| `update_transactional_email` | Update transactional metadata or body content.         |
-| `send_email`                 | Send a single transactional email by template or HTML. |
+| Tool                         | Description                                                     |
+| ---------------------------- | --------------------------------------------------------------- |
+| `list_transactional_emails`  | List transactional templates and API slugs.                     |
+| `get_transactional_email`    | Read a transactional email by ID or slug.                       |
+| `create_transactional_email` | Create a transactional template from a prompt, HTML, or blocks. |
+| `update_transactional_email` | Update transactional metadata or body content.                  |
+| `send_email`                 | Send a single transactional email by template or HTML.          |
 
 `send_email` variables support nested arrays for repeat blocks, such as `{ "event": { "items": [...] } }`.
 
@@ -495,13 +495,17 @@ Analytics tools exclude detected bot, scanner, link-preview, and tracked asset o
 
 ### AI Generation
 
-| Tool                     | Description                                  |
-| ------------------------ | -------------------------------------------- |
-| `generate_email`         | Generate email blocks from a prompt.         |
-| `generate_sequence`      | Generate a multi-email sequence from a goal. |
-| `generate_subject_lines` | Generate A/B subject line variants.          |
+| Tool                     | Description                                          |
+| ------------------------ | ---------------------------------------------------- |
+| `generate_email`         | Generate branded email blocks from a prompt.         |
+| `generate_sequence`      | Generate a branded multi-email sequence from a goal. |
+| `generate_subject_lines` | Generate A/B subject line variants.                  |
 
-Generated content is returned as draft content for review.
+Generated email content includes the company's logo and footer by default.
+`generate_email` accepts `applyBranding: false` for raw content blocks and
+`emailType: "transactional"` for a footer without an unsubscribe link.
+Prompt-based campaigns inherit the company's configured email font. Generated
+content is returned as draft content for review.
 
 ## Resources
 

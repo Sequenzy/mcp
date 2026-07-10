@@ -240,6 +240,10 @@ const OUTBOUND_WEBHOOK_EVENT_TYPES = [
   "email.clicked",
   "email.replied",
   "email.unsubscribed",
+  "sms.sent",
+  "sms.delivered",
+  "sms.failed",
+  "sms.opted_out",
   "subscriber.invalid",
   "subscriber.updated",
   "subscriber.unsubscribed",
@@ -256,6 +260,8 @@ const READ_ONLY_TOOL_NAMES = new Set([
   "get_account",
   "get_app_urls",
   "get_company",
+  "get_sync_rules",
+  "get_shopify_automation_settings",
   "list_websites",
   "check_website",
   "get_integration_guide",
@@ -297,12 +303,16 @@ const READ_ONLY_TOOL_NAMES = new Set([
   "generate_email",
   "generate_sequence",
   "generate_subject_lines",
+  "generate_sms",
+  "get_sms_settings",
 ]);
 
 const MUTATING_TOOL_NAMES = new Set([
   "select_company",
   "create_company",
   "update_company",
+  "update_sync_rules",
+  "update_shopify_automation_settings",
   "create_api_key",
   "add_website",
   "add_subscriber",
@@ -343,6 +353,7 @@ const MUTATING_TOOL_NAMES = new Set([
   "update_campaign",
   "schedule_campaign",
   "send_test_email",
+  "send_test_sms",
   "cancel_campaign",
   "pause_campaign",
   "resume_campaign",
@@ -379,10 +390,12 @@ const MUTATING_TOOL_NAMES = new Set([
   "delete_webhook",
   "test_webhook",
   "replay_webhook_delivery",
+  "submit_feedback",
 ]);
 
 const OPEN_WORLD_TOOL_NAMES = new Set([
   "send_test_email",
+  "send_test_sms",
   "schedule_campaign",
   "resume_campaign",
   "publish_landing_page",
@@ -453,6 +466,8 @@ function withRequiredToolHints(tool: Tool): Tool {
 
 const segmentOperatorsByField = {
   status: ["is", "is_not"],
+  phone: ["is_not_empty", "is_empty"],
+  smsStatus: ["is", "is_not"],
   tag: ["contains", "not_contains", "is_empty", "is_not_empty"],
   email: ["contains", "not_contains"],
   emailProvider: ["is", "is_not", "is_empty", "is_not_empty"],
@@ -509,6 +524,8 @@ const segmentFilterItemSchema = {
       type: "string",
       enum: [
         "status",
+        "phone",
+        "smsStatus",
         "tag",
         "email",
         "emailProvider",
@@ -531,7 +548,7 @@ const segmentFilterItemSchema = {
         "commerceProduct",
       ],
       description:
-        "Filter field. Use `event` for custom subscriber events, `segment` for saved segment membership, `stripeProduct`/`stripeCurrentProduct`/`stripeTrialProduct` for Stripe product-based segments, and `commerceProduct` for products purchased through commerce orders - the value is `provider:productId` (provider one of `shopify`, `woocommerce`, `api`; product ids are provider-scoped), optionally with an order-count threshold (`provider:productId:count`) for at_least/less_than_count; a bare product id matches the id on any provider. Engagement fields (`emailSent`, `emailDelivered`, `emailOpened`, `emailClicked`, `emailBounced`, `emailComplained`) accept a time range as the value or a specific campaign via `campaign:<campaign_id>`.",
+        "Filter field. Use `phone` with is_not_empty/is_empty to check whether a subscriber has a phone number, and `smsStatus` (is/is_not one of `subscribed`, `unsubscribed`, `not_subscribed`) for SMS marketing consent. Use `event` for custom subscriber events, `segment` for saved segment membership, `stripeProduct`/`stripeCurrentProduct`/`stripeTrialProduct` for Stripe product-based segments, and `commerceProduct` for products purchased through commerce orders - the value is `provider:productId` (provider one of `shopify`, `woocommerce`, `api`; product ids are provider-scoped), optionally with an order-count threshold (`provider:productId:count`) for at_least/less_than_count; a bare product id matches the id on any provider. Engagement fields (`emailSent`, `emailDelivered`, `emailOpened`, `emailClicked`, `emailBounced`, `emailComplained`) accept a time range as the value or a specific campaign via `campaign:<campaign_id>`.",
     },
     operator: {
       type: "string",
@@ -1314,6 +1331,11 @@ function buildUpdateSequenceBody(
       "Provide either `sendingWindow` or `clearSendingWindow` when calling `update_sequence`, not both."
     );
   }
+  if (args.clearBccEmails === true && args.bccEmails !== undefined) {
+    throw new Error(
+      "Provide either `bccEmails` or `clearBccEmails` when calling `update_sequence`, not both."
+    );
+  }
   if (args.branch !== undefined && args.insertSteps !== undefined) {
     throw new Error(
       "Provide either `branch` or `insertSteps` when calling `update_sequence`, not both."
@@ -1323,12 +1345,16 @@ function buildUpdateSequenceBody(
   const body = { ...args };
   delete body.clearEnrollmentFieldPath;
   delete body.clearSendingWindow;
+  delete body.clearBccEmails;
 
   if (args.clearEnrollmentFieldPath === true) {
     body.enrollmentFieldPath = null;
   }
   if (args.clearSendingWindow === true) {
     body.sendingWindow = null;
+  }
+  if (args.clearBccEmails === true) {
+    body.bccEmails = null;
   }
 
   return body;
@@ -1337,24 +1363,54 @@ function buildUpdateSequenceBody(
 function buildInsertSequenceStepBody(
   args: Record<string, unknown>
 ): Record<string, unknown> {
-  validateHtmlOrBlocksArgs("insert_sequence_step", args, {
-    requireContent: true,
-  });
+  const isSmsStep = args.type === "sms";
 
-  const step: Record<string, unknown> = {
-    subject: requiredString("insert_sequence_step", args, "subject"),
-  };
-  for (const key of [
-    "name",
-    "previewText",
-    "html",
-    "blocks",
-    "delay",
-    "delayMs",
-    "waitUntil",
-  ]) {
-    if (args[key] !== undefined) {
-      step[key] = args[key];
+  let step: Record<string, unknown>;
+  if (isSmsStep) {
+    const text = optionalString(args, "text");
+    const hasBlocks = Array.isArray(args.blocks) && args.blocks.length > 0;
+    if (text === undefined && !hasBlocks) {
+      throw new Error(
+        "Provide `text` (or `blocks`) when inserting an SMS step with `insert_sequence_step`."
+      );
+    }
+
+    step = { type: "sms" };
+    for (const key of [
+      "text",
+      "blocks",
+      "imageUrls",
+      "label",
+      "name",
+      "ineligibleAction",
+      "delay",
+      "delayMs",
+      "waitUntil",
+    ]) {
+      if (args[key] !== undefined) {
+        step[key] = args[key];
+      }
+    }
+  } else {
+    validateHtmlOrBlocksArgs("insert_sequence_step", args, {
+      requireContent: true,
+    });
+
+    step = {
+      subject: requiredString("insert_sequence_step", args, "subject"),
+    };
+    for (const key of [
+      "name",
+      "previewText",
+      "html",
+      "blocks",
+      "delay",
+      "delayMs",
+      "waitUntil",
+    ]) {
+      if (args[key] !== undefined) {
+        step[key] = args[key];
+      }
     }
   }
 
@@ -1491,6 +1547,16 @@ function validateScheduleCampaignArgs(args: Record<string, unknown>): void {
         "`spreadOverHours` must be an integer between 1 and 72 when calling `schedule_campaign`."
       );
     }
+  }
+
+  if (
+    args.recurringInterval !== undefined &&
+    args.recurringInterval !== "weekly" &&
+    args.recurringInterval !== "monthly"
+  ) {
+    throw new Error(
+      "`recurringInterval` must be 'weekly' or 'monthly' when calling `schedule_campaign`."
+    );
   }
 }
 
@@ -2916,6 +2982,44 @@ const outputPropertiesByToolName: Record<string, OutputSchemaProperties> = {
   get_company: {
     company: resourceOutputProperty("company"),
   },
+  get_sync_rules: {
+    syncRules: {
+      type: "array",
+      description: "Effective sync rules for the company.",
+      items: objectOutputProperty("One sync rule."),
+    },
+    isDefault: booleanOutputProperty(
+      "Whether the company still uses the platform default rules."
+    ),
+  },
+  update_sync_rules: {
+    syncRules: {
+      type: "array",
+      description: "Effective sync rules after the update.",
+      items: objectOutputProperty("One sync rule."),
+    },
+    isDefault: booleanOutputProperty(
+      "Whether the company now uses the platform default rules."
+    ),
+  },
+  get_shopify_automation_settings: {
+    browseAbandonment: objectOutputProperty(
+      "Effective browse-abandonment settings (defaults applied)."
+    ),
+    priceDrop: objectOutputProperty(
+      "Effective price-drop settings (defaults applied)."
+    ),
+    shopDomain: stringOutputProperty("Connected Shopify store domain."),
+  },
+  update_shopify_automation_settings: {
+    browseAbandonment: objectOutputProperty(
+      "Effective browse-abandonment settings after the update."
+    ),
+    priceDrop: objectOutputProperty(
+      "Effective price-drop settings after the update."
+    ),
+    shopDomain: stringOutputProperty("Connected Shopify store domain."),
+  },
   create_api_key: {
     apiKey: objectOutputProperty(
       "Created API key metadata: the newly created secret in `key`, plus `scopes` listing the assigned permission scopes (null when the key has full access)."
@@ -3140,6 +3244,10 @@ const outputPropertiesByToolName: Record<string, OutputSchemaProperties> = {
     emailSend: resourceOutputProperty("test email send"),
     recipient: stringOutputProperty("Test email recipient."),
   },
+  send_test_sms: {
+    smsSendId: stringOutputProperty("Created test SMS send ID."),
+    toPhone: stringOutputProperty("Normalized E.164 destination phone."),
+  },
   cancel_campaign: {
     campaign: resourceOutputProperty("campaign"),
   },
@@ -3345,7 +3453,8 @@ const outputPropertiesByToolName: Record<string, OutputSchemaProperties> = {
     html: stringOutputProperty("Generated HTML email body."),
     blocks: {
       type: "array",
-      description: "Generated Sequenzy email blocks.",
+      description:
+        "Generated Sequenzy email blocks, wrapped with company branding (logo + footer) unless applyBranding was false.",
       items: objectOutputProperty("One generated email block."),
     },
     subject: stringOutputProperty("Generated subject line."),
@@ -3363,6 +3472,21 @@ const outputPropertiesByToolName: Record<string, OutputSchemaProperties> = {
     },
     variants: resourceListOutputProperty("generated subject line variant"),
   },
+  generate_sms: {
+    prompt: stringOutputProperty("The prompt the messages were generated for."),
+    messages: {
+      type: "array",
+      description:
+        "Generated SMS message variants with encoding and segment counts.",
+      items: objectOutputProperty("One generated SMS message."),
+    },
+  },
+  get_sms_settings: {
+    sms: objectOutputProperty(
+      "SMS add-on status: enabled, planEligible, creditsBalance, brandPrefix, numbers, readyToSend (paid plan or credits plus an active number)."
+    ),
+  },
+  submit_feedback: {},
 };
 
 function getToolOutputSchema(toolName: string): ToolOutputSchema {
@@ -3639,6 +3763,175 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
           description: "Default email text direction: ltr or rtl.",
         },
       },
+    },
+  },
+  {
+    name: "get_shopify_automation_settings",
+    description:
+      "Get the connected Shopify store's automation settings: browse abandonment (emails shoppers who viewed a product but didn't buy) and price drop alerts (emails recent viewers when a product's price falls). Returns the effective values with platform defaults applied.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "update_shopify_automation_settings",
+    description:
+      "Update the connected Shopify store's browse-abandonment and/or price-drop automation settings. Partial update: omitted sections are untouched, omitted fields within a section keep their current value, and passing null for a section resets it to the platform defaults (browse abandonment: on, 2h delay, 24h cooldown; price drop: on, 5% minimum drop, 30-day viewer lookback, 7-day cooldown).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        browseAbandonment: {
+          type: ["object", "null"],
+          description:
+            "Browse abandonment settings, or null to reset to defaults.",
+          properties: {
+            enabled: { type: "boolean" },
+            delayHours: {
+              type: "number",
+              description:
+                "Hours to wait after a product view before checking for abandonment (default 2).",
+            },
+            cooldownHours: {
+              type: "number",
+              description:
+                "Minimum hours between browse-abandoned events per subscriber (default 24).",
+            },
+          },
+          additionalProperties: false,
+        },
+        priceDrop: {
+          type: ["object", "null"],
+          description: "Price drop settings, or null to reset to defaults.",
+          properties: {
+            enabled: { type: "boolean" },
+            minPercent: {
+              type: "number",
+              description:
+                "Minimum price decrease percent to alert on (default 5).",
+            },
+            lookbackDays: {
+              type: "number",
+              description:
+                "How many days back product viewers qualify as the audience (default 30).",
+            },
+            cooldownDays: {
+              type: "number",
+              description:
+                "Minimum days between price-drop events per subscriber and product (default 7).",
+            },
+          },
+          additionalProperties: false,
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_sync_rules",
+    description:
+      "Get the company's sync rules: the automatic tag changes applied when events fire (e.g. order placed -> add a tag). Returns the effective rules plus isDefault, which is true while the company still uses the platform defaults.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "update_sync_rules",
+    description:
+      "Replace the company's sync rules. Pass the FULL rule set (fetch with get_sync_rules first and edit it - this is not a partial update), or null to reset to the platform defaults. Each rule: { triggerEvent, actions: { addTags, removeTags }, conditions? }. Conditions support requiresTags, requiresNotTags, and purchasedProduct ({ tags?, collectionIds?, productTypes?, vendors? }) which matches products on commerce events - e.g. tag buyers of products carrying a given product tag.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        syncRules: {
+          type: ["array", "null"],
+          description:
+            "Full replacement rule set, or null to reset to the platform defaults.",
+          items: {
+            type: "object",
+            properties: {
+              triggerEvent: {
+                type: "string",
+                description:
+                  "Event name that triggers the rule, e.g. ecommerce.order_placed or saas.purchase.",
+              },
+              actions: {
+                type: "object",
+                properties: {
+                  addTags: { type: "array", items: { type: "string" } },
+                  removeTags: { type: "array", items: { type: "string" } },
+                },
+                required: ["addTags", "removeTags"],
+                additionalProperties: false,
+              },
+              conditions: {
+                type: "object",
+                properties: {
+                  requiresTags: {
+                    type: "array",
+                    items: { type: "string" },
+                    description:
+                      "Rule only applies if the subscriber has ALL of these tags.",
+                  },
+                  requiresNotTags: {
+                    type: "array",
+                    items: { type: "string" },
+                    description:
+                      "Rule only applies if the subscriber has NONE of these tags.",
+                  },
+                  purchasedProduct: {
+                    type: "object",
+                    description:
+                      "For commerce events with product context: rule only applies when a product on the event matches every specified selector.",
+                    properties: {
+                      tags: { type: "array", items: { type: "string" } },
+                      collectionIds: {
+                        type: "array",
+                        items: { type: "string" },
+                      },
+                      productTypes: {
+                        type: "array",
+                        items: { type: "string" },
+                      },
+                      vendors: { type: "array", items: { type: "string" } },
+                    },
+                    additionalProperties: false,
+                  },
+                },
+                additionalProperties: false,
+              },
+            },
+            required: ["triggerEvent", "actions"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["syncRules"],
+      additionalProperties: false,
     },
   },
   {
@@ -5307,7 +5600,7 @@ Before implementing, use create_api_key to generate an API key and save it to .e
         prompt: {
           type: "string",
           description:
-            "Generate campaign blocks from a prompt. Mutually exclusive with `html`, `blocks`, and `templateId`.",
+            "Generate campaign blocks from a prompt. Generated blocks include the company's logo and footer, and the created campaign inherits the company brand font. Mutually exclusive with `html`, `blocks`, and `templateId`.",
         },
         style: {
           type: "string",
@@ -5452,7 +5745,7 @@ Before implementing, use create_api_key to generate an API key and save it to .e
         targetLists: {
           type: "object",
           description:
-            "Optional campaign targeting object. Omit to use saved targeting or all active subscribers. Examples: {type:'all'}, {type:'lists', listIds:['list_123']}, {type:'segment', segmentId:'seg_123'}, or {type:'filtered', filters:[...], filterJoinOperator:'and'}.",
+            "Optional campaign targeting object. Omit to use saved targeting or all active subscribers. Examples: {type:'all'}, {type:'lists', listIds:['list_123']}, {type:'segment', segmentId:'seg_123'}, {type:'filtered', filters:[...], filterJoinOperator:'and'}, or {type:'rules', include:[{type:'lists', listIds:['list_123']}], exclude:[{type:'segments', segmentIds:['seg_123']}]}. Rules audiences require at least one include rule.",
           additionalProperties: true,
         },
         sendTimeOptimization: {
@@ -5463,6 +5756,12 @@ Before implementing, use create_api_key to generate an API key and save it to .e
           type: "number",
           description:
             "Spread delivery over an integer number of hours from 1 to 72. When set, spread delivery takes precedence over send-time optimization.",
+        },
+        recurringInterval: {
+          type: "string",
+          enum: ["weekly", "monthly"],
+          description:
+            "Repeat this campaign on a cadence starting at scheduledAt. The campaign becomes a recurring template: each run is duplicated and sent automatically, re-evaluating audience membership every time. Omit for a one-shot send; scheduling again without it stops the recurrence.",
         },
       },
       required: ["campaignId", "scheduledAt"],
@@ -5910,7 +6209,7 @@ Before implementing, use create_api_key to generate an API key and save it to .e
   },
   {
     name: "create_sequence",
-    description: `Create a new email sequence. Provide either a goal for AI generation or explicit steps. Explicit steps can include email content and create_discount actions that dynamically create a provider discount/code when each subscriber reaches the step; emails after a discount action can use merge tags such as {{discount.code}} and {{discount.percentOff}}. For AI-generated sequences, the tool polls until emails are generated (typically 30-60 seconds).
+    description: `Create a new email sequence. Provide either a goal for AI generation or explicit steps. Explicit steps can include email content, native SMS steps (type: 'sms' with 'text'; check get_sms_settings first and generate copy with generate_sms), and create_discount actions that dynamically create a provider discount/code when each subscriber reaches the step; emails after a discount action can use merge tags such as {{discount.code}} and {{discount.percentOff}}. For AI-generated sequences, the tool polls until emails are generated (typically 30-60 seconds).
 
 MIGRATIONS: When moving sequences or flows from Brevo, Mailchimp, Klaviyo, MailerLite, or another provider, pass the exact provider HTML in each email step's html field and pass fixed waits as delay or delayMs. Use waitUntil when a wait should resolve from the trigger event payload, for example { "field": "renews_at", "direction": "before", "offset": { "days": 1 } }. The API stores provider HTML as raw HTML blocks and creates real logic_delay nodes for waits.
 
@@ -6219,15 +6518,15 @@ OTHER BUILT-IN EVENTS:
         steps: {
           type: "array",
           description:
-            "Explicit sequence steps. Omit type for email steps, or use type: 'create_discount' for a dynamic Stripe or Shopify discount action. Later email steps can reference the most recent generated code with {{discount.code}}, {{discount.percentOff}}, {{discount.amountOff}}, and {{discount.expiresAt}}.",
+            "Explicit sequence steps. Omit type for email steps, use type: 'sms' for a native SMS step (provide 'text'; generate copy with generate_sms and check get_sms_settings first), or use type: 'create_discount' for a dynamic Stripe or Shopify discount action. Later email steps can reference the most recent generated code with {{discount.code}}, {{discount.percentOff}}, {{discount.amountOff}}, and {{discount.expiresAt}}.",
           items: {
             type: "object",
             properties: {
               type: {
                 type: "string",
-                enum: ["email", "create_discount", "discount"],
+                enum: ["email", "sms", "create_discount", "discount"],
                 description:
-                  "Step type. Omit or use 'email' for email content. Use 'create_discount' to dynamically generate a discount code before later emails.",
+                  "Step type. Omit or use 'email' for email content. Use 'sms' to send a text message (requires 'text'). Use 'create_discount' to dynamically generate a discount code before later emails.",
               },
               subject: {
                 type: "string",
@@ -6246,6 +6545,23 @@ OTHER BUILT-IN EVENTS:
                 type: "string",
                 description:
                   "HTML content for email steps. Stored as one raw HTML block. Use this for imported provider HTML.",
+              },
+              text: {
+                type: "string",
+                description:
+                  "SMS steps only: plain-text message body. Merge tags like {{FIRST_NAME}} work. Do not include opt-out text or a brand prefix - the platform adds those automatically.",
+              },
+              imageUrls: {
+                type: "array",
+                items: { type: "string" },
+                description:
+                  "SMS steps only: up to 2 publicly reachable image URLs sent as MMS media.",
+              },
+              ineligibleAction: {
+                type: "string",
+                enum: ["skip", "exit"],
+                description:
+                  "SMS steps only: what happens when the contact can't receive SMS (no phone, not opted in, unsupported country). Default 'skip' continues the sequence.",
               },
               delay: sequenceDelaySchema,
               delayMs: {
@@ -6432,7 +6748,7 @@ OTHER BUILT-IN EVENTS:
   {
     name: "update_sequence",
     description:
-      "Update an existing sequence. To target a specific existing step, use the emailId or nodeId returned in get_sequence.sequence.emails. To insert new linear steps, use insertSteps with an afterNodeId from get_sequence; omit afterNodeId only to append to an unambiguous linear tail. The emails/steps arrays edit existing email steps only; items without emailId/nodeId are matched by existing step order and do not create new steps. For active sequences, structural changes such as insertSteps or branch require confirmStructuralChange:true after the user confirms the live-flow impact. You can also update enrollmentMode and enrollmentFieldPath for event-triggered matching-field enrollment. When inserting an if/else branch, include steps for every branch arm and elseSteps so the branch is usable immediately. Branch conditions support tags, lists, saved segments, custom events, clicked links, and subscriber field comparisons.",
+      "Update an existing sequence. To target a specific existing step, use the emailId or nodeId returned in get_sequence.sequence.emails. To insert new linear steps, use insertSteps with an afterNodeId from get_sequence; omit afterNodeId only to append to an unambiguous linear tail. The emails/steps arrays edit existing email steps only; items without emailId/nodeId are matched by existing step order and do not create new steps. Use smsSteps (targeted by action_sms nodeId) to edit the text, label, or ineligibleAction of existing SMS steps. For active sequences, structural changes such as insertSteps or branch require confirmStructuralChange:true after the user confirms the live-flow impact. You can also update enrollmentMode and enrollmentFieldPath for event-triggered matching-field enrollment. When inserting an if/else branch, include steps for every branch arm and elseSteps so the branch is usable immediately. Branch conditions support tags, lists, saved segments, custom events, clicked links, and subscriber field comparisons.",
     inputSchema: {
       type: "object",
       properties: {
@@ -6480,6 +6796,17 @@ OTHER BUILT-IN EVENTS:
           type: "boolean",
           description:
             "Set true to remove the sequence sending window. Do not provide this together with sendingWindow.",
+        },
+        bccEmails: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Email addresses that receive a blind copy of every email this sequence sends, such as a customer support inbox (max 10). Omit to leave unchanged. Use clearBccEmails to remove them.",
+        },
+        clearBccEmails: {
+          type: "boolean",
+          description:
+            "Set true to remove the sequence BCC addresses. Do not provide this together with bccEmails.",
         },
         stopCondition: {
           type: "object",
@@ -6550,8 +6877,11 @@ OTHER BUILT-IN EVENTS:
                       "field_contains",
                       "field_greater_than",
                       "field_less_than",
+                      "has_phone",
+                      "sms_subscribed",
                     ],
-                    description: "Condition type for this branch.",
+                    description:
+                      "Condition type for this branch. has_phone (contact has a phone number) and sms_subscribed (contact opted in to SMS marketing) need no extra fields.",
                   },
                   tagName: {
                     type: "string",
@@ -6738,6 +7068,48 @@ OTHER BUILT-IN EVENTS:
             },
           },
         },
+        smsSteps: {
+          type: "array",
+          description:
+            "Content updates for existing SMS steps, targeted by nodeId (an action_sms node from get_sequence.sequence.nodes). Content-only edits - use insertSteps to create new SMS steps.",
+          items: {
+            type: "object",
+            properties: {
+              nodeId: {
+                type: "string",
+                description: "Target action_sms node ID. Required.",
+              },
+              text: {
+                type: "string",
+                description:
+                  "Replacement plain-text message body. Merge tags like {{FIRST_NAME}} work. Provide text or blocks, not both.",
+              },
+              blocks: {
+                type: "array",
+                items: { type: "object" },
+                description:
+                  "Replacement SMS content blocks (text + image subset).",
+              },
+              imageUrls: {
+                type: "array",
+                items: { type: "string" },
+                description:
+                  "Up to 2 publicly reachable MMS image URLs. Only valid together with text.",
+              },
+              label: {
+                type: "string",
+                description: "Updated display label for the step.",
+              },
+              ineligibleAction: {
+                type: "string",
+                enum: ["skip", "exit"],
+                description:
+                  "Updated behavior when the contact can't receive SMS.",
+              },
+            },
+            required: ["nodeId"],
+          },
+        },
       },
       required: ["sequenceId"],
     },
@@ -6745,7 +7117,7 @@ OTHER BUILT-IN EVENTS:
   {
     name: "insert_sequence_step",
     description:
-      "Insert one new email step into an existing sequence. Prefer this over update_sequence.steps/emails when adding a step: it creates a new email template, a new action_email node, and, when delay or delayMs is provided, a logic_delay node immediately before the email. Use get_sequence first, then pass afterNodeId from sequence.nodes or sequence.emails to choose the insertion point. If afterNodeId is omitted, the step is appended only when the sequence has exactly one linear tail. For active sequences, set confirmStructuralChange:true only after the user confirms the live-flow impact.",
+      "Insert one new email or SMS step into an existing sequence. Prefer this over update_sequence.steps/emails when adding a step: it creates the step node (plus an email template for email steps) and, when delay or delayMs is provided, a logic_delay node immediately before it. For SMS steps set type:'sms' and provide 'text' (generate copy with generate_sms; check get_sms_settings first and warn the user if SMS is not enabled). Use get_sequence first, then pass afterNodeId from sequence.nodes or sequence.emails to choose the insertion point. If afterNodeId is omitted, the step is appended only when the sequence has exactly one linear tail. For active sequences, set confirmStructuralChange:true only after the user confirms the live-flow impact.",
     inputSchema: {
       type: "object",
       properties: {
@@ -6757,6 +7129,12 @@ OTHER BUILT-IN EVENTS:
         sequenceId: {
           type: "string",
           description: "Sequence ID.",
+        },
+        type: {
+          type: "string",
+          enum: ["email", "sms"],
+          description:
+            "Step type. Defaults to 'email'. Use 'sms' to insert an SMS step (requires 'text').",
         },
         afterNodeId: {
           type: "string",
@@ -6774,7 +7152,8 @@ OTHER BUILT-IN EVENTS:
         },
         subject: {
           type: "string",
-          description: "Email subject for the new step.",
+          description:
+            "Email subject for the new step. Required for email steps; not used for SMS steps.",
         },
         previewText: {
           type: "string",
@@ -6790,15 +7169,36 @@ OTHER BUILT-IN EVENTS:
           description:
             "HTML content for the new step. Stored as one raw HTML block. Use this for imported provider HTML. Provide either html or blocks, not both.",
         },
+        text: {
+          type: "string",
+          description:
+            "SMS steps only: plain-text message body. Merge tags like {{FIRST_NAME}} work. Do not include opt-out text or a brand prefix - the platform adds those automatically.",
+        },
+        imageUrls: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "SMS steps only: up to 2 publicly reachable image URLs sent as MMS media.",
+        },
+        label: {
+          type: "string",
+          description: "SMS steps only: display label for the step.",
+        },
+        ineligibleAction: {
+          type: "string",
+          enum: ["skip", "exit"],
+          description:
+            "SMS steps only: what happens when the contact can't receive SMS (no phone, not opted in, unsupported country). Default 'skip' continues the sequence.",
+        },
         delay: sequenceDelaySchema,
         delayMs: {
           type: "number",
           description:
-            "Optional wait in milliseconds before the new email step. Prefer delay for readability.",
+            "Optional wait in milliseconds before the new step. Prefer delay for readability.",
         },
         waitUntil: sequenceWaitUntilSchema,
       },
-      required: ["sequenceId", "subject"],
+      required: ["sequenceId"],
       additionalProperties: false,
     },
   },
@@ -7070,7 +7470,7 @@ OTHER BUILT-IN EVENTS:
         prompt: {
           type: "string",
           description:
-            "Generate transactional email blocks from a prompt. Mutually exclusive with `html` and `blocks`.",
+            "Generate transactional email blocks from a prompt. Generated blocks include the company's branding (logo and a footer without an unsubscribe link). Mutually exclusive with `html` and `blocks`.",
         },
         style: {
           type: "string",
@@ -7789,7 +8189,8 @@ OTHER BUILT-IN EVENTS:
   // ============================================================================
   {
     name: "generate_email",
-    description: "Generate email blocks from a prompt",
+    description:
+      "Generate email blocks from a prompt. Generated blocks include the company's branding chrome (logo, footer with company name/address/unsubscribe) by default, matching emails created in the dashboard.",
     inputSchema: {
       type: "object",
       properties: {
@@ -7809,6 +8210,17 @@ OTHER BUILT-IN EVENTS:
         tone: {
           type: "string",
           description: "Tone: professional, casual, friendly",
+        },
+        applyBranding: {
+          type: "boolean",
+          description:
+            "Wrap the generated content with company branding (logo + footer). Defaults to true; set false to get raw content blocks only.",
+        },
+        emailType: {
+          type: "string",
+          enum: ["marketing", "transactional"],
+          description:
+            "Email type. Transactional emails get a footer without the unsubscribe link. Defaults to marketing.",
         },
       },
       required: ["prompt"],
@@ -7864,6 +8276,121 @@ OTHER BUILT-IN EVENTS:
         },
       },
       required: ["topic"],
+    },
+  },
+  {
+    name: "generate_sms",
+    description:
+      "Generate SMS marketing message variants from a prompt. Returns plain-text messages with per-message encoding and segment counts. Use the results as the 'text' of an SMS sequence step (insert_sequence_step with type 'sms' or a create_sequence sms step). Messages exclude opt-out footers and brand prefixes - the platform adds those automatically at send time.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        prompt: {
+          type: "string",
+          description:
+            "Description of the SMS to generate (e.g., 'cart reminder with a free-shipping hook')",
+        },
+        count: {
+          type: "number",
+          description:
+            "Number of message variants to generate (default: 3, max: 10)",
+        },
+      },
+      required: ["prompt"],
+    },
+  },
+  {
+    name: "get_sms_settings",
+    description:
+      "Get the company's SMS add-on status: whether SMS is enabled, plan eligibility, credit balance, brand prefix, phone numbers, and whether SMS steps will actually send. Check this before adding SMS steps to sequences so you can warn the user when SMS is not ready.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+      },
+    },
+  },
+  {
+    name: "send_test_sms",
+    description:
+      "Send a test SMS to a phone number. IMPORTANT: sends a real text message and charges SMS credits - only call when the user explicitly asks for a test send. Requires the SMS add-on with a verified number (check get_sms_settings). Limited to 5 test sends per hour; bypasses quiet hours; excluded from step stats.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        to: {
+          type: "string",
+          description:
+            "Destination phone number in international E.164 format, e.g. +15550100123.",
+        },
+        text: {
+          type: "string",
+          description:
+            "Plain-text message body. Merge tags are not resolved for test sends to arbitrary numbers. Provide text or blocks.",
+        },
+        imageUrls: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Up to 2 publicly reachable image URLs sent as MMS media (US/CA only).",
+        },
+        blocks: {
+          type: "array",
+          items: { type: "object" },
+          description:
+            "SMS content blocks (text + image subset). Provide text or blocks, not both.",
+        },
+      },
+      required: ["to"],
+    },
+  },
+
+  // ============================================================================
+  // Feedback
+  // ============================================================================
+  {
+    name: "submit_feedback",
+    description:
+      "Send product feedback about Sequenzy itself to the Sequenzy team. IMPORTANT: call this tool whenever the user wanted to accomplish something and Sequenzy did not expose functionality for it - a missing tool or argument, an unsupported workflow, a confusing behavior, or a bug. Briefly tell the user you reported the gap. This feedback goes straight to the team and shapes what gets built next. Do not use it for questions about the user's own account or data, and never include secrets or API keys. Submitting feedback never changes account data.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        message: {
+          type: "string",
+          description:
+            "The feedback itself. Be specific: what was needed, what was missing or wrong, and what you did instead (workaround, gave up, used the dashboard).",
+        },
+        category: {
+          type: "string",
+          enum: ["missing_capability", "bug", "docs", "ux", "praise", "other"],
+          description:
+            "Feedback category. Use missing_capability when the user wanted something these tools do not support (default: other).",
+        },
+        context: {
+          type: "string",
+          description:
+            "Optional: what the user was trying to accomplish, in their words, plus any relevant tool names or arguments you tried.",
+        },
+      },
+      required: ["message"],
     },
   },
 ];
@@ -8032,6 +8559,67 @@ export async function handleToolCall(
           "PATCH",
           `/api/v1/companies/${companyId}`,
           body
+        );
+        break;
+      }
+
+      case "get_sync_rules": {
+        const companyId = args.companyId as string | undefined;
+        result = await apiRequest(
+          "GET",
+          "/api/v1/sync-rules",
+          undefined,
+          companyId
+        );
+        break;
+      }
+
+      case "update_sync_rules": {
+        const companyId = args.companyId as string | undefined;
+        if (args.syncRules !== null && !Array.isArray(args.syncRules)) {
+          throw new Error(
+            "`syncRules` must be an array of rules or null when calling `update_sync_rules`."
+          );
+        }
+        result = await apiRequest(
+          "PUT",
+          "/api/v1/sync-rules",
+          { syncRules: args.syncRules },
+          companyId
+        );
+        break;
+      }
+
+      case "get_shopify_automation_settings": {
+        const companyId = args.companyId as string | undefined;
+        result = await apiRequest(
+          "GET",
+          "/api/v1/shopify/automation-settings",
+          undefined,
+          companyId
+        );
+        break;
+      }
+
+      case "update_shopify_automation_settings": {
+        const companyId = args.companyId as string | undefined;
+        const payload: Record<string, unknown> = {};
+        if (args.browseAbandonment !== undefined) {
+          payload["browseAbandonment"] = args.browseAbandonment;
+        }
+        if (args.priceDrop !== undefined) {
+          payload["priceDrop"] = args.priceDrop;
+        }
+        if (Object.keys(payload).length === 0) {
+          throw new Error(
+            "Provide `browseAbandonment` and/or `priceDrop` when calling `update_shopify_automation_settings`."
+          );
+        }
+        result = await apiRequest(
+          "PUT",
+          "/api/v1/shopify/automation-settings",
+          payload,
+          companyId
         );
         break;
       }
@@ -9365,6 +9953,7 @@ export async function handleToolCall(
           "targetLists",
           "sendTimeOptimization",
           "spreadOverHours",
+          "recurringInterval",
         ]);
         const unsupportedCampaignScheduleKeys = Object.keys(args).filter(
           (key) => !allowedCampaignScheduleKeys.has(key)
@@ -9372,7 +9961,7 @@ export async function handleToolCall(
 
         if (unsupportedCampaignScheduleKeys.length > 0) {
           throw new Error(
-            `\`schedule_campaign\` accepts only \`campaignId\`, \`scheduledAt\`, \`targetLists\`, \`sendTimeOptimization\`, and \`spreadOverHours\`. Unsupported field${unsupportedCampaignScheduleKeys.length === 1 ? "" : "s"}: ${unsupportedCampaignScheduleKeys.map((key) => `\`${key}\``).join(", ")}.`
+            `\`schedule_campaign\` accepts only \`campaignId\`, \`scheduledAt\`, \`targetLists\`, \`sendTimeOptimization\`, \`spreadOverHours\`, and \`recurringInterval\`. Unsupported field${unsupportedCampaignScheduleKeys.length === 1 ? "" : "s"}: ${unsupportedCampaignScheduleKeys.map((key) => `\`${key}\``).join(", ")}.`
           );
         }
 
@@ -9391,6 +9980,9 @@ export async function handleToolCall(
             }),
             ...(args.spreadOverHours !== undefined && {
               spreadOverHours: args.spreadOverHours,
+            }),
+            ...(args.recurringInterval !== undefined && {
+              recurringInterval: args.recurringInterval,
             }),
           },
           companyId
@@ -9982,6 +10574,7 @@ export async function handleToolCall(
               "/api/v1/generate/email",
               {
                 prompt,
+                emailType: "transactional",
                 ...(args.style !== undefined && { style: args.style }),
                 ...(args.tone !== undefined && { tone: args.tone }),
               },
@@ -10646,6 +11239,57 @@ export async function handleToolCall(
           args,
           companyId
         );
+        break;
+      }
+
+      case "generate_sms": {
+        const companyId = args.companyId as string | undefined;
+        result = await apiRequest(
+          "POST",
+          "/api/v1/generate/sms",
+          args,
+          companyId
+        );
+        break;
+      }
+
+      case "get_sms_settings": {
+        const companyId = args.companyId as string | undefined;
+        result = await apiRequest(
+          "GET",
+          "/api/v1/sms/settings",
+          undefined,
+          companyId
+        );
+        break;
+      }
+
+      case "send_test_sms": {
+        const companyId = args.companyId as string | undefined;
+        const body: Record<string, unknown> = {
+          to: requiredString("send_test_sms", args, "to"),
+        };
+        for (const key of ["text", "imageUrls", "blocks"]) {
+          if (args[key] !== undefined) {
+            body[key] = args[key];
+          }
+        }
+        result = await apiRequest("POST", "/api/v1/sms/test", body, companyId);
+        break;
+      }
+
+      case "submit_feedback": {
+        const companyId = args.companyId as string | undefined;
+        const body: Record<string, unknown> = {
+          message: requiredString("submit_feedback", args, "message"),
+          source: "mcp",
+        };
+        for (const key of ["category", "context"]) {
+          if (args[key] !== undefined) {
+            body[key] = args[key];
+          }
+        }
+        result = await apiRequest("POST", "/api/v1/feedback", body, companyId);
         break;
       }
 
