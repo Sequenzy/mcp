@@ -1515,6 +1515,37 @@ function validateCreateCampaignContentArgs(
   }
 }
 
+function validateCreateTemplateContentArgs(
+  args: Record<string, unknown>
+): void {
+  validateHtmlOrBlocksArgs("create_template", args);
+  validateLabelsArg("create_template", args);
+  const hasPrompt = optionalString(args, "prompt") !== undefined;
+  const sources = [
+    hasPrompt,
+    args.html !== undefined,
+    args.blocks !== undefined,
+  ].filter(Boolean).length;
+  if (args.prompt !== undefined && !hasPrompt) {
+    throw new Error("`prompt` cannot be empty when calling `create_template`.");
+  }
+  if (sources !== 1) {
+    throw new Error(
+      "Provide exactly one of `prompt`, `html`, or `blocks` when calling `create_template`."
+    );
+  }
+  if (!hasPrompt && (args.style !== undefined || args.tone !== undefined)) {
+    throw new Error(
+      "`style` and `tone` can only be used with `prompt` when calling `create_template`."
+    );
+  }
+  if (!hasPrompt && optionalString(args, "subject") === undefined) {
+    throw new Error(
+      "`subject` is required unless `prompt` is provided when calling `create_template`."
+    );
+  }
+}
+
 function validateScheduleCampaignArgs(args: Record<string, unknown>): void {
   if (optionalString(args, "scheduledAt") === undefined) {
     throw new Error(
@@ -1841,14 +1872,6 @@ interface DetailedSubscriberResult {
     activity?: unknown[];
     sequenceEnrollments?: unknown[];
   };
-}
-
-interface GeneratedEmailResult {
-  success: boolean;
-  html?: string;
-  blocks?: unknown[];
-  subject?: string;
-  previewText?: string;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -5072,7 +5095,8 @@ Before implementing, use create_api_key to generate an API key and save it to .e
   },
   {
     name: "create_template",
-    description: "Create a new email template",
+    description:
+      "Create a new email template. For net-new email content requested in natural language, use `prompt`; do not write HTML or construct blocks yourself. Use `blocks` only for finished caller-supplied Sequenzy content and `html` only for supplied or explicitly requested preserved HTML.",
     inputSchema: {
       type: "object",
       properties: {
@@ -5087,7 +5111,11 @@ Before implementing, use create_api_key to generate an API key and save it to .e
         },
         subject: {
           type: "string",
-          description: "Email subject line",
+          description: "Email subject line. Optional with `prompt`.",
+        },
+        previewText: {
+          type: ["string", "null"],
+          description: "Optional preview text override.",
         },
         html: {
           type: "string",
@@ -5101,6 +5129,19 @@ Before implementing, use create_api_key to generate an API key and save it to .e
             type: "object",
           },
         },
+        prompt: {
+          type: "string",
+          description:
+            "Natural-language request for Sequenzy to generate branded native template blocks.",
+        },
+        style: {
+          type: "string",
+          description: "Generation style; valid only with `prompt`.",
+        },
+        tone: {
+          type: "string",
+          description: "Generation tone; valid only with `prompt`.",
+        },
         labels: {
           type: "array",
           description:
@@ -5110,7 +5151,7 @@ Before implementing, use create_api_key to generate an API key and save it to .e
           },
         },
       },
-      required: ["name", "subject"],
+      required: ["name"],
     },
   },
   {
@@ -5550,7 +5591,7 @@ Before implementing, use create_api_key to generate an API key and save it to .e
   {
     name: "create_campaign",
     description:
-      "Create a new campaign. Defaults to draft; use status 'sent' only to archive an already-sent campaign without sending email.",
+      "Create a new campaign. Omit all content fields to create an empty draft. For net-new natural-language content use `prompt`; do not author HTML or blocks. `blocks` are finished caller-supplied Sequenzy content and `html` is preserved/imported markup. Defaults to draft; status 'sent' only archives an already-sent campaign.",
     inputSchema: {
       type: "object",
       properties: {
@@ -6212,7 +6253,7 @@ Before implementing, use create_api_key to generate an API key and save it to .e
   },
   {
     name: "create_sequence",
-    description: `Create a new email sequence. Provide either a goal for AI generation or explicit steps. Explicit steps can include email content, native SMS steps (type: 'sms' with 'text'; check get_sms_settings first and generate copy with generate_sms), and create_discount actions that dynamically create a provider discount/code when each subscriber reaches the step; emails after a discount action can use merge tags such as {{discount.code}} and {{discount.percentOff}}. For AI-generated sequences, the tool polls until emails are generated (typically 30-60 seconds).
+    description: `Create a new email sequence. For net-new natural-language sequence content, provide goal and emailCount so Sequenzy generates it. Use explicit steps only for finished caller-supplied content, exact workflows, or migrations. Explicit steps can include email content, native SMS steps (type: 'sms' with 'text'; check get_sms_settings first and generate copy with generate_sms), and create_discount actions that dynamically create a provider discount/code when each subscriber reaches the step; emails after a discount action can use merge tags such as {{discount.code}} and {{discount.percentOff}}. For AI-generated sequences, the tool polls until emails are generated (typically 30-60 seconds).
 
 MIGRATIONS: When moving sequences or flows from Brevo, Mailchimp, Klaviyo, MailerLite, or another provider, pass the exact provider HTML in each email step's html field and pass fixed waits as delay or delayMs. Use waitUntil when a wait should resolve from the trigger event payload, for example { "field": "renews_at", "direction": "before", "offset": { "days": 1 } }. The API stores provider HTML as raw HTML blocks and creates real logic_delay nodes for waits.
 
@@ -7431,7 +7472,7 @@ OTHER BUILT-IN EVENTS:
   {
     name: "create_transactional_email",
     description:
-      "Create a saved transactional email template with an API slug. Provide `prompt` to generate the email with AI, or provide either `html` or Sequenzy `blocks` for the email body.",
+      "Create a saved transactional email template with an API slug. For net-new natural-language content use `prompt`; do not author HTML or blocks. `blocks` are finished caller-supplied Sequenzy content and `html` is preserved/imported markup.",
     inputSchema: {
       type: "object",
       properties: {
@@ -7488,7 +7529,7 @@ OTHER BUILT-IN EVENTS:
         enabled: {
           type: "boolean",
           description:
-            "Whether this transactional email can be sent immediately. Defaults to true.",
+            "Whether this transactional email can be sent immediately. Prompt-created templates default to false; explicit HTML/blocks retain the compatibility default of true.",
         },
       },
       required: ["name"],
@@ -9395,11 +9436,16 @@ export async function handleToolCall(
 
       case "create_template": {
         const companyId = args.companyId as string | undefined;
-        validateHtmlOrBlocksArgs("create_template", args, {
-          requireContent: true,
-        });
-        validateLabelsArg("create_template", args);
-        result = await apiRequest("POST", "/api/v1/templates", args, companyId);
+        validateCreateTemplateContentArgs(args);
+        const createBody = Object.fromEntries(
+          Object.entries(args).filter(([key]) => key !== "companyId")
+        );
+        result = await apiRequest(
+          "POST",
+          "/api/v1/templates",
+          createBody,
+          companyId
+        );
         break;
       }
 
@@ -9800,89 +9846,15 @@ export async function handleToolCall(
         const companyId = args.companyId as string | undefined;
         validateCreateCampaignContentArgs(args);
 
-        const prompt = optionalString(args, "prompt");
-        if (prompt !== undefined) {
-          const generated = await apiRequest<GeneratedEmailResult>(
-            "POST",
-            "/api/v1/generate/email",
-            {
-              prompt,
-              ...(args.style !== undefined && { style: args.style }),
-              ...(args.tone !== undefined && { tone: args.tone }),
-            },
-            companyId
-          );
-          const subject =
-            optionalString(args, "subject") ??
-            (typeof generated.subject === "string" &&
-            generated.subject.trim() !== ""
-              ? generated.subject.trim()
-              : undefined);
-          const previewText =
-            optionalString(args, "previewText") ??
-            (typeof generated.previewText === "string"
-              ? generated.previewText.trim()
-              : undefined);
-
-          if (!subject) {
-            throw new Error(
-              "`create_campaign` prompt generation did not return a subject. Provide `subject` explicitly."
-            );
-          }
-
-          const generatedBlocks =
-            Array.isArray(generated.blocks) && generated.blocks.length > 0
-              ? generated.blocks
-              : undefined;
-          const generatedHtml =
-            typeof generated.html === "string" && generated.html.trim() !== ""
-              ? generated.html
-              : undefined;
-
-          if (generatedBlocks === undefined && generatedHtml === undefined) {
-            throw new Error(
-              "`create_campaign` prompt generation did not return email blocks. Try again or provide `html` or `blocks` explicitly."
-            );
-          }
-
-          result = await apiRequest(
-            "POST",
-            "/api/v1/campaigns",
-            {
-              name: args.name,
-              subject,
-              ...(previewText !== undefined && { previewText }),
-              ...(generatedBlocks !== undefined
-                ? { blocks: generatedBlocks }
-                : { html: generatedHtml }),
-              ...(args.segmentId !== undefined && {
-                segmentId: args.segmentId,
-              }),
-              ...(args.trackingCode !== undefined && {
-                trackingCode: args.trackingCode,
-              }),
-              ...(args.status !== undefined && {
-                status: args.status,
-              }),
-              ...(args.sentAt !== undefined && {
-                sentAt: args.sentAt,
-              }),
-              ...(args.campaignData !== undefined && {
-                campaignData: args.campaignData,
-              }),
-              ...(args.computedLists !== undefined && {
-                computedLists: args.computedLists,
-              }),
-              ...(args.labels !== undefined && {
-                labels: args.labels,
-              }),
-            },
-            companyId
-          );
-          break;
-        }
-
-        result = await apiRequest("POST", "/api/v1/campaigns", args, companyId);
+        const createBody = Object.fromEntries(
+          Object.entries(args).filter(([key]) => key !== "companyId")
+        );
+        result = await apiRequest(
+          "POST",
+          "/api/v1/campaigns",
+          createBody,
+          companyId
+        );
         break;
       }
 
@@ -10549,133 +10521,6 @@ export async function handleToolCall(
         }
 
         validateCreateTransactionalContentArgs(args);
-
-        const prompt = optionalString(args, "prompt");
-        if (prompt !== undefined) {
-          const promptLogContext = {
-            companyId: companyId ?? getSelectedCompanyId() ?? "",
-            name:
-              typeof args.name === "string" && args.name.trim() !== ""
-                ? args.name.trim()
-                : "",
-            slug:
-              typeof args.slug === "string" && args.slug.trim() !== ""
-                ? args.slug.trim()
-                : "",
-            promptLength: prompt.length,
-            style: typeof args.style === "string" ? args.style : "",
-            tone: typeof args.tone === "string" ? args.tone : "",
-          };
-
-          try {
-            console.error(
-              "[mcp:create_transactional_email] generating from prompt",
-              promptLogContext
-            );
-            const generated = await apiRequest<GeneratedEmailResult>(
-              "POST",
-              "/api/v1/generate/email",
-              {
-                prompt,
-                emailType: "transactional",
-                ...(args.style !== undefined && { style: args.style }),
-                ...(args.tone !== undefined && { tone: args.tone }),
-              },
-              companyId
-            );
-            console.error(
-              "[mcp:create_transactional_email] prompt generation complete",
-              {
-                ...promptLogContext,
-                subject: generated.subject ?? "",
-                previewTextLength:
-                  typeof generated.previewText === "string"
-                    ? generated.previewText.length
-                    : 0,
-                blockCount: Array.isArray(generated.blocks)
-                  ? generated.blocks.length
-                  : 0,
-                htmlLength:
-                  typeof generated.html === "string"
-                    ? generated.html.length
-                    : 0,
-              }
-            );
-            const subject =
-              optionalString(args, "subject") ??
-              (typeof generated.subject === "string" &&
-              generated.subject.trim() !== ""
-                ? generated.subject.trim()
-                : undefined);
-
-            if (!subject) {
-              throw new Error(
-                "`create_transactional_email` prompt generation did not return a subject. Provide `subject` explicitly."
-              );
-            }
-
-            const generatedBlocks =
-              Array.isArray(generated.blocks) && generated.blocks.length > 0
-                ? generated.blocks
-                : undefined;
-            const generatedHtml =
-              typeof generated.html === "string" && generated.html.trim() !== ""
-                ? generated.html
-                : undefined;
-            const previewText =
-              optionalString(args, "previewText") ??
-              (typeof generated.previewText === "string"
-                ? generated.previewText.trim()
-                : undefined);
-
-            if (generatedBlocks === undefined && generatedHtml === undefined) {
-              throw new Error(
-                "`create_transactional_email` prompt generation did not return email blocks. Try again or provide `html` or `blocks` explicitly."
-              );
-            }
-
-            console.error(
-              "[mcp:create_transactional_email] creating generated transactional",
-              {
-                ...promptLogContext,
-                subject,
-                contentSource:
-                  generatedBlocks !== undefined ? "blocks" : "html",
-                blockCount: generatedBlocks?.length ?? 0,
-                htmlLength: generatedHtml?.length ?? 0,
-              }
-            );
-            result = await apiRequest(
-              "POST",
-              "/api/v1/transactional",
-              {
-                name: args.name,
-                ...(args.slug !== undefined && { slug: args.slug }),
-                subject,
-                ...(previewText !== undefined && { previewText }),
-                ...(generatedBlocks !== undefined
-                  ? { blocks: generatedBlocks }
-                  : { html: generatedHtml }),
-                ...(args.enabled !== undefined && { enabled: args.enabled }),
-              },
-              companyId
-            );
-            console.error(
-              "[mcp:create_transactional_email] generated transactional created",
-              promptLogContext
-            );
-          } catch (error) {
-            console.error(
-              "[mcp:create_transactional_email] prompt-based create failed",
-              {
-                ...promptLogContext,
-                error: error instanceof Error ? error.message : String(error),
-              }
-            );
-            throw error;
-          }
-          break;
-        }
 
         const createBody = Object.fromEntries(
           Object.entries(args).filter(([key]) => key !== "companyId")

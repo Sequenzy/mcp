@@ -335,13 +335,19 @@ Audiences are add-only: subscribers who later leave the segment stay in the Meta
 
 ### Templates
 
-| Tool              | Description                                             |
-| ----------------- | ------------------------------------------------------- |
-| `list_templates`  | List templates with localization status.                |
-| `get_template`    | Read template details, content, and localized variants. |
-| `create_template` | Create templates from HTML or Sequenzy blocks.          |
-| `update_template` | Update template metadata, labels, HTML, or blocks.      |
-| `delete_template` | Delete a template.                                      |
+| Tool              | Description                                               |
+| ----------------- | --------------------------------------------------------- |
+| `list_templates`  | List templates with localization status.                  |
+| `get_template`    | Read template details, content, and localized variants.   |
+| `create_template` | Create templates from a prompt, HTML, or Sequenzy blocks. |
+| `update_template` | Update template metadata, labels, HTML, or blocks.        |
+| `delete_template` | Delete a template.                                        |
+
+For net-new content requested in natural language, pass `prompt` so Sequenzy
+generates branded native blocks server-side. Use `blocks` only for finished
+caller-supplied Sequenzy content, and use `html` only when preserving supplied
+or explicitly requested markup. `prompt`, `blocks`, and `html` are mutually
+exclusive; `style` and `tone` are valid only with `prompt`.
 
 ### A/B Tests
 
@@ -376,6 +382,11 @@ Use `get_ab_test` to discover variant IDs before editing. Variant updates accept
 | `delete_campaign`                | Delete a campaign.                                                                        |
 | `duplicate_campaign`             | Duplicate a campaign into a new draft.                                                    |
 | `resend_campaign_to_non_openers` | Create a draft resend for the original audience members who did not open a sent campaign. |
+
+Prompt-created campaigns are generated and persisted in one API request and
+remain drafts. Use `templateId`, `blocks`, or `html` only when copying or
+preserving existing content rather than asking the agent to author it. Omit all
+content fields to create an empty draft for later editing.
 
 ### Landing Pages
 
@@ -474,6 +485,11 @@ For compatibility with older agent prompts, top-level style keys such as `backgr
 | `create_transactional_email` | Create a transactional template from a prompt, HTML, or blocks. |
 | `update_transactional_email` | Update transactional metadata or body content.                  |
 | `send_email`                 | Send a single transactional email by template or HTML.          |
+
+Prompt-created transactional templates are generated server-side and default
+to disabled for review. Explicit HTML or block templates retain the
+compatibility default of enabled; pass `enabled` explicitly to override either
+default.
 
 `send_email` variables support nested arrays for repeat blocks, such as `{ "event": { "items": [...] } }`.
 

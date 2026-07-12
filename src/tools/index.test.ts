@@ -998,31 +998,15 @@ describe("transactional email tools", () => {
     );
   });
 
-  it("uses generated email blocks when creating a prompt-based transactional email", async () => {
-    const generatedBlocks = [
-      {
-        type: "text",
-        content: "<p>Click {{RESET_URL}} to reset your password.</p>",
-        variant: "paragraph",
+  it("forwards prompt creation directly to the transactional API", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      transactional: {
+        id: "txn_123",
+        name: "Password Reset",
+        slug: "password-reset",
       },
-    ];
-
-    mockApiRequest
-      .mockResolvedValueOnce({
-        success: true,
-        subject: "Reset your password",
-        previewText: "Use this secure link to reset your password.",
-        html: "<p>Click {{RESET_URL}} to reset your password.</p>",
-        blocks: generatedBlocks,
-      })
-      .mockResolvedValueOnce({
-        success: true,
-        transactional: {
-          id: "txn_123",
-          name: "Password Reset",
-          slug: "password-reset",
-        },
-      });
+    });
 
     const result = await handleToolCall("create_transactional_email", {
       companyId: "company_123",
@@ -1035,28 +1019,16 @@ describe("transactional email tools", () => {
     });
 
     expect(result.isError).toBeUndefined();
-    expect(mockApiRequest).toHaveBeenNthCalledWith(
-      1,
-      "POST",
-      "/api/v1/generate/email",
-      {
-        prompt: "Create a concise password reset email with RESET_URL.",
-        emailType: "transactional",
-        style: "minimal",
-        tone: "professional",
-      },
-      "company_123"
-    );
-    expect(mockApiRequest).toHaveBeenNthCalledWith(
-      2,
+    expect(mockApiRequest).toHaveBeenCalledTimes(1);
+    expect(mockApiRequest).toHaveBeenCalledWith(
       "POST",
       "/api/v1/transactional",
       {
         name: "Password Reset",
         slug: "password-reset",
-        subject: "Reset your password",
-        previewText: "Use this secure link to reset your password.",
-        blocks: generatedBlocks,
+        prompt: "Create a concise password reset email with RESET_URL.",
+        style: "minimal",
+        tone: "professional",
         enabled: false,
       },
       "company_123"
@@ -1528,7 +1500,7 @@ describe("create_template tool validation", () => {
 
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain(
-      "Provide either `html` or `blocks` when calling `create_template`."
+      "Provide exactly one of `prompt`, `html`, or `blocks` when calling `create_template`."
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
   });
@@ -1577,6 +1549,41 @@ describe("create_template tool validation", () => {
         labels: ["edm"],
       },
       undefined
+    );
+  });
+
+  it("forwards prompt template creation directly to the API", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      template: {
+        id: "tmpl_123",
+        name: "[Template] Welcome",
+        subject: "Generated welcome",
+        labels: [],
+      },
+    });
+
+    const result = await handleToolCall("create_template", {
+      companyId: "comp_123",
+      name: "Welcome",
+      prompt: "Welcome new customers",
+      style: "branded",
+      tone: "friendly",
+      previewText: null,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/templates",
+      {
+        name: "Welcome",
+        prompt: "Welcome new customers",
+        style: "branded",
+        tone: "friendly",
+        previewText: null,
+      },
+      "comp_123"
     );
   });
 });
@@ -1886,33 +1893,17 @@ describe("create_campaign tool validation", () => {
     expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
-  it("uses generated email blocks when creating a prompt-based campaign", async () => {
-    const generatedBlocks = [
-      {
-        type: "text",
-        content: "<p>Generated launch body</p>",
-        variant: "paragraph",
-      },
-    ];
-
-    mockApiRequest
-      .mockResolvedValueOnce({
-        success: true,
+  it("forwards prompt creation directly to the campaign API", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      campaign: {
+        id: "camp_123",
+        name: "Launch",
         subject: "Generated launch subject",
-        previewText: "Generated launch preview",
-        html: "<p>Generated launch body</p>",
-        blocks: generatedBlocks,
-      })
-      .mockResolvedValueOnce({
-        success: true,
-        campaign: {
-          id: "camp_123",
-          name: "Launch",
-          subject: "Generated launch subject",
-          status: "draft",
-          labels: ["edm"],
-        },
-      });
+        status: "draft",
+        labels: ["edm"],
+      },
+    });
 
     const result = await handleToolCall("create_campaign", {
       companyId: "comp_123",
@@ -1924,26 +1915,15 @@ describe("create_campaign tool validation", () => {
     });
 
     expect(result.isError).toBeUndefined();
-    expect(mockApiRequest).toHaveBeenNthCalledWith(
-      1,
-      "POST",
-      "/api/v1/generate/email",
-      {
-        prompt: "Announce the new dashboard",
-        style: "branded",
-        tone: "friendly",
-      },
-      "comp_123"
-    );
-    expect(mockApiRequest).toHaveBeenNthCalledWith(
-      2,
+    expect(mockApiRequest).toHaveBeenCalledTimes(1);
+    expect(mockApiRequest).toHaveBeenCalledWith(
       "POST",
       "/api/v1/campaigns",
       {
         name: "Launch",
-        subject: "Generated launch subject",
-        previewText: "Generated launch preview",
-        blocks: generatedBlocks,
+        prompt: "Announce the new dashboard",
+        style: "branded",
+        tone: "friendly",
         labels: ["edm"],
       },
       "comp_123"
@@ -1951,27 +1931,15 @@ describe("create_campaign tool validation", () => {
   });
 
   it("passes tracking code when creating a prompt-based campaign", async () => {
-    mockApiRequest
-      .mockResolvedValueOnce({
-        success: true,
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      campaign: {
+        id: "camp_123",
+        name: "Launch",
         subject: "Generated launch subject",
-        blocks: [
-          {
-            type: "text",
-            content: "<p>Generated launch body</p>",
-            variant: "paragraph",
-          },
-        ],
-      })
-      .mockResolvedValueOnce({
-        success: true,
-        campaign: {
-          id: "camp_123",
-          name: "Launch",
-          subject: "Generated launch subject",
-          status: "draft",
-        },
-      });
+        status: "draft",
+      },
+    });
 
     const result = await handleToolCall("create_campaign", {
       name: "Launch",
@@ -1980,20 +1948,12 @@ describe("create_campaign tool validation", () => {
     });
 
     expect(result.isError).toBeUndefined();
-    expect(mockApiRequest).toHaveBeenNthCalledWith(
-      2,
+    expect(mockApiRequest).toHaveBeenCalledWith(
       "POST",
       "/api/v1/campaigns",
       {
         name: "Launch",
-        subject: "Generated launch subject",
-        blocks: [
-          {
-            type: "text",
-            content: "<p>Generated launch body</p>",
-            variant: "paragraph",
-          },
-        ],
+        prompt: "Announce the new dashboard",
         trackingCode: "AKL-01May2026",
       },
       undefined
@@ -2001,28 +1961,16 @@ describe("create_campaign tool validation", () => {
   });
 
   it("passes imported sent status when creating a prompt-based campaign", async () => {
-    mockApiRequest
-      .mockResolvedValueOnce({
-        success: true,
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      campaign: {
+        id: "camp_123",
+        name: "Launch",
         subject: "Generated launch subject",
-        blocks: [
-          {
-            type: "text",
-            content: "<p>Generated launch body</p>",
-            variant: "paragraph",
-          },
-        ],
-      })
-      .mockResolvedValueOnce({
-        success: true,
-        campaign: {
-          id: "camp_123",
-          name: "Launch",
-          subject: "Generated launch subject",
-          status: "sent",
-          sentAt: "2026-05-01T14:00:00.000Z",
-        },
-      });
+        status: "sent",
+        sentAt: "2026-05-01T14:00:00.000Z",
+      },
+    });
 
     const result = await handleToolCall("create_campaign", {
       name: "Launch",
@@ -2032,20 +1980,12 @@ describe("create_campaign tool validation", () => {
     });
 
     expect(result.isError).toBeUndefined();
-    expect(mockApiRequest).toHaveBeenNthCalledWith(
-      2,
+    expect(mockApiRequest).toHaveBeenCalledWith(
       "POST",
       "/api/v1/campaigns",
       {
         name: "Launch",
-        subject: "Generated launch subject",
-        blocks: [
-          {
-            type: "text",
-            content: "<p>Generated launch body</p>",
-            variant: "paragraph",
-          },
-        ],
+        prompt: "Announce the new dashboard",
         status: "sent",
         sentAt: "2026-05-01T14:00:00Z",
       },
