@@ -315,6 +315,7 @@ const MUTATING_TOOL_NAMES = new Set([
   "update_shopify_automation_settings",
   "create_api_key",
   "add_website",
+  "verify_sending_domain",
   "add_subscriber",
   "update_subscriber",
   "add_subscriber_note",
@@ -401,6 +402,7 @@ const OPEN_WORLD_TOOL_NAMES = new Set([
   "publish_landing_page",
   "connect_landing_page_domain",
   "update_landing_page_domain_settings",
+  "verify_sending_domain",
   "enable_sequence",
   "resume_sequence_enrollments",
   "send_email",
@@ -1221,6 +1223,10 @@ const COMPANY_UPDATE_FIELDS = [
   "pricing",
   "fontFamily",
   "emailDirection",
+  "fromEmail",
+  "fromName",
+  "replyTo",
+  "replyToName",
 ] as const;
 
 function validateOptionalObjectArg(
@@ -1289,6 +1295,10 @@ function buildUpdateCompanyBody(
     "language",
     "fontFamily",
     "emailDirection",
+    "fromEmail",
+    "fromName",
+    "replyTo",
+    "replyToName",
   ]) {
     if (args[key] !== undefined && typeof args[key] !== "string") {
       throw new Error(
@@ -1312,12 +1322,54 @@ function buildUpdateCompanyBody(
     );
   }
 
+  for (const key of ["fromEmail", "replyTo"] as const) {
+    const value = args[key];
+    if (
+      typeof value === "string" &&
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
+    ) {
+      throw new Error(
+        `\`${key}\` must be a valid email address when calling \`update_company\`.`
+      );
+    }
+  }
+  if (args.fromName !== undefined && args.fromEmail === undefined) {
+    throw new Error(
+      "`fromName` requires `fromEmail` when calling `update_company`."
+    );
+  }
+  if (args.replyToName !== undefined && args.replyTo === undefined) {
+    throw new Error(
+      "`replyToName` requires `replyTo` when calling `update_company`."
+    );
+  }
+
   return body;
 }
 
 function buildUpdateSequenceBody(
   args: Record<string, unknown>
 ): Record<string, unknown> {
+  if (args.fromEmail !== undefined && args.senderProfileId !== undefined) {
+    throw new Error(
+      "Provide either `fromEmail` or `senderProfileId` when calling `update_sequence`, not both."
+    );
+  }
+  if (args.replyTo !== undefined && args.replyProfileId !== undefined) {
+    throw new Error(
+      "Provide either `replyTo` or `replyProfileId` when calling `update_sequence`, not both."
+    );
+  }
+  if (args.fromName !== undefined && args.fromEmail === undefined) {
+    throw new Error(
+      "`fromName` requires `fromEmail` when calling `update_sequence`."
+    );
+  }
+  if (args.replyToName !== undefined && args.replyTo === undefined) {
+    throw new Error(
+      "`replyToName` requires `replyTo` when calling `update_sequence`."
+    );
+  }
   if (
     args.clearEnrollmentFieldPath === true &&
     args.enrollmentFieldPath !== undefined
@@ -3065,6 +3117,15 @@ const outputPropertiesByToolName: Record<string, OutputSchemaProperties> = {
     ready: booleanOutputProperty("Whether the sender website is ready."),
     status: stringOutputProperty("Current processing or verification status."),
   },
+  verify_sending_domain: {
+    website: resourceOutputProperty(
+      "Sending domain with current aggregate, SPF, DKIM, and MAIL FROM verification details."
+    ),
+    verified: booleanOutputProperty(
+      "Whether the sending domain passed the fresh verification check."
+    ),
+    message: stringOutputProperty("Verification result summary."),
+  },
   get_integration_guide: {
     guide: resourceOutputProperty("integration guide"),
     code: stringOutputProperty("Generated integration code or example."),
@@ -3683,7 +3744,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "update_company",
     description:
-      "Edit company product info and brand context that AI uses for generated emails. Use this to adjust primaryColor, basic company knowledge, tone voice, value props, testimonials, social/legal links, and default writing preferences. Provide at least one editable field.",
+      "Edit company product info, brand context, and account-wide sending identity defaults. fromEmail must use a verified sending domain; replyTo may be any valid mailbox. Missing sender/reply profiles are created automatically. Provide at least one editable field.",
     inputSchema: {
       type: "object",
       properties: {
@@ -3787,6 +3848,26 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
         emailDirection: {
           type: "string",
           description: "Default email text direction: ltr or rtl.",
+        },
+        fromEmail: {
+          type: "string",
+          description:
+            "Set the account-wide default From address. Its domain must already be configured and verified.",
+        },
+        fromName: {
+          type: "string",
+          description:
+            "Display name for a newly created default From profile. Requires fromEmail.",
+        },
+        replyTo: {
+          type: "string",
+          description:
+            "Set the account-wide default Reply-To address. Creates a reply profile when needed.",
+        },
+        replyToName: {
+          type: "string",
+          description:
+            "Display name for a newly created default Reply-To profile. Requires replyTo.",
         },
       },
     },
@@ -3995,7 +4076,8 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   },
   {
     name: "list_websites",
-    description: "List all configured sender websites/domains",
+    description:
+      "List configured sending domains with stored aggregate, SPF, DKIM, and MAIL FROM verification status",
     inputSchema: {
       type: "object",
       properties: {
@@ -4033,7 +4115,8 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   },
   {
     name: "check_website",
-    description: "Check if a website has been processed and is ready to use",
+    description:
+      "Read a sending domain's stored aggregate status plus SPF, DKIM, MAIL FROM records and diagnostics. Use verify_sending_domain to run a fresh DNS check.",
     inputSchema: {
       type: "object",
       properties: {
@@ -4045,6 +4128,26 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
         domain: {
           type: "string",
           description: "The domain to check",
+        },
+      },
+      required: ["domain"],
+    },
+  },
+  {
+    name: "verify_sending_domain",
+    description:
+      "Run a fresh DNS/provider verification for a configured sending domain and return current aggregate, SPF, DKIM, and MAIL FROM status with diagnostics.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        domain: {
+          type: "string",
+          description: "Configured sending domain to verify.",
         },
       },
       required: ["domain"],
@@ -5664,6 +5767,36 @@ Before implementing, use create_api_key to generate an API key and save it to .e
           type: "string",
           description: "Target segment ID",
         },
+        fromEmail: {
+          type: "string",
+          description:
+            "From address for this campaign. Its domain must be configured and verified; a sender profile is created when needed.",
+        },
+        fromName: {
+          type: "string",
+          description:
+            "Display name for a newly created sender profile. Requires fromEmail.",
+        },
+        senderProfileId: {
+          type: "string",
+          description:
+            "Existing sender profile ID. Mutually exclusive with fromEmail.",
+        },
+        replyTo: {
+          type: "string",
+          description:
+            "Reply-To address for this campaign. A reply profile is created when needed.",
+        },
+        replyToName: {
+          type: "string",
+          description:
+            "Display name for a newly created reply profile. Requires replyTo.",
+        },
+        replyProfileId: {
+          type: "string",
+          description:
+            "Existing reply profile ID. Mutually exclusive with replyTo.",
+        },
         campaignData: {
           type: "object",
           description:
@@ -5738,6 +5871,26 @@ Before implementing, use create_api_key to generate an API key and save it to .e
           type: "string",
           description:
             "Set reply-to using a reply profile ID for this company.",
+        },
+        replyToName: {
+          type: "string",
+          description:
+            "Display name for a newly created reply profile. Requires replyTo.",
+        },
+        fromEmail: {
+          type: "string",
+          description:
+            "Set this campaign's From address. Its domain must be configured and verified.",
+        },
+        fromName: {
+          type: "string",
+          description:
+            "Display name for a newly created sender profile. Requires fromEmail.",
+        },
+        senderProfileId: {
+          type: "string",
+          description:
+            "Set an existing sender profile. Mutually exclusive with fromEmail.",
         },
         campaignData: {
           type: "object",
@@ -6401,6 +6554,36 @@ OTHER BUILT-IN EVENTS:
           description:
             "Company ID to create the sequence in. If not provided, uses the currently selected company.",
         },
+        fromEmail: {
+          type: "string",
+          description:
+            "From address for all emails in this sequence. Its domain must be configured and verified.",
+        },
+        fromName: {
+          type: "string",
+          description:
+            "Display name for a newly created sender profile. Requires fromEmail.",
+        },
+        senderProfileId: {
+          type: "string",
+          description:
+            "Existing sender profile ID. Mutually exclusive with fromEmail.",
+        },
+        replyTo: {
+          type: "string",
+          description:
+            "Reply-To address for all emails in this sequence. A reply profile is created when needed.",
+        },
+        replyToName: {
+          type: "string",
+          description:
+            "Display name for a newly created reply profile. Requires replyTo.",
+        },
+        replyProfileId: {
+          type: "string",
+          description:
+            "Existing reply profile ID. Mutually exclusive with replyTo.",
+        },
         name: {
           type: "string",
           description:
@@ -6808,6 +6991,36 @@ OTHER BUILT-IN EVENTS:
         name: {
           type: "string",
           description: "Sequence name",
+        },
+        fromEmail: {
+          type: "string",
+          description:
+            "Set the From address for all emails in this sequence. Its domain must be configured and verified.",
+        },
+        fromName: {
+          type: "string",
+          description:
+            "Display name for a newly created sender profile. Requires fromEmail.",
+        },
+        senderProfileId: {
+          type: "string",
+          description:
+            "Set an existing sender profile. Mutually exclusive with fromEmail.",
+        },
+        replyTo: {
+          type: "string",
+          description:
+            "Set the Reply-To address for all emails in this sequence.",
+        },
+        replyToName: {
+          type: "string",
+          description:
+            "Display name for a newly created reply profile. Requires replyTo.",
+        },
+        replyProfileId: {
+          type: "string",
+          description:
+            "Set an existing reply profile. Mutually exclusive with replyTo.",
         },
         enrollmentPaused: {
           type: "boolean",
@@ -8710,7 +8923,18 @@ export async function handleToolCall(
         const companyId = args.companyId as string | undefined;
         result = await apiRequest(
           "GET",
-          `/api/v1/websites/${args.domain}`,
+          `/api/v1/websites/${encodeURIComponent(String(args.domain))}`,
+          undefined,
+          companyId
+        );
+        break;
+      }
+
+      case "verify_sending_domain": {
+        const companyId = args.companyId as string | undefined;
+        result = await apiRequest(
+          "POST",
+          `/api/v1/websites/${encodeURIComponent(String(args.domain))}/verify`,
           undefined,
           companyId
         );
@@ -9845,6 +10069,29 @@ export async function handleToolCall(
       case "create_campaign": {
         const companyId = args.companyId as string | undefined;
         validateCreateCampaignContentArgs(args);
+        if (
+          args.fromEmail !== undefined &&
+          args.senderProfileId !== undefined
+        ) {
+          throw new Error(
+            "Provide either `fromEmail` or `senderProfileId` when calling `create_campaign`, not both."
+          );
+        }
+        if (args.replyTo !== undefined && args.replyProfileId !== undefined) {
+          throw new Error(
+            "Provide either `replyTo` or `replyProfileId` when calling `create_campaign`, not both."
+          );
+        }
+        if (args.fromName !== undefined && args.fromEmail === undefined) {
+          throw new Error(
+            "`fromName` requires `fromEmail` when calling `create_campaign`."
+          );
+        }
+        if (args.replyToName !== undefined && args.replyTo === undefined) {
+          throw new Error(
+            "`replyToName` requires `replyTo` when calling `create_campaign`."
+          );
+        }
 
         const createBody = Object.fromEntries(
           Object.entries(args).filter(([key]) => key !== "companyId")
@@ -9868,7 +10115,11 @@ export async function handleToolCall(
           "trackingCode",
           "html",
           "blocks",
+          "fromEmail",
+          "fromName",
+          "senderProfileId",
           "replyTo",
+          "replyToName",
           "replyProfileId",
           "campaignData",
           "computedLists",
@@ -9880,7 +10131,7 @@ export async function handleToolCall(
 
         if (unsupportedCampaignUpdateKeys.length > 0) {
           throw new Error(
-            `\`update_campaign\` accepts only \`name\`, \`subject\`, \`trackingCode\`, \`html\`, \`blocks\`, \`replyTo\`, \`replyProfileId\`, \`campaignData\`, \`computedLists\`, and \`labels\` update fields. Unsupported field${unsupportedCampaignUpdateKeys.length === 1 ? "" : "s"}: ${unsupportedCampaignUpdateKeys.map((key) => `\`${key}\``).join(", ")}.`
+            `\`update_campaign\` accepts only content, sending identity, campaign data, computed list, and label update fields. Unsupported field${unsupportedCampaignUpdateKeys.length === 1 ? "" : "s"}: ${unsupportedCampaignUpdateKeys.map((key) => `\`${key}\``).join(", ")}.`
           );
         }
 
@@ -9892,6 +10143,24 @@ export async function handleToolCall(
             "Provide either `replyTo` or `replyProfileId` when calling `update_campaign`, not both."
           );
         }
+        if (
+          args.fromEmail !== undefined &&
+          args.senderProfileId !== undefined
+        ) {
+          throw new Error(
+            "Provide either `fromEmail` or `senderProfileId` when calling `update_campaign`, not both."
+          );
+        }
+        if (args.fromName !== undefined && args.fromEmail === undefined) {
+          throw new Error(
+            "`fromName` requires `fromEmail` when calling `update_campaign`."
+          );
+        }
+        if (args.replyToName !== undefined && args.replyTo === undefined) {
+          throw new Error(
+            "`replyToName` requires `replyTo` when calling `update_campaign`."
+          );
+        }
 
         if (
           args.name === undefined &&
@@ -9899,6 +10168,8 @@ export async function handleToolCall(
           args.trackingCode === undefined &&
           args.html === undefined &&
           args.blocks === undefined &&
+          args.fromEmail === undefined &&
+          args.senderProfileId === undefined &&
           args.replyTo === undefined &&
           args.replyProfileId === undefined &&
           args.campaignData === undefined &&
@@ -9906,7 +10177,7 @@ export async function handleToolCall(
           args.labels === undefined
         ) {
           throw new Error(
-            "Provide at least one of `name`, `subject`, `trackingCode`, `html`, `blocks`, `replyTo`, `replyProfileId`, `campaignData`, `computedLists`, or `labels` when calling `update_campaign`."
+            "Provide at least one campaign content, sending identity, campaign data, computed list, or label field when calling `update_campaign`."
           );
         }
 
@@ -10255,6 +10526,29 @@ export async function handleToolCall(
 
       case "create_sequence": {
         const companyId = args.companyId as string | undefined;
+        if (
+          args.fromEmail !== undefined &&
+          args.senderProfileId !== undefined
+        ) {
+          throw new Error(
+            "Provide either `fromEmail` or `senderProfileId` when calling `create_sequence`, not both."
+          );
+        }
+        if (args.replyTo !== undefined && args.replyProfileId !== undefined) {
+          throw new Error(
+            "Provide either `replyTo` or `replyProfileId` when calling `create_sequence`, not both."
+          );
+        }
+        if (args.fromName !== undefined && args.fromEmail === undefined) {
+          throw new Error(
+            "`fromName` requires `fromEmail` when calling `create_sequence`."
+          );
+        }
+        if (args.replyToName !== undefined && args.replyTo === undefined) {
+          throw new Error(
+            "`replyToName` requires `replyTo` when calling `create_sequence`."
+          );
+        }
         const hasExplicitSteps =
           Array.isArray(args.steps) && args.steps.length > 0;
         // Create the sequence - this queues AI enrichment

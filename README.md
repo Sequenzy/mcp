@@ -9,8 +9,8 @@ Connect Sequenzy to Claude Desktop, Claude Code, Codex, Cursor, Windsurf, VS Cod
 - Manage subscribers, tags, lists, and dynamic segments.
 - Sync segments to Meta custom audiences for Facebook and Instagram retargeting.
 - Manage products and attach digital delivery files for purchase automations.
-- Draft, update, schedule, and inspect campaigns.
-- Create and edit email sequences, including event-triggered and segment-entry automations.
+- Draft, update, schedule, and inspect campaigns, including From and Reply-To identities.
+- Create and edit email sequences, including event-triggered and segment-entry automations and sending identity overrides.
 - Cancel, pause, resume, duplicate, or delete campaigns and enroll contacts into sequences.
 - Manage transactional email templates and send single transactional emails.
 - Create, edit, publish, unpublish, and delete landing pages.
@@ -18,7 +18,7 @@ Connect Sequenzy to Claude Desktop, Claude Code, Codex, Cursor, Windsurf, VS Cod
 - Manage team invitations, inbox conversations, and outbound webhook endpoints.
 - Generate email copy, subject lines, and multi-step sequences.
 - Inspect analytics, subscriber activity, deliverability health, and dashboard URLs.
-- Configure company product info, sender websites, and integration examples for common frameworks.
+- Configure company product info, account-wide sending identity defaults, sender domains, and integration examples for common frameworks.
 
 Every published MCP tool includes explicit `readOnlyHint`, `destructiveHint`, and `openWorldHint` annotations so compatible clients can display accurate tool-use affordances. Tools also publish `outputSchema` definitions and return `structuredContent`, giving clients and models machine-readable result shapes for follow-up calls.
 
@@ -207,7 +207,7 @@ include the missing scopes.
 
 ## Tools
 
-This server currently exposes 120 MCP tools.
+This server currently exposes 132 MCP tools.
 
 ### Account, Companies, Setup
 
@@ -217,12 +217,13 @@ This server currently exposes 120 MCP tools.
 | `select_company`        | Set the active company for future tool calls.                                                                    |
 | `get_app_urls`          | Build dashboard URLs for campaigns, landing pages, sequences, emails, settings, domains, and sent email details. |
 | `create_company`        | Create a new company or brand.                                                                                   |
-| `get_company`           | Read company details, product info, brand colors, AI writing context, and localization settings.                 |
-| `update_company`        | Edit product info and brand context AI uses for generated emails.                                                |
+| `get_company`           | Read company details, product info, brand context, localization, and current From/Reply-To defaults.             |
+| `update_company`        | Edit product info, brand context, and account-wide From/Reply-To defaults.                                       |
 | `create_api_key`        | Create an API key for a company, with optional permission preset or explicit scopes.                             |
-| `list_websites`         | List configured sender websites and domains.                                                                     |
+| `list_websites`         | List sending domains with stored aggregate, SPF, DKIM, and MAIL FROM status.                                     |
 | `add_website`           | Add a sender website. Processing can take around 30 seconds.                                                     |
-| `check_website`         | Check whether a website is processed and ready.                                                                  |
+| `check_website`         | Read a sending domain's stored SPF, DKIM, MAIL FROM, and aggregate verification details.                         |
+| `verify_sending_domain` | Run a fresh sending-domain DNS/provider verification and return current status and diagnostics.                  |
 | `get_integration_guide` | Get framework-specific integration examples.                                                                     |
 
 ### Subscribers
@@ -372,8 +373,8 @@ Use `get_ab_test` to discover variant IDs before editing. Variant updates accept
 | `list_campaigns`                 | List campaigns, optionally filtered by status.                                            |
 | `get_campaign`                   | Get campaign details and stats.                                                           |
 | `get_email_send`                 | Inspect a sent email detail record.                                                       |
-| `create_campaign`                | Create a draft campaign from a prompt, HTML, blocks, a template, or campaign data.        |
-| `update_campaign`                | Update a draft campaign, including campaign data and computed lists.                      |
+| `create_campaign`                | Create a campaign with content, data, and optional From/Reply-To identity overrides.      |
+| `update_campaign`                | Update a draft campaign, including content, data, From, and Reply-To.                     |
 | `schedule_campaign`              | Schedule a draft or reschedule an existing scheduled campaign.                            |
 | `send_test_email`                | Send a test email to one address.                                                         |
 | `cancel_campaign`                | Cancel a scheduled or sending campaign.                                                   |
@@ -387,6 +388,12 @@ Prompt-created campaigns are generated and persisted in one API request and
 remain drafts. Use `templateId`, `blocks`, or `html` only when copying or
 preserving existing content rather than asking the agent to author it. Omit all
 content fields to create an empty draft for later editing.
+
+Use `update_company` with `fromEmail` and/or `replyTo` to set account-wide
+defaults. `fromEmail` must use a configured, verified sending domain; `replyTo`
+may be any valid mailbox. `create_campaign`, `update_campaign`,
+`create_sequence`, and `update_sequence` accept the same direct-address fields
+for resource-specific overrides and create the backing profile when needed.
 
 ### Landing Pages
 
@@ -406,20 +413,20 @@ Landing page content uses Sequenzy's editor-compatible JSON schema with `version
 
 ### Sequences
 
-| Tool                             | Description                                                                                          |
-| -------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `list_sequences`                 | List email sequences and automation status.                                                          |
-| `get_sequence`                   | Get sequence details, including step `nodeId`, linked `emailId`, subject, preview text, and blocks.  |
-| `create_sequence`                | Create AI-generated or explicit-step sequences.                                                      |
-| `update_sequence`                | Update sequence settings, enrollment behavior, existing steps, branch logic, or insert linear steps. |
-| `insert_sequence_step`           | Insert one new email step, optionally with a delay node before it.                                   |
-| `enable_sequence`                | Activate a sequence.                                                                                 |
-| `disable_sequence`               | Freeze a sequence, blocking new enrollments and holding current recipients.                          |
-| `pause_sequence_enrollments`     | Stop new enrollments for an active sequence while current recipients continue.                       |
-| `resume_sequence_enrollments`    | Reopen new enrollments for an active sequence without changing current recipients.                   |
-| `enroll_subscribers_in_sequence` | Enroll up to 500 subscribers by email, subscriber ID, or both, optionally at a target node.          |
-| `cancel_sequence_enrollments`    | Stop active or waiting enrollments by subscriber or entry-event field values.                        |
-| `delete_sequence`                | Delete a sequence.                                                                                   |
+| Tool                             | Description                                                                                         |
+| -------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `list_sequences`                 | List email sequences and automation status.                                                         |
+| `get_sequence`                   | Get sequence details, including step `nodeId`, linked `emailId`, subject, preview text, and blocks. |
+| `create_sequence`                | Create AI-generated or explicit-step sequences with optional From/Reply-To overrides.               |
+| `update_sequence`                | Update identity, settings, enrollment, existing steps, branch logic, or insert linear steps.        |
+| `insert_sequence_step`           | Insert one new email step, optionally with a delay node before it.                                  |
+| `enable_sequence`                | Activate a sequence.                                                                                |
+| `disable_sequence`               | Freeze a sequence, blocking new enrollments and holding current recipients.                         |
+| `pause_sequence_enrollments`     | Stop new enrollments for an active sequence while current recipients continue.                      |
+| `resume_sequence_enrollments`    | Reopen new enrollments for an active sequence without changing current recipients.                  |
+| `enroll_subscribers_in_sequence` | Enroll up to 500 subscribers by email, subscriber ID, or both, optionally at a target node.         |
+| `cancel_sequence_enrollments`    | Stop active or waiting enrollments by subscriber or entry-event field values.                       |
+| `delete_sequence`                | Delete a sequence.                                                                                  |
 
 Sequence creation supports:
 
