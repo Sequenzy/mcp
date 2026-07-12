@@ -58,6 +58,15 @@ function normalizeMcpError(error: unknown): {
   };
 }
 
+function extractMissingApiKeyScopes(message: string): string[] {
+  const match = message.match(/api key is missing required scopes?:\s*(.+)$/i);
+  if (!match?.[1]) {
+    return [];
+  }
+
+  return match[1].match(/[a-z_]+:[a-z_]+/gi) ?? [];
+}
+
 function describeMcpError(error: unknown): McpErrorDescriptor {
   const normalized = normalizeMcpError(error);
   const message = normalized.message.trim() || "Unknown error";
@@ -108,6 +117,26 @@ function describeMcpError(error: unknown): McpErrorDescriptor {
       howToFix:
         "Replace `SEQUENZY_API_KEY` with a valid personal API key, then restart the MCP client so it reconnects with fresh credentials.",
       docsUrl: AUTH_DOCS_URL,
+      details,
+    };
+  }
+
+  const missingApiKeyScopes = extractMissingApiKeyScopes(message);
+  if (missingApiKeyScopes.length > 0) {
+    const scopeList = missingApiKeyScopes
+      .map((scope) => `\`${scope}\``)
+      .join(", ");
+    const presetGuidance = missingApiKeyScopes.every((scope) =>
+      scope.endsWith(":read")
+    )
+      ? "the Read-only or Safer agent access preset"
+      : "Safer agent access when it covers the task, or Custom permissions";
+
+    return {
+      title: "API key permission required",
+      description: `The current API key is valid, but this operation requires the missing ${missingApiKeyScopes.length === 1 ? "scope" : "scopes"}: ${scopeList}.`,
+      howToFix: `Call \`get_account\` to inspect \`apiKeyPermissions\`. For a local API-key connection, open \`apiKeyPermissions.manageUrl\` (or \`companies[].settingsUrl\` → API Keys), create a replacement key with ${presetGuidance} including ${scopeList}, replace \`SEQUENZY_API_KEY\`, and restart the client. For hosted OAuth MCP, disconnect and reauthorize the Sequenzy connection with a preset or Custom permissions including ${scopeList}. Existing key permissions cannot be edited in place.`,
+      docsUrl: MCP_DOCS_URL,
       details,
     };
   }

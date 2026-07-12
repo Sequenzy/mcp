@@ -182,11 +182,26 @@ For OpenClaw, Hermes, and other MCP-compatible clients, point the client at `npx
 ## Getting an API Key
 
 1. Open [the Sequenzy dashboard](https://sequenzy.com/dashboard).
-2. Go to Settings -> API Keys.
-3. Create a personal key.
+2. Use the **MCP** setup flow to create a personal key, or open **Settings ->
+   API Keys** to create a company key.
+3. Choose a permission preset or the exact custom scopes the integration needs.
 4. Add the key to your MCP client config.
 
 Personal keys start with `seq_user_`. You can revoke them any time in the dashboard.
+
+### Recover from missing API key permissions
+
+If a tool reports a missing scope such as `campaigns:read` or
+`templates:write`, call `get_account`. Its `apiKeyPermissions` field lists the
+current scopes, common missing marketing read scopes, and a direct `manageUrl`
+for API Keys settings.
+
+Permissions cannot be changed on an existing key. For a local API-key
+connection, open `manageUrl`, create a replacement key with **Read-only**,
+**Safer agent access**, or the exact custom scopes named in the error, update
+`SEQUENZY_API_KEY`, and restart the client. For hosted OAuth MCP, disconnect and
+reauthorize the Sequenzy connection with a preset or custom permissions that
+include the missing scopes.
 
 ## Tools
 
@@ -196,7 +211,7 @@ This server currently exposes 120 MCP tools.
 
 | Tool                    | Description                                                                                                      |
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `get_account`           | Get account info, available companies, and the current company.                                                  |
+| `get_account`           | Get account info, available companies, current key permissions, and the API Keys management URL.                 |
 | `select_company`        | Set the active company for future tool calls.                                                                    |
 | `get_app_urls`          | Build dashboard URLs for campaigns, landing pages, sequences, emails, settings, domains, and sent email details. |
 | `create_company`        | Create a new company or brand.                                                                                   |
@@ -564,6 +579,14 @@ npx @sequenzy/setup
 ### Invalid API Key
 
 Create a new personal key in Settings -> API Keys, update your MCP config, and restart the client.
+
+### Missing API Key Scope
+
+Call `get_account` and inspect `apiKeyPermissions`. Local connections should
+open `apiKeyPermissions.manageUrl`, create a replacement key with the missing
+scope, update `SEQUENZY_API_KEY`, and restart. Hosted OAuth connections should
+disconnect and reauthorize with broader permissions. The tool error includes
+the exact scope or scopes required.
 
 ### Duplicate Resources
 

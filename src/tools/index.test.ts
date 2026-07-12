@@ -84,6 +84,126 @@ function getPublishedToolSchemas(tool: (typeof tools)[number]) {
   ];
 }
 
+describe("account tools", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("publishes and returns the current API key permission summary", async () => {
+    const getAccountTool = tools.find((tool) => tool.name === "get_account");
+    const outputProperties = getAccountTool?.outputSchema?.properties as
+      | Record<string, unknown>
+      | undefined;
+    const apiKeyPermissions = {
+      preset: "custom",
+      fullAccess: false,
+      scopes: ["account:read", "subscribers:read"],
+      canDiscoverMarketingWork: false,
+      missingMarketingReadScopes: [
+        "campaigns:read",
+        "sequences:read",
+        "landing_pages:read",
+      ],
+      manageUrl:
+        "https://sequenzy.com/dashboard/company/company_123/settings?tab=api-keys",
+    };
+
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      companies: [{ id: "company_123", name: "Lyvia" }],
+      currentCompanyId: "company_123",
+      apiKeyPermissions,
+    });
+
+    const result = await handleToolCall("get_account", {});
+
+    expect(outputProperties).toHaveProperty("apiKeyPermissions");
+    expect(result.isError).toBeUndefined();
+    expect(result.structuredContent?.["apiKeyPermissions"]).toEqual(
+      apiKeyPermissions
+    );
+    expect(result.structuredContent?.["companies"]).toEqual([
+      {
+        id: "company_123",
+        name: "Lyvia",
+        url: "https://sequenzy.com/dashboard/company/company_123",
+        settingsUrl:
+          "https://sequenzy.com/dashboard/company/company_123/settings",
+      },
+    ]);
+  });
+});
+
+describe("API key permission errors", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("makes a create_template scope failure recoverable", async () => {
+    mockApiRequest.mockRejectedValueOnce(
+      new Error("API key is missing required scope: templates:write")
+    );
+
+    const result = await handleToolCall("create_template", {
+      companyId: "company_123",
+      name: "Credits purchased",
+      subject: "Your credits are ready",
+      html: "<p>Your credits are ready.</p>",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("API key permission required");
+    expect(result.content[0]?.text).toContain("`templates:write`");
+    expect(result.content[0]?.text).toContain("`companies[].settingsUrl`");
+    expect(result.content[0]?.text).toContain("replace `SEQUENZY_API_KEY`");
+  });
+});
+
+describe("AI generation tools", () => {
+  it("publishes branding controls for generate_email", () => {
+    const generateEmailTool = tools.find(
+      (tool) => tool.name === "generate_email"
+    );
+    const properties = generateEmailTool?.inputSchema.properties as
+      | Record<string, Record<string, unknown>>
+      | undefined;
+
+    expect(properties?.["applyBranding"]?.["type"]).toBe("boolean");
+    expect(properties?.["emailType"]?.["enum"]).toEqual([
+      "marketing",
+      "transactional",
+    ]);
+  });
+
+  it("forwards branding controls through generate_email", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      subject: "Password reset",
+      previewText: "Reset your password securely",
+      blocks: [],
+    });
+
+    await handleToolCall("generate_email", {
+      companyId: "company_123",
+      prompt: "Create a password reset email",
+      applyBranding: false,
+      emailType: "transactional",
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/generate/email",
+      {
+        companyId: "company_123",
+        prompt: "Create a password reset email",
+        applyBranding: false,
+        emailType: "transactional",
+      },
+      "company_123"
+    );
+  });
+});
+
 describe("tool schema compatibility", () => {
   it("publishes required boolean tool annotations", () => {
     const requiredHints = [
@@ -920,6 +1040,7 @@ describe("transactional email tools", () => {
       "/api/v1/generate/email",
       {
         prompt: "Create a concise password reset email with RESET_URL.",
+        emailType: "transactional",
         style: "minimal",
         tone: "professional",
       },
@@ -1057,6 +1178,13 @@ describe("update_campaign tool validation", () => {
     expect(inputSchema?.required).toEqual(["campaignId", "scheduledAt"]);
     expect(inputSchema?.additionalProperties).toBe(false);
     expect(inputSchema?.properties).toHaveProperty("targetLists");
+    expect(
+      (
+        inputSchema?.properties?.["targetLists"] as
+          | { description?: string }
+          | undefined
+      )?.description
+    ).toContain("{type:'rules'");
     expect(inputSchema?.properties).toHaveProperty("sendTimeOptimization");
     expect(inputSchema?.properties).toHaveProperty("spreadOverHours");
   });
@@ -1204,6 +1332,42 @@ describe("update_campaign tool validation", () => {
     expect(payload.appUrls.campaignPreview).toBe(payload.campaign.previewUrl);
   });
 
+  it("forwards rules audience targeting to the schedule endpoint", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      campaign: {
+        id: "camp_123",
+        name: "Launch",
+        subject: "Hello",
+        status: "scheduled",
+      },
+      scheduledAt: "2026-06-01T14:00:00.000Z",
+    });
+
+    const targetLists = {
+      type: "rules",
+      include: [{ type: "lists", listIds: ["list_123"] }],
+      exclude: [{ type: "segments", segmentIds: ["seg_123"] }],
+    };
+    const result = await handleToolCall("schedule_campaign", {
+      companyId: "comp_123",
+      campaignId: "camp_123",
+      scheduledAt: "2026-06-01T14:00:00Z",
+      targetLists,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/campaigns/camp_123/schedule",
+      {
+        scheduledAt: "2026-06-01T14:00:00Z",
+        targetLists,
+      },
+      "comp_123"
+    );
+  });
+
   it("rejects invalid schedule campaign arguments before hitting the API", async () => {
     const result = await handleToolCall("schedule_campaign", {
       campaignId: "camp_123",
@@ -1214,6 +1378,137 @@ describe("update_campaign tool validation", () => {
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain(
       "`targetLists` must be an object when calling `schedule_campaign`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("forwards recurringInterval to the schedule endpoint", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      campaign: {
+        id: "camp_123",
+        name: "Monthly digest",
+        subject: "Hello",
+        status: "scheduled",
+      },
+      scheduledAt: "2026-06-01T14:00:00.000Z",
+    });
+
+    const result = await handleToolCall("schedule_campaign", {
+      companyId: "comp_123",
+      campaignId: "camp_123",
+      scheduledAt: "2026-06-01T14:00:00Z",
+      recurringInterval: "monthly",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/campaigns/camp_123/schedule",
+      {
+        scheduledAt: "2026-06-01T14:00:00Z",
+        recurringInterval: "monthly",
+      },
+      "comp_123"
+    );
+  });
+
+  it("rejects an invalid recurringInterval before hitting the API", async () => {
+    const result = await handleToolCall("schedule_campaign", {
+      campaignId: "camp_123",
+      scheduledAt: "2026-06-01T14:00:00Z",
+      recurringInterval: "daily",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`recurringInterval` must be 'weekly' or 'monthly' when calling `schedule_campaign`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+});
+
+describe("sync rules tools", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("fetches sync rules", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      syncRules: [],
+      isDefault: true,
+    });
+
+    const result = await handleToolCall("get_sync_rules", {
+      companyId: "comp_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/sync-rules",
+      undefined,
+      "comp_123"
+    );
+  });
+
+  it("replaces sync rules", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      syncRules: [],
+      isDefault: false,
+    });
+
+    const syncRules = [
+      {
+        triggerEvent: "ecommerce.order_placed",
+        actions: { addTags: ["vinyl-collector"], removeTags: [] },
+        conditions: { purchasedProduct: { tags: ["Vinyl"] } },
+      },
+    ];
+    const result = await handleToolCall("update_sync_rules", {
+      companyId: "comp_123",
+      syncRules,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/sync-rules",
+      { syncRules },
+      "comp_123"
+    );
+  });
+
+  it("resets sync rules with null", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      syncRules: [],
+      isDefault: true,
+    });
+
+    const result = await handleToolCall("update_sync_rules", {
+      syncRules: null,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/sync-rules",
+      { syncRules: null },
+      undefined
+    );
+  });
+
+  it("rejects non-array sync rules before hitting the API", async () => {
+    const result = await handleToolCall("update_sync_rules", {
+      syncRules: "nope",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`syncRules` must be an array of rules or null when calling `update_sync_rules`."
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
   });
@@ -1949,6 +2244,8 @@ describe("update_sequence tool", () => {
     expect(inputSchema?.properties).toHaveProperty("confirmStructuralChange");
     expect(inputSchema?.properties).toHaveProperty("sendingWindow");
     expect(inputSchema?.properties).toHaveProperty("clearSendingWindow");
+    expect(inputSchema?.properties).toHaveProperty("bccEmails");
+    expect(inputSchema?.properties).toHaveProperty("clearBccEmails");
     expect(inputSchema?.properties).toHaveProperty("stopCondition");
     expect(inputSchema?.properties).toHaveProperty("branch");
     expect(inputSchema?.properties).toHaveProperty("insertSteps");
@@ -2262,6 +2559,82 @@ describe("update_sequence tool", () => {
     expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
+  it("maps clearBccEmails to a null API update", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      sequence: {
+        id: "seq_123",
+        name: "Activation Sequence",
+        status: "draft",
+        bccEmails: null,
+      },
+    });
+
+    const result = await handleToolCall("update_sequence", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      clearBccEmails: true,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/sequences/seq_123",
+      {
+        companyId: "comp_123",
+        sequenceId: "seq_123",
+        bccEmails: null,
+      },
+      "comp_123"
+    );
+  });
+
+  it("forwards bccEmails to the API", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      sequence: {
+        id: "seq_123",
+        name: "Activation Sequence",
+        status: "draft",
+        bccEmails: ["cs-team@example.com", "founder@example.com"],
+      },
+    });
+
+    const result = await handleToolCall("update_sequence", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      bccEmails: ["cs-team@example.com", "founder@example.com"],
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/sequences/seq_123",
+      {
+        companyId: "comp_123",
+        sequenceId: "seq_123",
+        bccEmails: ["cs-team@example.com", "founder@example.com"],
+      },
+      "comp_123"
+    );
+  });
+
+  it("rejects clearBccEmails with bccEmails before hitting the API", async () => {
+    const result = await handleToolCall("update_sequence", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      bccEmails: ["cs-team@example.com"],
+      clearBccEmails: true,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.type).toBe("text");
+    expect(result.content[0]?.text).toContain(
+      "Provide either `bccEmails` or `clearBccEmails` when calling `update_sequence`, not both."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
   it("rejects clearSendingWindow with sendingWindow before hitting the API", async () => {
     const result = await handleToolCall("update_sequence", {
       companyId: "comp_123",
@@ -2335,7 +2708,7 @@ describe("insert_sequence_step tool", () => {
         }
       | undefined;
 
-    expect(inputSchema?.required).toEqual(["sequenceId", "subject"]);
+    expect(inputSchema?.required).toEqual(["sequenceId"]);
     expect(inputSchema?.additionalProperties).toBe(false);
     expect(inputSchema?.properties).toHaveProperty("afterNodeId");
     expect(inputSchema?.properties).toHaveProperty("confirmStructuralChange");
@@ -2346,6 +2719,117 @@ describe("insert_sequence_step tool", () => {
     expect(inputSchema?.properties).toHaveProperty("delay");
     expect(inputSchema?.properties).toHaveProperty("delayMs");
     expect(inputSchema?.properties).toHaveProperty("waitUntil");
+    expect(inputSchema?.properties).toHaveProperty("type");
+    expect(inputSchema?.properties).toHaveProperty("text");
+    expect(inputSchema?.properties).toHaveProperty("ineligibleAction");
+  });
+
+  it("rejects email steps without a subject", async () => {
+    const result = await handleToolCall("insert_sequence_step", {
+      sequenceId: "seq_123",
+      html: "<p>Missing subject</p>",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("subject");
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("wraps an SMS step in update_sequence insertSteps", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      sequence: {
+        id: "seq_123",
+        name: "Activation Sequence",
+        status: "draft",
+        updatedEmailCount: 0,
+        insertedNodeIds: ["delay_inserted", "node_sms"],
+      },
+    });
+
+    const result = await handleToolCall("insert_sequence_step", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      type: "sms",
+      afterNodeId: "node_email",
+      text: "Hey {{FIRST_NAME}}, your order shipped!",
+      label: "Shipping text",
+      ineligibleAction: "skip",
+      delay: { days: 1 },
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/sequences/seq_123",
+      {
+        insertSteps: {
+          afterNodeId: "node_email",
+          steps: [
+            {
+              type: "sms",
+              text: "Hey {{FIRST_NAME}}, your order shipped!",
+              label: "Shipping text",
+              ineligibleAction: "skip",
+              delay: { days: 1 },
+            },
+          ],
+        },
+      },
+      "comp_123"
+    );
+  });
+
+  it("rejects SMS steps without text or blocks", async () => {
+    const result = await handleToolCall("insert_sequence_step", {
+      sequenceId: "seq_123",
+      type: "sms",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("text");
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("passes smsSteps updates through update_sequence", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      sequence: {
+        id: "seq_123",
+        name: "SMS Sequence",
+        status: "draft",
+        updatedEmailCount: 0,
+        updatedSmsStepCount: 1,
+      },
+    });
+
+    const result = await handleToolCall("update_sequence", {
+      sequenceId: "seq_123",
+      smsSteps: [
+        {
+          nodeId: "node_sms",
+          text: "Updated message",
+          ineligibleAction: "exit",
+        },
+      ],
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/sequences/seq_123",
+      {
+        sequenceId: "seq_123",
+        smsSteps: [
+          {
+            nodeId: "node_sms",
+            text: "Updated message",
+            ineligibleAction: "exit",
+          },
+        ],
+      },
+      undefined
+    );
   });
 
   it("wraps one new delayed email step in update_sequence insertSteps", async () => {
@@ -4476,5 +4960,43 @@ describe("audience sync tools", () => {
       undefined,
       undefined
     );
+  });
+});
+
+describe("send_test_sms tool", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("posts a test SMS send", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      smsSendId: "sms_test",
+      toPhone: "+15550100123",
+      message: "Test SMS queued to +15550100123.",
+    });
+
+    const result = await handleToolCall("send_test_sms", {
+      companyId: "comp_123",
+      to: "+15550100123",
+      text: "Test from Sequenzy",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/sms/test",
+      { to: "+15550100123", text: "Test from Sequenzy" },
+      "comp_123"
+    );
+  });
+
+  it("requires a destination phone", async () => {
+    const result = await handleToolCall("send_test_sms", {
+      text: "Missing phone",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 });

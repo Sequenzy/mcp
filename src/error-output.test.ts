@@ -43,6 +43,52 @@ describe("formatMcpError", () => {
     expect(message).toContain('Details: {"error":"Invalid API key"}');
   });
 
+  it("formats missing write scopes with a replacement-key workflow", () => {
+    const message = formatMcpError(
+      new McpApiError(
+        "API key is missing required scope: templates:write",
+        403,
+        '{"error":"API key is missing required scope: templates:write"}'
+      )
+    );
+
+    expect(message).toContain(
+      "Sequenzy MCP error: API key permission required"
+    );
+    expect(message).toContain("`templates:write`");
+    expect(message).toContain("Call `get_account`");
+    expect(message).toContain("`apiKeyPermissions.manageUrl`");
+    expect(message).toContain("`companies[].settingsUrl`");
+    expect(message).toContain("Existing key permissions cannot be edited");
+    expect(message).toContain("replace `SEQUENZY_API_KEY`");
+    expect(message).toContain("For hosted OAuth MCP");
+    expect(message).toContain("disconnect and reauthorize");
+  });
+
+  it("formats multiple missing read scopes with safe preset guidance", () => {
+    const message = formatMcpError(
+      new McpApiError(
+        "API key is missing required scopes: campaigns:read, sequences:read, landing_pages:read",
+        403
+      )
+    );
+
+    expect(message).toContain("`campaigns:read`");
+    expect(message).toContain("`sequences:read`");
+    expect(message).toContain("`landing_pages:read`");
+    expect(message).toContain("Read-only or Safer agent access preset");
+  });
+
+  it("keeps wrong-company access failures on company guidance", () => {
+    const message = formatMcpError(
+      new McpApiError("Access denied to the requested company", 403)
+    );
+
+    expect(message).toContain("Sequenzy MCP error: Access denied");
+    expect(message).toContain("select a company the key can access");
+    expect(message).not.toContain("API key permission required");
+  });
+
   it("formats structured API conflicts with API-provided recovery guidance", () => {
     const message = formatMcpError(
       new McpApiError(
