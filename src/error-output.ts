@@ -1,6 +1,7 @@
 const DOCS_ROOT = "https://docs.sequenzy.com";
 const MCP_DOCS_URL = `${DOCS_ROOT}/concepts/mcp`;
 const AUTH_DOCS_URL = `${DOCS_ROOT}/authentication`;
+const DASHBOARD_URL = "https://sequenzy.com/dashboard";
 
 interface McpErrorDescriptor {
   title: string;
@@ -135,7 +136,7 @@ function describeMcpError(error: unknown): McpErrorDescriptor {
     return {
       title: "API key permission required",
       description: `The current API key is valid, but this operation requires the missing ${missingApiKeyScopes.length === 1 ? "scope" : "scopes"}: ${scopeList}.`,
-      howToFix: `Call \`get_account\` to inspect \`apiKeyPermissions\`. For a local API-key connection, open \`apiKeyPermissions.manageUrl\` (or \`companies[].settingsUrl\` → API Keys), create a replacement key with ${presetGuidance} including ${scopeList}, replace \`SEQUENZY_API_KEY\`, and restart the client. For hosted OAuth MCP, disconnect and reauthorize the Sequenzy connection with a preset or Custom permissions including ${scopeList}. Existing key permissions cannot be edited in place.`,
+      howToFix: `For a local API-key connection, call \`get_account\` to inspect \`apiKeyPermissions\` and open \`apiKeyPermissions.manageUrl\` (or \`companies[].settingsUrl\` → API Keys). If \`get_account\` also requires \`account:read\`, open ${DASHBOARD_URL} directly and use the MCP setup or Settings → API Keys. Create a replacement key with ${presetGuidance} including ${scopeList}, replace \`SEQUENZY_API_KEY\`, and restart the client. For hosted OAuth MCP, disconnect and reauthorize the Sequenzy connection with a preset or Custom permissions including ${scopeList}. Existing key permissions cannot be edited in place.`,
       docsUrl: MCP_DOCS_URL,
       details,
     };

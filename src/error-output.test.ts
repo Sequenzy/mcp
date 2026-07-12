@@ -56,9 +56,11 @@ describe("formatMcpError", () => {
       "Sequenzy MCP error: API key permission required"
     );
     expect(message).toContain("`templates:write`");
-    expect(message).toContain("Call `get_account`");
+    expect(message).toContain("call `get_account`");
     expect(message).toContain("`apiKeyPermissions.manageUrl`");
     expect(message).toContain("`companies[].settingsUrl`");
+    expect(message).toContain("If `get_account` also requires `account:read`");
+    expect(message).toContain("https://sequenzy.com/dashboard");
     expect(message).toContain("Existing key permissions cannot be edited");
     expect(message).toContain("replace `SEQUENZY_API_KEY`");
     expect(message).toContain("For hosted OAuth MCP");
@@ -77,6 +79,16 @@ describe("formatMcpError", () => {
     expect(message).toContain("`sequences:read`");
     expect(message).toContain("`landing_pages:read`");
     expect(message).toContain("Read-only or Safer agent access preset");
+  });
+
+  it("provides a dashboard fallback when account metadata is unavailable", () => {
+    const message = formatMcpError(
+      new McpApiError("API key is missing required scope: account:read", 403)
+    );
+
+    expect(message).toContain("`account:read`");
+    expect(message).toContain("https://sequenzy.com/dashboard");
+    expect(message).toContain("MCP setup or Settings → API Keys");
   });
 
   it("keeps wrong-company access failures on company guidance", () => {

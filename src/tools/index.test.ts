@@ -155,6 +155,7 @@ describe("API key permission errors", () => {
     expect(result.content[0]?.text).toContain("API key permission required");
     expect(result.content[0]?.text).toContain("`templates:write`");
     expect(result.content[0]?.text).toContain("`companies[].settingsUrl`");
+    expect(result.content[0]?.text).toContain("https://sequenzy.com/dashboard");
     expect(result.content[0]?.text).toContain("replace `SEQUENZY_API_KEY`");
   });
 });
