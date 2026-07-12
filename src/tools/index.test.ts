@@ -454,6 +454,8 @@ describe("update_company tool validation", () => {
     expect(inputSchema?.properties).toHaveProperty("companyContext");
     expect(inputSchema?.properties).toHaveProperty("toneVoice");
     expect(inputSchema?.properties).toHaveProperty("valueProps");
+    expect(inputSchema?.properties).toHaveProperty("fromEmail");
+    expect(inputSchema?.properties).toHaveProperty("replyTo");
   });
 
   it("calls the company PATCH API with editable fields", async () => {
@@ -507,6 +509,61 @@ describe("update_company tool validation", () => {
       "`primaryColor` must be a 6-digit hex color"
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("forwards account-wide From and Reply-To defaults", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true, company: {} });
+
+    const result = await handleToolCall("update_company", {
+      companyId: "company_123",
+      fromEmail: "hello@example.com",
+      fromName: "Acme",
+      replyTo: "support@example.com",
+      replyToName: "Acme Support",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/companies/company_123",
+      {
+        fromEmail: "hello@example.com",
+        fromName: "Acme",
+        replyTo: "support@example.com",
+        replyToName: "Acme Support",
+      }
+    );
+  });
+});
+
+describe("sending domain verification tools", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("publishes and routes fresh sending-domain verification", async () => {
+    const tool = tools.find(
+      (candidate) => candidate.name === "verify_sending_domain"
+    );
+    expect(tool?.inputSchema.required).toEqual(["domain"]);
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      verified: true,
+      website: { domain: "mail.example.com", status: "verified" },
+    });
+
+    const result = await handleToolCall("verify_sending_domain", {
+      companyId: "company_123",
+      domain: "mail.example.com",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/websites/mail.example.com/verify",
+      undefined,
+      "company_123"
+    );
   });
 });
 
@@ -1114,7 +1171,7 @@ describe("update_campaign tool validation", () => {
     expect(payload.appUrls.emailSend).toBe(payload.emailSend.url);
   });
 
-  it("publishes reply-to update fields in the schema", () => {
+  it("publishes sending identity update fields in the schema", () => {
     const updateCampaignTool = tools.find(
       (tool) => tool.name === "update_campaign"
     );
@@ -1131,6 +1188,8 @@ describe("update_campaign tool validation", () => {
     expect(inputSchema?.properties).toHaveProperty("blocks");
     expect(inputSchema?.properties).toHaveProperty("replyTo");
     expect(inputSchema?.properties).toHaveProperty("replyProfileId");
+    expect(inputSchema?.properties).toHaveProperty("fromEmail");
+    expect(inputSchema?.properties).toHaveProperty("senderProfileId");
     expect(inputSchema?.properties).toHaveProperty("campaignData");
     expect(inputSchema?.properties).toHaveProperty("computedLists");
     expect(inputSchema?.properties).toHaveProperty("labels");
@@ -1169,7 +1228,7 @@ describe("update_campaign tool validation", () => {
 
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain(
-      "Provide at least one of `name`, `subject`, `trackingCode`, `html`, `blocks`, `replyTo`, `replyProfileId`, `campaignData`, `computedLists`, or `labels` when calling `update_campaign`."
+      "Provide at least one campaign content, sending identity"
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
   });
@@ -1849,6 +1908,8 @@ describe("create_campaign tool validation", () => {
     expect(inputSchema?.properties).toHaveProperty("status");
     expect(inputSchema?.properties).toHaveProperty("sentAt");
     expect(inputSchema?.properties).toHaveProperty("previewText");
+    expect(inputSchema?.properties).toHaveProperty("fromEmail");
+    expect(inputSchema?.properties).toHaveProperty("replyTo");
   });
 
   it("requires subject when prompt is not provided", async () => {
@@ -1925,6 +1986,36 @@ describe("create_campaign tool validation", () => {
         style: "branded",
         tone: "friendly",
         labels: ["edm"],
+      },
+      "comp_123"
+    );
+  });
+
+  it("forwards campaign sending identity fields", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      campaign: { id: "camp_123", name: "Launch", subject: "Hello" },
+    });
+
+    const result = await handleToolCall("create_campaign", {
+      companyId: "comp_123",
+      name: "Launch",
+      subject: "Hello",
+      fromEmail: "hello@example.com",
+      fromName: "Acme",
+      replyTo: "support@example.com",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/campaigns",
+      {
+        name: "Launch",
+        subject: "Hello",
+        fromEmail: "hello@example.com",
+        fromName: "Acme",
+        replyTo: "support@example.com",
       },
       "comp_123"
     );
@@ -2016,6 +2107,8 @@ describe("create_sequence tool", () => {
     expect(inputSchema?.properties).toHaveProperty("steps");
     expect(inputSchema?.properties).toHaveProperty("sendingWindow");
     expect(inputSchema?.properties).toHaveProperty("stopCondition");
+    expect(inputSchema?.properties).toHaveProperty("fromEmail");
+    expect(inputSchema?.properties).toHaveProperty("replyTo");
     const steps = inputSchema?.properties?.["steps"] as
       | {
           items?: {
@@ -2025,6 +2118,18 @@ describe("create_sequence tool", () => {
       | undefined;
     expect(steps?.items?.properties).toHaveProperty("delayMs");
     expect(steps?.items?.properties).toHaveProperty("waitUntil");
+    expect(steps?.items?.properties).toHaveProperty("nodeType");
+    expect(steps?.items?.properties).toHaveProperty("config");
+    const createStepNodeType = steps?.items?.properties?.["nodeType"] as
+      | { enum?: string[] }
+      | undefined;
+    expect(createStepNodeType?.enum).toContain("action_update_attributes");
+    const createStepConfig = steps?.items?.properties?.["config"] as
+      | { properties?: Record<string, unknown> }
+      | undefined;
+    expect(createStepConfig?.properties).toHaveProperty(
+      "customAttributeUpdates"
+    );
     expect(createSequenceTool?.description).toContain(
       "dynamically create a provider discount/code"
     );
@@ -2160,6 +2265,75 @@ describe("create_sequence tool", () => {
     expect(payload.message).toContain("explicit steps");
     expect(payload.sequence.discountCount).toBe(1);
   });
+
+  it("creates explicit Update Subscriber steps with event merge tags", async () => {
+    const steps = [
+      {
+        type: "update_subscriber",
+        nodeType: "action_update_attributes",
+        config: {
+          firstName: "{{event.firstName}}",
+          customAttributeUpdates: [
+            { name: "plan", value: "{{event.plan}}", valueType: "text" },
+            { name: "mrr", value: "{{event.amount}}", valueType: "number" },
+            {
+              name: "active",
+              value: "{{event.active}}",
+              valueType: "boolean",
+            },
+          ],
+        },
+      },
+    ];
+
+    mockApiRequest
+      .mockResolvedValueOnce({
+        success: true,
+        sequence: {
+          id: "seq_123",
+          name: "Purchase profile",
+          status: "draft",
+          emailCount: 0,
+          subscriberUpdateCount: 1,
+          nodeCount: 3,
+        },
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        sequence: {
+          id: "seq_123",
+          name: "Purchase profile",
+          status: "draft",
+          enrichmentStatus: "complete",
+          emailCount: 0,
+          enrichedCount: 0,
+          nodes: [],
+        },
+      });
+
+    const result = await handleToolCall("create_sequence", {
+      companyId: "comp_123",
+      name: "Purchase profile",
+      trigger: "event_received",
+      eventName: "saas.purchase",
+      steps,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenNthCalledWith(
+      1,
+      "POST",
+      "/api/v1/sequences",
+      {
+        companyId: "comp_123",
+        name: "Purchase profile",
+        trigger: "event_received",
+        eventName: "saas.purchase",
+        steps,
+      },
+      "comp_123"
+    );
+  });
 });
 
 describe("update_sequence tool", () => {
@@ -2187,9 +2361,12 @@ describe("update_sequence tool", () => {
     expect(inputSchema?.properties).toHaveProperty("clearSendingWindow");
     expect(inputSchema?.properties).toHaveProperty("bccEmails");
     expect(inputSchema?.properties).toHaveProperty("clearBccEmails");
+    expect(inputSchema?.properties).toHaveProperty("fromEmail");
+    expect(inputSchema?.properties).toHaveProperty("replyTo");
     expect(inputSchema?.properties).toHaveProperty("stopCondition");
     expect(inputSchema?.properties).toHaveProperty("branch");
     expect(inputSchema?.properties).toHaveProperty("insertSteps");
+    expect(inputSchema?.properties).toHaveProperty("subscriberUpdateSteps");
     const enrollmentFieldPath = inputSchema?.properties?.[
       "enrollmentFieldPath"
     ] as
@@ -2271,6 +2448,64 @@ describe("update_sequence tool", () => {
     expect(stopCondition?.properties?.type?.enum).toContain("entered_segment");
     expect(stopCondition?.properties?.type?.enum).toContain("field_changed");
     expect(stopCondition?.properties?.value?.type).toEqual(["string", "null"]);
+  });
+
+  it("forwards sequence From and Reply-To overrides", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true, sequence: {} });
+
+    const result = await handleToolCall("update_sequence", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      fromEmail: "hello@example.com",
+      fromName: "Acme",
+      replyTo: "support@example.com",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/sequences/seq_123",
+      {
+        companyId: "comp_123",
+        sequenceId: "seq_123",
+        fromEmail: "hello@example.com",
+        fromName: "Acme",
+        replyTo: "support@example.com",
+      },
+      "comp_123"
+    );
+  });
+
+  it("forwards targeted Update Subscriber config replacements", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true, sequence: {} });
+    const subscriberUpdateSteps = [
+      {
+        nodeId: "node_update",
+        config: {
+          customAttributeUpdates: [
+            { name: "mrr", value: "{{event.amount}}", valueType: "number" },
+          ],
+        },
+      },
+    ];
+
+    const result = await handleToolCall("update_sequence", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      subscriberUpdateSteps,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/sequences/seq_123",
+      {
+        companyId: "comp_123",
+        sequenceId: "seq_123",
+        subscriberUpdateSteps,
+      },
+      "comp_123"
+    );
   });
 
   it("passes linear step insertion through to the API", async () => {

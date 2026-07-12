@@ -429,6 +429,8 @@ Sequence creation supports:
 - `goal` for AI-generated email content.
 - Explicit `steps` with Sequenzy `blocks`.
 - Explicit `steps` with HTML, which Sequenzy converts into editable blocks.
+- Explicit Update Subscriber steps that copy trigger-event properties into
+  profile fields or typed custom attributes.
 - Fixed waits via `delay` / `delayMs`, or dynamic date-field waits via `waitUntil` for renewal reminders, appointment follow-ups, trial-expiry nudges, and other event-specific dates.
 - Dynamic Stripe or Shopify discount action steps. A `create_discount` step creates a fresh provider code when each subscriber reaches it; later emails can use merge tags like `{{discount.code}}`, `{{discount.percentOff}}`, and `{{discount.expiresAt}}`.
 - `enrollmentMode: "matching_field"` and `enrollmentFieldPath` for product-, variant-, order-, or subscription-specific event automations.
@@ -449,6 +451,27 @@ Example dynamic Shopify discount step:
   }
 }
 ```
+
+Example Update Subscriber step:
+
+```json
+{
+  "type": "update_subscriber",
+  "nodeType": "action_update_attributes",
+  "config": {
+    "firstName": "{{event.firstName}}",
+    "customAttributeUpdates": [
+      { "name": "plan", "value": "{{event.plan}}", "valueType": "text" },
+      { "name": "mrr", "value": "{{event.amount}}", "valueType": "number" },
+      { "name": "active", "value": "{{event.active}}", "valueType": "boolean" }
+    ]
+  }
+}
+```
+
+Number and boolean values must be literals or one standalone merge tag. Use
+`update_sequence.subscriberUpdateSteps` with an `action_update_attributes`
+node ID from `get_sequence` to replace an existing step's config.
 
 Sequence updates support `insertSteps` for adding new linear steps after a `nodeId` returned by `get_sequence`. Omit `afterNodeId` only when appending to a sequence with exactly one linear tail. `insertSteps` supports addable steps that do not require companion records, such as email, delay, tag/list actions, attribute updates, discounts, conditions, wait-for-event steps, and webhooks. Use `branch` for multi-path if/else branches; provide either `branch` or `insertSteps`, not both. Branch conditions support tag presence and absence checks with `has_tag` and `does_not_have_tag`, plus lists, saved segments, events, clicked links, and field comparisons. The `emails` and `steps` arrays only edit existing email steps by `nodeId`, `emailId`, or array order; use `insertSteps` to create new steps and include a step-level `delay`, `delayMs`, or `waitUntil` when the inserted email needs a timer. `waitUntil` accepts a date field from the trigger event plus optional `offset`, `direction` (`before` or `after`), and `missingAction` (`continue` or `exit`). For active sequences, pass `confirmStructuralChange: true` with `insertSteps` or `branch` only after confirming the live-flow impact.
 
