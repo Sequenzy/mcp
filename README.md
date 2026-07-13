@@ -323,7 +323,7 @@ Commerce product filters match products purchased through commerce orders. Value
 { "field": "commerceProduct", "operator": "at_least", "value": "shopify:42:2" }
 ```
 
-Engagement fields such as `emailSent`, `emailDelivered`, `emailOpened`, `emailClicked`, `emailBounced`, and `emailComplained` accept rolling windows like `7d`, `30d`, `90d`, `180d`, `all`, threshold values like `5:30d`, or a campaign scope like `campaign:cmp_123`.
+Engagement fields such as `emailSent`, `emailDelivered`, `emailOpened`, `emailClicked`, `emailBounced`, and `emailComplained` accept rolling windows like `7d`, `30d`, `90d`, `180d`, or `all`. With `at_least` and `less_than_count`, use `count:timeRange`, such as `10:30d` or `10:all`. Presence operators can instead use a campaign scope like `campaign:cmp_123`; campaign scopes cannot be combined with count operators.
 
 ### Audience Syncs (Meta Ads)
 

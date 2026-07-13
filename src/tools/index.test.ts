@@ -3500,8 +3500,12 @@ describe("create_segment tool", () => {
                 properties?: {
                   field?: {
                     enum?: string[];
+                    description?: string;
                   };
                   operator?: {
+                    description?: string;
+                  };
+                  value?: {
                     description?: string;
                   };
                 };
@@ -3541,6 +3545,12 @@ describe("create_segment tool", () => {
     expect(
       inputSchema?.properties?.filters?.items?.properties?.operator?.description
     ).toContain("tag: contains, not_contains, is_empty, is_not_empty");
+    expect(
+      inputSchema?.properties?.filters?.items?.properties?.field?.description
+    ).toContain("count:timeRange");
+    expect(
+      inputSchema?.properties?.filters?.items?.properties?.value?.description
+    ).toContain("10:all");
   });
 
   it("rejects create_segment calls without filters or root before hitting the API", async () => {
