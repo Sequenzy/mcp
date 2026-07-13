@@ -2607,6 +2607,17 @@ describe("update_sequence tool", () => {
     expect(insertSteps?.properties?.steps?.items?.properties).toHaveProperty(
       "waitUntil"
     );
+    expect(insertSteps?.properties?.steps?.items?.properties).toHaveProperty(
+      "senderProfileId"
+    );
+    expect(insertSteps?.properties?.steps?.items?.properties).toHaveProperty(
+      "replyProfileId"
+    );
+    const emails = inputSchema?.properties?.["emails"] as
+      | { items?: { properties?: Record<string, unknown> } }
+      | undefined;
+    expect(emails?.items?.properties).toHaveProperty("fromEmail");
+    expect(emails?.items?.properties).toHaveProperty("replyTo");
     const insertedStepType = insertSteps?.properties?.steps?.items?.properties
       ?.type as { enum?: string[] } | undefined;
     const insertedStepNodeType = insertSteps?.properties?.steps?.items
@@ -2655,6 +2666,112 @@ describe("update_sequence tool", () => {
       },
       "comp_123"
     );
+  });
+
+  it("rejects invalid per-step sender identity combinations before hitting the API", async () => {
+    const cases: Array<{
+      input: Record<string, unknown>;
+      expectedMessage: string;
+    }> = [
+      {
+        input: {
+          emails: [
+            {
+              nodeId: "node_email",
+              senderProfileId: "sender_123",
+              fromEmail: "sender@example.com",
+            },
+          ],
+        },
+        expectedMessage: "either `senderProfileId` or `fromEmail`",
+      },
+      {
+        input: {
+          insertSteps: {
+            afterNodeId: "node_email",
+            steps: [
+              {
+                subject: "Inserted",
+                html: "<p>Inserted.</p>",
+                replyProfileId: "reply_123",
+                replyTo: "reply@example.com",
+              },
+            ],
+          },
+        },
+        expectedMessage: "either `replyProfileId` or `replyTo`",
+      },
+      {
+        input: {
+          branch: {
+            afterNodeId: "node_email",
+            branches: [
+              {
+                conditionType: "has_tag",
+                tagName: "engaged",
+                steps: [
+                  {
+                    subject: "Branch",
+                    html: "<p>Branch.</p>",
+                    replyToName: "Support",
+                  },
+                ],
+              },
+            ],
+          },
+        },
+        expectedMessage: "`replyToName` requires `replyTo`",
+      },
+      {
+        input: {
+          insertSteps: {
+            afterNodeId: "node_email",
+            steps: [
+              {
+                type: "delay",
+                delayMs: 60_000,
+                fromName: "Ignored sender",
+              },
+            ],
+          },
+        },
+        expectedMessage: "only supported for email steps",
+      },
+      {
+        input: {
+          branch: {
+            afterNodeId: "node_email",
+            branches: [
+              {
+                conditionType: "has_tag",
+                tagName: "engaged",
+                steps: [
+                  {
+                    type: "email",
+                    nodeType: "action_add_tag",
+                    config: { tagName: "follow-up" },
+                    replyTo: "reply@example.com",
+                  },
+                ],
+              },
+            ],
+          },
+        },
+        expectedMessage: "only supported for email steps",
+      },
+    ];
+
+    for (const testCase of cases) {
+      const result = await handleToolCall("update_sequence", {
+        companyId: "comp_123",
+        sequenceId: "seq_123",
+        ...testCase.input,
+      });
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0]?.text).toContain(testCase.expectedMessage);
+    }
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
   it("forwards targeted Update Subscriber config replacements", async () => {
@@ -3079,6 +3196,28 @@ describe("insert_sequence_step tool", () => {
     expect(inputSchema?.properties).toHaveProperty("type");
     expect(inputSchema?.properties).toHaveProperty("text");
     expect(inputSchema?.properties).toHaveProperty("ineligibleAction");
+    expect(inputSchema?.properties).toHaveProperty("senderProfileId");
+    expect(inputSchema?.properties).toHaveProperty("fromEmail");
+    expect(inputSchema?.properties).toHaveProperty("fromName");
+    expect(inputSchema?.properties).toHaveProperty("replyProfileId");
+    expect(inputSchema?.properties).toHaveProperty("replyTo");
+    expect(inputSchema?.properties).toHaveProperty("replyToName");
+  });
+
+  it("rejects conflicting sender fields before hitting the API", async () => {
+    const result = await handleToolCall("insert_sequence_step", {
+      sequenceId: "seq_123",
+      subject: "Need help migrating?",
+      html: "<p>Hello</p>",
+      senderProfileId: "sender_123",
+      fromEmail: "sender@example.com",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "either `senderProfileId` or `fromEmail`"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
   it("rejects email steps without a subject", async () => {
@@ -3145,6 +3284,19 @@ describe("insert_sequence_step tool", () => {
 
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain("text");
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects sender identity fields on SMS steps", async () => {
+    const result = await handleToolCall("insert_sequence_step", {
+      sequenceId: "seq_123",
+      type: "sms",
+      text: "Your order shipped!",
+      fromEmail: "sender@example.com",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("only supported for email steps");
     expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
@@ -3221,6 +3373,10 @@ describe("insert_sequence_step tool", () => {
       subject: "Need help migrating?",
       previewText: "A migration resource",
       blocks,
+      fromEmail: "michael@example.com",
+      fromName: "Michael",
+      replyTo: "support@example.com",
+      replyToName: "Support",
     });
 
     expect(result.isError).toBeUndefined();
@@ -3238,6 +3394,10 @@ describe("insert_sequence_step tool", () => {
               previewText: "A migration resource",
               blocks,
               delay: { days: 2 },
+              fromEmail: "michael@example.com",
+              fromName: "Michael",
+              replyTo: "support@example.com",
+              replyToName: "Support",
             },
           ],
         },
