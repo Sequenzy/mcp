@@ -1350,6 +1350,96 @@ function buildUpdateCompanyBody(
   return body;
 }
 
+const sequenceEmailStepIdentityKeys = [
+  "senderProfileId",
+  "fromEmail",
+  "fromName",
+  "replyProfileId",
+  "replyTo",
+  "replyToName",
+] as const;
+
+function validateSequenceEmailStepIdentityArgs(
+  toolName: string,
+  location: string,
+  step: Record<string, unknown>
+): void {
+  for (const key of sequenceEmailStepIdentityKeys) {
+    const value = step[key];
+    if (value !== undefined && typeof value !== "string") {
+      throw new Error(
+        `\`${key}\` must be a string for ${location} when calling \`${toolName}\`.`
+      );
+    }
+  }
+  if (step.senderProfileId !== undefined && step.fromEmail !== undefined) {
+    throw new Error(
+      `Provide either \`senderProfileId\` or \`fromEmail\` for ${location} when calling \`${toolName}\`, not both.`
+    );
+  }
+  if (step.replyProfileId !== undefined && step.replyTo !== undefined) {
+    throw new Error(
+      `Provide either \`replyProfileId\` or \`replyTo\` for ${location} when calling \`${toolName}\`, not both.`
+    );
+  }
+  if (step.replyToName !== undefined && step.replyTo === undefined) {
+    throw new Error(
+      `\`replyToName\` requires \`replyTo\` for ${location} when calling \`${toolName}\`.`
+    );
+  }
+}
+
+function validateSequenceEmailStepIdentityArray(
+  toolName: string,
+  location: string,
+  value: unknown
+): void {
+  if (!Array.isArray(value)) return;
+  value.forEach((step, index) => {
+    if (isRecord(step)) {
+      validateSequenceEmailStepIdentityArgs(
+        toolName,
+        `${location}[${index}]`,
+        step
+      );
+    }
+  });
+}
+
+function validateUpdateSequenceStepIdentities(
+  args: Record<string, unknown>
+): void {
+  const toolName = "update_sequence";
+  validateSequenceEmailStepIdentityArray(toolName, "emails", args.emails);
+  validateSequenceEmailStepIdentityArray(toolName, "steps", args.steps);
+
+  if (isRecord(args.insertSteps)) {
+    validateSequenceEmailStepIdentityArray(
+      toolName,
+      "insertSteps.steps",
+      args.insertSteps.steps
+    );
+  }
+
+  if (!isRecord(args.branch)) return;
+  if (Array.isArray(args.branch.branches)) {
+    args.branch.branches.forEach((branch, branchIndex) => {
+      if (isRecord(branch)) {
+        validateSequenceEmailStepIdentityArray(
+          toolName,
+          `branch.branches[${branchIndex}].steps`,
+          branch.steps
+        );
+      }
+    });
+  }
+  validateSequenceEmailStepIdentityArray(
+    toolName,
+    "branch.elseSteps",
+    args.branch.elseSteps
+  );
+}
+
 function buildUpdateSequenceBody(
   args: Record<string, unknown>
 ): Record<string, unknown> {
@@ -1396,6 +1486,7 @@ function buildUpdateSequenceBody(
       "Provide either `branch` or `insertSteps` when calling `update_sequence`, not both."
     );
   }
+  validateUpdateSequenceStepIdentities(args);
 
   const body = { ...args };
   delete body.clearEnrollmentFieldPath;
@@ -1450,6 +1541,11 @@ function buildInsertSequenceStepBody(
     validateHtmlOrBlocksArgs("insert_sequence_step", args, {
       requireContent: true,
     });
+    validateSequenceEmailStepIdentityArgs(
+      "insert_sequence_step",
+      "email step",
+      args
+    );
 
     step = {
       subject: requiredString("insert_sequence_step", args, "subject"),
@@ -1462,6 +1558,12 @@ function buildInsertSequenceStepBody(
       "delay",
       "delayMs",
       "waitUntil",
+      "senderProfileId",
+      "fromEmail",
+      "fromName",
+      "replyProfileId",
+      "replyTo",
+      "replyToName",
     ]) {
       if (args[key] !== undefined) {
         step[key] = args[key];
@@ -1793,6 +1895,39 @@ const subscriberUpdateConfigSchema = {
   additionalProperties: true,
 };
 
+const sequenceEmailStepIdentityProperties = {
+  senderProfileId: {
+    type: "string",
+    description:
+      "Sender profile for this step's From identity. Mutually exclusive with fromEmail.",
+  },
+  fromEmail: {
+    type: "string",
+    description:
+      "From address for this step. Its domain must be configured and verified. Mutually exclusive with senderProfileId.",
+  },
+  fromName: {
+    type: "string",
+    description:
+      "Display name override for this step. Alone it only changes the visible name; with fromEmail it also names a newly created sender profile.",
+  },
+  replyProfileId: {
+    type: "string",
+    description:
+      "Reply profile for this step's Reply-To. Mutually exclusive with replyTo.",
+  },
+  replyTo: {
+    type: "string",
+    description:
+      "Reply-To address for this step. Mutually exclusive with replyProfileId.",
+  },
+  replyToName: {
+    type: "string",
+    description:
+      "Display name for a newly created reply profile. Requires replyTo.",
+  },
+} as const;
+
 const sequencePathStepSchema = {
   type: "object",
   description:
@@ -1864,6 +1999,36 @@ const sequencePathStepSchema = {
     name: {
       type: "string",
       description: "Email template name for email steps.",
+    },
+    senderProfileId: {
+      type: "string",
+      description:
+        "Sender profile for this email step. Omit to inherit the identity of the email step it is inserted after (or the sequence default).",
+    },
+    fromEmail: {
+      type: "string",
+      description:
+        "From address for this email step. Its domain must be verified. Mutually exclusive with senderProfileId.",
+    },
+    fromName: {
+      type: "string",
+      description:
+        "Display name override for this email step. With fromEmail, also names a newly created sender profile.",
+    },
+    replyProfileId: {
+      type: "string",
+      description:
+        "Reply profile for this email step. Omit to inherit from the preceding email step.",
+    },
+    replyTo: {
+      type: "string",
+      description:
+        "Reply-To address for this email step. Mutually exclusive with replyProfileId.",
+    },
+    replyToName: {
+      type: "string",
+      description:
+        "Display name for a newly created reply profile. Requires replyTo.",
     },
     discount: {
       type: "object",
@@ -7366,6 +7531,7 @@ OTHER BUILT-IN EVENTS:
                 description: replacementEmailBlocksDescription,
                 items: { type: "object" },
               },
+              ...sequenceEmailStepIdentityProperties,
             },
           },
         },
@@ -7413,6 +7579,7 @@ OTHER BUILT-IN EVENTS:
                 description: replacementEmailBlocksDescription,
                 items: { type: "object" },
               },
+              ...sequenceEmailStepIdentityProperties,
             },
           },
         },
@@ -7532,6 +7699,36 @@ OTHER BUILT-IN EVENTS:
           type: "string",
           description:
             "HTML content for the new step. Stored as one raw HTML block. Use this for imported provider HTML. Provide either html or blocks, not both.",
+        },
+        senderProfileId: {
+          type: "string",
+          description:
+            "Email steps only: sender profile for the new step. Omit to inherit the sender identity of the email step it is inserted after.",
+        },
+        fromEmail: {
+          type: "string",
+          description:
+            "Email steps only: From address for the new step. Its domain must be verified. Mutually exclusive with senderProfileId.",
+        },
+        fromName: {
+          type: "string",
+          description:
+            "Email steps only: display name override for the new step. With fromEmail, also names a newly created sender profile.",
+        },
+        replyProfileId: {
+          type: "string",
+          description:
+            "Email steps only: reply profile for the new step. Omit to inherit from the preceding email step. Mutually exclusive with replyTo.",
+        },
+        replyTo: {
+          type: "string",
+          description:
+            "Email steps only: Reply-To address for the new step. Mutually exclusive with replyProfileId.",
+        },
+        replyToName: {
+          type: "string",
+          description:
+            "Email steps only: display name for a newly created reply profile. Requires replyTo.",
         },
         text: {
           type: "string",
