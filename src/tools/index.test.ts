@@ -2626,6 +2626,43 @@ describe("update_sequence tool", () => {
         },
         expectedMessage: "`replyToName` requires `replyTo`",
       },
+      {
+        input: {
+          insertSteps: {
+            afterNodeId: "node_email",
+            steps: [
+              {
+                type: "delay",
+                delayMs: 60_000,
+                fromName: "Ignored sender",
+              },
+            ],
+          },
+        },
+        expectedMessage: "only supported for email steps",
+      },
+      {
+        input: {
+          branch: {
+            afterNodeId: "node_email",
+            branches: [
+              {
+                conditionType: "has_tag",
+                tagName: "engaged",
+                steps: [
+                  {
+                    type: "email",
+                    nodeType: "action_add_tag",
+                    config: { tagName: "follow-up" },
+                    replyTo: "reply@example.com",
+                  },
+                ],
+              },
+            ],
+          },
+        },
+        expectedMessage: "only supported for email steps",
+      },
     ];
 
     for (const testCase of cases) {
@@ -3151,6 +3188,19 @@ describe("insert_sequence_step tool", () => {
 
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain("text");
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects sender identity fields on SMS steps", async () => {
+    const result = await handleToolCall("insert_sequence_step", {
+      sequenceId: "seq_123",
+      type: "sms",
+      text: "Your order shipped!",
+      fromEmail: "sender@example.com",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("only supported for email steps");
     expect(mockApiRequest).not.toHaveBeenCalled();
   });
 

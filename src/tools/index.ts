@@ -1359,6 +1359,20 @@ const sequenceEmailStepIdentityKeys = [
   "replyToName",
 ] as const;
 
+function hasSequenceEmailStepIdentityArgs(
+  step: Record<string, unknown>
+): boolean {
+  return sequenceEmailStepIdentityKeys.some((key) => step[key] !== undefined);
+}
+
+function isSequenceEmailPathStep(step: Record<string, unknown>): boolean {
+  if (typeof step.nodeType === "string") {
+    return step.nodeType === "action_email";
+  }
+
+  return step.type === undefined || step.type === "email";
+}
+
 function validateSequenceEmailStepIdentityArgs(
   toolName: string,
   location: string,
@@ -1389,6 +1403,23 @@ function validateSequenceEmailStepIdentityArgs(
   }
 }
 
+function validateSequencePathStepIdentityArgs(
+  toolName: string,
+  location: string,
+  step: Record<string, unknown>
+): void {
+  if (
+    hasSequenceEmailStepIdentityArgs(step) &&
+    !isSequenceEmailPathStep(step)
+  ) {
+    throw new Error(
+      `Sender identity fields are only supported for email steps at ${location} when calling \`${toolName}\`.`
+    );
+  }
+
+  validateSequenceEmailStepIdentityArgs(toolName, location, step);
+}
+
 function validateSequenceEmailStepIdentityArray(
   toolName: string,
   location: string,
@@ -1406,6 +1437,23 @@ function validateSequenceEmailStepIdentityArray(
   });
 }
 
+function validateSequencePathStepIdentityArray(
+  toolName: string,
+  location: string,
+  value: unknown
+): void {
+  if (!Array.isArray(value)) return;
+  value.forEach((step, index) => {
+    if (isRecord(step)) {
+      validateSequencePathStepIdentityArgs(
+        toolName,
+        `${location}[${index}]`,
+        step
+      );
+    }
+  });
+}
+
 function validateUpdateSequenceStepIdentities(
   args: Record<string, unknown>
 ): void {
@@ -1414,7 +1462,7 @@ function validateUpdateSequenceStepIdentities(
   validateSequenceEmailStepIdentityArray(toolName, "steps", args.steps);
 
   if (isRecord(args.insertSteps)) {
-    validateSequenceEmailStepIdentityArray(
+    validateSequencePathStepIdentityArray(
       toolName,
       "insertSteps.steps",
       args.insertSteps.steps
@@ -1425,7 +1473,7 @@ function validateUpdateSequenceStepIdentities(
   if (Array.isArray(args.branch.branches)) {
     args.branch.branches.forEach((branch, branchIndex) => {
       if (isRecord(branch)) {
-        validateSequenceEmailStepIdentityArray(
+        validateSequencePathStepIdentityArray(
           toolName,
           `branch.branches[${branchIndex}].steps`,
           branch.steps
@@ -1433,7 +1481,7 @@ function validateUpdateSequenceStepIdentities(
       }
     });
   }
-  validateSequenceEmailStepIdentityArray(
+  validateSequencePathStepIdentityArray(
     toolName,
     "branch.elseSteps",
     args.branch.elseSteps
@@ -1513,6 +1561,11 @@ function buildInsertSequenceStepBody(
 
   let step: Record<string, unknown>;
   if (isSmsStep) {
+    validateSequencePathStepIdentityArgs(
+      "insert_sequence_step",
+      "SMS step",
+      args
+    );
     const text = optionalString(args, "text");
     const hasBlocks = Array.isArray(args.blocks) && args.blocks.length > 0;
     if (text === undefined && !hasBlocks) {
@@ -2003,7 +2056,7 @@ const sequencePathStepSchema = {
     senderProfileId: {
       type: "string",
       description:
-        "Sender profile for this email step. Omit to inherit the identity of the email step it is inserted after (or the sequence default).",
+        "Sender profile for this email step. Omit to inherit the effective identity of the nearest sequence email. After a branch merge, only fields shared by every incoming path are inherited; conflicting fields use sequence or company defaults.",
     },
     fromEmail: {
       type: "string",
@@ -2018,7 +2071,7 @@ const sequencePathStepSchema = {
     replyProfileId: {
       type: "string",
       description:
-        "Reply profile for this email step. Omit to inherit from the preceding email step.",
+        "Reply profile for this email step. Omit to inherit the effective Reply-To of the nearest sequence email. After a branch merge, only fields shared by every incoming path are inherited; conflicting fields use sequence or company defaults.",
     },
     replyTo: {
       type: "string",
@@ -7703,7 +7756,7 @@ OTHER BUILT-IN EVENTS:
         senderProfileId: {
           type: "string",
           description:
-            "Email steps only: sender profile for the new step. Omit to inherit the sender identity of the email step it is inserted after.",
+            "Email steps only: sender profile for the new step. Omit to inherit the effective identity of the nearest sequence email. After a branch merge, only fields shared by every incoming path are inherited; conflicting fields use sequence or company defaults.",
         },
         fromEmail: {
           type: "string",
@@ -7718,7 +7771,7 @@ OTHER BUILT-IN EVENTS:
         replyProfileId: {
           type: "string",
           description:
-            "Email steps only: reply profile for the new step. Omit to inherit from the preceding email step. Mutually exclusive with replyTo.",
+            "Email steps only: reply profile for the new step. Omit to inherit the effective Reply-To of the nearest sequence email. After a branch merge, only fields shared by every incoming path are inherited; conflicting fields use sequence or company defaults. Mutually exclusive with replyTo.",
         },
         replyTo: {
           type: "string",

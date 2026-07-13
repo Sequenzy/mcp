@@ -493,7 +493,9 @@ Existing and newly inserted email steps can set their own From identity with
 identity with `replyProfileId` or `replyTo` plus optional `replyToName`. A
 `fromName` on its own changes only that step's visible sender name. New email
 steps without explicit identity fields inherit the effective identity of the
-preceding email, including across delays and branch paths.
+nearest sequence email. After a branch merge, only identity fields shared by
+every incoming path are inherited; conflicting fields use the sequence or
+company defaults.
 
 Run `cancel_sequence_enrollments` with `dryRun: true` before applying bulk cancellation.
 
