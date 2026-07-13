@@ -536,9 +536,94 @@ describe("update_company tool validation", () => {
   });
 });
 
-describe("sending domain verification tools", () => {
+describe("sending domain tools", () => {
   beforeEach(() => {
     mockApiRequest.mockClear();
+  });
+
+  it("publishes and routes canonical sending-domain creation with DNS records", async () => {
+    const tool = tools.find(
+      (candidate) => candidate.name === "add_sending_domain"
+    );
+    expect(tool?.inputSchema.required).toEqual(["domain"]);
+    expect(tool?.annotations).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: true,
+    });
+
+    const website = {
+      domain: "mail.example.com",
+      status: "not_started",
+      dnsRecords: {
+        byodkimRecord: {
+          name: "sequenzy._domainkey.mail.example.com",
+          value: "p=public-key",
+        },
+        spfRecord: {
+          name: "send.mail.example.com",
+          value: "v=spf1 include:amazonses.com ~all",
+        },
+        mxRecord: {
+          name: "send.mail.example.com",
+          value: "feedback-smtp.us-east-1.amazonses.com",
+          priority: 10,
+        },
+      },
+    };
+    mockApiRequest.mockResolvedValueOnce({ success: true, website });
+
+    const result = await handleToolCall("add_sending_domain", {
+      companyId: "company_123",
+      domain: "mail.example.com",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.structuredContent?.["website"]).toEqual(website);
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/websites",
+      { domain: "mail.example.com" },
+      "company_123"
+    );
+  });
+
+  it("keeps add_website as a compatibility alias", async () => {
+    const tool = tools.find((candidate) => candidate.name === "add_website");
+    const canonicalTool = tools.find(
+      (candidate) => candidate.name === "add_sending_domain"
+    );
+    expect(tool?.description).toContain("Compatibility alias");
+    expect(tool?.inputSchema.required).toEqual(
+      canonicalTool?.inputSchema.required
+    );
+    const website = {
+      domain: "mail.example.com",
+      dnsRecords: {
+        spfRecord: {
+          name: "send.mail.example.com",
+          value: "v=spf1 include:amazonses.com ~all",
+        },
+      },
+    };
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      website,
+    });
+
+    const result = await handleToolCall("add_website", {
+      companyId: "company_123",
+      domain: "mail.example.com",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.structuredContent?.["website"]).toEqual(website);
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/websites",
+      { domain: "mail.example.com" },
+      "company_123"
+    );
   });
 
   it("publishes and routes fresh sending-domain verification", async () => {

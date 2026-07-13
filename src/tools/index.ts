@@ -314,6 +314,7 @@ const MUTATING_TOOL_NAMES = new Set([
   "update_sync_rules",
   "update_shopify_automation_settings",
   "create_api_key",
+  "add_sending_domain",
   "add_website",
   "verify_sending_domain",
   "add_subscriber",
@@ -402,6 +403,8 @@ const OPEN_WORLD_TOOL_NAMES = new Set([
   "publish_landing_page",
   "connect_landing_page_domain",
   "update_landing_page_domain_settings",
+  "add_sending_domain",
+  "add_website",
   "verify_sending_domain",
   "enable_sequence",
   "resume_sequence_enrollments",
@@ -3152,7 +3155,14 @@ const outputPropertiesByToolName: Record<string, OutputSchemaProperties> = {
     websites: resourceListOutputProperty("sender website"),
   },
   add_website: {
-    website: resourceOutputProperty("sender website"),
+    website: resourceOutputProperty(
+      "Sending domain with the SPF, DKIM, MAIL FROM, and inbound DNS records required for setup."
+    ),
+  },
+  add_sending_domain: {
+    website: resourceOutputProperty(
+      "Sending domain with the SPF, DKIM, MAIL FROM, and inbound DNS records required for setup."
+    ),
   },
   check_website: {
     website: resourceOutputProperty("sender website"),
@@ -4137,8 +4147,29 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
     },
   },
   {
+    name: "add_sending_domain",
+    description:
+      "Add and configure a sending domain. Returns the SPF, DKIM, MAIL FROM, and inbound DNS records to publish before calling verify_sending_domain.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        domain: {
+          type: "string",
+          description: "Sending domain to add (for example, mail.example.com).",
+        },
+      },
+      required: ["domain"],
+    },
+  },
+  {
     name: "add_website",
-    description: "Add a new sender website. Takes ~30 seconds to process.",
+    description:
+      "Compatibility alias for add_sending_domain. Adds a sending domain and returns the DNS records required for setup.",
     inputSchema: {
       type: "object",
       properties: {
@@ -8984,6 +9015,7 @@ export async function handleToolCall(
         break;
       }
 
+      case "add_sending_domain":
       case "add_website": {
         const companyId = args.companyId as string | undefined;
         result = await apiRequest(

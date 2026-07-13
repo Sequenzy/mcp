@@ -207,7 +207,7 @@ include the missing scopes.
 
 ## Tools
 
-This server currently exposes 132 MCP tools.
+This server currently exposes 133 MCP tools.
 
 ### Account, Companies, Setup
 
@@ -221,10 +221,16 @@ This server currently exposes 132 MCP tools.
 | `update_company`        | Edit product info, brand context, and account-wide From/Reply-To defaults.                                       |
 | `create_api_key`        | Create an API key for a company, with optional permission preset or explicit scopes.                             |
 | `list_websites`         | List sending domains with stored aggregate, SPF, DKIM, and MAIL FROM status.                                     |
-| `add_website`           | Add a sender website. Processing can take around 30 seconds.                                                     |
+| `add_sending_domain`    | Add a sending domain and return its SPF, DKIM, MAIL FROM, and inbound DNS setup records.                         |
+| `add_website`           | Compatibility alias for `add_sending_domain`.                                                                    |
 | `check_website`         | Read a sending domain's stored SPF, DKIM, MAIL FROM, and aggregate verification details.                         |
 | `verify_sending_domain` | Run a fresh sending-domain DNS/provider verification and return current status and diagnostics.                  |
 | `get_integration_guide` | Get framework-specific integration examples.                                                                     |
+
+For a new sending domain, call `add_sending_domain`, publish the DNS records in
+the returned `website.dnsRecords`, wait for DNS propagation, and then call
+`verify_sending_domain`. If verification is attempted before creation, the
+error points back to `add_sending_domain` with the requested domain.
 
 ### Subscribers
 

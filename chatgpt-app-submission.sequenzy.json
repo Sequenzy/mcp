@@ -4,7 +4,7 @@
   "app_info": {
     "display_name": "Sequenzy",
     "subtitle": "Manage Sequenzy",
-    "description": "Sequenzy helps users manage company workspaces, sender websites, subscribers, email campaigns, landing pages, sequences, transactional email, team access, inbox conversations, webhooks, and reporting from ChatGPT.",
+    "description": "Sequenzy helps users manage company workspaces, sending domains, subscribers, email campaigns, landing pages, sequences, transactional email, team access, inbox conversations, webhooks, and reporting from ChatGPT.",
     "category": "BUSINESS"
   },
   "tools": {
@@ -92,16 +92,28 @@
         "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
       }
     },
-    "add_website": {
+    "add_sending_domain": {
       "annotations": {
         "readOnlyHint": false,
-        "openWorldHint": false,
+        "openWorldHint": true,
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Can create, update, delete, send, schedule, select, or otherwise change Sequenzy workspace state.",
-        "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
-        "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+        "read_only_justification": "Creates a sending domain and its provider configuration in the Sequenzy workspace.",
+        "open_world_justification": "Registers the sending identity and MAIL FROM configuration with the external email delivery provider.",
+        "destructive_justification": "Creates configuration but does not delete or irreversibly overwrite existing resources."
+      }
+    },
+    "add_website": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Compatibility alias that creates a sending domain and its provider configuration in the Sequenzy workspace.",
+        "open_world_justification": "Registers the sending identity and MAIL FROM configuration with the external email delivery provider.",
+        "destructive_justification": "Creates configuration but does not delete or irreversibly overwrite existing resources."
       }
     },
     "check_website": {
@@ -114,6 +126,18 @@
         "read_only_justification": "Only retrieves, computes, or generates data to return to the user without changing Sequenzy records.",
         "open_world_justification": "Does not directly publish to public internet state or transmit content to external recipients outside the private Sequenzy workspace.",
         "destructive_justification": "Does not delete, cancel, revoke, overwrite irreversibly, or perform a destructive admin action."
+      }
+    },
+    "verify_sending_domain": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Runs verification and updates stored sending-domain status and diagnostics.",
+        "open_world_justification": "Queries public DNS and the external email delivery provider to verify the sending domain.",
+        "destructive_justification": "Refreshes verification state without deleting or irreversibly overwriting user content."
       }
     },
     "get_integration_guide": {
@@ -1383,11 +1407,11 @@
       "expected_output_url": null
     },
     {
-      "description": "Prepare website sending domain setup.",
-      "user_prompt": "Add newsletter.example.com as a sender website and check whether it has finished processing.",
+      "description": "Prepare sending domain DNS setup.",
+      "user_prompt": "Add newsletter.example.com as a sending domain and give me every DNS record I need to publish.",
       "file_attachment_urls": null,
-      "tools_triggered": "add_website, check_website",
-      "expected_output": "Adds the website and reports processing or readiness status.",
+      "tools_triggered": "add_sending_domain",
+      "expected_output": "Adds the sending domain and returns its SPF, DKIM, MAIL FROM, and inbound DNS records with setup status.",
       "expected_output_url": null
     },
     {
