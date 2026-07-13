@@ -446,7 +446,15 @@ Sequence creation supports:
   profile fields or typed custom attributes.
 - Fixed waits via `delay` / `delayMs`, or dynamic date-field waits via `waitUntil` for renewal reminders, appointment follow-ups, trial-expiry nudges, and other event-specific dates.
 - Dynamic Stripe or Shopify discount action steps. A `create_discount` step creates a fresh provider code when each subscriber reaches it; later emails can use merge tags like `{{discount.code}}`, `{{discount.percentOff}}`, and `{{discount.expiresAt}}`.
-- `enrollmentMode: "matching_field"` and `enrollmentFieldPath` for product-, variant-, order-, or subscription-specific event automations.
+- `enrollmentMode: "matching_field"` and a scalar `enrollmentFieldPath` for product-, variant-, order-, or subscription-specific event automations. Array traversal with `[]` belongs in `propertyFilters`, not the enrollment key.
+
+For a custom event trigger, the successful `create_sequence` result includes
+`eventTrackingCode` and a structured `eventTracking` object. The object contains
+the event endpoint, identity and payload contract, any property path required by
+`matching_field` enrollment, normalized trigger `propertyFilters`, an example
+payload that satisfies those filters, the direct event API docs URL, and
+ready-to-use arguments for `get_integration_guide`. Add this event feed and
+verify its required properties before enabling the draft sequence.
 
 Example dynamic Shopify discount step:
 

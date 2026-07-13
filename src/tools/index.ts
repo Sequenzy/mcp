@@ -3445,6 +3445,17 @@ const outputPropertiesByToolName: Record<string, OutputSchemaProperties> = {
   },
   create_sequence: {
     sequence: resourceOutputProperty("sequence"),
+    eventTrackingCode: stringOutputProperty(
+      "Ready-to-adapt code for sending a custom trigger event, including any matching-field property."
+    ),
+    eventTracking: objectOutputProperty(
+      "Custom-event endpoint, payload contract, example payload, documentation URL, and get_integration_guide arguments."
+    ),
+    requiredEvents: {
+      type: "array",
+      description: "Event names the application or an integration must send.",
+      items: stringOutputProperty("One required event name."),
+    },
   },
   update_sequence: {
     sequence: resourceOutputProperty("sequence"),
@@ -6785,7 +6796,7 @@ OTHER BUILT-IN EVENTS:
         enrollmentFieldPath: {
           type: "string",
           description:
-            "Dot-path event property used by enrollmentMode='matching_field', such as 'order.id' or 'product.providerVariantId'. Leave omitted for Shopify back-in-stock/replenishment product-variant defaults.",
+            "Scalar dot-path event property used by enrollmentMode='matching_field', such as 'order.id' or 'product.providerVariantId'. Array traversal with [] is not supported; use propertyFilters for array matching. Leave omitted for Shopify back-in-stock/replenishment product-variant defaults.",
         },
         sendingWindow: sequenceSendingWindowSchema,
         stopCondition: {
@@ -7132,7 +7143,7 @@ OTHER BUILT-IN EVENTS:
         enrollmentFieldPath: {
           type: "string",
           description:
-            "Dot-path event property used by enrollmentMode='matching_field', such as 'order.id' or 'product.providerVariantId'. Omit to leave unchanged. Use clearEnrollmentFieldPath to clear it.",
+            "Scalar dot-path event property used by enrollmentMode='matching_field', such as 'order.id' or 'product.providerVariantId'. Array traversal with [] is not supported; use propertyFilters for array matching. Omit to leave unchanged. Use clearEnrollmentFieldPath to clear it.",
         },
         clearEnrollmentFieldPath: {
           type: "boolean",
@@ -10674,6 +10685,9 @@ export async function handleToolCall(
             enrichmentStatus?: string;
           };
           message: string;
+          eventTrackingCode?: string;
+          eventTracking?: Record<string, unknown>;
+          requiredEvents?: string[];
         }>("POST", "/api/v1/sequences", args, companyId);
 
         if (!createSeqResult.success) {
@@ -10701,9 +10715,14 @@ export async function handleToolCall(
 
           if (finalResult.success) {
             result = {
+              ...createSeqResult,
               success: true,
               sequence: finalResult.sequence,
-              message: `Sequence "${finalResult.sequence.name}" created with explicit steps. Review it before enabling.`,
+              message: `Sequence "${finalResult.sequence.name}" created with explicit steps. Review it before enabling.${
+                createSeqResult.eventTrackingCode
+                  ? " Add the custom event feed using eventTrackingCode and eventTracking before enabling."
+                  : ""
+              }`,
             };
           } else {
             result = finalResult;
@@ -10754,12 +10773,21 @@ export async function handleToolCall(
 
         if (finalResult.success) {
           result = {
+            ...createSeqResult,
             success: true,
             sequence: finalResult.sequence,
             message:
               finalResult.sequence.enrichmentStatus === "complete"
-                ? `Sequence "${finalResult.sequence.name}" created with ${finalResult.sequence.emailCount} AI-generated emails. The sequence is ready to review and enable.`
-                : `Sequence "${finalResult.sequence.name}" created. Email enrichment is still in progress (${finalResult.sequence.enrichedCount}/${finalResult.sequence.emailCount} emails generated). You can check status with get_sequence.`,
+                ? `Sequence "${finalResult.sequence.name}" created with ${finalResult.sequence.emailCount} AI-generated emails. The sequence is ready to review and enable.${
+                    createSeqResult.eventTrackingCode
+                      ? " Add the custom event feed using eventTrackingCode and eventTracking before enabling."
+                      : ""
+                  }`
+                : `Sequence "${finalResult.sequence.name}" created. Email enrichment is still in progress (${finalResult.sequence.enrichedCount}/${finalResult.sequence.emailCount} emails generated). You can check status with get_sequence.${
+                    createSeqResult.eventTrackingCode
+                      ? " Add the custom event feed using eventTrackingCode and eventTracking before enabling."
+                      : ""
+                  }`,
           };
         } else {
           result = finalResult;

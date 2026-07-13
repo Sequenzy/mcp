@@ -2194,6 +2194,12 @@ describe("create_sequence tool", () => {
     expect(inputSchema?.properties).toHaveProperty("stopCondition");
     expect(inputSchema?.properties).toHaveProperty("fromEmail");
     expect(inputSchema?.properties).toHaveProperty("replyTo");
+    const enrollmentFieldPath = inputSchema?.properties?.[
+      "enrollmentFieldPath"
+    ] as { description?: string } | undefined;
+    expect(enrollmentFieldPath?.description).toContain(
+      "Array traversal with [] is not supported"
+    );
     const steps = inputSchema?.properties?.["steps"] as
       | {
           items?: {
@@ -2218,6 +2224,12 @@ describe("create_sequence tool", () => {
     expect(createSequenceTool?.description).toContain(
       "dynamically create a provider discount/code"
     );
+    const outputProperties = createSequenceTool?.outputSchema?.properties as
+      | Record<string, unknown>
+      | undefined;
+    expect(outputProperties).toHaveProperty("eventTrackingCode");
+    expect(outputProperties).toHaveProperty("eventTracking");
+    expect(outputProperties).toHaveProperty("requiredEvents");
     const discount = steps?.items?.properties?.["discount"] as
       | {
           properties?: {
@@ -2418,6 +2430,90 @@ describe("create_sequence tool", () => {
       },
       "comp_123"
     );
+  });
+
+  it("returns custom-event tracking guidance after explicit sequence readback", async () => {
+    const eventTrackingCode = `await fetch("https://api.sequenzy.com/api/v1/subscribers/events", {
+  method: "POST",
+  body: JSON.stringify({
+    email: user.email,
+    event: "trial.started",
+    properties: { trial_id: "<trial_id>" },
+  }),
+});`;
+    const eventTracking = {
+      endpoint: "https://api.sequenzy.com/api/v1/subscribers/events",
+      method: "POST",
+      docsUrl:
+        "https://docs.sequenzy.com/api-reference/subscribers/events/trigger",
+      integrationGuide: {
+        tool: "get_integration_guide",
+        arguments: { use_case: "event_tracking" },
+      },
+      payloadContract: {
+        required: ["event", "properties"],
+        identity:
+          "Provide email or externalId. Email is required when the subscriber does not already exist.",
+        event: 'Must equal "trial.started".',
+        properties:
+          "Event metadata used by sequence filters, matching-field enrollment, and {{event.*}} merge tags.",
+        requiredPropertyPaths: ["trial_id"],
+      },
+      examplePayload: {
+        email: "user@example.com",
+        event: "trial.started",
+        properties: { trial_id: "<trial_id>" },
+      },
+    };
+
+    mockApiRequest
+      .mockResolvedValueOnce({
+        success: true,
+        sequence: {
+          id: "seq_trial",
+          name: "Trial Started",
+          status: "draft",
+          emailCount: 1,
+          nodeCount: 3,
+        },
+        message: "Sequence created with 1 email.",
+        eventTrackingCode,
+        eventTracking,
+        requiredEvents: ["trial.started"],
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        sequence: {
+          id: "seq_trial",
+          name: "Trial Started",
+          status: "draft",
+          enrichmentStatus: "complete",
+          emailCount: 1,
+          enrichedCount: 1,
+          nodes: [],
+        },
+      });
+
+    const result = await handleToolCall("create_sequence", {
+      companyId: "comp_123",
+      name: "Trial Started",
+      trigger: "event_received",
+      eventName: "trial.started",
+      enrollmentMode: "matching_field",
+      enrollmentFieldPath: "trial_id",
+      steps: [{ subject: "Welcome", html: "<p>Welcome</p>" }],
+    });
+
+    expect(result.isError).toBeUndefined();
+    const payload = JSON.parse(result.content[0]?.text ?? "{}") as {
+      eventTrackingCode?: string;
+      eventTracking?: typeof eventTracking;
+      requiredEvents?: string[];
+    };
+    expect(payload.eventTrackingCode).toBe(eventTrackingCode);
+    expect(payload.eventTracking).toEqual(eventTracking);
+    expect(payload.requiredEvents).toEqual(["trial.started"]);
+    expect(result.structuredContent?.["eventTracking"]).toEqual(eventTracking);
   });
 });
 
