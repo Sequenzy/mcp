@@ -452,9 +452,11 @@ For a custom event trigger, the successful `create_sequence` result includes
 `eventTrackingCode` and a structured `eventTracking` object. The object contains
 the event endpoint, identity and payload contract, any property path required by
 `matching_field` enrollment, normalized trigger `propertyFilters`, an example
-payload that satisfies those filters, the direct event API docs URL, and
-ready-to-use arguments for `get_integration_guide`. Add this event feed and
-verify its required properties before enabling the draft sequence.
+payload, `examplePayloadMatchesFilters`, the direct event API docs URL, and
+ready-to-use arguments for `get_integration_guide`. If the match status is
+false, adapt the example using `examplePayloadNote` and the payload contract.
+Add this event feed and verify its required properties before enabling the draft
+sequence.
 
 Example dynamic Shopify discount step:
 
