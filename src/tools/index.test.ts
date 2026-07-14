@@ -1833,6 +1833,123 @@ describe("label list filters", () => {
   });
 });
 
+describe("saved form tools", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("publishes plain schemas and the expected safety annotations", () => {
+    const listTool = tools.find((tool) => tool.name === "list_forms");
+    const createTool = tools.find((tool) => tool.name === "create_form");
+    const embedTool = tools.find((tool) => tool.name === "get_form_embed");
+    const createSchema = createTool?.inputSchema as
+      | {
+          additionalProperties?: boolean;
+          properties?: Record<string, unknown>;
+          required?: string[];
+        }
+      | undefined;
+
+    expect(listTool?.annotations?.readOnlyHint).toBe(true);
+    expect(embedTool?.annotations?.readOnlyHint).toBe(true);
+    expect(createTool?.annotations).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: false,
+    });
+    expect(createSchema?.additionalProperties).toBe(false);
+    expect(createSchema?.required).toEqual(["name", "listIds"]);
+    expect(createSchema?.properties).toHaveProperty("tagIds");
+    expect(createSchema?.properties).toHaveProperty("redirectUrl");
+    expect(embedTool?.inputSchema.required).toEqual(["formId"]);
+  });
+
+  it("routes list_forms to the authenticated Forms API", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      companyId: "comp_123",
+      forms: [],
+    });
+
+    const result = await handleToolCall("list_forms", {
+      companyId: "comp_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/forms",
+      undefined,
+      "comp_123"
+    );
+  });
+
+  it("routes create_form with server-managed audience settings", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      form: { id: "form_123", name: "Astro newsletter" },
+      embed: {
+        actionUrl: "https://api.sequenzy.com/api/v1/forms/form_123",
+      },
+    });
+
+    const result = await handleToolCall("create_form", {
+      companyId: "comp_123",
+      name: "Astro newsletter",
+      listIds: ["list_123"],
+      tagIds: ["tag_123"],
+      duplicateStrategy: "merge",
+      successMessage: "You're subscribed.",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/forms",
+      {
+        name: "Astro newsletter",
+        listIds: ["list_123"],
+        tagIds: ["tag_123"],
+        duplicateStrategy: "merge",
+        successMessage: "You're subscribed.",
+      },
+      "comp_123"
+    );
+  });
+
+  it("URL-encodes get_form_embed IDs and preserves secret-free snippets", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      form: { id: "form/123", status: "published" },
+      embed: {
+        actionUrl: "https://api.sequenzy.com/api/v1/forms/form%2F123",
+        javascript:
+          '<script async src="https://api.sequenzy.com/api/v1/forms/form%2F123/embed.js"></script>',
+        nativeForm:
+          '<form action="https://api.sequenzy.com/api/v1/forms/form%2F123" method="post"></form>',
+        fetch: "new FormData(form)",
+      },
+    });
+
+    const result = await handleToolCall("get_form_embed", {
+      companyId: "comp_123",
+      formId: "form/123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/forms/embed/form%2F123",
+      undefined,
+      "comp_123"
+    );
+    expect(JSON.stringify(result.structuredContent)).not.toContain(
+      "Authorization"
+    );
+    expect(JSON.stringify(result.structuredContent)).not.toContain("API_KEY");
+  });
+});
+
 describe("landing page tools", () => {
   beforeEach(() => {
     mockApiRequest.mockClear();

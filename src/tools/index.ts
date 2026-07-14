@@ -315,6 +315,8 @@ const READ_ONLY_TOOL_NAMES = new Set([
   "list_campaigns",
   "get_campaign",
   "get_email_send",
+  "list_forms",
+  "get_form_embed",
   "list_landing_pages",
   "get_landing_page",
   "list_sequences",
@@ -394,6 +396,7 @@ const MUTATING_TOOL_NAMES = new Set([
   "delete_campaign",
   "duplicate_campaign",
   "resend_campaign_to_non_openers",
+  "create_form",
   "create_landing_page",
   "update_landing_page",
   "delete_landing_page",
@@ -3914,6 +3917,21 @@ const outputPropertiesByToolName: Record<string, OutputSchemaProperties> = {
       "Estimated number of subscribers who haven't opened the original campaign."
     ),
   },
+  list_forms: {
+    forms: resourceListOutputProperty("saved form"),
+  },
+  create_form: {
+    form: resourceOutputProperty("saved form"),
+    embed: objectOutputProperty(
+      "Public action URL plus JavaScript, native form, and fetch snippets."
+    ),
+  },
+  get_form_embed: {
+    form: resourceOutputProperty("saved form"),
+    embed: objectOutputProperty(
+      "Public action URL plus JavaScript, native form, and fetch snippets."
+    ),
+  },
   list_landing_pages: {
     landingPages: resourceListOutputProperty("landing page"),
   },
@@ -4777,7 +4795,7 @@ Use cases:
 - 'event_tracking': Tracking CUSTOM events only (not payment events - those come from the integration)
 - 'ecommerce': Connecting a custom e-commerce platform via the Commerce API (sync products, push orders/checkouts, power abandoned cart + back-in-stock automations)
 
-Before implementing, use create_api_key to generate an API key and save it to .env as SEQUENZY_API_KEY.`,
+Before protected server-side API work, use create_api_key and save the key to .env as SEQUENZY_API_KEY. Static-site saved forms are the exception: use list_forms/create_form/get_form_embed and never place a secret key in browser code.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -6725,6 +6743,116 @@ Before implementing, use create_api_key to generate an API key and save it to .e
         },
       },
       required: ["campaignId"],
+    },
+  },
+
+  // ============================================================================
+  // Saved Forms
+  // ============================================================================
+  {
+    name: "list_forms",
+    description:
+      "List saved signup forms for a company, including their server-managed audience settings and public action URLs.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID to list forms for. If not provided, uses the currently selected company.",
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "create_form",
+    description:
+      "Create and publish a saved signup form whose opaque formId is a client-safe public capability. The selected lists, tags, duplicate behavior, and success action stay server-side; no API key is needed in the deployed form.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID to create the form in. If not provided, uses the currently selected company.",
+        },
+        name: {
+          type: "string",
+          description: "Internal saved-form name.",
+        },
+        listIds: {
+          type: "array",
+          description:
+            "One or more list IDs that every public submission will be added to. Use list_lists to resolve IDs.",
+          items: { type: "string" },
+        },
+        tagIds: {
+          type: "array",
+          description:
+            "Optional existing tag IDs applied by the saved form. Use list_tags to resolve IDs.",
+          items: { type: "string" },
+        },
+        duplicateStrategy: {
+          type: "string",
+          enum: ["skip", "merge", "overwrite"],
+          description:
+            "How to handle an existing subscriber. Defaults to skip.",
+        },
+        buttonText: {
+          type: "string",
+          description: "Optional submit button label.",
+        },
+        headline: {
+          type: "string",
+          description: "Optional form headline.",
+        },
+        description: {
+          type: "string",
+          description: "Optional supporting form copy.",
+        },
+        successMessage: {
+          type: "string",
+          description:
+            "Confirmation shown after a successful submission when redirectUrl is omitted.",
+        },
+        redirectUrl: {
+          type: "string",
+          description:
+            "Optional HTTP or HTTPS URL for successful submissions. Omit it to show the saved confirmation message.",
+        },
+        showFirstName: {
+          type: "boolean",
+          description: "Whether the generated form also collects first name.",
+        },
+        showLastName: {
+          type: "boolean",
+          description: "Whether the generated form also collects last name.",
+        },
+      },
+      required: ["name", "listIds"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_form_embed",
+    description:
+      "Get a published saved form's action URL, one-line JavaScript embed, minimal native form action, and fetch example. Use this for Astro, Hugo, Jekyll, Cloudflare Pages, Netlify, GitHub Pages, or any browser integration.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        formId: {
+          type: "string",
+          description: "Saved form ID returned by list_forms or create_form.",
+        },
+      },
+      required: ["formId"],
+      additionalProperties: false,
     },
   },
 
@@ -11163,6 +11291,72 @@ export async function handleToolCall(
         result = await apiRequest(
           "POST",
           `/api/v1/campaigns/${encodeURIComponent(campaignId)}/resend-to-non-openers`,
+          undefined,
+          companyId
+        );
+        break;
+      }
+
+      // Saved Forms
+      case "list_forms": {
+        const companyId = args.companyId as string | undefined;
+        result = await apiRequest("GET", "/api/v1/forms", undefined, companyId);
+        break;
+      }
+
+      case "create_form": {
+        const companyId = args.companyId as string | undefined;
+        const name = requiredString("create_form", args, "name");
+        const listIds = Array.isArray(args.listIds)
+          ? args.listIds
+              .filter((value): value is string => typeof value === "string")
+              .map((value) => value.trim())
+              .filter(Boolean)
+          : [];
+        if (listIds.length === 0) {
+          throw new Error(
+            "`listIds` must contain at least one list ID when calling `create_form`."
+          );
+        }
+        const duplicateStrategy = optionalAllowedString(
+          "create_form",
+          args,
+          "duplicateStrategy",
+          ["skip", "merge", "overwrite"]
+        );
+        const body: Record<string, unknown> = {
+          name,
+          listIds,
+        };
+
+        for (const key of [
+          "tagIds",
+          "buttonText",
+          "headline",
+          "description",
+          "successMessage",
+          "redirectUrl",
+          "showFirstName",
+          "showLastName",
+        ]) {
+          if (args[key] !== undefined) {
+            body[key] = args[key];
+          }
+        }
+        if (duplicateStrategy !== undefined) {
+          body["duplicateStrategy"] = duplicateStrategy;
+        }
+
+        result = await apiRequest("POST", "/api/v1/forms", body, companyId);
+        break;
+      }
+
+      case "get_form_embed": {
+        const companyId = args.companyId as string | undefined;
+        const formId = requiredString("get_form_embed", args, "formId");
+        result = await apiRequest(
+          "GET",
+          `/api/v1/forms/embed/${encodeURIComponent(formId)}`,
           undefined,
           companyId
         );

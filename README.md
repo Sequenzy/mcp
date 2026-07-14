@@ -15,6 +15,7 @@ Connect Sequenzy to Claude Desktop, Claude Code, Codex, Cursor, Windsurf, VS Cod
 - Cancel, pause, resume, duplicate, or delete campaigns and enroll contacts into sequences.
 - Manage transactional email templates and send single transactional emails.
 - Create, edit, publish, unpublish, and delete landing pages.
+- Create list-scoped saved signup forms and return client-safe static-site embeds.
 - Connect and verify custom domains for published landing pages.
 - Manage team invitations, inbox conversations, and outbound webhook endpoints.
 - Generate email copy, subject lines, and multi-step sequences.
@@ -208,7 +209,7 @@ include the missing scopes.
 
 ## Tools
 
-This server currently exposes 134 MCP tools.
+This server currently exposes 137 MCP tools.
 
 ### Account, Companies, Setup
 
@@ -427,6 +428,20 @@ For NPS, use `"variant": "nps"`, an empty `options` array, and an attribute
 such as `nps_score`. The scale is always 0-10; optional `npsLowLabel` and
 `npsHighLabel` customize its captions. Each answer updates the subscriber
 attribute and fires `poll.answered` for automations and outbound webhooks.
+
+### Saved Forms
+
+| Tool             | Description                                                                                               |
+| ---------------- | --------------------------------------------------------------------------------------------------------- |
+| `list_forms`     | List saved forms with their server-managed audience settings and public action URLs.                      |
+| `create_form`    | Create and publish a saved form scoped to one or more lists, with optional tags and success behavior.     |
+| `get_form_embed` | Return the public action URL, hosted JavaScript, minimal native form, and fetch example for a saved form. |
+
+For Astro, Hugo, Jekyll, Cloudflare Pages, Netlify, GitHub Pages, or any other
+static site, call `list_forms`, use `create_form` if a suitable form does not
+exist, then call `get_form_embed`. The returned opaque `formId` is the public
+capability: lists, tags, duplicate behavior, and success handling remain
+server-side, so the deployed browser code never contains a Sequenzy API key.
 
 ### Landing Pages
 
