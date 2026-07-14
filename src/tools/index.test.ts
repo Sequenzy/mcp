@@ -10,10 +10,19 @@ type ApiRequestMock = (
 const mockApiRequest = mock<ApiRequestMock>(async () => {
   throw new Error("apiRequest should not be called");
 });
+const mockApiUploadRequest = mock(
+  async (
+    _uploadUrl: string,
+    _bytes: Uint8Array,
+    _contentType: string,
+    _companyIdOverride?: string
+  ) => undefined
+);
 
 await mock.module("../runtime.js", () => ({
   areLocalFileUploadsEnabled: () => false,
   apiRequest: mockApiRequest,
+  apiUploadRequest: mockApiUploadRequest,
   getSelectedCompanyId: () => null,
   setSelectedCompanyId: () => undefined,
 }));
@@ -429,6 +438,153 @@ describe("update_template tool validation", () => {
       },
       undefined
     );
+  });
+});
+
+describe("template localization tools", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("publishes conservative schemas for setting and syncing localizations", () => {
+    const setTool = tools.find(
+      (tool) => tool.name === "set_template_localization"
+    );
+    const syncTool = tools.find(
+      (tool) => tool.name === "sync_template_localizations"
+    );
+
+    expect(setTool?.inputSchema.required).toEqual([
+      "templateId",
+      "locale",
+      "subject",
+    ]);
+    expect(setTool?.inputSchema.additionalProperties).toBe(false);
+    expect(setTool?.inputSchema.properties).toHaveProperty("html");
+    expect(setTool?.inputSchema.properties).toHaveProperty("blocks");
+    expect(syncTool?.inputSchema.required).toEqual(["templateId"]);
+    expect(syncTool?.inputSchema.additionalProperties).toBe(false);
+    expect(syncTool?.inputSchema.properties).toHaveProperty("locales");
+  });
+
+  it("sets a caller-supplied template localization", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      templateId: "tmpl_123",
+      localization: {
+        locale: "es",
+        status: "synced",
+        subject: "Hola",
+        previewText: "Bienvenido",
+        blocks: [],
+      },
+    });
+
+    const result = await handleToolCall("set_template_localization", {
+      companyId: "comp_123",
+      templateId: "tmpl_123",
+      locale: "es",
+      subject: "Hola",
+      previewText: "Bienvenido",
+      html: "<p>Hola</p>",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/templates/tmpl_123/localizations/es",
+      {
+        subject: "Hola",
+        previewText: "Bienvenido",
+        html: "<p>Hola</p>",
+      },
+      "comp_123"
+    );
+    expect(result.structuredContent?.["appUrls"]).toMatchObject({
+      email: "https://sequenzy.com/dashboard/company/comp_123/emails/tmpl_123",
+    });
+  });
+
+  it("rejects missing or mixed localization content before hitting the API", async () => {
+    const missingResult = await handleToolCall("set_template_localization", {
+      templateId: "tmpl_123",
+      locale: "es",
+      subject: "Hola",
+    });
+    const mixedResult = await handleToolCall("set_template_localization", {
+      templateId: "tmpl_123",
+      locale: "es",
+      subject: "Hola",
+      html: "<p>Hola</p>",
+      blocks: [],
+    });
+
+    expect(missingResult.isError).toBe(true);
+    expect(missingResult.content[0]?.text).toContain(
+      "Provide either `html` or `blocks` when calling `set_template_localization`."
+    );
+    expect(mixedResult.isError).toBe(true);
+    expect(mixedResult.content[0]?.text).toContain(
+      "Provide either `html` or `blocks` when calling `set_template_localization`, not both."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("syncs selected template locales", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      templateId: "tmpl_123",
+      queuedLocales: ["es", "fr"],
+      queuedVariantCount: 2,
+    });
+
+    const result = await handleToolCall("sync_template_localizations", {
+      companyId: "comp_123",
+      templateId: "tmpl_123",
+      locales: ["es", "fr"],
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/templates/tmpl_123/localizations/sync",
+      { locales: ["es", "fr"] },
+      "comp_123"
+    );
+  });
+
+  it("omits locales to sync every enabled non-primary locale", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      templateId: "tmpl_123",
+      queuedLocales: ["es"],
+      queuedVariantCount: 1,
+    });
+
+    const result = await handleToolCall("sync_template_localizations", {
+      templateId: "tmpl_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/templates/tmpl_123/localizations/sync",
+      {},
+      undefined
+    );
+  });
+
+  it("rejects invalid locale arrays before syncing", async () => {
+    const result = await handleToolCall("sync_template_localizations", {
+      templateId: "tmpl_123",
+      locales: ["es", ""],
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`locales` must contain at least one non-empty locale string when calling `sync_template_localizations`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 });
 
@@ -1833,6 +1989,136 @@ describe("label list filters", () => {
   });
 });
 
+describe("saved form tools", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("publishes plain schemas and the expected safety annotations", () => {
+    const listTool = tools.find((tool) => tool.name === "list_forms");
+    const createTool = tools.find((tool) => tool.name === "create_form");
+    const embedTool = tools.find((tool) => tool.name === "get_form_embed");
+    const createSchema = createTool?.inputSchema as
+      | {
+          additionalProperties?: boolean;
+          properties?: Record<string, unknown>;
+          required?: string[];
+        }
+      | undefined;
+
+    expect(listTool?.annotations?.readOnlyHint).toBe(true);
+    expect(embedTool?.annotations?.readOnlyHint).toBe(true);
+    expect(createTool?.annotations).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: false,
+    });
+    expect(createSchema?.additionalProperties).toBe(false);
+    expect(createSchema?.required).toEqual(["name", "listIds"]);
+    expect(createSchema?.properties).toHaveProperty("tagIds");
+    expect(createSchema?.properties).toHaveProperty("redirectUrl");
+    expect(embedTool?.inputSchema.required).toEqual(["formId"]);
+  });
+
+  it("routes list_forms to the authenticated Forms API", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      companyId: "comp_123",
+      forms: [],
+    });
+
+    const result = await handleToolCall("list_forms", {
+      companyId: "comp_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/forms",
+      undefined,
+      "comp_123"
+    );
+  });
+
+  it("routes create_form with server-managed audience settings", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      form: { id: "form_123", name: "Astro newsletter" },
+      embed: {
+        actionUrl: "https://api.sequenzy.com/api/v1/forms/form_123",
+      },
+    });
+
+    const result = await handleToolCall("create_form", {
+      companyId: "comp_123",
+      name: "Astro newsletter",
+      listIds: ["list_123"],
+      tagIds: ["tag_123"],
+      duplicateStrategy: "merge",
+      successMessage: "You're subscribed.",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/forms",
+      {
+        name: "Astro newsletter",
+        listIds: ["list_123"],
+        tagIds: ["tag_123"],
+        duplicateStrategy: "merge",
+        successMessage: "You're subscribed.",
+      },
+      "comp_123"
+    );
+  });
+
+  it("rejects create_form when no usable list IDs are provided", async () => {
+    const result = await handleToolCall("create_form", {
+      name: "Newsletter",
+      listIds: ["", "   "],
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`listIds` must contain at least one list ID"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("URL-encodes get_form_embed IDs and preserves secret-free snippets", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      form: { id: "form/123", status: "published" },
+      embed: {
+        actionUrl: "https://api.sequenzy.com/api/v1/forms/form%2F123",
+        javascript:
+          '<script async src="https://api.sequenzy.com/api/v1/forms/form%2F123/embed.js"></script>',
+        nativeForm:
+          '<form action="https://api.sequenzy.com/api/v1/forms/form%2F123" method="post"></form>',
+        fetch: "new FormData(form)",
+      },
+    });
+
+    const result = await handleToolCall("get_form_embed", {
+      companyId: "comp_123",
+      formId: "form/123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/forms/embed/form%2F123",
+      undefined,
+      "comp_123"
+    );
+    expect(JSON.stringify(result.structuredContent)).not.toContain(
+      "Authorization"
+    );
+    expect(JSON.stringify(result.structuredContent)).not.toContain("API_KEY");
+  });
+});
+
 describe("landing page tools", () => {
   beforeEach(() => {
     mockApiRequest.mockClear();
@@ -2064,6 +2350,26 @@ describe("create_campaign tool validation", () => {
     expect(blocksDescription).toContain('"variant": "options"');
     expect(blocksDescription).toContain('"variant": "nps"');
     expect(blocksDescription).toContain('"attributeKey": "nps_score"');
+  });
+
+  it("documents server-evaluated email block conditions", () => {
+    const createCampaignTool = tools.find(
+      (tool) => tool.name === "create_campaign"
+    );
+    const inputSchema = createCampaignTool?.inputSchema as
+      | {
+          properties?: Record<
+            string,
+            { description?: string | undefined } | undefined
+          >;
+        }
+      | undefined;
+    const description = inputSchema?.properties?.blocks?.description;
+
+    expect(description).toContain("segment");
+    expect(description).toContain("at_least");
+    expect(description).toContain("is_temporary_bounce");
+    expect(description).toContain("without a stored subscriber match");
   });
 
   it("requires subject when prompt is not provided", async () => {
@@ -4526,6 +4832,158 @@ describe("product tools", () => {
       { url: "https://example.com/guide.pdf", fileName: "guide.pdf" },
       undefined
     );
+  });
+});
+
+describe("image asset tools", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+    mockApiUploadRequest.mockClear();
+  });
+
+  it("publishes portable upload sources and block crop controls", () => {
+    const tool = tools.find(
+      (candidate) => candidate.name === "upload_image_asset"
+    );
+    const properties = tool?.inputSchema.properties as
+      | Record<string, Record<string, unknown>>
+      | undefined;
+
+    expect(properties).toHaveProperty("filePath");
+    expect(properties).toHaveProperty("imageBase64");
+    expect(properties?.["cropHeight"]?.["type"]).toBe("integer");
+    expect(properties?.["objectFit"]?.["enum"]).toEqual(["cover", "contain"]);
+    expect(tool?.outputSchema?.properties).toHaveProperty("asset");
+    expect(tool?.outputSchema?.properties).toHaveProperty("imageBlock");
+  });
+
+  it("requires exactly one image byte source", async () => {
+    const neither = await handleToolCall("upload_image_asset", {});
+    const both = await handleToolCall("upload_image_asset", {
+      filePath: "./shot.png",
+      imageBase64: "AQID",
+      filename: "shot.png",
+    });
+
+    expect(neither.isError).toBe(true);
+    expect(neither.content[0]?.text).toContain(
+      "Provide either `filePath` or `imageBase64`"
+    );
+    expect(both.isError).toBe(true);
+    expect(both.content[0]?.text).toContain(
+      "Provide either `filePath` or `imageBase64`"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects oversized base64 images before starting an upload", async () => {
+    const oversizedImageBase64 = Buffer.alloc(5 * 1024 * 1024 + 1).toString(
+      "base64"
+    );
+
+    const result = await handleToolCall("upload_image_asset", {
+      imageBase64: oversizedImageBase64,
+      filename: "oversized.png",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("5MB or smaller");
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects local file uploads on the hosted MCP server", async () => {
+    const result = await handleToolCall("upload_image_asset", {
+      filePath: "./shot.png",
+      altText: "Product screenshot",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "only supported when the MCP server runs locally"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("uploads base64 bytes and returns a responsive cropped image block", async () => {
+    const asset = {
+      id: "media_123",
+      filename: "product-shot.png",
+      url: "https://images.example.com/email-images/company_123/product-shot.png",
+      mimeType: "image/png",
+      size: "3",
+      width: "1440",
+      height: "900",
+      altText: "HeyStream product results",
+      companyId: "company_123",
+      createdAt: "2026-07-14T12:00:00.000Z",
+    };
+    mockApiRequest
+      .mockResolvedValueOnce({
+        uploadUrl:
+          "https://api.sequenzy.com/api/v1/media/upload-bytes?key=product-shot.png",
+        publicUrl: asset.url,
+        key: "email-images/company_123/upload/product-shot.png",
+        fileName: "product-shot.png",
+      })
+      .mockResolvedValueOnce({ success: true, asset });
+
+    const result = await handleToolCall("upload_image_asset", {
+      companyId: "company_123",
+      imageBase64: "AQID",
+      filename: "Product Shot.PNG",
+      altText: "HeyStream product results",
+      sourceWidth: 1440,
+      sourceHeight: 900,
+      displayWidthPercent: 92,
+      cropHeight: 320,
+      objectFit: "cover",
+      align: "center",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiUploadRequest).toHaveBeenCalledWith(
+      "https://api.sequenzy.com/api/v1/media/upload-bytes?key=product-shot.png",
+      Buffer.from([1, 2, 3]),
+      "image/png",
+      "company_123"
+    );
+    expect(mockApiRequest).toHaveBeenNthCalledWith(
+      1,
+      "POST",
+      "/api/v1/media/upload-url",
+      {
+        filename: "Product Shot.PNG",
+        contentType: "image/png",
+        fileSizeBytes: 3,
+      },
+      "company_123"
+    );
+    expect(mockApiRequest).toHaveBeenNthCalledWith(
+      2,
+      "POST",
+      "/api/v1/media/complete-upload",
+      {
+        key: "email-images/company_123/upload/product-shot.png",
+        filename: "product-shot.png",
+        contentType: "image/png",
+        fileSizeBytes: 3,
+        width: 1440,
+        height: 900,
+        altText: "HeyStream product results",
+      },
+      "company_123"
+    );
+    expect(result.structuredContent?.["asset"]).toEqual(asset);
+    expect(result.structuredContent?.["imageBlock"]).toEqual({
+      type: "image",
+      src: asset.url,
+      alt: "HeyStream product results",
+      width: 92,
+      widthType: "percent",
+      height: 320,
+      objectFit: "cover",
+      align: "center",
+    });
   });
 });
 

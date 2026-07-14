@@ -288,6 +288,8 @@ export const dashboardUrlToolNames = new Set([
   "get_template",
   "create_template",
   "update_template",
+  "set_template_localization",
+  "sync_template_localizations",
   "list_transactional_emails",
   "get_transactional_email",
   "create_transactional_email",

@@ -296,6 +296,12 @@ export const outputPropertiesByToolName: Record<
   remove_product_file: {
     product: resourceOutputProperty("product"),
   },
+  upload_image_asset: {
+    asset: resourceOutputProperty("hosted image asset"),
+    imageBlock: objectOutputProperty(
+      "Ready-to-insert Sequenzy image block using the hosted asset URL."
+    ),
+  },
   sync_products: {
     job: resourceOutputProperty("product sync job"),
     jobId: stringOutputProperty("Queued product sync job ID."),
@@ -384,6 +390,21 @@ export const outputPropertiesByToolName: Record<
   update_template: {
     template: resourceOutputProperty("email template"),
   },
+  set_template_localization: {
+    templateId: stringOutputProperty("Localized template ID."),
+    localization: resourceOutputProperty("template localization"),
+  },
+  sync_template_localizations: {
+    templateId: stringOutputProperty("Template ID queued for localization."),
+    queuedLocales: {
+      type: "array",
+      description: "Locale codes queued for AI translation.",
+      items: stringOutputProperty("One queued locale code."),
+    },
+    queuedVariantCount: numberOutputProperty(
+      "Number of localized variants queued for translation."
+    ),
+  },
   delete_template: {
     templateId: stringOutputProperty("Deleted template ID."),
   },
@@ -464,6 +485,21 @@ export const outputPropertiesByToolName: Record<
     campaign: resourceOutputProperty("non-opener resend draft campaign"),
     estimatedNonOpenerCount: numberOutputProperty(
       "Estimated number of subscribers who haven't opened the original campaign."
+    ),
+  },
+  list_forms: {
+    forms: resourceListOutputProperty("saved form"),
+  },
+  create_form: {
+    form: resourceOutputProperty("saved form"),
+    embed: objectOutputProperty(
+      "Public action URL plus JavaScript, native form, and fetch snippets."
+    ),
+  },
+  get_form_embed: {
+    form: resourceOutputProperty("saved form"),
+    embed: objectOutputProperty(
+      "Public action URL plus JavaScript, native form, and fetch snippets."
     ),
   },
   list_landing_pages: {
@@ -596,6 +632,12 @@ export const outputPropertiesByToolName: Record<
   get_campaign_stats: {
     campaign: resourceOutputProperty("campaign"),
     stats: resourceOutputProperty("campaign statistics"),
+    clickedLinks: {
+      type: "array",
+      description:
+        "Per-link click breakdown, most clicked first (top 20). Each entry has url, clicks, and percentage (that link's share of every recorded link click). Present only when the campaign has tracked link clicks.",
+      items: objectOutputProperty("One clicked link with url/clicks/share."),
+    },
     polls: {
       type: "array",
       description: `Poll and NPS summaries. Each subscriber counts once per campaign poll block using their latest answer to that block; NPS entries include score, average, and promoter/passive/detractor counts. To list the exact historical respondents behind a count, use the summary blockId and the get_campaign_stats campaignId with create_segment. ${pollRespondentFilterHint} A summary's attributeKey identifies the subscriber attribute that stores their current/latest response and may be overwritten by a later poll that reuses the key.`,

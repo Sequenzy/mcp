@@ -7,4 +7,5 @@ export * from "./sequence-validation.js";
 export * from "./content-validation.js";
 export * from "./subscriber-helpers.js";
 export * from "./delivery-and-urls.js";
+export * from "./media-assets.js";
 export * from "./output-schemas.js";

@@ -3,6 +3,8 @@ import { handleAiAndFeedbackTools } from "./ai-and-feedback.js";
 import { handleAnalyticsAndTransactionalTools } from "./analytics-and-transactional.js";
 import { handleAudienceTools } from "./audience.js";
 import { handleCampaignTools } from "./campaigns.js";
+import { handleSavedFormTools } from "./forms.js";
+import { handleImageAssetTools } from "./image-assets.js";
 import { handleLandingPageTools } from "./landing-pages.js";
 import { handleProductTools } from "./products.js";
 import { handleSequenceTools } from "./sequences.js";
@@ -15,7 +17,9 @@ export const toolHandlers = [
   handleProductTools,
   handleAudienceTools,
   handleCampaignTools,
+  handleSavedFormTools,
   handleLandingPageTools,
+  handleImageAssetTools,
   handleSequenceTools,
   handleAnalyticsAndTransactionalTools,
   handleTeamInboxWebhookTools,

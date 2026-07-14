@@ -28,7 +28,7 @@ export const analyticsToolDefinitions: Tool[] = [
   {
     name: "get_campaign_stats",
     description:
-      "Get detailed statistics for a campaign, including attributed conversions, revenue (revenueCents), and any Poll or NPS survey summaries in the top-level polls array",
+      "Get detailed statistics for a campaign, including attributed conversions, revenue (revenueCents), a per-link click breakdown in the top-level clickedLinks array, and any Poll or NPS survey summaries in the top-level polls array",
     inputSchema: {
       type: "object",
       properties: {

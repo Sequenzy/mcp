@@ -9,11 +9,13 @@ Connect Sequenzy to Claude Desktop, Claude Code, Codex, Cursor, Windsurf, VS Cod
 - Manage subscribers, tags, lists, and dynamic segments.
 - Sync segments to Meta custom audiences for Facebook and Instagram retargeting.
 - Manage products and attach digital delivery files for purchase automations.
+- Upload hosted email images with alt text and reusable responsive crop settings.
 - Draft, update, schedule, and inspect campaigns, including From and Reply-To identities.
 - Add one-click Poll and NPS survey blocks to emails and inspect campaign response summaries.
 - Create and edit email sequences, including event-triggered and segment-entry automations, sending identity overrides, and existing graph restructuring.
 - Cancel, pause, resume, duplicate, or delete campaigns and enroll contacts into sequences.
 - Manage transactional email templates and send single transactional emails.
+- Supply localized template variants or queue AI translation for enabled locales.
 - Create, edit, publish, unpublish, and delete landing pages.
 - Create list-scoped saved signup forms and return client-safe static-site embeds.
 - Connect and verify custom domains for published landing pages.
@@ -209,7 +211,7 @@ include the missing scopes.
 
 ## Tools
 
-This server currently exposes 137 MCP tools.
+This server currently exposes 139 MCP tools.
 
 ### Account, Companies, Setup
 
@@ -256,6 +258,31 @@ error points back to `add_sending_domain` with the requested domain.
 | `sync_products`       | Queue a Stripe product catalog sync.                                                  |
 
 After a product delivery file is attached, matching purchase events include `download.url` and `download.name`, so purchase-triggered emails can use merge tags like `{{event.download.url}}`.
+
+### Image Assets
+
+| Tool                 | Description                                                                                  |
+| -------------------- | -------------------------------------------------------------------------------------------- |
+| `upload_image_asset` | Upload an email image and return its hosted media record plus a ready-to-insert image block. |
+
+The tool accepts PNG, JPEG, GIF, and WebP images up to 5MB. Local stdio clients
+can pass `filePath`. Hosted/remote clients that can access attachment bytes can
+pass `imageBase64` with `filename`. Provide `altText` for accessibility, then
+use `displayWidthPercent`, `cropHeight`, `objectFit` (`cover` or `contain`), and
+`align` to standardize screenshot presentation. The returned `imageBlock` can
+be copied directly into the block array accepted by campaign, sequence,
+template, and transactional-email tools.
+
+```json
+{
+  "filePath": "/Users/me/Desktop/product-results.png",
+  "altText": "Product results dashboard",
+  "displayWidthPercent": 100,
+  "cropHeight": 320,
+  "objectFit": "cover",
+  "align": "center"
+}
+```
 
 ### Lists, Tags, Segments
 
@@ -344,19 +371,28 @@ Audiences are add-only: subscribers who later leave the segment stay in the Meta
 
 ### Templates
 
-| Tool              | Description                                               |
-| ----------------- | --------------------------------------------------------- |
-| `list_templates`  | List templates with localization status.                  |
-| `get_template`    | Read template details, content, and localized variants.   |
-| `create_template` | Create templates from a prompt, HTML, or Sequenzy blocks. |
-| `update_template` | Update template metadata, labels, HTML, or blocks.        |
-| `delete_template` | Delete a template.                                        |
+| Tool                          | Description                                                           |
+| ----------------------------- | --------------------------------------------------------------------- |
+| `list_templates`              | List templates with localization status.                              |
+| `get_template`                | Read template details, content, and localized variants.               |
+| `create_template`             | Create templates from a prompt, HTML, or Sequenzy blocks.             |
+| `update_template`             | Update template metadata, labels, HTML, or blocks.                    |
+| `set_template_localization`   | Create or replace a caller-supplied localized variant.                |
+| `sync_template_localizations` | Queue AI translation for selected or all enabled non-primary locales. |
+| `delete_template`             | Delete a template.                                                    |
 
 For net-new content requested in natural language, pass `prompt` so Sequenzy
 generates branded native blocks server-side. Use `blocks` only for finished
 caller-supplied Sequenzy content, and use `html` only when preserving supplied
 or explicitly requested markup. `prompt`, `blocks`, and `html` are mutually
 exclusive; `style` and `tone` are valid only with `prompt`.
+
+Use `set_template_localization` when translated copy comes from your own
+localization workflow. It requires an enabled non-primary `locale`, a localized
+`subject`, and exactly one of `html` or `blocks`. Use
+`sync_template_localizations` to ask Sequenzy to translate selected locales;
+omit `locales` to sync every enabled non-primary locale. Explicit sync works
+even when automatic on-save localization is disabled.
 
 ### A/B Tests
 
@@ -396,6 +432,13 @@ Prompt-created campaigns are generated and persisted in one API request and
 remain drafts. Use `templateId`, `blocks`, or `html` only when copying or
 preserving existing content rather than asking the agent to author it. Omit all
 content fields to create an empty draft for later editing.
+
+Email blocks may use conditional display rules or `conditional-group` branches.
+Conditions support render-time variables and subscriber attributes plus live
+subscriber data such as segment/list membership, tags, events, engagement,
+subscription/SMS status, and Stripe or commerce purchases. Live-data
+conditions use the same field values and operators as segment filters;
+recipients without a stored subscriber match use the OTHERWISE branch.
 
 Use `update_company` with `fromEmail` and/or `replyTo` to set account-wide
 defaults. `fromEmail` must use a configured, verified sending domain; `replyTo`
@@ -442,6 +485,9 @@ static site, call `list_forms`, use `create_form` if a suitable form does not
 exist, then call `get_form_embed`. The returned opaque `formId` is the public
 capability: lists, tags, duplicate behavior, and success handling remain
 server-side, so the deployed browser code never contains a Sequenzy API key.
+Generated native and standalone markup includes "Powered by Sequenzy" for free
+workspaces; paid workspaces receive unbranded markup. The API resolves that
+entitlement server-side, so callers should use the returned snippet unchanged.
 
 ### Landing Pages
 
