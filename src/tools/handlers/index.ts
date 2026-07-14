@@ -4,6 +4,7 @@ import { handleAnalyticsAndTransactionalTools } from "./analytics-and-transactio
 import { handleAudienceTools } from "./audience.js";
 import { handleCampaignTools } from "./campaigns.js";
 import { handleSavedFormTools } from "./forms.js";
+import { handleImageAssetTools } from "./image-assets.js";
 import { handleLandingPageTools } from "./landing-pages.js";
 import { handleProductTools } from "./products.js";
 import { handleSequenceTools } from "./sequences.js";
@@ -18,6 +19,7 @@ export const toolHandlers = [
   handleCampaignTools,
   handleSavedFormTools,
   handleLandingPageTools,
+  handleImageAssetTools,
   handleSequenceTools,
   handleAnalyticsAndTransactionalTools,
   handleTeamInboxWebhookTools,

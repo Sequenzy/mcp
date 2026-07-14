@@ -10,10 +10,19 @@ type ApiRequestMock = (
 const mockApiRequest = mock<ApiRequestMock>(async () => {
   throw new Error("apiRequest should not be called");
 });
+const mockApiUploadRequest = mock(
+  async (
+    _uploadUrl: string,
+    _bytes: Uint8Array,
+    _contentType: string,
+    _companyIdOverride?: string
+  ) => undefined
+);
 
 await mock.module("../runtime.js", () => ({
   areLocalFileUploadsEnabled: () => false,
   apiRequest: mockApiRequest,
+  apiUploadRequest: mockApiUploadRequest,
   getSelectedCompanyId: () => null,
   setSelectedCompanyId: () => undefined,
 }));
@@ -4656,6 +4665,158 @@ describe("product tools", () => {
       { url: "https://example.com/guide.pdf", fileName: "guide.pdf" },
       undefined
     );
+  });
+});
+
+describe("image asset tools", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+    mockApiUploadRequest.mockClear();
+  });
+
+  it("publishes portable upload sources and block crop controls", () => {
+    const tool = tools.find(
+      (candidate) => candidate.name === "upload_image_asset"
+    );
+    const properties = tool?.inputSchema.properties as
+      | Record<string, Record<string, unknown>>
+      | undefined;
+
+    expect(properties).toHaveProperty("filePath");
+    expect(properties).toHaveProperty("imageBase64");
+    expect(properties?.["cropHeight"]?.["type"]).toBe("integer");
+    expect(properties?.["objectFit"]?.["enum"]).toEqual(["cover", "contain"]);
+    expect(tool?.outputSchema?.properties).toHaveProperty("asset");
+    expect(tool?.outputSchema?.properties).toHaveProperty("imageBlock");
+  });
+
+  it("requires exactly one image byte source", async () => {
+    const neither = await handleToolCall("upload_image_asset", {});
+    const both = await handleToolCall("upload_image_asset", {
+      filePath: "./shot.png",
+      imageBase64: "AQID",
+      filename: "shot.png",
+    });
+
+    expect(neither.isError).toBe(true);
+    expect(neither.content[0]?.text).toContain(
+      "Provide either `filePath` or `imageBase64`"
+    );
+    expect(both.isError).toBe(true);
+    expect(both.content[0]?.text).toContain(
+      "Provide either `filePath` or `imageBase64`"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects oversized base64 images before starting an upload", async () => {
+    const oversizedImageBase64 = Buffer.alloc(5 * 1024 * 1024 + 1).toString(
+      "base64"
+    );
+
+    const result = await handleToolCall("upload_image_asset", {
+      imageBase64: oversizedImageBase64,
+      filename: "oversized.png",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("5MB or smaller");
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects local file uploads on the hosted MCP server", async () => {
+    const result = await handleToolCall("upload_image_asset", {
+      filePath: "./shot.png",
+      altText: "Product screenshot",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "only supported when the MCP server runs locally"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("uploads base64 bytes and returns a responsive cropped image block", async () => {
+    const asset = {
+      id: "media_123",
+      filename: "product-shot.png",
+      url: "https://images.example.com/email-images/company_123/product-shot.png",
+      mimeType: "image/png",
+      size: "3",
+      width: "1440",
+      height: "900",
+      altText: "HeyStream product results",
+      companyId: "company_123",
+      createdAt: "2026-07-14T12:00:00.000Z",
+    };
+    mockApiRequest
+      .mockResolvedValueOnce({
+        uploadUrl:
+          "https://api.sequenzy.com/api/v1/media/upload-bytes?key=product-shot.png",
+        publicUrl: asset.url,
+        key: "email-images/company_123/upload/product-shot.png",
+        fileName: "product-shot.png",
+      })
+      .mockResolvedValueOnce({ success: true, asset });
+
+    const result = await handleToolCall("upload_image_asset", {
+      companyId: "company_123",
+      imageBase64: "AQID",
+      filename: "Product Shot.PNG",
+      altText: "HeyStream product results",
+      sourceWidth: 1440,
+      sourceHeight: 900,
+      displayWidthPercent: 92,
+      cropHeight: 320,
+      objectFit: "cover",
+      align: "center",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiUploadRequest).toHaveBeenCalledWith(
+      "https://api.sequenzy.com/api/v1/media/upload-bytes?key=product-shot.png",
+      Buffer.from([1, 2, 3]),
+      "image/png",
+      "company_123"
+    );
+    expect(mockApiRequest).toHaveBeenNthCalledWith(
+      1,
+      "POST",
+      "/api/v1/media/upload-url",
+      {
+        filename: "Product Shot.PNG",
+        contentType: "image/png",
+        fileSizeBytes: 3,
+      },
+      "company_123"
+    );
+    expect(mockApiRequest).toHaveBeenNthCalledWith(
+      2,
+      "POST",
+      "/api/v1/media/complete-upload",
+      {
+        key: "email-images/company_123/upload/product-shot.png",
+        filename: "product-shot.png",
+        contentType: "image/png",
+        fileSizeBytes: 3,
+        width: 1440,
+        height: 900,
+        altText: "HeyStream product results",
+      },
+      "company_123"
+    );
+    expect(result.structuredContent?.["asset"]).toEqual(asset);
+    expect(result.structuredContent?.["imageBlock"]).toEqual({
+      type: "image",
+      src: asset.url,
+      alt: "HeyStream product results",
+      width: 92,
+      widthType: "percent",
+      height: 320,
+      objectFit: "cover",
+      align: "center",
+    });
   });
 });
 

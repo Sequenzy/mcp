@@ -77,6 +77,7 @@ export const MUTATING_TOOL_NAMES = new Set([
   "delete_product",
   "attach_product_file",
   "remove_product_file",
+  "upload_image_asset",
   "sync_products",
   "create_tag",
   "update_tag",

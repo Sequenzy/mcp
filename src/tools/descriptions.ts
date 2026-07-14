@@ -4,20 +4,23 @@ export const blockConditionsHint =
 export const pollBlockHint =
   ' Polls and NPS surveys use a native poll block. For answer buttons use { "type": "poll", "variant": "options", "question": "What did you think?", "options": [{ "label": "Loved it", "value": "loved" }, { "label": "Not for me", "value": "not_for_me" }], "attributeKey": "email_feedback" }. For NPS use { "type": "poll", "variant": "nps", "question": "How likely are you to recommend us?", "options": [], "attributeKey": "nps_score", "npsLowLabel": "Not likely", "npsHighLabel": "Very likely" }. `attributeKey` stores the latest response for segmentation. Optional `appearance` picks the answer style: "soft" (default), "pill", "outline", "filled", "pop" (hard-shadow boxes), "brutal" (square uppercase slabs), "quiz" (A/B/C letter badges), or "minimal" (bare ruled rows). Optional `confirmationMessage` customizes the hosted thank-you page; set `redirectUrl` only when respondents should land on another page.';
 
+export const imageBlockHint =
+  ' For a new image, call `upload_image_asset` first and insert its returned `imageBlock`. A responsive fixed-height screenshot crop uses { "type": "image", "src": "https://...", "alt": "Product dashboard", "width": 100, "widthType": "percent", "height": 320, "objectFit": "cover", "align": "center" }.';
+
 export const pollRespondentFilterHint =
   'For exact historical Poll/NPS respondents, use field `pollResponse`, operator `is`, and a JSON value shaped like {"v":1,"campaignId":"camp_123","blockId":"poll_1","match":{"kind":"answer","value":"loved"}}. For NPS buckets, use match {"kind":"npsBucket","bucket":"promoters"}; bucket may be `promoters`, `passives`, or `detractors`.';
 
 export const emailBlocksDescription = `Sequenzy email blocks. Use this for editor-compatible content, including conditional and repeat blocks. For provider-migrated HTML from another email platform, prefer the \`html\` field instead; Sequenzy stores it as one raw HTML block to preserve the original design. Use \`styles\` for per-block background, background opacity, text color, padding, border radius, border width, and border color. Top-level style aliases such as \`backgroundColor\`, \`backgroundOpacity\`, \`borderColor\`, \`borderWidth\`, and \`borderRadius\` are also accepted and saved under \`styles\`. Repeat blocks use { type: 'repeat', source: 'items', itemAlias: 'item', children: [...] }.${
   blockConditionsHint
-}${pollBlockHint}`;
+}${pollBlockHint}${imageBlockHint}`;
 
 export const replacementEmailBlocksDescription = `Replacement Sequenzy email blocks. Use \`styles\` for per-block background, background opacity, text color, padding, border radius, border width, and border color. Top-level style aliases such as \`backgroundColor\`, \`backgroundOpacity\`, \`borderColor\`, \`borderWidth\`, and \`borderRadius\` are also accepted and saved under \`styles\`.${
   blockConditionsHint
-}${pollBlockHint}`;
+}${pollBlockHint}${imageBlockHint}`;
 
 export const sequenceEmailBlocksDescription = `Sequenzy email blocks. Provide blocks or html for email steps. For migrated provider HTML, prefer \`html\`; Sequenzy stores it as one raw HTML block and does not recreate it as native blocks. Use \`styles\` for per-block background, background opacity, text color, padding, border radius, border width, and border color. Top-level style aliases such as \`backgroundColor\`, \`backgroundOpacity\`, \`borderColor\`, \`borderWidth\`, and \`borderRadius\` are also accepted and saved under \`styles\`. Blocks can include repeat blocks over array variables such as items.${
   blockConditionsHint
-}${pollBlockHint}`;
+}${pollBlockHint}${imageBlockHint}`;
 
 export const landingPageContentDescription =
   "Complete Sequenzy landing page content JSON. Use this when replacing the page structure. The content must be the editor-compatible landing page schema with version, template, seo, theme, and blocks. Landing pages must include exactly one footer block and at most one form block.";

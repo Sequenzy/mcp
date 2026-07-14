@@ -73,6 +73,31 @@ function getApiKey(): string | undefined {
   );
 }
 
+function buildApiHeaders(
+  contentType: string,
+  companyIdOverride?: string
+): Record<string, string> {
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    throw new McpApiError(
+      "SEQUENZY_API_KEY environment variable is required",
+      401,
+      undefined,
+      "MCP_AUTH_REQUIRED"
+    );
+  }
+
+  const headers: Record<string, string> = {
+    "Content-Type": contentType,
+    Authorization: `Bearer ${apiKey}`,
+  };
+  const effectiveCompanyId = companyIdOverride ?? getSelectedCompanyId();
+  if (effectiveCompanyId) {
+    headers["x-company-id"] = effectiveCompanyId;
+  }
+  return headers;
+}
+
 export function assertConfiguredApiKey(): void {
   if (getApiKey()) {
     return;
@@ -199,25 +224,7 @@ export async function apiRequest<T>(
   body?: unknown,
   companyIdOverride?: string
 ): Promise<T> {
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    throw new McpApiError(
-      "SEQUENZY_API_KEY environment variable is required",
-      401,
-      undefined,
-      "MCP_AUTH_REQUIRED"
-    );
-  }
-
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${apiKey}`,
-  };
-
-  const effectiveCompanyId = companyIdOverride ?? getSelectedCompanyId();
-  if (effectiveCompanyId) {
-    headers["x-company-id"] = effectiveCompanyId;
-  }
+  const headers = buildApiHeaders("application/json", companyIdOverride);
 
   let response: Response;
 
@@ -249,4 +256,50 @@ export async function apiRequest<T>(
   }
 
   return response.json() as Promise<T>;
+}
+
+export async function apiUploadRequest(
+  uploadUrl: string,
+  bytes: Uint8Array,
+  contentType: string,
+  companyIdOverride?: string
+): Promise<void> {
+  const apiOrigin = new URL(getApiUrl()).origin;
+  const targetUrl = new URL(uploadUrl, `${apiOrigin}/`);
+  if (targetUrl.origin !== apiOrigin) {
+    throw new McpApiError(
+      "The image upload URL did not point to the configured Sequenzy API.",
+      500,
+      undefined,
+      "INVALID_UPLOAD_URL"
+    );
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(targetUrl, {
+      method: "PUT",
+      headers: buildApiHeaders(contentType, companyIdOverride),
+      body: bytes,
+    });
+  } catch (error) {
+    throw new McpApiError(
+      error instanceof Error ? error.message : "Failed to upload image bytes",
+      0,
+      undefined,
+      "NETWORK_ERROR"
+    );
+  }
+
+  if (!response.ok) {
+    const rawError = await response.text();
+    const parsedError = parseApiErrorPayload(rawError);
+    throw new McpApiError(
+      parsedError.message,
+      response.status,
+      parsedError.details ?? rawError,
+      parsedError.code,
+      parsedError.context
+    );
+  }
 }
