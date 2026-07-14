@@ -10,7 +10,7 @@ Connect Sequenzy to Claude Desktop, Claude Code, Codex, Cursor, Windsurf, VS Cod
 - Sync segments to Meta custom audiences for Facebook and Instagram retargeting.
 - Manage products and attach digital delivery files for purchase automations.
 - Draft, update, schedule, and inspect campaigns, including From and Reply-To identities.
-- Create and edit email sequences, including event-triggered and segment-entry automations and sending identity overrides.
+- Create and edit email sequences, including event-triggered and segment-entry automations, sending identity overrides, and existing graph restructuring.
 - Cancel, pause, resume, duplicate, or delete campaigns and enroll contacts into sequences.
 - Manage transactional email templates and send single transactional emails.
 - Create, edit, publish, unpublish, and delete landing pages.
@@ -207,7 +207,7 @@ include the missing scopes.
 
 ## Tools
 
-This server currently exposes 133 MCP tools.
+This server currently exposes 134 MCP tools.
 
 ### Account, Companies, Setup
 
@@ -419,20 +419,21 @@ Landing page content uses Sequenzy's editor-compatible JSON schema with `version
 
 ### Sequences
 
-| Tool                             | Description                                                                                         |
-| -------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `list_sequences`                 | List email sequences and automation status.                                                         |
-| `get_sequence`                   | Get sequence details, including step `nodeId`, linked `emailId`, subject, preview text, and blocks. |
-| `create_sequence`                | Create AI-generated or explicit-step sequences with optional From/Reply-To overrides.               |
-| `update_sequence`                | Update identity, settings, enrollment, existing steps, branch logic, or insert linear steps.        |
-| `insert_sequence_step`           | Insert one new email step, optionally with a delay node before it.                                  |
-| `enable_sequence`                | Activate a sequence.                                                                                |
-| `disable_sequence`               | Freeze a sequence, blocking new enrollments and holding current recipients.                         |
-| `pause_sequence_enrollments`     | Stop new enrollments for an active sequence while current recipients continue.                      |
-| `resume_sequence_enrollments`    | Reopen new enrollments for an active sequence without changing current recipients.                  |
-| `enroll_subscribers_in_sequence` | Enroll up to 500 subscribers by email, subscriber ID, or both, optionally at a target node.         |
-| `cancel_sequence_enrollments`    | Stop active or waiting enrollments by subscriber or entry-event field values.                       |
-| `delete_sequence`                | Delete a sequence.                                                                                  |
+| Tool                             | Description                                                                                  |
+| -------------------------------- | -------------------------------------------------------------------------------------------- |
+| `list_sequences`                 | List email sequences and automation status.                                                  |
+| `get_sequence`                   | Get sequence details, including nodes, edges, graph revision, linked emails, and blocks.     |
+| `create_sequence`                | Create AI-generated or explicit-step sequences with optional From/Reply-To overrides.        |
+| `update_sequence`                | Update identity, settings, enrollment, existing steps, branch logic, or insert linear steps. |
+| `insert_sequence_step`           | Insert one new email step, optionally with a delay node before it.                           |
+| `edit_sequence_graph`            | Move, reconnect, delete, or duplicate existing graph nodes, including A/B test steps.        |
+| `enable_sequence`                | Activate a sequence.                                                                         |
+| `disable_sequence`               | Freeze a sequence, blocking new enrollments and holding current recipients.                  |
+| `pause_sequence_enrollments`     | Stop new enrollments for an active sequence while current recipients continue.               |
+| `resume_sequence_enrollments`    | Reopen new enrollments for an active sequence without changing current recipients.           |
+| `enroll_subscribers_in_sequence` | Enroll up to 500 subscribers by email, subscriber ID, or both, optionally at a target node.  |
+| `cancel_sequence_enrollments`    | Stop active or waiting enrollments by subscriber or entry-event field values.                |
+| `delete_sequence`                | Delete a sequence.                                                                           |
 
 Sequence creation supports:
 
@@ -506,6 +507,8 @@ steps without explicit identity fields inherit the effective identity of the
 nearest sequence email. After a branch merge, only identity fields shared by
 every incoming path are inherited; conflicting fields use the sequence or
 company defaults.
+
+Use `edit_sequence_graph` with the latest `graphRevision` from `get_sequence` to restructure an existing sequence atomically. It can move a node before or after another node, reuse the normalized `sequence.edges` array for explicit reconnection or multi-node reordering, delete a node, or deep-copy a node. A/B test duplication creates independent test, variant, email, and localization records with reset statistics. Moving a node before the shared node below a branch reconnects every converging branch path through that node. Stale revisions, invalid branch lanes, cycles, unreachable nodes, and unsafe deletion of a node with active recipients are rejected. Active sequences also require `confirmStructuralChange: true`.
 
 Run `cancel_sequence_enrollments` with `dryRun: true` before applying bulk cancellation.
 

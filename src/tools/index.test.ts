@@ -3165,6 +3165,136 @@ describe("update_sequence tool", () => {
   });
 });
 
+describe("edit_sequence_graph tool", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("publishes a compatible, explicitly destructive graph editing schema", () => {
+    const tool = tools.find(
+      (candidate) => candidate.name === "edit_sequence_graph"
+    );
+    const inputSchema = tool?.inputSchema as
+      | {
+          required?: string[];
+          additionalProperties?: boolean;
+          properties?: Record<string, unknown>;
+        }
+      | undefined;
+    const action = inputSchema?.properties?.["action"] as
+      | { enum?: string[] }
+      | undefined;
+
+    expect(inputSchema?.required).toEqual([
+      "sequenceId",
+      "action",
+      "graphRevision",
+    ]);
+    expect(inputSchema?.additionalProperties).toBe(false);
+    expect(inputSchema?.properties).toHaveProperty("nodeId");
+    expect(inputSchema?.properties).toHaveProperty("afterNodeId");
+    expect(inputSchema?.properties).toHaveProperty("beforeNodeId");
+    expect(inputSchema?.properties).toHaveProperty("edges");
+    expect(action?.enum).toEqual([
+      "move_node",
+      "delete_node",
+      "duplicate_node",
+      "replace_edges",
+    ]);
+    expect(tool?.annotations?.readOnlyHint).toBe(false);
+    expect(tool?.annotations?.destructiveHint).toBe(true);
+  });
+
+  it("moves an existing node before a shared continuation", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      sequence: {
+        id: "seq_123",
+        graphEditAction: "move_node",
+        movedNodeId: "node_ab_test",
+      },
+    });
+
+    const result = await handleToolCall("edit_sequence_graph", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      action: "move_node",
+      graphRevision: "revision-1",
+      nodeId: "node_ab_test",
+      beforeNodeId: "node_end",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/sequences/seq_123",
+      {
+        graphEdit: {
+          action: "move_node",
+          expectedRevision: "revision-1",
+          nodeId: "node_ab_test",
+          beforeNodeId: "node_end",
+        },
+      },
+      "comp_123"
+    );
+  });
+
+  it("forwards a complete branch-aware replacement topology", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true, sequence: {} });
+
+    const edges = [
+      {
+        sourceNodeId: "node_branch",
+        targetNodeId: "node_if",
+        condition: { branchId: "branch-0" },
+      },
+      {
+        sourceNodeId: "node_branch",
+        targetNodeId: "node_else",
+        condition: { branchId: "else" },
+      },
+    ];
+    const result = await handleToolCall("edit_sequence_graph", {
+      sequenceId: "seq_123",
+      action: "replace_edges",
+      graphRevision: "revision-2",
+      edges,
+      confirmStructuralChange: true,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/sequences/seq_123",
+      {
+        confirmStructuralChange: true,
+        graphEdit: {
+          action: "replace_edges",
+          expectedRevision: "revision-2",
+          edges,
+        },
+      },
+      undefined
+    );
+  });
+
+  it("rejects positioned edits without exactly one anchor", async () => {
+    const result = await handleToolCall("edit_sequence_graph", {
+      sequenceId: "seq_123",
+      action: "duplicate_node",
+      graphRevision: "revision-1",
+      nodeId: "node_ab_test",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Provide exactly one of `afterNodeId` or `beforeNodeId`"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+});
+
 describe("insert_sequence_step tool", () => {
   beforeEach(() => {
     mockApiRequest.mockClear();

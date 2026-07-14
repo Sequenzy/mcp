@@ -371,6 +371,7 @@ const MUTATING_TOOL_NAMES = new Set([
   "update_landing_page_domain_settings",
   "create_sequence",
   "update_sequence",
+  "edit_sequence_graph",
   "insert_sequence_step",
   "enable_sequence",
   "disable_sequence",
@@ -436,6 +437,7 @@ const DESTRUCTIVE_TOOL_NAMES = new Set([
   "delete_landing_page",
   "unpublish_landing_page",
   "disable_sequence",
+  "edit_sequence_graph",
   "cancel_sequence_enrollments",
   "delete_sequence",
   "cancel_team_invitation",
@@ -1552,6 +1554,125 @@ function buildUpdateSequenceBody(
   }
 
   return body;
+}
+
+function buildSequenceGraphEditBody(
+  args: Record<string, unknown>
+): Record<string, unknown> {
+  const action = requiredString("edit_sequence_graph", args, "action");
+  const graphRevision = requiredString(
+    "edit_sequence_graph",
+    args,
+    "graphRevision"
+  );
+  const allowedActions = new Set([
+    "move_node",
+    "delete_node",
+    "duplicate_node",
+    "replace_edges",
+  ]);
+  if (!allowedActions.has(action)) {
+    throw new Error(
+      "`action` must be `move_node`, `delete_node`, `duplicate_node`, or `replace_edges` when calling `edit_sequence_graph`."
+    );
+  }
+
+  const nodeId = optionalString(args, "nodeId");
+  const afterNodeId = optionalString(args, "afterNodeId");
+  const beforeNodeId = optionalString(args, "beforeNodeId");
+  const edgesValue = args.edges;
+
+  if (action !== "replace_edges" && !nodeId) {
+    throw new Error(
+      `\`nodeId\` is required for ${action} when calling \`edit_sequence_graph\`.`
+    );
+  }
+  if (action === "replace_edges" && nodeId) {
+    throw new Error(
+      "`nodeId` is not used with `replace_edges` when calling `edit_sequence_graph`."
+    );
+  }
+
+  const isPositionedAction =
+    action === "move_node" || action === "duplicate_node";
+  if (
+    isPositionedAction &&
+    (afterNodeId ? 1 : 0) + (beforeNodeId ? 1 : 0) !== 1
+  ) {
+    throw new Error(
+      `Provide exactly one of \`afterNodeId\` or \`beforeNodeId\` for ${action} when calling \`edit_sequence_graph\`.`
+    );
+  }
+  if (!isPositionedAction && (afterNodeId || beforeNodeId)) {
+    throw new Error(
+      `\`afterNodeId\` and \`beforeNodeId\` are not used with ${action} when calling \`edit_sequence_graph\`.`
+    );
+  }
+  if (
+    (action === "replace_edges" ||
+      (action === "delete_node" && edgesValue !== undefined)) &&
+    (!Array.isArray(edgesValue) || edgesValue.length === 0)
+  ) {
+    throw new Error(
+      `\`edges\` must contain the complete replacement topology for ${action} when calling \`edit_sequence_graph\`.`
+    );
+  }
+  if (
+    (action === "move_node" || action === "duplicate_node") &&
+    edgesValue !== undefined
+  ) {
+    throw new Error(
+      `\`edges\` is not used with ${action} when calling \`edit_sequence_graph\`.`
+    );
+  }
+
+  const edges = Array.isArray(edgesValue)
+    ? edgesValue.map((edge, index) => {
+        if (!isRecord(edge)) {
+          throw new Error(
+            `\`edges\` item ${index + 1} must be an object when calling \`edit_sequence_graph\`.`
+          );
+        }
+        const sourceNodeId = requiredString(
+          "edit_sequence_graph",
+          edge,
+          "sourceNodeId"
+        );
+        const targetNodeId = requiredString(
+          "edit_sequence_graph",
+          edge,
+          "targetNodeId"
+        );
+        if (
+          edge.condition !== undefined &&
+          edge.condition !== null &&
+          !isRecord(edge.condition)
+        ) {
+          throw new Error(
+            `\`edges\` item ${index + 1} \`condition\` must be an object when calling \`edit_sequence_graph\`.`
+          );
+        }
+        return {
+          sourceNodeId,
+          targetNodeId,
+          ...(isRecord(edge.condition) ? { condition: edge.condition } : {}),
+        };
+      })
+    : undefined;
+
+  return {
+    ...(args.confirmStructuralChange !== undefined && {
+      confirmStructuralChange: args.confirmStructuralChange,
+    }),
+    graphEdit: {
+      action,
+      expectedRevision: graphRevision,
+      ...(nodeId ? { nodeId } : {}),
+      ...(afterNodeId ? { afterNodeId } : {}),
+      ...(beforeNodeId ? { beforeNodeId } : {}),
+      ...(edges ? { edges } : {}),
+    },
+  };
 }
 
 function buildInsertSequenceStepBody(
@@ -3006,6 +3127,7 @@ const dashboardUrlToolNames = new Set([
   "get_sequence",
   "create_sequence",
   "update_sequence",
+  "edit_sequence_graph",
   "insert_sequence_step",
   "enable_sequence",
   "disable_sequence",
@@ -3676,6 +3798,9 @@ const outputPropertiesByToolName: Record<string, OutputSchemaProperties> = {
     },
   },
   update_sequence: {
+    sequence: resourceOutputProperty("sequence"),
+  },
+  edit_sequence_graph: {
     sequence: resourceOutputProperty("sequence"),
   },
   insert_sequence_step: {
@@ -6688,7 +6813,7 @@ Before implementing, use create_api_key to generate an API key and save it to .e
   {
     name: "get_sequence",
     description:
-      "Get sequence details plus editable step content. The response includes sequence.emails with each step's nodeId, linked emailId, subject, previewText, and blocks.",
+      "Get sequence details, editable step content, and graph topology. The response includes sequence.nodes, sequence.edges, graphRevision for safe edit_sequence_graph calls, and sequence.emails with each step's nodeId, linked emailId, subject, previewText, and blocks.",
     inputSchema: {
       type: "object",
       properties: {
@@ -7707,6 +7832,77 @@ OTHER BUILT-IN EVENTS:
         },
       },
       required: ["sequenceId"],
+    },
+  },
+  {
+    name: "edit_sequence_graph",
+    description:
+      "Restructure an existing sequence graph using node IDs, edges, and graphRevision from get_sequence. move_node repositions one non-split step; beforeNodeId can place an A/B test or other step at the shared continuation below a branch. duplicate_node creates an independent copy and deep-copies linked email or A/B test content. delete_node safely splices a linear step; deleting a split node requires the complete replacement edges. replace_edges atomically replaces the complete topology for advanced reconnect or multi-node reorder work. Always call get_sequence immediately before this tool and pass its graphRevision. Active sequences require confirmStructuralChange:true after the user confirms live-flow impact.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        sequenceId: {
+          type: "string",
+          description: "Sequence ID.",
+        },
+        action: {
+          type: "string",
+          enum: ["move_node", "delete_node", "duplicate_node", "replace_edges"],
+          description:
+            "Graph operation. Use move_node for a single step reorder, duplicate_node for an independent copy, delete_node to remove a step/node, or replace_edges for an atomic reconnect/reorder of the whole topology.",
+        },
+        graphRevision: {
+          type: "string",
+          description:
+            "Exact graphRevision returned by the latest get_sequence call. The edit is rejected if the graph changed since then.",
+        },
+        nodeId: {
+          type: "string",
+          description:
+            "Existing node to move, duplicate, or delete. Required for those actions and unused by replace_edges.",
+        },
+        afterNodeId: {
+          type: "string",
+          description:
+            "For move_node or duplicate_node, insert immediately after this node. The target must have at most one outgoing path. Provide exactly one of afterNodeId or beforeNodeId.",
+        },
+        beforeNodeId: {
+          type: "string",
+          description:
+            "For move_node or duplicate_node, insert immediately before this node. All incoming paths converge through the moved/copied node, which is useful for placing a step below a branch. Provide exactly one of beforeNodeId or afterNodeId.",
+        },
+        edges: {
+          type: "array",
+          description:
+            "Complete replacement topology from get_sequence.sequence.edges. The returned edge array is already normalized for this input and can be reused directly. Required for replace_edges and when deleting a split node. Preserve each branch edge's condition.branchId. Do not include edges that reference a deleted node.",
+          items: {
+            type: "object",
+            properties: {
+              sourceNodeId: { type: "string" },
+              targetNodeId: { type: "string" },
+              condition: {
+                type: "object",
+                description:
+                  "Optional edge routing condition. Preserve condition.branchId on edges leaving logic_branch nodes.",
+              },
+            },
+            required: ["sourceNodeId", "targetNodeId"],
+            additionalProperties: false,
+          },
+        },
+        confirmStructuralChange: {
+          type: "boolean",
+          description:
+            "Set true only after the user explicitly confirms a structural edit to an active sequence.",
+        },
+      },
+      required: ["sequenceId", "action", "graphRevision"],
+      additionalProperties: false,
     },
   },
   {
@@ -11048,6 +11244,18 @@ export async function handleToolCall(
       case "update_sequence": {
         const companyId = args.companyId as string | undefined;
         const body = buildUpdateSequenceBody(args);
+        result = await apiRequest(
+          "PUT",
+          `/api/v1/sequences/${args.sequenceId}`,
+          body,
+          companyId
+        );
+        break;
+      }
+
+      case "edit_sequence_graph": {
+        const companyId = args.companyId as string | undefined;
+        const body = buildSequenceGraphEditBody(args);
         result = await apiRequest(
           "PUT",
           `/api/v1/sequences/${args.sequenceId}`,
