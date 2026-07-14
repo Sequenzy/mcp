@@ -667,6 +667,12 @@ that reuses the key, so it is not an exact historical drill-down.
 | `list_webhook_deliveries`    | List recent delivery attempts for a webhook.                        |
 | `replay_webhook_delivery`    | Replay a webhook delivery.                                          |
 
+Per-list consent changes are available as opt-in outbound events:
+`subscriber.list_subscribed` and `subscriber.list_unsubscribed`. Their payloads
+identify the subscriber and list, report `action` as `added` or `removed`, and
+include the change `source` (for example `preferences_page`, `dashboard`,
+`api`, or `automation`).
+
 ### AI Generation
 
 | Tool                     | Description                                          |

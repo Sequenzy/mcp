@@ -5623,7 +5623,13 @@ describe("outbound webhook tools", () => {
       companyId: "comp_123",
       name: "Prod",
       url: "https://example.com/webhooks/sequenzy",
-      events: ["email.delivered", "email.replied", "subscriber.unsubscribed"],
+      events: [
+        "email.delivered",
+        "email.replied",
+        "subscriber.unsubscribed",
+        "subscriber.list_subscribed",
+        "subscriber.list_unsubscribed",
+      ],
     });
 
     expect(result.isError).toBeUndefined();
@@ -5633,7 +5639,13 @@ describe("outbound webhook tools", () => {
       {
         name: "Prod",
         url: "https://example.com/webhooks/sequenzy",
-        events: ["email.delivered", "email.replied", "subscriber.unsubscribed"],
+        events: [
+          "email.delivered",
+          "email.replied",
+          "subscriber.unsubscribed",
+          "subscriber.list_subscribed",
+          "subscriber.list_unsubscribed",
+        ],
       },
       "comp_123"
     );

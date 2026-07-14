@@ -257,6 +257,8 @@ export const OUTBOUND_WEBHOOK_EVENT_TYPES = [
   "subscriber.invalid",
   "subscriber.updated",
   "subscriber.unsubscribed",
+  "subscriber.list_subscribed",
+  "subscriber.list_unsubscribed",
   "sequence.finished",
   "sequence.failed",
   "poll.answered",
