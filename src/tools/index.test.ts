@@ -2352,24 +2352,23 @@ describe("create_campaign tool validation", () => {
     expect(blocksDescription).toContain('"attributeKey": "nps_score"');
   });
 
-  it("documents server-evaluated email block conditions", () => {
+  it("publishes server-evaluated email block condition guidance", () => {
     const createCampaignTool = tools.find(
       (tool) => tool.name === "create_campaign"
     );
     const inputSchema = createCampaignTool?.inputSchema as
       | {
-          properties?: Record<
-            string,
-            { description?: string | undefined } | undefined
-          >;
+          properties?: Record<string, { description?: string }>;
         }
       | undefined;
-    const description = inputSchema?.properties?.blocks?.description;
+    const blocksDescription = inputSchema?.properties?.["blocks"]?.description;
 
-    expect(description).toContain("segment");
-    expect(description).toContain("at_least");
-    expect(description).toContain("is_temporary_bounce");
-    expect(description).toContain("without a stored subscriber match");
+    expect(blocksDescription).toContain('"segment"');
+    expect(blocksDescription).toContain('"event"');
+    expect(blocksDescription).toContain('"smsStatus"');
+    expect(blocksDescription).toContain("at_least");
+    expect(blocksDescription).toContain("is_temporary_bounce");
+    expect(blocksDescription).toContain("without a stored subscriber match");
   });
 
   it("requires subject when prompt is not provided", async () => {

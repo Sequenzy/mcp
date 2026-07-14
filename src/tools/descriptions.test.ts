@@ -25,4 +25,10 @@ describe("blockConditionsHint", () => {
     expect(blockConditionsHint).toContain("is_temporary_bounce");
     expect(blockConditionsHint).toContain("without a stored subscriber match");
   });
+
+  it("includes required ids in every example condition", () => {
+    expect(blockConditionsHint).toContain('{ "id": "c2", "field": "segment"');
+    expect(blockConditionsHint).toContain('{ "id": "c3", "field": "tag"');
+    expect(blockConditionsHint).toContain('{ "id": "c4", "field": "event"');
+  });
 });
