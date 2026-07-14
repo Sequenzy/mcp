@@ -425,6 +425,8 @@ Landing page content uses Sequenzy's editor-compatible JSON schema with `version
 | `get_sequence`                   | Get sequence details, including nodes, edges, graph revision, linked emails, and blocks.     |
 | `create_sequence`                | Create AI-generated or explicit-step sequences with optional From/Reply-To overrides.        |
 | `update_sequence`                | Update identity, settings, enrollment, existing steps, branch logic, or insert linear steps. |
+| `update_sequence_node`           | Type-aware patch of one existing sequence node.                                              |
+| `update_sequence_nodes`          | Atomically patch multiple existing sequence nodes.                                           |
 | `insert_sequence_step`           | Insert one new email step, optionally with a delay node before it.                           |
 | `edit_sequence_graph`            | Move, reconnect, delete, or duplicate existing graph nodes, including A/B test steps.        |
 | `enable_sequence`                | Activate a sequence.                                                                         |
@@ -498,6 +500,20 @@ Number and boolean values must be literals or one standalone merge tag. Use
 node ID from `get_sequence` to replace an existing step's config.
 
 Sequence updates support `insertSteps` for adding new linear steps after a `nodeId` returned by `get_sequence`. Omit `afterNodeId` only when appending to a sequence with exactly one linear tail. `insertSteps` supports addable steps that do not require companion records, such as email, delay, tag/list actions, attribute updates, discounts, conditions, wait-for-event steps, and webhooks. Use `branch` for multi-path if/else branches; provide either `branch` or `insertSteps`, not both. Branch conditions support tag presence and absence checks with `has_tag` and `does_not_have_tag`, plus lists, saved segments, events, clicked links, and field comparisons. The `emails` and `steps` arrays only edit existing email steps by `nodeId`, `emailId`, or array order; use `insertSteps` to create new steps and include a step-level `delay`, `delayMs`, or `waitUntil` when the inserted email needs a timer. `waitUntil` accepts a date field from the trigger event plus optional `offset`, `direction` (`before` or `after`), and `missingAction` (`continue` or `exit`). For active sequences, pass `confirmStructuralChange: true` with `insertSteps` or `branch` only after confirming the live-flow impact.
+
+Use `update_sequence_node` for a focused in-place edit, or
+`update_sequence_nodes` when several node patches must commit atomically. Call
+`get_sequence` first: every item in `sequence.nodes` includes the node `id`,
+`nodeType`, current `config`, `updatedAt`, and `updateHints` with editable and
+managed fields plus the exact concurrency token to return. Pass that token as
+`expectedUpdatedAt` to reject stale writes. The tools support every stored node
+type, including delays, email/SMS content, actions, conditions, webhooks,
+branch configuration without topology changes, and triggers. To change a
+5-minute delay to 7 days, send `changes: { "delay": { "days": 7 } }` for its
+`logic_delay` node. Node-type conversion and edge/path changes belong in
+`edit_sequence_graph`. Active sequences require `confirmLiveChange: true` after
+the user confirms the impact; recipients already waiting retain their existing
+scheduled timestamp.
 
 Existing and newly inserted email steps can set their own From identity with
 `senderProfileId` or `fromEmail` plus optional `fromName`, and their Reply-To

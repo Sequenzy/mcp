@@ -208,6 +208,31 @@ const sequenceDelaySchema = {
   additionalProperties: false,
 } as const;
 
+const sequenceNodeChangesSchema = {
+  type: "object",
+  description:
+    "Type-aware patch for the existing node. Start from get_sequence.sequence.nodes[].config. For logic_delay, set exactly one of delay ({ days, hours, minutes }), delayMs, or waitUntil; optional label is also accepted. For action_email, use name/label, subject, previewText, html/htmlContent or blocks, isTransactional, and sender/reply identity fields. For action_sms, use text, blocks, imageUrls, label, or ineligibleAction. Other node types accept their editable config keys. Managed IDs, nodeType conversion, and branch path IDs/count are not editable here; use edit_sequence_graph for topology. Webhook header patches are merged, and redacted values from get_sequence must be omitted or replaced with a real new value.",
+  additionalProperties: true,
+} as const;
+
+const sequenceNodeUpdateItemSchema = {
+  type: "object",
+  properties: {
+    nodeId: {
+      type: "string",
+      description: "Existing node ID from get_sequence.sequence.nodes[].id.",
+    },
+    changes: sequenceNodeChangesSchema,
+    expectedUpdatedAt: {
+      type: "string",
+      description:
+        "Required optimistic-concurrency value from get_sequence.sequence.nodes[].updatedAt. The update is rejected if that node or its linked email content changed after it was read.",
+    },
+  },
+  required: ["nodeId", "changes", "expectedUpdatedAt"],
+  additionalProperties: false,
+} as const;
+
 const AVAILABLE_TAG_COLORS = [
   "gray",
   "red",
@@ -371,6 +396,8 @@ const MUTATING_TOOL_NAMES = new Set([
   "update_landing_page_domain_settings",
   "create_sequence",
   "update_sequence",
+  "update_sequence_node",
+  "update_sequence_nodes",
   "edit_sequence_graph",
   "insert_sequence_step",
   "enable_sequence",
@@ -1554,6 +1581,85 @@ function buildUpdateSequenceBody(
   }
 
   return body;
+}
+
+function buildSequenceNodeUpdateEntry(
+  toolName: string,
+  value: Record<string, unknown>,
+  location: string
+): Record<string, unknown> {
+  const nodeId = requiredString(toolName, value, "nodeId");
+  if (!isRecord(value.changes) || Object.keys(value.changes).length === 0) {
+    throw new Error(
+      `\`changes\` must be a non-empty object for ${location} when calling \`${toolName}\`.`
+    );
+  }
+
+  const expectedUpdatedAt = requiredString(
+    toolName,
+    value,
+    "expectedUpdatedAt"
+  );
+  return {
+    nodeId,
+    changes: value.changes,
+    expectedUpdatedAt,
+  };
+}
+
+function buildUpdateSequenceNodeBody(
+  args: Record<string, unknown>
+): Record<string, unknown> {
+  const update = buildSequenceNodeUpdateEntry(
+    "update_sequence_node",
+    args,
+    "the node update"
+  );
+  return {
+    ...(args.confirmLiveChange !== undefined && {
+      confirmLiveChange: args.confirmLiveChange,
+    }),
+    nodeUpdates: [update],
+  };
+}
+
+function buildUpdateSequenceNodesBody(
+  args: Record<string, unknown>
+): Record<string, unknown> {
+  if (!Array.isArray(args.updates) || args.updates.length === 0) {
+    throw new Error(
+      "`updates` must be a non-empty array when calling `update_sequence_nodes`."
+    );
+  }
+
+  const seenNodeIds = new Set<string>();
+  const nodeUpdates = args.updates.map((value, index) => {
+    if (!isRecord(value)) {
+      throw new Error(
+        `\`updates[${index}]\` must be an object when calling \`update_sequence_nodes\`.`
+      );
+    }
+    const update = buildSequenceNodeUpdateEntry(
+      "update_sequence_nodes",
+      value,
+      `updates[${index}]`
+    );
+    const nodeId = String(update.nodeId);
+    if (seenNodeIds.has(nodeId)) {
+      throw new Error(
+        `\`updates[${index}]\` targets duplicate nodeId '${nodeId}' when calling \`update_sequence_nodes\`.`
+      );
+    }
+    seenNodeIds.add(nodeId);
+    return update;
+  });
+
+  return {
+    ...(args.confirmLiveChange !== undefined && {
+      confirmLiveChange: args.confirmLiveChange,
+    }),
+    nodeUpdates,
+  };
 }
 
 function buildSequenceGraphEditBody(
@@ -3127,6 +3233,8 @@ const dashboardUrlToolNames = new Set([
   "get_sequence",
   "create_sequence",
   "update_sequence",
+  "update_sequence_node",
+  "update_sequence_nodes",
   "edit_sequence_graph",
   "insert_sequence_step",
   "enable_sequence",
@@ -3798,6 +3906,12 @@ const outputPropertiesByToolName: Record<string, OutputSchemaProperties> = {
     },
   },
   update_sequence: {
+    sequence: resourceOutputProperty("sequence"),
+  },
+  update_sequence_node: {
+    sequence: resourceOutputProperty("sequence"),
+  },
+  update_sequence_nodes: {
     sequence: resourceOutputProperty("sequence"),
   },
   edit_sequence_graph: {
@@ -6813,7 +6927,7 @@ Before implementing, use create_api_key to generate an API key and save it to .e
   {
     name: "get_sequence",
     description:
-      "Get sequence details, editable step content, and graph topology. The response includes sequence.nodes, sequence.edges, graphRevision for safe edit_sequence_graph calls, and sequence.emails with each step's nodeId, linked emailId, subject, previewText, and blocks.",
+      "Get sequence details, editable step content, and graph topology. Each sequence.nodes item includes id, nodeType, current config, updatedAt, and updateHints with its editable/managed fields and ready-to-return expectedUpdatedAt token for update_sequence_node/update_sequence_nodes. The response also includes sequence.edges and graphRevision for safe edit_sequence_graph calls, plus sequence.emails with each email step's nodeId, linked emailId, subject, previewText, and blocks.",
     inputSchema: {
       type: "object",
       properties: {
@@ -7832,6 +7946,68 @@ OTHER BUILT-IN EVENTS:
         },
       },
       required: ["sequenceId"],
+    },
+  },
+  {
+    name: "update_sequence_node",
+    description:
+      "Patch one existing sequence node in place. Call get_sequence first, select sequence.nodes[].id, inspect nodeType/config, and pass that node's updatedAt as expectedUpdatedAt. This supports every stored sequence node type, including delays, email/SMS content, actions, conditions, branches without topology changes, webhooks, and trigger settings. Delay example: changes:{ delay:{ days:7 } }. The update is type-aware and preserves fields you omit. It cannot change nodeType, managed linked-resource IDs, or graph topology; use edit_sequence_graph for structural work. On an active sequence, set confirmLiveChange:true only after the user confirms the live behavior change. Existing recipients already waiting keep their scheduled timestamp; the new delay applies when recipients reach the node in the future.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        sequenceId: {
+          type: "string",
+          description: "Sequence ID.",
+        },
+        nodeId: sequenceNodeUpdateItemSchema.properties.nodeId,
+        changes: sequenceNodeChangesSchema,
+        expectedUpdatedAt:
+          sequenceNodeUpdateItemSchema.properties.expectedUpdatedAt,
+        confirmLiveChange: {
+          type: "boolean",
+          description:
+            "Set true only after the user explicitly confirms changing a node in an active sequence.",
+        },
+      },
+      required: ["sequenceId", "nodeId", "changes", "expectedUpdatedAt"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "update_sequence_nodes",
+    description:
+      "Atomically patch multiple existing sequence nodes. Call get_sequence first and include each node's id plus its updatedAt as expectedUpdatedAt. Every patch follows update_sequence_node's type-aware rules. Either every node update commits or none do, making this the preferred tool for changes such as replacing all 5-minute delays with 7-day delays. A node may appear only once. It cannot change node types or graph topology. On an active sequence, set confirmLiveChange:true only after the user confirms the live behavior change. Existing recipients already waiting keep their scheduled timestamps.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        sequenceId: {
+          type: "string",
+          description: "Sequence ID.",
+        },
+        updates: {
+          type: "array",
+          description:
+            "Non-empty node patches. Each nodeId may appear only once.",
+          items: sequenceNodeUpdateItemSchema,
+        },
+        confirmLiveChange: {
+          type: "boolean",
+          description:
+            "Set true only after the user explicitly confirms changing nodes in an active sequence.",
+        },
+      },
+      required: ["sequenceId", "updates"],
+      additionalProperties: false,
     },
   },
   {
@@ -11247,6 +11423,40 @@ export async function handleToolCall(
         result = await apiRequest(
           "PUT",
           `/api/v1/sequences/${args.sequenceId}`,
+          body,
+          companyId
+        );
+        break;
+      }
+
+      case "update_sequence_node": {
+        const companyId = args.companyId as string | undefined;
+        const sequenceId = requiredString(
+          "update_sequence_node",
+          args,
+          "sequenceId"
+        );
+        const body = buildUpdateSequenceNodeBody(args);
+        result = await apiRequest(
+          "PUT",
+          `/api/v1/sequences/${sequenceId}`,
+          body,
+          companyId
+        );
+        break;
+      }
+
+      case "update_sequence_nodes": {
+        const companyId = args.companyId as string | undefined;
+        const sequenceId = requiredString(
+          "update_sequence_nodes",
+          args,
+          "sequenceId"
+        );
+        const body = buildUpdateSequenceNodesBody(args);
+        result = await apiRequest(
+          "PUT",
+          `/api/v1/sequences/${sequenceId}`,
           body,
           companyId
         );

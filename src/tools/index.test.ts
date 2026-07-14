@@ -3165,6 +3165,148 @@ describe("update_sequence tool", () => {
   });
 });
 
+describe("sequence node update tools", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("publishes focused single-node and atomic batch schemas", () => {
+    const singleTool = tools.find(
+      (tool) => tool.name === "update_sequence_node"
+    );
+    const batchTool = tools.find(
+      (tool) => tool.name === "update_sequence_nodes"
+    );
+    const singleSchema = singleTool?.inputSchema as
+      | {
+          required?: string[];
+          additionalProperties?: boolean;
+          properties?: Record<string, unknown>;
+        }
+      | undefined;
+    const batchSchema = batchTool?.inputSchema as
+      | {
+          required?: string[];
+          additionalProperties?: boolean;
+          properties?: Record<string, unknown>;
+        }
+      | undefined;
+
+    expect(singleSchema?.required).toEqual([
+      "sequenceId",
+      "nodeId",
+      "changes",
+      "expectedUpdatedAt",
+    ]);
+    expect(singleSchema?.additionalProperties).toBe(false);
+    expect(singleSchema?.properties).toHaveProperty("expectedUpdatedAt");
+    expect(singleSchema?.properties).toHaveProperty("confirmLiveChange");
+    expect(batchSchema?.required).toEqual(["sequenceId", "updates"]);
+    expect(batchSchema?.additionalProperties).toBe(false);
+    expect(singleTool?.description).toContain(
+      "every stored sequence node type"
+    );
+    expect(batchTool?.description).toContain(
+      "Either every node update commits"
+    );
+    expect(
+      tools.find((tool) => tool.name === "get_sequence")?.description
+    ).toContain("updateHints");
+    expect(singleTool?.annotations?.readOnlyHint).toBe(false);
+    expect(singleTool?.annotations?.destructiveHint).toBe(false);
+  });
+
+  it("maps one delay patch to the sequence nodeUpdates API", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      sequence: {
+        id: "seq_123",
+        updatedNodeCount: 1,
+        updatedNodes: [{ id: "delay_1", nodeType: "logic_delay" }],
+      },
+    });
+
+    const result = await handleToolCall("update_sequence_node", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      nodeId: "delay_1",
+      changes: { delay: { days: 7 } },
+      expectedUpdatedAt: "2026-07-14T10:00:00.000Z",
+      confirmLiveChange: true,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/sequences/seq_123",
+      {
+        confirmLiveChange: true,
+        nodeUpdates: [
+          {
+            nodeId: "delay_1",
+            changes: { delay: { days: 7 } },
+            expectedUpdatedAt: "2026-07-14T10:00:00.000Z",
+          },
+        ],
+      },
+      "comp_123"
+    );
+  });
+
+  it("maps a batch in order and rejects duplicate targets before the API", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      sequence: { id: "seq_123", updatedNodeCount: 2 },
+    });
+    const updates = [
+      {
+        nodeId: "delay_1",
+        changes: { delay: { days: 7 } },
+        expectedUpdatedAt: "2026-07-14T10:00:00.000Z",
+      },
+      {
+        nodeId: "email_1",
+        changes: { subject: "One week later" },
+        expectedUpdatedAt: "2026-07-14T10:01:00.000Z",
+      },
+    ];
+
+    const result = await handleToolCall("update_sequence_nodes", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      updates,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/sequences/seq_123",
+      { nodeUpdates: updates },
+      "comp_123"
+    );
+
+    mockApiRequest.mockClear();
+    const rejected = await handleToolCall("update_sequence_nodes", {
+      sequenceId: "seq_123",
+      updates: [
+        {
+          nodeId: "delay_1",
+          changes: { delayMs: 60_000 },
+          expectedUpdatedAt: "2026-07-14T10:00:00.000Z",
+        },
+        {
+          nodeId: "delay_1",
+          changes: { delayMs: 120_000 },
+          expectedUpdatedAt: "2026-07-14T10:00:00.000Z",
+        },
+      ],
+    });
+    expect(rejected.isError).toBe(true);
+    expect(rejected.content[0]?.text).toContain("duplicate nodeId");
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+});
+
 describe("edit_sequence_graph tool", () => {
   beforeEach(() => {
     mockApiRequest.mockClear();
