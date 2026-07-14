@@ -2563,11 +2563,16 @@ describe("create_sequence tool", () => {
     expect(inputSchema?.required).toEqual(["name", "trigger"]);
     expect(inputSchema?.properties).toHaveProperty("goal");
     expect(inputSchema?.properties).toHaveProperty("durationDays");
+    expect(inputSchema?.properties).toHaveProperty("emailStyle");
     expect(inputSchema?.properties).toHaveProperty("steps");
     expect(inputSchema?.properties).toHaveProperty("sendingWindow");
     expect(inputSchema?.properties).toHaveProperty("stopCondition");
     expect(inputSchema?.properties).toHaveProperty("fromEmail");
     expect(inputSchema?.properties).toHaveProperty("replyTo");
+    const emailStyle = inputSchema?.properties?.["emailStyle"] as
+      | { enum?: string[] }
+      | undefined;
+    expect(emailStyle?.enum).toEqual(["visual", "plain"]);
     const enrollmentFieldPath = inputSchema?.properties?.[
       "enrollmentFieldPath"
     ] as { description?: string } | undefined;

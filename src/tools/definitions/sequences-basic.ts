@@ -341,6 +341,12 @@ OTHER BUILT-IN EVENTS:
           description:
             "Total duration in days used to space AI-generated sequence emails. Only applies when using goal-based AI generation.",
         },
+        emailStyle: {
+          type: "string",
+          enum: ["visual", "plain"],
+          description:
+            "Style for AI-generated emails: 'visual' (designed, with heroes/imagery/rich sections) or 'plain' (personal, text-first notes with a single button). Only applies to goal-based AI generation. Defaults to the company's saved preference when omitted.",
+        },
         goal: {
           type: "string",
           description:

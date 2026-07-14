@@ -531,6 +531,7 @@ Sequence creation supports:
 - `trigger: "event_received"` plus `{{event.*}}` merge tags in subjects or body content.
 - `trigger: "inactivity"` plus `eventName`, `inactiveDays`, and optional `inactivityBaseline` (`sequence_created_at` or `subscriber_created_at`).
 - `goal` for AI-generated email content.
+- `emailStyle: "visual"` or `"plain"` to choose the presentation of goal-based AI-generated emails; when omitted, the company's saved preference is used.
 - Explicit `steps` with Sequenzy `blocks`.
 - Explicit `steps` with HTML, which Sequenzy converts into editable blocks.
 - Explicit Update Subscriber steps that copy trigger-event properties into
