@@ -576,7 +576,7 @@ Use cases:
 - 'event_tracking': Tracking CUSTOM events only (not payment events - those come from the integration)
 - 'ecommerce': Connecting a custom e-commerce platform via the Commerce API (sync products, push orders/checkouts, power abandoned cart + back-in-stock automations)
 
-Before implementing, use create_api_key to generate an API key and save it to .env as SEQUENZY_API_KEY.`,
+Before protected server-side API work, use create_api_key and save the key to .env as SEQUENZY_API_KEY. Static-site saved forms are the exception: use list_forms/create_form/get_form_embed and never place a secret key in browser code.`,
     inputSchema: {
       type: "object",
       properties: {
