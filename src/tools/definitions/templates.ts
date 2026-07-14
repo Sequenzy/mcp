@@ -152,6 +152,81 @@ export const templateToolDefinitions: Tool[] = [
     },
   },
   {
+    name: "set_template_localization",
+    description:
+      "Create or replace one caller-supplied localized variant of a template. The locale must be enabled for the company and cannot be its primary locale. Provide exactly one of `html` or `blocks`.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        templateId: {
+          type: "string",
+          description: "Template ID, transactional email ID, or slug.",
+        },
+        locale: {
+          type: "string",
+          description:
+            "Enabled non-primary locale code such as es, fr, or pt-BR.",
+        },
+        subject: {
+          type: "string",
+          description: "Localized email subject line.",
+        },
+        previewText: {
+          type: ["string", "null"],
+          description: "Optional localized inbox preview text.",
+        },
+        html: {
+          type: "string",
+          description:
+            "Localized email HTML. Mutually exclusive with `blocks`.",
+        },
+        blocks: {
+          type: "array",
+          description: emailBlocksDescription,
+          items: {
+            type: "object",
+          },
+        },
+      },
+      required: ["templateId", "locale", "subject"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "sync_template_localizations",
+    description:
+      "Queue AI translation for selected template locales. Omit `locales` to sync every enabled non-primary locale. This works even when automatic on-save localization is disabled.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        templateId: {
+          type: "string",
+          description: "Template ID, transactional email ID, or slug.",
+        },
+        locales: {
+          type: "array",
+          description:
+            "Optional enabled non-primary locale codes to sync. Omit to sync all enabled non-primary locales.",
+          items: {
+            type: "string",
+          },
+        },
+      },
+      required: ["templateId"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "delete_template",
     description: "Delete a template",
     inputSchema: {

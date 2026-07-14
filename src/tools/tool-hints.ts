@@ -94,6 +94,8 @@ export const MUTATING_TOOL_NAMES = new Set([
   "sync_audience_now",
   "create_template",
   "update_template",
+  "set_template_localization",
+  "sync_template_localizations",
   "delete_template",
   "restart_ab_test",
   "update_ab_test_variant",

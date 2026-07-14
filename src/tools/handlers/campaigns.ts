@@ -104,6 +104,107 @@ export async function handleCampaignTools(
       break;
     }
 
+    case "set_template_localization": {
+      const companyId = args.companyId as string | undefined;
+      const templateId = requiredString(
+        "set_template_localization",
+        args,
+        "templateId"
+      );
+      const locale = requiredString(
+        "set_template_localization",
+        args,
+        "locale"
+      );
+      const subject = requiredString(
+        "set_template_localization",
+        args,
+        "subject"
+      );
+      const allowedKeys = new Set([
+        "companyId",
+        "templateId",
+        "locale",
+        "subject",
+        "previewText",
+        "html",
+        "blocks",
+      ]);
+      const unsupportedKeys = Object.keys(args).filter(
+        (key) => !allowedKeys.has(key)
+      );
+      if (unsupportedKeys.length > 0) {
+        throw new Error(
+          `\`set_template_localization\` received unsupported field${unsupportedKeys.length === 1 ? "" : "s"}: ${unsupportedKeys.map((key) => `\`${key}\``).join(", ")}.`
+        );
+      }
+
+      validateHtmlOrBlocksArgs("set_template_localization", args, {
+        requireContent: true,
+      });
+
+      const localizationBody: Record<string, unknown> = { subject };
+      if (args.previewText !== undefined) {
+        localizationBody.previewText = args.previewText;
+      }
+      if (args.html !== undefined) {
+        localizationBody.html = args.html;
+      }
+      if (args.blocks !== undefined) {
+        localizationBody.blocks = args.blocks;
+      }
+
+      result = await apiRequest(
+        "PUT",
+        `/api/v1/templates/${encodeURIComponent(templateId)}/localizations/${encodeURIComponent(locale)}`,
+        localizationBody,
+        companyId
+      );
+      break;
+    }
+
+    case "sync_template_localizations": {
+      const companyId = args.companyId as string | undefined;
+      const templateId = requiredString(
+        "sync_template_localizations",
+        args,
+        "templateId"
+      );
+      const allowedKeys = new Set(["companyId", "templateId", "locales"]);
+      const unsupportedKeys = Object.keys(args).filter(
+        (key) => !allowedKeys.has(key)
+      );
+      if (unsupportedKeys.length > 0) {
+        throw new Error(
+          `\`sync_template_localizations\` received unsupported field${unsupportedKeys.length === 1 ? "" : "s"}: ${unsupportedKeys.map((key) => `\`${key}\``).join(", ")}.`
+        );
+      }
+
+      let locales: string[] | undefined;
+      if (args.locales !== undefined) {
+        if (
+          !Array.isArray(args.locales) ||
+          args.locales.length === 0 ||
+          args.locales.some(
+            (locale) => typeof locale !== "string" || locale.trim().length === 0
+          )
+        ) {
+          throw new Error(
+            "`locales` must contain at least one non-empty locale string when calling `sync_template_localizations`."
+          );
+        }
+        locales = args.locales.map((locale) => locale.trim());
+      }
+
+      result = await apiRequest(
+        "POST",
+        `/api/v1/templates/${encodeURIComponent(templateId)}/localizations/sync`,
+        locales === undefined ? {} : { locales },
+        companyId
+      );
+      break;
+    }
+
     case "delete_template": {
       const companyId = args.companyId as string | undefined;
       result = await apiRequest(

@@ -390,6 +390,21 @@ export const outputPropertiesByToolName: Record<
   update_template: {
     template: resourceOutputProperty("email template"),
   },
+  set_template_localization: {
+    templateId: stringOutputProperty("Localized template ID."),
+    localization: resourceOutputProperty("template localization"),
+  },
+  sync_template_localizations: {
+    templateId: stringOutputProperty("Template ID queued for localization."),
+    queuedLocales: {
+      type: "array",
+      description: "Locale codes queued for AI translation.",
+      items: stringOutputProperty("One queued locale code."),
+    },
+    queuedVariantCount: numberOutputProperty(
+      "Number of localized variants queued for translation."
+    ),
+  },
   delete_template: {
     templateId: stringOutputProperty("Deleted template ID."),
   },

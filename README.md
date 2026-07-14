@@ -15,6 +15,7 @@ Connect Sequenzy to Claude Desktop, Claude Code, Codex, Cursor, Windsurf, VS Cod
 - Create and edit email sequences, including event-triggered and segment-entry automations, sending identity overrides, and existing graph restructuring.
 - Cancel, pause, resume, duplicate, or delete campaigns and enroll contacts into sequences.
 - Manage transactional email templates and send single transactional emails.
+- Supply localized template variants or queue AI translation for enabled locales.
 - Create, edit, publish, unpublish, and delete landing pages.
 - Create list-scoped saved signup forms and return client-safe static-site embeds.
 - Connect and verify custom domains for published landing pages.
@@ -210,7 +211,7 @@ include the missing scopes.
 
 ## Tools
 
-This server currently exposes 137 MCP tools.
+This server currently exposes 139 MCP tools.
 
 ### Account, Companies, Setup
 
@@ -370,19 +371,28 @@ Audiences are add-only: subscribers who later leave the segment stay in the Meta
 
 ### Templates
 
-| Tool              | Description                                               |
-| ----------------- | --------------------------------------------------------- |
-| `list_templates`  | List templates with localization status.                  |
-| `get_template`    | Read template details, content, and localized variants.   |
-| `create_template` | Create templates from a prompt, HTML, or Sequenzy blocks. |
-| `update_template` | Update template metadata, labels, HTML, or blocks.        |
-| `delete_template` | Delete a template.                                        |
+| Tool                          | Description                                                           |
+| ----------------------------- | --------------------------------------------------------------------- |
+| `list_templates`              | List templates with localization status.                              |
+| `get_template`                | Read template details, content, and localized variants.               |
+| `create_template`             | Create templates from a prompt, HTML, or Sequenzy blocks.             |
+| `update_template`             | Update template metadata, labels, HTML, or blocks.                    |
+| `set_template_localization`   | Create or replace a caller-supplied localized variant.                |
+| `sync_template_localizations` | Queue AI translation for selected or all enabled non-primary locales. |
+| `delete_template`             | Delete a template.                                                    |
 
 For net-new content requested in natural language, pass `prompt` so Sequenzy
 generates branded native blocks server-side. Use `blocks` only for finished
 caller-supplied Sequenzy content, and use `html` only when preserving supplied
 or explicitly requested markup. `prompt`, `blocks`, and `html` are mutually
 exclusive; `style` and `tone` are valid only with `prompt`.
+
+Use `set_template_localization` when translated copy comes from your own
+localization workflow. It requires an enabled non-primary `locale`, a localized
+`subject`, and exactly one of `html` or `blocks`. Use
+`sync_template_localizations` to ask Sequenzy to translate selected locales;
+omit `locales` to sync every enabled non-primary locale. Explicit sync works
+even when automatic on-save localization is disabled.
 
 ### A/B Tests
 

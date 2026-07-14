@@ -441,6 +441,153 @@ describe("update_template tool validation", () => {
   });
 });
 
+describe("template localization tools", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("publishes conservative schemas for setting and syncing localizations", () => {
+    const setTool = tools.find(
+      (tool) => tool.name === "set_template_localization"
+    );
+    const syncTool = tools.find(
+      (tool) => tool.name === "sync_template_localizations"
+    );
+
+    expect(setTool?.inputSchema.required).toEqual([
+      "templateId",
+      "locale",
+      "subject",
+    ]);
+    expect(setTool?.inputSchema.additionalProperties).toBe(false);
+    expect(setTool?.inputSchema.properties).toHaveProperty("html");
+    expect(setTool?.inputSchema.properties).toHaveProperty("blocks");
+    expect(syncTool?.inputSchema.required).toEqual(["templateId"]);
+    expect(syncTool?.inputSchema.additionalProperties).toBe(false);
+    expect(syncTool?.inputSchema.properties).toHaveProperty("locales");
+  });
+
+  it("sets a caller-supplied template localization", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      templateId: "tmpl_123",
+      localization: {
+        locale: "es",
+        status: "synced",
+        subject: "Hola",
+        previewText: "Bienvenido",
+        blocks: [],
+      },
+    });
+
+    const result = await handleToolCall("set_template_localization", {
+      companyId: "comp_123",
+      templateId: "tmpl_123",
+      locale: "es",
+      subject: "Hola",
+      previewText: "Bienvenido",
+      html: "<p>Hola</p>",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/templates/tmpl_123/localizations/es",
+      {
+        subject: "Hola",
+        previewText: "Bienvenido",
+        html: "<p>Hola</p>",
+      },
+      "comp_123"
+    );
+    expect(result.structuredContent?.["appUrls"]).toMatchObject({
+      email: "https://sequenzy.com/dashboard/company/comp_123/emails/tmpl_123",
+    });
+  });
+
+  it("rejects missing or mixed localization content before hitting the API", async () => {
+    const missingResult = await handleToolCall("set_template_localization", {
+      templateId: "tmpl_123",
+      locale: "es",
+      subject: "Hola",
+    });
+    const mixedResult = await handleToolCall("set_template_localization", {
+      templateId: "tmpl_123",
+      locale: "es",
+      subject: "Hola",
+      html: "<p>Hola</p>",
+      blocks: [],
+    });
+
+    expect(missingResult.isError).toBe(true);
+    expect(missingResult.content[0]?.text).toContain(
+      "Provide either `html` or `blocks` when calling `set_template_localization`."
+    );
+    expect(mixedResult.isError).toBe(true);
+    expect(mixedResult.content[0]?.text).toContain(
+      "Provide either `html` or `blocks` when calling `set_template_localization`, not both."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("syncs selected template locales", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      templateId: "tmpl_123",
+      queuedLocales: ["es", "fr"],
+      queuedVariantCount: 2,
+    });
+
+    const result = await handleToolCall("sync_template_localizations", {
+      companyId: "comp_123",
+      templateId: "tmpl_123",
+      locales: ["es", "fr"],
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/templates/tmpl_123/localizations/sync",
+      { locales: ["es", "fr"] },
+      "comp_123"
+    );
+  });
+
+  it("omits locales to sync every enabled non-primary locale", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      templateId: "tmpl_123",
+      queuedLocales: ["es"],
+      queuedVariantCount: 1,
+    });
+
+    const result = await handleToolCall("sync_template_localizations", {
+      templateId: "tmpl_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/templates/tmpl_123/localizations/sync",
+      {},
+      undefined
+    );
+  });
+
+  it("rejects invalid locale arrays before syncing", async () => {
+    const result = await handleToolCall("sync_template_localizations", {
+      templateId: "tmpl_123",
+      locales: ["es", ""],
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`locales` must contain at least one non-empty locale string when calling `sync_template_localizations`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+});
+
 describe("update_company tool validation", () => {
   beforeEach(() => {
     mockApiRequest.mockClear();
