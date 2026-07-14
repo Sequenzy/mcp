@@ -487,6 +487,21 @@ export const outputPropertiesByToolName: Record<
       "Estimated number of subscribers who haven't opened the original campaign."
     ),
   },
+  list_forms: {
+    forms: resourceListOutputProperty("saved form"),
+  },
+  create_form: {
+    form: resourceOutputProperty("saved form"),
+    embed: objectOutputProperty(
+      "Public action URL plus JavaScript, native form, and fetch snippets."
+    ),
+  },
+  get_form_embed: {
+    form: resourceOutputProperty("saved form"),
+    embed: objectOutputProperty(
+      "Public action URL plus JavaScript, native form, and fetch snippets."
+    ),
+  },
   list_landing_pages: {
     landingPages: resourceListOutputProperty("landing page"),
   },

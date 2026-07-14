@@ -433,6 +433,13 @@ remain drafts. Use `templateId`, `blocks`, or `html` only when copying or
 preserving existing content rather than asking the agent to author it. Omit all
 content fields to create an empty draft for later editing.
 
+Email blocks may use conditional display rules or `conditional-group` branches.
+Conditions support render-time variables and subscriber attributes plus live
+subscriber data such as segment/list membership, tags, events, engagement,
+subscription/SMS status, and Stripe or commerce purchases. Live-data
+conditions use the same field values and operators as segment filters;
+recipients without a stored subscriber match use the OTHERWISE branch.
+
 Use `update_company` with `fromEmail` and/or `replyTo` to set account-wide
 defaults. `fromEmail` must use a configured, verified sending domain; `replyTo`
 may be any valid mailbox. `create_campaign`, `update_campaign`,
@@ -478,6 +485,9 @@ static site, call `list_forms`, use `create_form` if a suitable form does not
 exist, then call `get_form_embed`. The returned opaque `formId` is the public
 capability: lists, tags, duplicate behavior, and success handling remain
 server-side, so the deployed browser code never contains a Sequenzy API key.
+Generated native and standalone markup includes "Powered by Sequenzy" for free
+workspaces; paid workspaces receive unbranded markup. The API resolves that
+entitlement server-side, so callers should use the returned snippet unchanged.
 
 ### Landing Pages
 
