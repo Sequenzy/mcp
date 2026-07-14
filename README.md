@@ -9,6 +9,7 @@ Connect Sequenzy to Claude Desktop, Claude Code, Codex, Cursor, Windsurf, VS Cod
 - Manage subscribers, tags, lists, and dynamic segments.
 - Sync segments to Meta custom audiences for Facebook and Instagram retargeting.
 - Manage products and attach digital delivery files for purchase automations.
+- Upload hosted email images with alt text and reusable responsive crop settings.
 - Draft, update, schedule, and inspect campaigns, including From and Reply-To identities.
 - Add one-click Poll and NPS survey blocks to emails and inspect campaign response summaries.
 - Create and edit email sequences, including event-triggered and segment-entry automations, sending identity overrides, and existing graph restructuring.
@@ -256,6 +257,31 @@ error points back to `add_sending_domain` with the requested domain.
 | `sync_products`       | Queue a Stripe product catalog sync.                                                  |
 
 After a product delivery file is attached, matching purchase events include `download.url` and `download.name`, so purchase-triggered emails can use merge tags like `{{event.download.url}}`.
+
+### Image Assets
+
+| Tool                 | Description                                                                                  |
+| -------------------- | -------------------------------------------------------------------------------------------- |
+| `upload_image_asset` | Upload an email image and return its hosted media record plus a ready-to-insert image block. |
+
+The tool accepts PNG, JPEG, GIF, and WebP images up to 5MB. Local stdio clients
+can pass `filePath`. Hosted/remote clients that can access attachment bytes can
+pass `imageBase64` with `filename`. Provide `altText` for accessibility, then
+use `displayWidthPercent`, `cropHeight`, `objectFit` (`cover` or `contain`), and
+`align` to standardize screenshot presentation. The returned `imageBlock` can
+be copied directly into the block array accepted by campaign, sequence,
+template, and transactional-email tools.
+
+```json
+{
+  "filePath": "/Users/me/Desktop/product-results.png",
+  "altText": "Product results dashboard",
+  "displayWidthPercent": 100,
+  "cropHeight": 320,
+  "objectFit": "cover",
+  "align": "center"
+}
+```
 
 ### Lists, Tags, Segments
 

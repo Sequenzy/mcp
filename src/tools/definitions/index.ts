@@ -7,6 +7,7 @@ import { analyticsToolDefinitions } from "./analytics.js";
 import { audienceSyncToolDefinitions } from "./audience-syncs.js";
 import { campaignToolDefinitions } from "./campaigns.js";
 import { feedbackToolDefinitions } from "./feedback.js";
+import { imageAssetToolDefinitions } from "./image-assets.js";
 import { inboxToolDefinitions } from "./inbox.js";
 import { landingPageToolDefinitions } from "./landing-pages.js";
 import { productToolDefinitions } from "./products.js";
@@ -29,6 +30,7 @@ export const toolDefinitions: Tool[] = [
   ...abTestToolDefinitions,
   ...campaignToolDefinitions,
   ...landingPageToolDefinitions,
+  ...imageAssetToolDefinitions,
   ...sequenceBasicToolDefinitions,
   ...sequenceEditingToolDefinitions,
   ...transactionalToolDefinitions,

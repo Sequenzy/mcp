@@ -296,6 +296,12 @@ export const outputPropertiesByToolName: Record<
   remove_product_file: {
     product: resourceOutputProperty("product"),
   },
+  upload_image_asset: {
+    asset: resourceOutputProperty("hosted image asset"),
+    imageBlock: objectOutputProperty(
+      "Ready-to-insert Sequenzy image block using the hosted asset URL."
+    ),
+  },
   sync_products: {
     job: resourceOutputProperty("product sync job"),
     jobId: stringOutputProperty("Queued product sync job ID."),
