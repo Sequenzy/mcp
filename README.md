@@ -10,6 +10,7 @@ Connect Sequenzy to Claude Desktop, Claude Code, Codex, Cursor, Windsurf, VS Cod
 - Sync segments to Meta custom audiences for Facebook and Instagram retargeting.
 - Manage products and attach digital delivery files for purchase automations.
 - Draft, update, schedule, and inspect campaigns, including From and Reply-To identities.
+- Add one-click Poll and NPS survey blocks to emails and inspect campaign response summaries.
 - Create and edit email sequences, including event-triggered and segment-entry automations, sending identity overrides, and existing graph restructuring.
 - Cancel, pause, resume, duplicate, or delete campaigns and enroll contacts into sequences.
 - Manage transactional email templates and send single transactional emails.
@@ -401,6 +402,32 @@ may be any valid mailbox. `create_campaign`, `update_campaign`,
 `create_sequence`, and `update_sequence` accept the same direct-address fields
 for resource-specific overrides and create the backing profile when needed.
 
+Polls and NPS surveys are native email blocks, so they work anywhere an email
+tool accepts `blocks`, including campaigns, templates, A/B variants,
+transactional templates, and sequence email steps. Transactional poll sends
+must resolve to exactly one effective recipient after suppression filtering and
+recipient deduplication, and that recipient must already exist as a subscriber;
+otherwise Sequenzy rejects the send because the answer link cannot be safely
+attributed. Use an answer-button poll:
+
+```json
+{
+  "type": "poll",
+  "variant": "options",
+  "question": "What did you think of this email?",
+  "options": [
+    { "label": "Loved it", "value": "loved" },
+    { "label": "Not for me", "value": "not_for_me" }
+  ],
+  "attributeKey": "email_feedback"
+}
+```
+
+For NPS, use `"variant": "nps"`, an empty `options` array, and an attribute
+such as `nps_score`. The scale is always 0-10; optional `npsLowLabel` and
+`npsHighLabel` customize its captions. Each answer updates the subscriber
+attribute and fires `poll.answered` for automations and outbound webhooks.
+
 ### Landing Pages
 
 | Tool                                  | Description                                                           |
@@ -572,13 +599,38 @@ default.
 | Tool                      | Description                                            |
 | ------------------------- | ------------------------------------------------------ |
 | `get_stats`               | Get overview stats for `7d`, `30d`, or `90d`.          |
-| `get_campaign_stats`      | Get detailed campaign performance.                     |
+| `get_campaign_stats`      | Get campaign performance plus Poll/NPS summaries.      |
 | `get_sequence_stats`      | Get sequence performance.                              |
 | `list_campaign_events`    | List paginated raw email events for a campaign.        |
 | `list_sequence_events`    | List paginated raw email events for a sequence.        |
 | `get_subscriber_activity` | Get subscriber email stats, activity, and enrollments. |
 
 Analytics tools exclude detected bot, scanner, link-preview, and tracked asset opens/clicks by default. Pass `includeMachineEngagement: true` to `get_stats`, `get_campaign_stats`, `get_sequence_stats`, `get_ab_test_stats`, `get_subscriber`, or `get_subscriber_activity` when you need raw engagement diagnostics; included open/click activity rows expose `machine`, `engagementQuality`, and `classificationReasons` fields where the API returns event-level activity.
+
+When a campaign collects Poll or NPS answers, `get_campaign_stats` includes a
+top-level `polls` array. Each subscriber counts once per poll block using their
+latest answer. NPS summaries include the score, average, and
+promoter/passive/detractor counts. These are lifetime response summaries even
+when engagement metrics use a time filter.
+
+To list the exact historical respondents behind a count, call `create_segment`
+with field `pollResponse`, operator `is`, and a JSON value scoped to the
+campaign and the summary's `blockId`:
+
+```json
+{
+  "v": 1,
+  "campaignId": "camp_123",
+  "blockId": "poll_1",
+  "match": { "kind": "answer", "value": "loved" }
+}
+```
+
+For NPS, use a match such as
+`{"kind":"npsBucket","bucket":"detractors"}`; valid buckets are
+`promoters`, `passives`, and `detractors`. The summary's `attributeKey` stores
+the subscriber's current/latest response and may be overwritten by a later poll
+that reuses the key, so it is not an exact historical drill-down.
 
 ### Team, Inbox, Webhooks
 

@@ -22,17 +22,23 @@ import {
 const blockConditionsHint =
   ' Any block accepts a `conditions` array so it only renders for matching recipients. To branch on a value passed in the transactional send `variables` or an automation `event` payload, use { "id": "c1", "field": "variable", "operator": "is", "value": "plan:pro" } where the text before the colon is a {{merge tag}} path (nested paths like "order.total" or "event.plan" work) and the text after it is the comparison value. `field` may also be "attribute" (same "name:value" form) or "email"/"firstName"/"lastName" (the value is the plain comparison string). Operators: is, is_not, contains, not_contains, gt, gte, lt, lte, is_empty, is_not_empty. For if/else, use a { type: "conditional-group", conditions: [...], ifBranch: { children: [...] }, elseBranch: { children: [...] } } block.';
 
+const pollBlockHint =
+  ' Polls and NPS surveys use a native poll block. For answer buttons use { "type": "poll", "variant": "options", "question": "What did you think?", "options": [{ "label": "Loved it", "value": "loved" }, { "label": "Not for me", "value": "not_for_me" }], "attributeKey": "email_feedback" }. For NPS use { "type": "poll", "variant": "nps", "question": "How likely are you to recommend us?", "options": [], "attributeKey": "nps_score", "npsLowLabel": "Not likely", "npsHighLabel": "Very likely" }. `attributeKey` stores the latest response for segmentation. Optional `appearance` picks the answer style: "soft" (default), "pill", "outline", "filled", "pop" (hard-shadow boxes), "brutal" (square uppercase slabs), "quiz" (A/B/C letter badges), or "minimal" (bare ruled rows). Optional `confirmationMessage` customizes the hosted thank-you page; set `redirectUrl` only when respondents should land on another page.';
+
+const pollRespondentFilterHint =
+  'For exact historical Poll/NPS respondents, use field `pollResponse`, operator `is`, and a JSON value shaped like {"v":1,"campaignId":"camp_123","blockId":"poll_1","match":{"kind":"answer","value":"loved"}}. For NPS buckets, use match {"kind":"npsBucket","bucket":"promoters"}; bucket may be `promoters`, `passives`, or `detractors`.';
+
 const emailBlocksDescription = `Sequenzy email blocks. Use this for editor-compatible content, including conditional and repeat blocks. For provider-migrated HTML from another email platform, prefer the \`html\` field instead; Sequenzy stores it as one raw HTML block to preserve the original design. Use \`styles\` for per-block background, background opacity, text color, padding, border radius, border width, and border color. Top-level style aliases such as \`backgroundColor\`, \`backgroundOpacity\`, \`borderColor\`, \`borderWidth\`, and \`borderRadius\` are also accepted and saved under \`styles\`. Repeat blocks use { type: 'repeat', source: 'items', itemAlias: 'item', children: [...] }.${
   blockConditionsHint
-}`;
+}${pollBlockHint}`;
 
 const replacementEmailBlocksDescription = `Replacement Sequenzy email blocks. Use \`styles\` for per-block background, background opacity, text color, padding, border radius, border width, and border color. Top-level style aliases such as \`backgroundColor\`, \`backgroundOpacity\`, \`borderColor\`, \`borderWidth\`, and \`borderRadius\` are also accepted and saved under \`styles\`.${
   blockConditionsHint
-}`;
+}${pollBlockHint}`;
 
 const sequenceEmailBlocksDescription = `Sequenzy email blocks. Provide blocks or html for email steps. For migrated provider HTML, prefer \`html\`; Sequenzy stores it as one raw HTML block and does not recreate it as native blocks. Use \`styles\` for per-block background, background opacity, text color, padding, border radius, border width, and border color. Top-level style aliases such as \`backgroundColor\`, \`backgroundOpacity\`, \`borderColor\`, \`borderWidth\`, and \`borderRadius\` are also accepted and saved under \`styles\`. Blocks can include repeat blocks over array variables such as items.${
   blockConditionsHint
-}`;
+}${pollBlockHint}`;
 
 const landingPageContentDescription =
   "Complete Sequenzy landing page content JSON. Use this when replacing the page structure. The content must be the editor-compatible landing page schema with version, template, seo, theme, and blocks. Landing pages must include exactly one footer block and at most one form block.";
@@ -274,6 +280,7 @@ const OUTBOUND_WEBHOOK_EVENT_TYPES = [
   "subscriber.unsubscribed",
   "sequence.finished",
   "sequence.failed",
+  "poll.answered",
 ] as const;
 
 type RequiredToolHints = Pick<
@@ -535,6 +542,7 @@ const segmentOperatorsByField = {
     "not_contains",
   ],
   event: ["is", "is_not", "at_least", "less_than_count"],
+  pollResponse: ["is"],
   segment: ["is", "is_not"],
   stripeProduct: ["is", "is_not", "at_least", "less_than_count"],
   stripeCurrentProduct: ["is", "is_not", "gte", "lte", "gt", "lt"],
@@ -575,14 +583,14 @@ const segmentFilterItemSchema = {
         "emailComplained",
         "attribute",
         "event",
+        "pollResponse",
         "segment",
         "stripeProduct",
         "stripeCurrentProduct",
         "stripeTrialProduct",
         "commerceProduct",
       ],
-      description:
-        "Filter field. Use `phone` with is_not_empty/is_empty to check whether a subscriber has a phone number, and `smsStatus` (is/is_not one of `subscribed`, `unsubscribed`, `not_subscribed`) for SMS marketing consent. Use `event` for custom subscriber events, `segment` for saved segment membership, `stripeProduct`/`stripeCurrentProduct`/`stripeTrialProduct` for Stripe product-based segments, and `commerceProduct` for products purchased through commerce orders - the value is `provider:productId` (provider one of `shopify`, `woocommerce`, `api`; product ids are provider-scoped), optionally with an order-count threshold (`provider:productId:count`) for at_least/less_than_count; a bare product id matches the id on any provider. Engagement fields (`emailSent`, `emailDelivered`, `emailOpened`, `emailClicked`, `emailBounced`, `emailComplained`) accept a time range as the value, a specific campaign via `campaign:<campaign_id>`, or `count:timeRange` (e.g. `10:30d`, `10:all`) with at_least/less_than_count to segment by number of opens/clicks.",
+      description: `Filter field. Use \`phone\` with is_not_empty/is_empty to check whether a subscriber has a phone number, and \`smsStatus\` (is/is_not one of \`subscribed\`, \`unsubscribed\`, \`not_subscribed\`) for SMS marketing consent. Use \`event\` for custom subscriber events, \`segment\` for saved segment membership, \`stripeProduct\`/\`stripeCurrentProduct\`/\`stripeTrialProduct\` for Stripe product-based segments, and \`commerceProduct\` for products purchased through commerce orders - the value is \`provider:productId\` (provider one of \`shopify\`, \`woocommerce\`, \`api\`; product ids are provider-scoped), optionally with an order-count threshold (\`provider:productId:count\`) for at_least/less_than_count; a bare product id matches the id on any provider. Engagement fields (\`emailSent\`, \`emailDelivered\`, \`emailOpened\`, \`emailClicked\`, \`emailBounced\`, \`emailComplained\`) accept a time range as the value, a specific campaign via \`campaign:<campaign_id>\`, or \`count:timeRange\` (e.g. \`10:30d\`, \`10:all\`) with at_least/less_than_count to segment by number of opens/clicks. ${pollRespondentFilterHint}`,
     },
     operator: {
       type: "string",
@@ -608,8 +616,7 @@ const segmentFilterItemSchema = {
     },
     value: {
       type: "string",
-      description:
-        "Filter value. For custom attribute empty checks, use `attributeName:` such as `last_logged_in:`. Event examples: `saas.purchase:30d`, `saas.purchase:all`, or `saas.purchase:5:30d` for thresholds. Segment values are segment IDs. Stripe product examples: `prod_123` for bought/didn't buy/current/trialing, `prod_123:3` for payment thresholds, `prod_123:is_canceled` for products set to cancel, `prod_123:cancels_at:2026-05-26`, `prod_123:end_at:2026-05-26`, or `prod_123:start_at:7 days ago` for product-scoped dates. Engagement examples: `7d`, `30d`, `90d`, `180d`, `all` for rolling time windows, `campaign:<campaign_id>` to scope to a specific sent campaign (use `list_campaigns` to find IDs), or `count:timeRange` like `10:30d` / `10:all` with at_least/less_than_count operators (e.g. emailClicked at_least `10:all` = clicked 10 or more times ever).",
+      description: `Filter value. For custom attribute empty checks, use \`attributeName:\` such as \`last_logged_in:\`. Event examples: \`saas.purchase:30d\`, \`saas.purchase:all\`, or \`saas.purchase:5:30d\` for thresholds. Segment values are segment IDs. Stripe product examples: \`prod_123\` for bought/didn't buy/current/trialing, \`prod_123:3\` for payment thresholds, \`prod_123:is_canceled\` for products set to cancel, \`prod_123:cancels_at:2026-05-26\`, \`prod_123:end_at:2026-05-26\`, or \`prod_123:start_at:7 days ago\` for product-scoped dates. Engagement examples: \`7d\`, \`30d\`, \`90d\`, \`180d\`, \`all\` for rolling time windows, \`campaign:<campaign_id>\` to scope to a specific sent campaign (use \`list_campaigns\` to find IDs), or \`count:timeRange\` like \`10:30d\` / \`10:all\` with at_least/less_than_count operators (e.g. emailClicked at_least \`10:all\` = clicked 10 or more times ever). ${pollRespondentFilterHint}`,
     },
   },
   required: ["field", "operator", "value"],
@@ -953,6 +960,49 @@ function getSegmentCommerceProductValueValidationError(
     : 'Purchased Product threshold filters must use "provider:productId:count" with a count of at least 1.';
 }
 
+function getSegmentPollResponseValueValidationError(
+  value: string
+): string | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    return `Poll response filters must use valid JSON. ${pollRespondentFilterHint}`;
+  }
+
+  if (
+    !isRecord(parsed) ||
+    parsed["v"] !== 1 ||
+    typeof parsed["campaignId"] !== "string" ||
+    !parsed["campaignId"].trim() ||
+    typeof parsed["blockId"] !== "string" ||
+    !parsed["blockId"].trim() ||
+    !isRecord(parsed["match"])
+  ) {
+    return `Poll response filter context is invalid. ${pollRespondentFilterHint}`;
+  }
+
+  const match = parsed["match"];
+  if (
+    match["kind"] === "answer" &&
+    typeof match["value"] === "string" &&
+    match["value"].length > 0
+  ) {
+    return null;
+  }
+
+  if (
+    match["kind"] === "npsBucket" &&
+    (match["bucket"] === "promoters" ||
+      match["bucket"] === "passives" ||
+      match["bucket"] === "detractors")
+  ) {
+    return null;
+  }
+
+  return `Poll response filter match is invalid. ${pollRespondentFilterHint}`;
+}
+
 function getSegmentFilterValidationError(filter: unknown): string | null {
   if (typeof filter !== "object" || filter === null) {
     return "Segment filters must be objects.";
@@ -1006,6 +1056,14 @@ function getSegmentFilterValidationError(filter: unknown): string | null {
     );
     if (eventValueError) {
       return eventValueError;
+    }
+  }
+
+  if (field === "pollResponse" && typeof value === "string") {
+    const pollResponseValueError =
+      getSegmentPollResponseValueValidationError(value);
+    if (pollResponseValueError) {
+      return pollResponseValueError;
     }
   }
 
@@ -3986,6 +4044,11 @@ const outputPropertiesByToolName: Record<string, OutputSchemaProperties> = {
   get_campaign_stats: {
     campaign: resourceOutputProperty("campaign"),
     stats: resourceOutputProperty("campaign statistics"),
+    polls: {
+      type: "array",
+      description: `Poll and NPS summaries. Each subscriber counts once per campaign poll block using their latest answer to that block; NPS entries include score, average, and promoter/passive/detractor counts. To list the exact historical respondents behind a count, use the summary blockId and the get_campaign_stats campaignId with create_segment. ${pollRespondentFilterHint} A summary's attributeKey identifies the subscriber attribute that stores their current/latest response and may be overwritten by a later poll that reuses the key.`,
+      items: objectOutputProperty("One poll or NPS results summary."),
+    },
   },
   get_sequence_stats: {
     sequence: resourceOutputProperty("sequence"),
@@ -8606,7 +8669,7 @@ OTHER BUILT-IN EVENTS:
   {
     name: "get_campaign_stats",
     description:
-      "Get detailed statistics for a campaign, including attributed conversions and revenue (revenueCents)",
+      "Get detailed statistics for a campaign, including attributed conversions, revenue (revenueCents), and any Poll or NPS survey summaries in the top-level polls array",
     inputSchema: {
       type: "object",
       properties: {

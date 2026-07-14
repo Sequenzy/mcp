@@ -723,6 +723,58 @@ describe("A/B test tools", () => {
     );
   });
 
+  it("publishes and returns campaign poll and NPS summaries", async () => {
+    const pollSummary = {
+      blockId: "poll-nps-1",
+      variant: "nps",
+      question: "How likely are you to recommend us?",
+      totalResponses: 3,
+      answers: [
+        { answer: "0", responses: 1, percentage: 33.3 },
+        { answer: "9", responses: 2, percentage: 66.7 },
+      ],
+      nps: {
+        score: 33,
+        average: 6,
+        promoters: 2,
+        passives: 0,
+        detractors: 1,
+      },
+    };
+    const tool = tools.find(
+      (candidate) => candidate.name === "get_campaign_stats"
+    );
+    const outputProperties = tool?.outputSchema?.properties as
+      | Record<string, unknown>
+      | undefined;
+    const pollsOutput = outputProperties?.["polls"] as
+      | { description?: string }
+      | undefined;
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      stats: { sent: 3 },
+      polls: [pollSummary],
+    });
+
+    const result = await handleToolCall("get_campaign_stats", {
+      companyId: "company_123",
+      campaignId: "camp_123",
+    });
+
+    expect(outputProperties).toHaveProperty("polls");
+    expect(pollsOutput?.description).toContain("exact historical respondents");
+    expect(pollsOutput?.description).toContain("pollResponse");
+    expect(pollsOutput?.description).toContain("may be overwritten");
+    expect(result.isError).toBeUndefined();
+    expect(result.structuredContent?.["polls"]).toEqual([pollSummary]);
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/metrics/campaigns/camp_123",
+      undefined,
+      "company_123"
+    );
+  });
+
   it("passes machine engagement flags through analytics tools", async () => {
     mockApiRequest.mockResolvedValue({
       success: true,
@@ -1995,6 +2047,23 @@ describe("create_campaign tool validation", () => {
     expect(inputSchema?.properties).toHaveProperty("previewText");
     expect(inputSchema?.properties).toHaveProperty("fromEmail");
     expect(inputSchema?.properties).toHaveProperty("replyTo");
+  });
+
+  it("publishes concrete Poll and NPS block guidance", () => {
+    const createCampaignTool = tools.find(
+      (tool) => tool.name === "create_campaign"
+    );
+    const inputSchema = createCampaignTool?.inputSchema as
+      | {
+          properties?: Record<string, { description?: string }>;
+        }
+      | undefined;
+    const blocksDescription = inputSchema?.properties?.["blocks"]?.description;
+
+    expect(blocksDescription).toContain('"type": "poll"');
+    expect(blocksDescription).toContain('"variant": "options"');
+    expect(blocksDescription).toContain('"variant": "nps"');
+    expect(blocksDescription).toContain('"attributeKey": "nps_score"');
   });
 
   it("requires subject when prompt is not provided", async () => {
@@ -4054,6 +4123,7 @@ describe("create_segment tool", () => {
       expect.arrayContaining([
         "emailProvider",
         "emailDelivered",
+        "pollResponse",
         "stripeCurrentProduct",
         "stripeTrialProduct",
       ])
@@ -4074,11 +4144,14 @@ describe("create_segment tool", () => {
       inputSchema?.properties?.filters?.items?.properties?.operator?.description
     ).toContain("tag: contains, not_contains, is_empty, is_not_empty");
     expect(
+      inputSchema?.properties?.filters?.items?.properties?.operator?.description
+    ).toContain("pollResponse: is");
+    expect(
       inputSchema?.properties?.filters?.items?.properties?.field?.description
-    ).toContain("count:timeRange");
+    ).toContain("field `pollResponse`, operator `is`");
     expect(
       inputSchema?.properties?.filters?.items?.properties?.value?.description
-    ).toContain("10:all");
+    ).toContain('{"v":1,"campaignId":"camp_123","blockId":"poll_1"');
   });
 
   it("rejects create_segment calls without filters or root before hitting the API", async () => {
@@ -4178,6 +4251,12 @@ describe("create_segment tool", () => {
         expected: 'Event filters must use "eventName:timeRange"',
       },
       {
+        field: "pollResponse",
+        operator: "is",
+        value: '{"v":1}',
+        expected: "Poll response filter context is invalid",
+      },
+      {
         field: "stripeCurrentProduct",
         operator: "gt",
         value: "prod_123",
@@ -4231,6 +4310,53 @@ describe("create_segment tool", () => {
       expect.objectContaining({
         name: "VIP or Churn Risk",
         filterJoinOperator: "or",
+      }),
+      "comp_123"
+    );
+  });
+
+  it("passes exact historical poll respondent filters through to the API", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      segment: {
+        id: "seg_poll_respondents",
+        name: "Campaign detractors",
+        filters: [],
+        filterJoinOperator: "and",
+      },
+    });
+    const value = JSON.stringify({
+      v: 1,
+      campaignId: "camp_123",
+      blockId: "poll_nps_1",
+      match: { kind: "npsBucket", bucket: "detractors" },
+    });
+
+    const result = await handleToolCall("create_segment", {
+      companyId: "comp_123",
+      name: "Campaign detractors",
+      filters: [
+        {
+          field: "pollResponse",
+          operator: "is",
+          value,
+        },
+      ],
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/segments",
+      expect.objectContaining({
+        name: "Campaign detractors",
+        filters: [
+          expect.objectContaining({
+            field: "pollResponse",
+            operator: "is",
+            value,
+          }),
+        ],
       }),
       "comp_123"
     );
