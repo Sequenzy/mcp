@@ -1,0 +1,733 @@
+import { apiRequest } from "../../runtime.js";
+import {
+  validateHtmlOrBlocksArgs,
+  validateLabelsArg,
+  validateCreateCampaignContentArgs,
+  validateCreateTemplateContentArgs,
+  validateScheduleCampaignArgs,
+  isRecord,
+  optionalString,
+  requiredString,
+  optionalAllowedString,
+  optionalIntegerInRange,
+} from "../internal.js";
+
+export async function handleCampaignTools(
+  name: string,
+  args: Record<string, unknown>
+): Promise<{ handled: boolean; result: unknown }> {
+  let result: unknown;
+
+  switch (name) {
+    case "list_templates": {
+      const companyId = args.companyId as string | undefined;
+      const templateParams = new URLSearchParams();
+      const label = optionalString(args, "label");
+      if (label) templateParams.set("label", label);
+      result = await apiRequest(
+        "GET",
+        `/api/v1/templates${templateParams.size > 0 ? `?${templateParams}` : ""}`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "get_template": {
+      const companyId = args.companyId as string | undefined;
+      result = await apiRequest(
+        "GET",
+        `/api/v1/templates/${args.templateId}`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "create_template": {
+      const companyId = args.companyId as string | undefined;
+      validateCreateTemplateContentArgs(args);
+      const createBody = Object.fromEntries(
+        Object.entries(args).filter(([key]) => key !== "companyId")
+      );
+      result = await apiRequest(
+        "POST",
+        "/api/v1/templates",
+        createBody,
+        companyId
+      );
+      break;
+    }
+
+    case "update_template": {
+      const companyId = args.companyId as string | undefined;
+      const allowedTemplateUpdateKeys = new Set([
+        "companyId",
+        "templateId",
+        "name",
+        "subject",
+        "html",
+        "blocks",
+        "labels",
+      ]);
+      const unsupportedTemplateUpdateKeys = Object.keys(args).filter(
+        (key) => !allowedTemplateUpdateKeys.has(key)
+      );
+
+      if (unsupportedTemplateUpdateKeys.length > 0) {
+        throw new Error(
+          `\`update_template\` accepts only \`name\`, \`subject\`, \`html\`, \`blocks\`, and \`labels\` update fields. Unsupported field${unsupportedTemplateUpdateKeys.length === 1 ? "" : "s"}: ${unsupportedTemplateUpdateKeys.map((key) => `\`${key}\``).join(", ")}.`
+        );
+      }
+
+      validateHtmlOrBlocksArgs("update_template", args);
+      validateLabelsArg("update_template", args);
+
+      if (
+        args.name === undefined &&
+        args.subject === undefined &&
+        args.html === undefined &&
+        args.blocks === undefined &&
+        args.labels === undefined
+      ) {
+        throw new Error(
+          "Provide at least one of `name`, `subject`, `html`, `blocks`, or `labels` when calling `update_template`."
+        );
+      }
+
+      result = await apiRequest(
+        "PUT",
+        `/api/v1/templates/${args.templateId}`,
+        args,
+        companyId
+      );
+      break;
+    }
+
+    case "delete_template": {
+      const companyId = args.companyId as string | undefined;
+      result = await apiRequest(
+        "DELETE",
+        `/api/v1/templates/${args.templateId}`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    // A/B Tests
+    case "list_ab_tests": {
+      const companyId = args.companyId as string | undefined;
+      const abTestParams = new URLSearchParams();
+      const sequenceId = optionalString(args, "sequenceId");
+      if (sequenceId) abTestParams.set("sequenceId", sequenceId);
+
+      result = await apiRequest(
+        "GET",
+        `/api/v1/ab-tests${abTestParams.size > 0 ? `?${abTestParams}` : ""}`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "get_ab_test": {
+      const companyId = args.companyId as string | undefined;
+      result = await apiRequest(
+        "GET",
+        `/api/v1/ab-tests/${args.abTestId}`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "get_ab_test_stats": {
+      const companyId = args.companyId as string | undefined;
+      const abTestStatsParams = new URLSearchParams();
+      const period = optionalString(args, "period");
+      const start = optionalString(args, "start");
+      const end = optionalString(args, "end");
+      if (period) abTestStatsParams.set("period", period);
+      if (start) abTestStatsParams.set("start", start);
+      if (end) abTestStatsParams.set("end", end);
+      if (args.includeMachineEngagement === true) {
+        abTestStatsParams.set("includeMachineEngagement", "true");
+      }
+
+      result = await apiRequest(
+        "GET",
+        `/api/v1/ab-tests/${args.abTestId}/stats${abTestStatsParams.size > 0 ? `?${abTestStatsParams}` : ""}`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "restart_ab_test": {
+      const companyId = args.companyId as string | undefined;
+      const allowedRestartKeys = new Set([
+        "companyId",
+        "abTestId",
+        "sourceVariantId",
+        "testType",
+        "winnerThreshold",
+        "variantCount",
+      ]);
+      const unsupportedRestartKeys = Object.keys(args).filter(
+        (key) => !allowedRestartKeys.has(key)
+      );
+
+      if (unsupportedRestartKeys.length > 0) {
+        throw new Error(
+          `\`restart_ab_test\` accepts only \`sourceVariantId\`, \`testType\`, \`winnerThreshold\`, and \`variantCount\` option fields. Unsupported field${unsupportedRestartKeys.length === 1 ? "" : "s"}: ${unsupportedRestartKeys.map((key) => `\`${key}\``).join(", ")}.`
+        );
+      }
+
+      const testType = optionalString(args, "testType");
+      if (
+        testType !== undefined &&
+        testType !== "subject" &&
+        testType !== "content"
+      ) {
+        throw new Error(
+          "`restart_ab_test` testType must be `subject` or `content`."
+        );
+      }
+
+      const winnerThreshold =
+        args.winnerThreshold === undefined
+          ? undefined
+          : Number(args.winnerThreshold);
+      if (
+        winnerThreshold !== undefined &&
+        (!Number.isInteger(winnerThreshold) ||
+          winnerThreshold < 10 ||
+          winnerThreshold > 1000)
+      ) {
+        throw new Error(
+          "`restart_ab_test` winnerThreshold must be an integer from 10 to 1000."
+        );
+      }
+
+      const variantCount =
+        args.variantCount === undefined ? undefined : Number(args.variantCount);
+      if (
+        variantCount !== undefined &&
+        (!Number.isInteger(variantCount) ||
+          variantCount < 2 ||
+          variantCount > 4)
+      ) {
+        throw new Error(
+          "`restart_ab_test` variantCount must be an integer from 2 to 4."
+        );
+      }
+
+      result = await apiRequest(
+        "POST",
+        `/api/v1/ab-tests/${args.abTestId}/restart`,
+        {
+          sourceVariantId: optionalString(args, "sourceVariantId"),
+          testType,
+          winnerThreshold,
+          variantCount,
+        },
+        companyId
+      );
+      break;
+    }
+
+    case "update_ab_test_variant": {
+      const companyId = args.companyId as string | undefined;
+      const allowedAbTestUpdateKeys = new Set([
+        "companyId",
+        "abTestId",
+        "variantId",
+        "subject",
+        "previewText",
+        "html",
+        "blocks",
+      ]);
+      const unsupportedAbTestUpdateKeys = Object.keys(args).filter(
+        (key) => !allowedAbTestUpdateKeys.has(key)
+      );
+
+      if (unsupportedAbTestUpdateKeys.length > 0) {
+        throw new Error(
+          `\`update_ab_test_variant\` accepts only \`subject\`, \`previewText\`, \`html\`, and \`blocks\` update fields. Unsupported field${unsupportedAbTestUpdateKeys.length === 1 ? "" : "s"}: ${unsupportedAbTestUpdateKeys.map((key) => `\`${key}\``).join(", ")}.`
+        );
+      }
+
+      validateHtmlOrBlocksArgs("update_ab_test_variant", args);
+
+      if (
+        args.subject === undefined &&
+        args.previewText === undefined &&
+        args.html === undefined &&
+        args.blocks === undefined
+      ) {
+        throw new Error(
+          "Provide at least one of `subject`, `previewText`, `html`, or `blocks` when calling `update_ab_test_variant`."
+        );
+      }
+
+      result = await apiRequest(
+        "PATCH",
+        `/api/v1/ab-tests/${args.abTestId}/variants/${args.variantId}`,
+        args,
+        companyId
+      );
+      break;
+    }
+
+    case "create_ab_test": {
+      const companyId = args.companyId as string | undefined;
+      const campaignId = requiredString("create_ab_test", args, "campaignId");
+      const name = optionalString(args, "name");
+      const testPercentage = optionalIntegerInRange(
+        "create_ab_test",
+        args,
+        "testPercentage",
+        5,
+        50
+      );
+      const testDurationMinutes = optionalIntegerInRange(
+        "create_ab_test",
+        args,
+        "testDurationMinutes",
+        15,
+        1440
+      );
+      const winnerCriteria = optionalAllowedString(
+        "create_ab_test",
+        args,
+        "winnerCriteria",
+        ["open_rate", "click_rate"]
+      );
+
+      if (args.variants !== undefined) {
+        if (!Array.isArray(args.variants)) {
+          throw new Error(
+            "`variants` must be an array when calling `create_ab_test`."
+          );
+        }
+
+        args.variants.forEach((variant, index) => {
+          if (
+            !isRecord(variant) ||
+            typeof variant.subject !== "string" ||
+            variant.subject.trim() === ""
+          ) {
+            throw new Error(
+              `\`variants\` item ${index + 1} must include a non-empty \`subject\` when calling \`create_ab_test\`.`
+            );
+          }
+
+          if (variant.blocks !== undefined && !Array.isArray(variant.blocks)) {
+            throw new Error(
+              `\`variants\` item ${index + 1} \`blocks\` must be an array when calling \`create_ab_test\`.`
+            );
+          }
+        });
+      }
+
+      result = await apiRequest(
+        "POST",
+        "/api/v1/ab-tests",
+        {
+          campaignId,
+          ...(name !== undefined && { name }),
+          ...(testPercentage !== undefined && { testPercentage }),
+          ...(testDurationMinutes !== undefined && { testDurationMinutes }),
+          ...(winnerCriteria !== undefined && { winnerCriteria }),
+          ...(args.variants !== undefined && { variants: args.variants }),
+        },
+        companyId
+      );
+      break;
+    }
+
+    case "add_ab_test_variant": {
+      const companyId = args.companyId as string | undefined;
+      const abTestId = requiredString("add_ab_test_variant", args, "abTestId");
+      const subject = requiredString("add_ab_test_variant", args, "subject");
+      const previewText = optionalString(args, "previewText");
+
+      if (args.blocks !== undefined && !Array.isArray(args.blocks)) {
+        throw new Error(
+          "`blocks` must be an array when calling `add_ab_test_variant`."
+        );
+      }
+
+      result = await apiRequest(
+        "POST",
+        `/api/v1/ab-tests/${encodeURIComponent(abTestId)}/variants`,
+        {
+          subject,
+          ...(previewText !== undefined && { previewText }),
+          ...(args.blocks !== undefined && { blocks: args.blocks }),
+        },
+        companyId
+      );
+      break;
+    }
+
+    case "delete_ab_test_variant": {
+      const companyId = args.companyId as string | undefined;
+      const abTestId = requiredString(
+        "delete_ab_test_variant",
+        args,
+        "abTestId"
+      );
+      const variantId = requiredString(
+        "delete_ab_test_variant",
+        args,
+        "variantId"
+      );
+      result = await apiRequest(
+        "DELETE",
+        `/api/v1/ab-tests/${encodeURIComponent(abTestId)}/variants/${encodeURIComponent(variantId)}`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "delete_ab_test": {
+      const companyId = args.companyId as string | undefined;
+      const abTestId = requiredString("delete_ab_test", args, "abTestId");
+      result = await apiRequest(
+        "DELETE",
+        `/api/v1/ab-tests/${encodeURIComponent(abTestId)}`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    // Campaigns
+    case "list_campaigns": {
+      const companyId = args.companyId as string | undefined;
+      const campaignParams = new URLSearchParams();
+      if (args.status) campaignParams.set("status", String(args.status));
+      const label = optionalString(args, "label");
+      if (label) campaignParams.set("label", label);
+      result = await apiRequest(
+        "GET",
+        `/api/v1/campaigns?${campaignParams}`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "get_campaign": {
+      const companyId = args.companyId as string | undefined;
+      result = await apiRequest(
+        "GET",
+        `/api/v1/campaigns/${args.campaignId}`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "get_email_send": {
+      const companyId = args.companyId as string | undefined;
+      result = await apiRequest(
+        "GET",
+        `/api/v1/email-sends/${encodeURIComponent(String(args.emailSendId))}`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "create_campaign": {
+      const companyId = args.companyId as string | undefined;
+      validateCreateCampaignContentArgs(args);
+      if (args.fromEmail !== undefined && args.senderProfileId !== undefined) {
+        throw new Error(
+          "Provide either `fromEmail` or `senderProfileId` when calling `create_campaign`, not both."
+        );
+      }
+      if (args.replyTo !== undefined && args.replyProfileId !== undefined) {
+        throw new Error(
+          "Provide either `replyTo` or `replyProfileId` when calling `create_campaign`, not both."
+        );
+      }
+      if (args.fromName !== undefined && args.fromEmail === undefined) {
+        throw new Error(
+          "`fromName` requires `fromEmail` when calling `create_campaign`."
+        );
+      }
+      if (args.replyToName !== undefined && args.replyTo === undefined) {
+        throw new Error(
+          "`replyToName` requires `replyTo` when calling `create_campaign`."
+        );
+      }
+
+      const createBody = Object.fromEntries(
+        Object.entries(args).filter(([key]) => key !== "companyId")
+      );
+      result = await apiRequest(
+        "POST",
+        "/api/v1/campaigns",
+        createBody,
+        companyId
+      );
+      break;
+    }
+
+    case "update_campaign": {
+      const companyId = args.companyId as string | undefined;
+      const allowedCampaignUpdateKeys = new Set([
+        "companyId",
+        "campaignId",
+        "name",
+        "subject",
+        "trackingCode",
+        "html",
+        "blocks",
+        "fromEmail",
+        "fromName",
+        "senderProfileId",
+        "replyTo",
+        "replyToName",
+        "replyProfileId",
+        "campaignData",
+        "computedLists",
+        "labels",
+      ]);
+      const unsupportedCampaignUpdateKeys = Object.keys(args).filter(
+        (key) => !allowedCampaignUpdateKeys.has(key)
+      );
+
+      if (unsupportedCampaignUpdateKeys.length > 0) {
+        throw new Error(
+          `\`update_campaign\` accepts only content, sending identity, campaign data, computed list, and label update fields. Unsupported field${unsupportedCampaignUpdateKeys.length === 1 ? "" : "s"}: ${unsupportedCampaignUpdateKeys.map((key) => `\`${key}\``).join(", ")}.`
+        );
+      }
+
+      validateHtmlOrBlocksArgs("update_campaign", args);
+      validateLabelsArg("update_campaign", args);
+
+      if (args.replyTo !== undefined && args.replyProfileId !== undefined) {
+        throw new Error(
+          "Provide either `replyTo` or `replyProfileId` when calling `update_campaign`, not both."
+        );
+      }
+      if (args.fromEmail !== undefined && args.senderProfileId !== undefined) {
+        throw new Error(
+          "Provide either `fromEmail` or `senderProfileId` when calling `update_campaign`, not both."
+        );
+      }
+      if (args.fromName !== undefined && args.fromEmail === undefined) {
+        throw new Error(
+          "`fromName` requires `fromEmail` when calling `update_campaign`."
+        );
+      }
+      if (args.replyToName !== undefined && args.replyTo === undefined) {
+        throw new Error(
+          "`replyToName` requires `replyTo` when calling `update_campaign`."
+        );
+      }
+
+      if (
+        args.name === undefined &&
+        args.subject === undefined &&
+        args.trackingCode === undefined &&
+        args.html === undefined &&
+        args.blocks === undefined &&
+        args.fromEmail === undefined &&
+        args.senderProfileId === undefined &&
+        args.replyTo === undefined &&
+        args.replyProfileId === undefined &&
+        args.campaignData === undefined &&
+        args.computedLists === undefined &&
+        args.labels === undefined
+      ) {
+        throw new Error(
+          "Provide at least one campaign content, sending identity, campaign data, computed list, or label field when calling `update_campaign`."
+        );
+      }
+
+      result = await apiRequest(
+        "PUT",
+        `/api/v1/campaigns/${args.campaignId}`,
+        args,
+        companyId
+      );
+      break;
+    }
+
+    case "schedule_campaign": {
+      const companyId = args.companyId as string | undefined;
+      const allowedCampaignScheduleKeys = new Set([
+        "companyId",
+        "campaignId",
+        "scheduledAt",
+        "targetLists",
+        "sendTimeOptimization",
+        "spreadOverHours",
+        "recurringInterval",
+      ]);
+      const unsupportedCampaignScheduleKeys = Object.keys(args).filter(
+        (key) => !allowedCampaignScheduleKeys.has(key)
+      );
+
+      if (unsupportedCampaignScheduleKeys.length > 0) {
+        throw new Error(
+          `\`schedule_campaign\` accepts only \`campaignId\`, \`scheduledAt\`, \`targetLists\`, \`sendTimeOptimization\`, \`spreadOverHours\`, and \`recurringInterval\`. Unsupported field${unsupportedCampaignScheduleKeys.length === 1 ? "" : "s"}: ${unsupportedCampaignScheduleKeys.map((key) => `\`${key}\``).join(", ")}.`
+        );
+      }
+
+      validateScheduleCampaignArgs(args);
+
+      result = await apiRequest(
+        "POST",
+        `/api/v1/campaigns/${args.campaignId}/schedule`,
+        {
+          scheduledAt: args.scheduledAt,
+          ...(args.targetLists !== undefined && {
+            targetLists: args.targetLists,
+          }),
+          ...(args.sendTimeOptimization !== undefined && {
+            sendTimeOptimization: args.sendTimeOptimization,
+          }),
+          ...(args.spreadOverHours !== undefined && {
+            spreadOverHours: args.spreadOverHours,
+          }),
+          ...(args.recurringInterval !== undefined && {
+            recurringInterval: args.recurringInterval,
+          }),
+        },
+        companyId
+      );
+      break;
+    }
+
+    case "send_test_email": {
+      const companyId = args.companyId as string | undefined;
+      result = await apiRequest(
+        "POST",
+        `/api/v1/campaigns/${args.campaignId}/test`,
+        { to: args.to },
+        companyId
+      );
+      break;
+    }
+
+    case "cancel_campaign": {
+      const companyId = args.companyId as string | undefined;
+      const campaignId = requiredString("cancel_campaign", args, "campaignId");
+      result = await apiRequest(
+        "POST",
+        `/api/v1/campaigns/${encodeURIComponent(campaignId)}/cancel`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "pause_campaign": {
+      const companyId = args.companyId as string | undefined;
+      const campaignId = requiredString("pause_campaign", args, "campaignId");
+      result = await apiRequest(
+        "POST",
+        `/api/v1/campaigns/${encodeURIComponent(campaignId)}/pause`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "resume_campaign": {
+      const companyId = args.companyId as string | undefined;
+      const campaignId = requiredString("resume_campaign", args, "campaignId");
+      const spreadOverHours = optionalIntegerInRange(
+        "resume_campaign",
+        args,
+        "spreadOverHours",
+        1,
+        72
+      );
+      result = await apiRequest(
+        "POST",
+        `/api/v1/campaigns/${encodeURIComponent(campaignId)}/resume`,
+        {
+          ...(spreadOverHours !== undefined && { spreadOverHours }),
+        },
+        companyId
+      );
+      break;
+    }
+
+    case "delete_campaign": {
+      const companyId = args.companyId as string | undefined;
+      const campaignId = requiredString("delete_campaign", args, "campaignId");
+      result = await apiRequest(
+        "DELETE",
+        `/api/v1/campaigns/${encodeURIComponent(campaignId)}`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "duplicate_campaign": {
+      const companyId = args.companyId as string | undefined;
+      const campaignId = requiredString(
+        "duplicate_campaign",
+        args,
+        "campaignId"
+      );
+      const mode = optionalAllowedString("duplicate_campaign", args, "mode", [
+        "campaign",
+        "ab_test",
+        "variant",
+      ]);
+      const variantId = optionalString(args, "variantId");
+
+      if (mode === "variant" && variantId === undefined) {
+        throw new Error(
+          "`variantId` is required when calling `duplicate_campaign` with mode `variant`."
+        );
+      }
+
+      result = await apiRequest(
+        "POST",
+        `/api/v1/campaigns/${encodeURIComponent(campaignId)}/duplicate`,
+        {
+          ...(mode !== undefined && { mode }),
+          ...(variantId !== undefined && { variantId }),
+        },
+        companyId
+      );
+      break;
+    }
+
+    case "resend_campaign_to_non_openers": {
+      const companyId = args.companyId as string | undefined;
+      const campaignId = requiredString(
+        "resend_campaign_to_non_openers",
+        args,
+        "campaignId"
+      );
+
+      result = await apiRequest(
+        "POST",
+        `/api/v1/campaigns/${encodeURIComponent(campaignId)}/resend-to-non-openers`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    // Landing Pages
+    default:
+      return { handled: false, result: undefined };
+  }
+
+  return { handled: true, result };
+}

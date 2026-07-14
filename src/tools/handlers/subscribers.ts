@@ -1,0 +1,202 @@
+import { apiRequest } from "../../runtime.js";
+import {
+  isRecord,
+  normalizeSubscriberTag,
+  fetchAllSubscribers,
+  requireSubscriberIdentifier,
+  getSubscriberDetailPath,
+  getSubscriberNotesPath,
+  fetchDetailedSubscriberByIdentifier,
+} from "../internal.js";
+
+export async function handleSubscriberTools(
+  name: string,
+  args: Record<string, unknown>
+): Promise<{ handled: boolean; result: unknown }> {
+  let result: unknown;
+
+  switch (name) {
+    case "add_subscriber": {
+      const companyId = args.companyId as string | undefined;
+      const identifier = requireSubscriberIdentifier("add_subscriber", args);
+      result = await apiRequest(
+        "POST",
+        "/api/v1/subscribers",
+        {
+          ...identifier,
+          customAttributes: args.attributes,
+          tags: args.tags,
+          lists: args.listIds,
+          ...(args.status !== undefined && { status: args.status }),
+          ...(args.optInMode !== undefined && {
+            optInMode: args.optInMode,
+          }),
+        },
+        companyId
+      );
+      break;
+    }
+
+    case "update_subscriber": {
+      const companyId = args.companyId as string | undefined;
+      const identifier = requireSubscriberIdentifier("update_subscriber", args);
+      const detail = await fetchDetailedSubscriberByIdentifier(
+        identifier,
+        companyId
+      );
+      const currentTags = Array.isArray(detail.subscriber.tags)
+        ? detail.subscriber.tags.filter(
+            (tag): tag is string => typeof tag === "string"
+          )
+        : [];
+      const addTags = Array.isArray(args.addTags)
+        ? args.addTags
+            .filter(
+              (tag): tag is string =>
+                typeof tag === "string" && tag.trim() !== ""
+            )
+            .map(normalizeSubscriberTag)
+        : [];
+      const removeTags = new Set(
+        Array.isArray(args.removeTags)
+          ? args.removeTags
+              .filter(
+                (tag): tag is string =>
+                  typeof tag === "string" && tag.trim() !== ""
+              )
+              .map(normalizeSubscriberTag)
+          : []
+      );
+      const nextTags = currentTags.filter((tag) => !removeTags.has(tag));
+      for (const tag of addTags) {
+        if (!nextTags.includes(tag)) {
+          nextTags.push(tag);
+        }
+      }
+
+      const body: Record<string, unknown> = {};
+      if (identifier.email && identifier.externalId) {
+        body.externalId = identifier.externalId;
+      }
+      if (isRecord(args.attributes)) {
+        body.customAttributes = {
+          ...(isRecord(detail.subscriber.customAttributes)
+            ? detail.subscriber.customAttributes
+            : {}),
+          ...args.attributes,
+        };
+      }
+      if (args.addTags || args.removeTags) {
+        body.tags = nextTags;
+      }
+
+      result = await apiRequest(
+        "PATCH",
+        getSubscriberDetailPath(identifier),
+        body,
+        companyId
+      );
+      break;
+    }
+
+    case "remove_subscriber": {
+      const companyId = args.companyId as string | undefined;
+      const identifier = requireSubscriberIdentifier("remove_subscriber", args);
+      const path = getSubscriberDetailPath(identifier);
+      if (args.hardDelete === true) {
+        result = await apiRequest("DELETE", path, undefined, companyId);
+      } else {
+        result = await apiRequest(
+          "PATCH",
+          path,
+          { status: "unsubscribed" },
+          companyId
+        );
+      }
+      break;
+    }
+
+    case "get_subscriber": {
+      const companyId = args.companyId as string | undefined;
+      const identifier = requireSubscriberIdentifier("get_subscriber", args);
+      result = await fetchDetailedSubscriberByIdentifier(
+        identifier,
+        companyId,
+        {
+          includeMachineEngagement: args.includeMachineEngagement === true,
+        }
+      );
+      break;
+    }
+
+    case "list_subscriber_notes": {
+      const companyId = args.companyId as string | undefined;
+      const identifier = requireSubscriberIdentifier(
+        "list_subscriber_notes",
+        args
+      );
+      result = await apiRequest(
+        "GET",
+        getSubscriberNotesPath(identifier),
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "add_subscriber_note": {
+      const companyId = args.companyId as string | undefined;
+      const identifier = requireSubscriberIdentifier(
+        "add_subscriber_note",
+        args
+      );
+      const body = typeof args.body === "string" ? args.body.trim() : undefined;
+      if (!body) {
+        throw new Error(
+          "`body` is required when calling `add_subscriber_note`."
+        );
+      }
+      if (body.length > 5000) {
+        throw new Error(
+          "`body` must be 5000 characters or fewer when calling `add_subscriber_note`."
+        );
+      }
+      result = await apiRequest(
+        "POST",
+        getSubscriberNotesPath(identifier),
+        { body },
+        companyId
+      );
+      break;
+    }
+
+    case "delete_subscriber_note": {
+      const companyId = args.companyId as string | undefined;
+      const noteId = typeof args.noteId === "string" ? args.noteId.trim() : "";
+      if (!noteId) {
+        throw new Error(
+          "`noteId` is required when calling `delete_subscriber_note`."
+        );
+      }
+      result = await apiRequest(
+        "DELETE",
+        `/api/v1/subscribers/notes/${encodeURIComponent(noteId)}`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "search_subscribers": {
+      const companyId = args.companyId as string | undefined;
+      result = await fetchAllSubscribers(args, companyId);
+      break;
+    }
+
+    // Products & Digital Delivery
+    default:
+      return { handled: false, result: undefined };
+  }
+
+  return { handled: true, result };
+}
