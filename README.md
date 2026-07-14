@@ -442,6 +442,9 @@ static site, call `list_forms`, use `create_form` if a suitable form does not
 exist, then call `get_form_embed`. The returned opaque `formId` is the public
 capability: lists, tags, duplicate behavior, and success handling remain
 server-side, so the deployed browser code never contains a Sequenzy API key.
+Generated native and standalone markup includes "Powered by Sequenzy" for free
+workspaces; paid workspaces receive unbranded markup. The API resolves that
+entitlement server-side, so callers should use the returned snippet unchanged.
 
 ### Landing Pages
 
