@@ -2205,6 +2205,26 @@ describe("create_campaign tool validation", () => {
     expect(blocksDescription).toContain('"attributeKey": "nps_score"');
   });
 
+  it("documents server-evaluated email block conditions", () => {
+    const createCampaignTool = tools.find(
+      (tool) => tool.name === "create_campaign"
+    );
+    const inputSchema = createCampaignTool?.inputSchema as
+      | {
+          properties?: Record<
+            string,
+            { description?: string | undefined } | undefined
+          >;
+        }
+      | undefined;
+    const description = inputSchema?.properties?.blocks?.description;
+
+    expect(description).toContain("segment");
+    expect(description).toContain("at_least");
+    expect(description).toContain("is_temporary_bounce");
+    expect(description).toContain("without a stored subscriber match");
+  });
+
   it("requires subject when prompt is not provided", async () => {
     const result = await handleToolCall("create_campaign", {
       name: "Launch",
