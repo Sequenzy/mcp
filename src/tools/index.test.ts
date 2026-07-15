@@ -1184,13 +1184,120 @@ describe("transactional email tools", () => {
     mockApiRequest.mockClear();
   });
 
-  it("publishes transactional read, create, and update tools", () => {
+  it("publishes transactional read, create, update, and send tools", () => {
     const toolNames = tools.map((tool) => tool.name);
 
     expect(toolNames).toContain("list_transactional_emails");
     expect(toolNames).toContain("get_transactional_email");
     expect(toolNames).toContain("create_transactional_email");
     expect(toolNames).toContain("update_transactional_email");
+    expect(toolNames).toContain("send_email");
+  });
+
+  it("publishes the supported send_email arguments", () => {
+    const sendEmailTool = tools.find((tool) => tool.name === "send_email");
+    const inputSchema = sendEmailTool?.inputSchema as
+      | {
+          required?: string[];
+          additionalProperties?: boolean;
+          properties?: Record<string, unknown>;
+        }
+      | undefined;
+
+    expect(inputSchema?.required).toEqual(["to"]);
+    expect(inputSchema?.additionalProperties).toBe(false);
+    expect(inputSchema?.properties).toHaveProperty("subject");
+    expect(inputSchema?.properties).toHaveProperty("html");
+    expect(inputSchema?.properties).toHaveProperty("templateId");
+  });
+
+  it("maps send_email subject and html arguments to the transactional API body", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      jobId: "job_123",
+    });
+
+    await handleToolCall("send_email", {
+      companyId: "company_123",
+      to: "user@example.com",
+      subject: "Connection test",
+      html: "<p>Connected.</p>",
+      variables: { firstName: "Paul" },
+      subscriberExternalId: "subscriber_123",
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/transactional/send",
+      {
+        to: "user@example.com",
+        subject: "Connection test",
+        body: "<p>Connected.</p>",
+        variables: { firstName: "Paul" },
+        subscriberExternalId: "subscriber_123",
+      },
+      "company_123"
+    );
+  });
+
+  it("maps send_email templateId to the transactional API slug", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      jobId: "job_123",
+    });
+
+    await handleToolCall("send_email", {
+      to: "user@example.com",
+      templateId: "welcome-email",
+      variables: { firstName: "Paul" },
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/transactional/send",
+      {
+        to: "user@example.com",
+        slug: "welcome-email",
+        variables: { firstName: "Paul" },
+      },
+      undefined
+    );
+  });
+
+  it("rejects mixed send_email template and direct-content modes", async () => {
+    const result = await handleToolCall("send_email", {
+      to: "user@example.com",
+      templateId: "welcome-email",
+      subject: "Connection test",
+      html: "<p>Connected.</p>",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`templateId` cannot be combined with `subject` or `html` when calling `send_email`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects incomplete send_email direct content", async () => {
+    const subjectOnlyResult = await handleToolCall("send_email", {
+      to: "user@example.com",
+      subject: "Connection test",
+    });
+    const htmlOnlyResult = await handleToolCall("send_email", {
+      to: "user@example.com",
+      html: "<p>Connected.</p>",
+    });
+
+    expect(subjectOnlyResult.isError).toBe(true);
+    expect(subjectOnlyResult.content[0]?.text).toContain(
+      "Provide either `templateId` or both `subject` and `html` when calling `send_email`."
+    );
+    expect(htmlOnlyResult.isError).toBe(true);
+    expect(htmlOnlyResult.content[0]?.text).toContain(
+      "Provide either `templateId` or both `subject` and `html` when calling `send_email`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
   it("publishes create_transactional_email content fields in the schema", () => {

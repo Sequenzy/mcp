@@ -131,10 +131,53 @@ export async function handleAnalyticsAndTransactionalTools(
 
     case "send_email": {
       const companyId = args.companyId as string | undefined;
+      const to = requiredString("send_email", args, "to");
+      const templateId =
+        args.templateId === undefined
+          ? undefined
+          : requiredString("send_email", args, "templateId");
+      const subject =
+        args.subject === undefined
+          ? undefined
+          : requiredString("send_email", args, "subject");
+      const html =
+        args.html === undefined
+          ? undefined
+          : requiredString("send_email", args, "html");
+
+      if (
+        templateId !== undefined &&
+        (subject !== undefined || html !== undefined)
+      ) {
+        throw new Error(
+          "`templateId` cannot be combined with `subject` or `html` when calling `send_email`."
+        );
+      }
+
+      if (
+        templateId === undefined &&
+        (subject === undefined || html === undefined)
+      ) {
+        throw new Error(
+          "Provide either `templateId` or both `subject` and `html` when calling `send_email`."
+        );
+      }
+
+      const sendBody = Object.fromEntries(
+        Object.entries({
+          to,
+          slug: templateId,
+          subject,
+          body: html,
+          variables: args.variables,
+          subscriberExternalId: args.subscriberExternalId,
+        }).filter(([, value]) => value !== undefined)
+      );
+
       result = await apiRequest(
         "POST",
         "/api/v1/transactional/send",
-        args,
+        sendBody,
         companyId
       );
       break;

@@ -654,7 +654,11 @@ to disabled for review. Explicit HTML or block templates retain the
 compatibility default of enabled; pass `enabled` explicitly to override either
 default.
 
-`send_email` variables support nested arrays for repeat blocks, such as `{ "event": { "items": [...] } }`.
+For a direct send, pass `to`, `subject`, and `html`; the MCP server maps `html`
+to the transactional API's `body` field. For a saved transactional email, pass
+its API slug through the compatibility-named `templateId` field instead.
+`send_email` variables support nested arrays for repeat blocks, such as
+`{ "event": { "items": [...] } }`.
 
 ### Analytics
 

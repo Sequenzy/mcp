@@ -162,7 +162,8 @@ export const transactionalToolDefinitions: Tool[] = [
   },
   {
     name: "send_email",
-    description: "Send a transactional email to a single recipient",
+    description:
+      "Send one transactional email using either a saved transactional email API slug (`templateId`) or direct `subject` and `html` content.",
     inputSchema: {
       type: "object",
       properties: {
@@ -177,15 +178,18 @@ export const transactionalToolDefinitions: Tool[] = [
         },
         subject: {
           type: "string",
-          description: "Email subject (required if not using templateId)",
+          description:
+            "Email subject line. Required with `html` when `templateId` is omitted.",
         },
         html: {
           type: "string",
-          description: "Email HTML content (required if not using templateId)",
+          description:
+            "Direct-send HTML body. Required with `subject` when `templateId` is omitted; the MCP server maps this to the transactional API `body` field.",
         },
         templateId: {
           type: "string",
-          description: "Template ID to use (alternative to html)",
+          description:
+            "Saved transactional email API slug, for example `welcome-email`. The field name is retained for MCP compatibility and is mapped to the transactional API `slug` field.",
         },
         variables: {
           type: "object",
@@ -199,6 +203,7 @@ export const transactionalToolDefinitions: Tool[] = [
         },
       },
       required: ["to"],
+      additionalProperties: false,
     },
   },
 ];
