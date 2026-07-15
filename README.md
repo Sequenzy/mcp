@@ -10,7 +10,7 @@ Connect Sequenzy to Claude Desktop, Claude Code, Codex, Cursor, Windsurf, VS Cod
 - Sync segments to Meta custom audiences for Facebook and Instagram retargeting.
 - Manage products and attach digital delivery files for purchase automations.
 - Upload hosted email images with alt text and reusable responsive crop settings.
-- Draft, update, schedule, and inspect campaigns, including From and Reply-To identities.
+- Draft, update, schedule, and inspect campaigns, including From, Reply-To, CC, and BCC identities.
 - Add one-click Poll and NPS survey blocks to emails and inspect campaign response summaries.
 - Create and edit email sequences, including event-triggered and segment-entry automations, sending identity overrides, and existing graph restructuring.
 - Cancel, pause, resume, duplicate, or delete campaigns and enroll contacts into sequences.
@@ -418,7 +418,7 @@ Use `get_ab_test` to discover variant IDs before editing. Variant updates accept
 | `get_campaign`                   | Get campaign details and stats.                                                           |
 | `get_email_send`                 | Inspect a sent email detail record.                                                       |
 | `create_campaign`                | Create a campaign with content, data, and optional From/Reply-To identity overrides.      |
-| `update_campaign`                | Update a draft campaign, including content, data, From, and Reply-To.                     |
+| `update_campaign`                | Update a draft campaign, including content, data, From, Reply-To, CC, and BCC.            |
 | `schedule_campaign`              | Schedule a draft or reschedule an existing scheduled campaign.                            |
 | `send_test_email`                | Send a test email to one address.                                                         |
 | `cancel_campaign`                | Cancel a scheduled or sending campaign.                                                   |

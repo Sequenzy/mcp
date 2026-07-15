@@ -1590,6 +1590,8 @@ describe("update_campaign tool validation", () => {
     expect(inputSchema?.properties).toHaveProperty("replyProfileId");
     expect(inputSchema?.properties).toHaveProperty("fromEmail");
     expect(inputSchema?.properties).toHaveProperty("senderProfileId");
+    expect(inputSchema?.properties).toHaveProperty("ccEmails");
+    expect(inputSchema?.properties).toHaveProperty("bccEmails");
     expect(inputSchema?.properties).toHaveProperty("campaignData");
     expect(inputSchema?.properties).toHaveProperty("computedLists");
     expect(inputSchema?.properties).toHaveProperty("labels");
@@ -1685,6 +1687,38 @@ describe("update_campaign tool validation", () => {
       {
         campaignId: "camp_123",
         labels: ["edm"],
+      },
+      undefined
+    );
+  });
+
+  it("forwards campaign copy recipients and clear values", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      campaign: {
+        id: "camp_123",
+        name: "Launch",
+        subject: "Hello",
+        status: "draft",
+        ccEmails: ["ops@example.com"],
+        bccEmails: null,
+      },
+    });
+
+    const result = await handleToolCall("update_campaign", {
+      campaignId: "camp_123",
+      ccEmails: ["ops@example.com"],
+      bccEmails: null,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/campaigns/camp_123",
+      {
+        campaignId: "camp_123",
+        ccEmails: ["ops@example.com"],
+        bccEmails: null,
       },
       undefined
     );

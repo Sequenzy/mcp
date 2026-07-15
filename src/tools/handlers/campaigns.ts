@@ -596,6 +596,8 @@ export async function handleCampaignTools(
         "replyTo",
         "replyToName",
         "replyProfileId",
+        "ccEmails",
+        "bccEmails",
         "campaignData",
         "computedLists",
         "labels",
@@ -644,6 +646,8 @@ export async function handleCampaignTools(
         args.senderProfileId === undefined &&
         args.replyTo === undefined &&
         args.replyProfileId === undefined &&
+        args.ccEmails === undefined &&
+        args.bccEmails === undefined &&
         args.campaignData === undefined &&
         args.computedLists === undefined &&
         args.labels === undefined

@@ -269,6 +269,20 @@ export const campaignToolDefinitions: Tool[] = [
           description:
             "Set an existing sender profile. Mutually exclusive with fromEmail.",
         },
+        ccEmails: {
+          type: ["array", "null"],
+          description:
+            "Addresses CC'd on every recipient's campaign email (max 10). Send an empty array or null to clear them; omit to leave unchanged.",
+          items: { type: "string" },
+          maxItems: 10,
+        },
+        bccEmails: {
+          type: ["array", "null"],
+          description:
+            "Addresses BCC'd on every recipient's campaign email (max 10). Send an empty array or null to clear them; omit to leave unchanged.",
+          items: { type: "string" },
+          maxItems: 10,
+        },
         campaignData: {
           type: "object",
           description:
