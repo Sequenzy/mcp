@@ -10,6 +10,18 @@ import {
   buildSequenceEnrollmentBody,
 } from "../internal.js";
 
+const MAX_DEFAULT_SEQUENCE_NAME_LENGTH = 80;
+
+function defaultSequenceName(goal: string): string {
+  const normalizedGoal = goal.trim().replace(/\s+/g, " ");
+
+  if (normalizedGoal.length <= MAX_DEFAULT_SEQUENCE_NAME_LENGTH) {
+    return normalizedGoal;
+  }
+
+  return `${normalizedGoal.slice(0, MAX_DEFAULT_SEQUENCE_NAME_LENGTH - 3).trimEnd()}...`;
+}
+
 export async function handleSequenceTools(
   name: string,
   args: Record<string, unknown>
@@ -17,6 +29,36 @@ export async function handleSequenceTools(
   let result: unknown;
 
   switch (name) {
+    case "generate_sequence": {
+      const goal = requiredString("generate_sequence", args, "goal");
+      const providedName =
+        typeof args.name === "string" && args.name.trim().length > 0
+          ? args.name.trim()
+          : undefined;
+
+      const createResponse = await handleSequenceTools("create_sequence", {
+        ...args,
+        goal,
+        name: providedName ?? defaultSequenceName(goal),
+        trigger: "contact_added",
+        durationDays: args.durationDays ?? 14,
+      });
+      const createResult = createResponse.result;
+
+      return {
+        handled: true,
+        result:
+          typeof createResult === "object" && createResult !== null
+            ? {
+                ...(createResult as Record<string, unknown>),
+                deprecated: true,
+                deprecationMessage:
+                  "generate_sequence is deprecated. Use create_sequence for new integrations.",
+              }
+            : createResult,
+      };
+    }
+
     case "list_sequences": {
       const companyId = args.companyId as string | undefined;
       result = await apiRequest(
@@ -123,16 +165,14 @@ export async function handleSequenceTools(
         break;
       }
 
-      // Poll for enrichment completion (20 second intervals, max 6 polls = 2 minutes)
-      const maxPolls = 6;
+      // Poll immediately once, then at 20 second intervals for up to 2 minutes.
+      // Fast jobs can complete before the first readback, so an unconditional
+      // initial sleep only adds latency and makes compatibility callers wait.
+      const maxPolls = 7;
       let pollCount = 0;
       let enrichmentStatus = "pending";
 
       while (enrichmentStatus !== "complete" && pollCount < maxPolls) {
-        // Wait 20 seconds before polling
-        await new Promise((resolve) => setTimeout(resolve, 20000));
-        pollCount++;
-
         const statusResult = await apiRequest<{
           success: boolean;
           sequence: {
@@ -147,6 +187,11 @@ export async function handleSequenceTools(
 
         if (statusResult.success) {
           enrichmentStatus = statusResult.sequence.enrichmentStatus;
+        }
+
+        pollCount++;
+        if (enrichmentStatus !== "complete" && pollCount < maxPolls) {
+          await new Promise((resolve) => setTimeout(resolve, 20000));
         }
       }
 

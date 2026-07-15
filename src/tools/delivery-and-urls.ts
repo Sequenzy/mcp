@@ -270,6 +270,7 @@ export const dashboardUrlToolNames = new Set([
   "list_sequences",
   "get_sequence",
   "create_sequence",
+  "generate_sequence",
   "update_sequence",
   "update_sequence_node",
   "update_sequence_nodes",
