@@ -41,6 +41,7 @@ export async function handleSequenceTools(
         goal,
         name: providedName ?? defaultSequenceName(goal),
         trigger: "contact_added",
+        durationDays: args.durationDays ?? 14,
       });
       const createResult = createResponse.result;
 

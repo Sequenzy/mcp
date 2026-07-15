@@ -2824,6 +2824,20 @@ describe("generate_sequence compatibility", () => {
       });
 
       expect(result.isError).toBeUndefined();
+      expect(mockApiRequest).toHaveBeenNthCalledWith(
+        1,
+        "POST",
+        "/api/v1/sequences",
+        {
+          companyId: "company_123",
+          name: "Slow enrichment",
+          goal: "Slow enrichment",
+          emailCount: 3,
+          trigger: "contact_added",
+          durationDays: 14,
+        },
+        "company_123"
+      );
       expect(timeoutSpy).toHaveBeenCalledTimes(6);
       expect(mockApiRequest).toHaveBeenCalledTimes(9);
     } finally {
