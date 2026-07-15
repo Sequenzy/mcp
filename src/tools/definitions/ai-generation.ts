@@ -46,7 +46,7 @@ export const aiGenerationToolDefinitions: Tool[] = [
   {
     name: "generate_sequence",
     description:
-      "[DEPRECATED - Use create_sequence instead] Generate a multi-email sequence from a goal. Note: create_sequence now handles AI generation automatically.",
+      "[DEPRECATED compatibility alias - use create_sequence] Create and persist a disabled AI-generated email sequence draft from a goal. The saved draft appears in list_sequences. The name defaults to the goal and the trigger defaults to contact_added; optionally pass listId to scope it. Review before enabling.",
     inputSchema: {
       type: "object",
       properties: {
@@ -60,6 +60,10 @@ export const aiGenerationToolDefinitions: Tool[] = [
           description:
             "Goal of the sequence (e.g., 'onboard new SaaS trial users')",
         },
+        name: {
+          type: "string",
+          description: "Optional sequence name. Defaults to the goal.",
+        },
         emailCount: {
           type: "number",
           description: "Number of emails in the sequence (default: 5, max: 10)",
@@ -67,6 +71,11 @@ export const aiGenerationToolDefinitions: Tool[] = [
         durationDays: {
           type: "number",
           description: "Total duration in days (default: 14)",
+        },
+        listId: {
+          type: "string",
+          description:
+            "Optional list ID. When provided, only contacts added to this list trigger the sequence.",
         },
       },
       required: ["goal"],

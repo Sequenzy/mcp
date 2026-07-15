@@ -725,8 +725,11 @@ export const outputPropertiesByToolName: Record<
     previewText: stringOutputProperty("Generated inbox preview text."),
   },
   generate_sequence: {
-    sequence: resourceOutputProperty("generated sequence"),
-    steps: resourceListOutputProperty("generated sequence step"),
+    sequence: resourceOutputProperty("persisted AI-generated sequence draft"),
+    deprecated: booleanOutputProperty("Always true for this deprecated alias."),
+    deprecationMessage: stringOutputProperty(
+      "Migration guidance directing callers to create_sequence."
+    ),
   },
   generate_subject_lines: {
     subjectLines: {

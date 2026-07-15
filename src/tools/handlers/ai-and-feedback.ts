@@ -19,17 +19,6 @@ export async function handleAiAndFeedbackTools(
       break;
     }
 
-    case "generate_sequence": {
-      const companyId = args.companyId as string | undefined;
-      result = await apiRequest(
-        "POST",
-        "/api/v1/generate/sequence",
-        args,
-        companyId
-      );
-      break;
-    }
-
     case "generate_subject_lines": {
       const companyId = args.companyId as string | undefined;
       result = await apiRequest(

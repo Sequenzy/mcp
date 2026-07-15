@@ -726,17 +726,19 @@ include the change `source` (for example `preferences_page`, `dashboard`,
 
 ### AI Generation
 
-| Tool                     | Description                                          |
-| ------------------------ | ---------------------------------------------------- |
-| `generate_email`         | Generate branded email blocks from a prompt.         |
-| `generate_sequence`      | Generate a branded multi-email sequence from a goal. |
-| `generate_subject_lines` | Generate A/B subject line variants.                  |
+| Tool                     | Description                                                 |
+| ------------------------ | ----------------------------------------------------------- |
+| `generate_email`         | Generate branded email blocks from a prompt.                |
+| `generate_sequence`      | Deprecated alias that persists a goal-based sequence draft. |
+| `generate_subject_lines` | Generate A/B subject line variants.                         |
 
 Generated email content includes the company's logo and footer by default.
 `generate_email` accepts `applyBranding: false` for raw content blocks and
 `emailType: "transactional"` for a footer without an unsubscribe link.
 Prompt-based campaigns inherit the company's configured email font. Generated
-content is returned as draft content for review.
+content is returned as draft content for review. Use `create_sequence` to
+generate and persist a disabled sequence draft that appears in
+`list_sequences`; the deprecated `generate_sequence` alias does the same.
 
 ## Resources
 

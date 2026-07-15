@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, mock } from "bun:test";
+import { beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
 
 type ApiRequestMock = (
   method: string,
@@ -170,6 +170,10 @@ describe("API key permission errors", () => {
 });
 
 describe("AI generation tools", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
   it("publishes branding controls for generate_email", () => {
     const generateEmailTool = tools.find(
       (tool) => tool.name === "generate_email"
@@ -211,6 +215,25 @@ describe("AI generation tools", () => {
       },
       "company_123"
     );
+  });
+
+  it("labels generate_sequence as a mutating compatibility alias", () => {
+    const tool = tools.find(
+      (candidate) => candidate.name === "generate_sequence"
+    );
+    const inputProperties = tool?.inputSchema.properties as
+      | Record<string, unknown>
+      | undefined;
+    const outputProperties = tool?.outputSchema?.properties as
+      | Record<string, unknown>
+      | undefined;
+
+    expect(tool?.description).toContain("Create and persist");
+    expect(tool?.annotations?.readOnlyHint).toBe(false);
+    expect(inputProperties).toHaveProperty("name");
+    expect(inputProperties).toHaveProperty("listId");
+    expect(outputProperties).toHaveProperty("sequence");
+    expect(JSON.stringify(tool).length).toBeLessThan(5_000);
   });
 });
 
@@ -2651,6 +2674,164 @@ describe("create_campaign tool validation", () => {
   });
 });
 
+describe("generate_sequence compatibility", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("persists a disabled goal-based draft through the sequence creation path", async () => {
+    mockApiRequest
+      .mockResolvedValueOnce({
+        success: true,
+        sequence: {
+          id: "seq_followup",
+          name: "LoqAI cold outreach follow-ups",
+          status: "draft",
+          emailCount: 3,
+        },
+        message: "Sequence creation started.",
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        sequence: {
+          id: "seq_followup",
+          name: "LoqAI cold outreach follow-ups",
+          status: "draft",
+          enrichmentStatus: "complete",
+          emailCount: 3,
+          enrichedCount: 3,
+        },
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        sequence: {
+          id: "seq_followup",
+          name: "LoqAI cold outreach follow-ups",
+          status: "draft",
+          enrichmentStatus: "complete",
+          emailCount: 3,
+          enrichedCount: 3,
+          nodes: [],
+        },
+      });
+
+    const result = await handleToolCall("generate_sequence", {
+      companyId: "company_123",
+      goal: "LoqAI cold outreach follow-ups",
+      emailCount: 3,
+      durationDays: 6,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledTimes(3);
+    expect(mockApiRequest).toHaveBeenNthCalledWith(
+      1,
+      "POST",
+      "/api/v1/sequences",
+      {
+        companyId: "company_123",
+        name: "LoqAI cold outreach follow-ups",
+        goal: "LoqAI cold outreach follow-ups",
+        emailCount: 3,
+        durationDays: 6,
+        trigger: "contact_added",
+      },
+      "company_123"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/generate/sequence",
+      expect.anything(),
+      expect.anything()
+    );
+
+    const payload = JSON.parse(result.content[0]?.text ?? "{}") as {
+      deprecated?: boolean;
+      deprecationMessage?: string;
+      sequence?: { id?: string; status?: string };
+    };
+    expect(payload.deprecated).toBe(true);
+    expect(payload.deprecationMessage).toContain("create_sequence");
+    expect(payload.sequence).toMatchObject({
+      id: "seq_followup",
+      status: "draft",
+    });
+  });
+
+  it("keeps polling for the full two-minute enrichment window", async () => {
+    const immediateSetTimeout = ((callback: () => void) => {
+      callback();
+      return 0;
+    }) as unknown as typeof setTimeout;
+    const timeoutSpy = spyOn(globalThis, "setTimeout").mockImplementation(
+      immediateSetTimeout
+    );
+
+    try {
+      mockApiRequest.mockResolvedValueOnce({
+        success: true,
+        sequence: {
+          id: "seq_slow",
+          name: "Slow enrichment",
+          status: "draft",
+          emailCount: 3,
+        },
+        message: "Sequence creation started.",
+      });
+
+      for (let poll = 0; poll < 6; poll++) {
+        mockApiRequest.mockResolvedValueOnce({
+          success: true,
+          sequence: {
+            id: "seq_slow",
+            name: "Slow enrichment",
+            status: "draft",
+            enrichmentStatus: "processing",
+            emailCount: 3,
+            enrichedCount: 2,
+          },
+        });
+      }
+
+      mockApiRequest.mockResolvedValueOnce({
+        success: true,
+        sequence: {
+          id: "seq_slow",
+          name: "Slow enrichment",
+          status: "draft",
+          enrichmentStatus: "complete",
+          emailCount: 3,
+          enrichedCount: 3,
+        },
+      });
+      mockApiRequest.mockResolvedValueOnce({
+        success: true,
+        sequence: {
+          id: "seq_slow",
+          name: "Slow enrichment",
+          status: "draft",
+          enrichmentStatus: "complete",
+          emailCount: 3,
+          enrichedCount: 3,
+          nodes: [],
+        },
+      });
+
+      const result = await handleToolCall("generate_sequence", {
+        companyId: "company_123",
+        goal: "Slow enrichment",
+        emailCount: 3,
+      });
+
+      expect(result.isError).toBeUndefined();
+      expect(timeoutSpy).toHaveBeenCalledTimes(6);
+      expect(mockApiRequest).toHaveBeenCalledTimes(9);
+    } finally {
+      timeoutSpy.mockRestore();
+    }
+  });
+});
+
 describe("create_sequence tool", () => {
   beforeEach(() => {
     mockApiRequest.mockClear();
@@ -2710,6 +2891,8 @@ describe("create_sequence tool", () => {
     expect(createSequenceTool?.description).toContain(
       "dynamically create a provider discount/code"
     );
+    expect(createSequenceTool?.description).toContain("follow-up series");
+    expect(createSequenceTool?.description?.length).toBeLessThan(1_000);
     const outputProperties = createSequenceTool?.outputSchema?.properties as
       | Record<string, unknown>
       | undefined;
@@ -2750,7 +2933,6 @@ describe("create_sequence tool", () => {
     expect(stopCondition?.properties?.type?.enum).toContain("entered_segment");
     expect(stopCondition?.properties?.type?.enum).toContain("field_changed");
     expect(stopCondition?.properties?.value?.type).toEqual(["string", "null"]);
-    expect(createSequenceTool?.description).toContain("saas.trial_cancelled");
   });
 
   it("creates explicit discount sequences without polling for AI enrichment", async () => {
