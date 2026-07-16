@@ -199,7 +199,15 @@ export const sequenceDelaySchema = {
 export const sequenceNodeChangesSchema = {
   type: "object",
   description:
-    "Type-aware patch for the existing node. Start from get_sequence.sequence.nodes[].config. For logic_delay, set exactly one of delay ({ days, hours, minutes }), delayMs, or waitUntil; optional label is also accepted. For action_email, use name/label, subject, previewText, html/htmlContent or blocks, isTransactional, and sender/reply identity fields. For action_sms, use text, blocks, imageUrls, label, or ineligibleAction. Other node types accept their editable config keys. Managed IDs, nodeType conversion, and branch path IDs/count are not editable here; use edit_sequence_graph for topology. Webhook header patches are merged, and redacted values from get_sequence must be omitted or replaced with a real new value.",
+    "Type-aware patch for the existing node. Start from get_sequence.sequence.nodes[].config. For logic_delay, set exactly one of delay ({ days, hours, minutes }), delayMs, or waitUntil; optional label is also accepted. For action_email, use name/label, subject, previewText, html/htmlContent or blocks, emailPreset, isTransactional, and sender/reply identity fields. For action_sms, use text, blocks, imageUrls, label, or ineligibleAction. Other node types accept their editable config keys. Managed IDs, nodeType conversion, and branch path IDs/count are not editable here; use edit_sequence_graph for topology. Webhook header patches are merged, and redacted values from get_sequence must be omitted or replaced with a real new value.",
+  properties: {
+    emailPreset: {
+      type: "string",
+      enum: ["branded", "minimal"],
+      description:
+        "For an action_email node, set the linked email's per-email Style > Format. Use minimal for a direct text-forward note without the company logo/full footer, or branded to restore them. This does not change the company-wide default. Do not combine with html/htmlContent in the same update; change the format separately so imported HTML remains one raw block.",
+    },
+  },
   additionalProperties: true,
 } as const;
 

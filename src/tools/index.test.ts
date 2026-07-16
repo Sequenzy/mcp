@@ -3917,6 +3917,13 @@ describe("sequence node update tools", () => {
     expect(singleSchema?.additionalProperties).toBe(false);
     expect(singleSchema?.properties).toHaveProperty("expectedUpdatedAt");
     expect(singleSchema?.properties).toHaveProperty("confirmLiveChange");
+    const changesSchema = singleSchema?.properties?.["changes"] as
+      | { properties?: Record<string, unknown> }
+      | undefined;
+    expect(changesSchema?.properties?.["emailPreset"]).toMatchObject({
+      type: "string",
+      enum: ["branded", "minimal"],
+    });
     expect(batchSchema?.required).toEqual(["sequenceId", "updates"]);
     expect(batchSchema?.additionalProperties).toBe(false);
     expect(singleTool?.description).toContain(
@@ -3927,9 +3934,69 @@ describe("sequence node update tools", () => {
     );
     expect(
       tools.find((tool) => tool.name === "get_sequence")?.description
-    ).toContain("updateHints");
+    ).toContain("emailPreset");
     expect(singleTool?.annotations?.readOnlyHint).toBe(false);
     expect(singleTool?.annotations?.destructiveHint).toBe(false);
+  });
+
+  it("preserves per-email format patches in an atomic batch", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      sequence: { id: "seq_123", updatedNodeCount: 2 },
+    });
+    const updates = [
+      {
+        nodeId: "email_1",
+        changes: { emailPreset: "minimal" },
+        expectedUpdatedAt: "2026-07-14T10:00:00.000Z",
+      },
+      {
+        nodeId: "email_2",
+        changes: { emailPreset: "minimal" },
+        expectedUpdatedAt: "2026-07-14T10:01:00.000Z",
+      },
+    ];
+
+    const result = await handleToolCall("update_sequence_nodes", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      updates,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/sequences/seq_123",
+      { nodeUpdates: updates },
+      "comp_123"
+    );
+  });
+
+  it("returns the per-email format from get_sequence", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      sequence: {
+        id: "seq_123",
+        emails: [
+          {
+            nodeId: "email_1",
+            emailId: "template_1",
+            emailPreset: "minimal",
+            blocks: [],
+          },
+        ],
+      },
+    });
+
+    const result = await handleToolCall("get_sequence", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.structuredContent?.["sequence"]).toMatchObject({
+      emails: [{ nodeId: "email_1", emailPreset: "minimal" }],
+    });
   });
 
   it("maps one delay patch to the sequence nodeUpdates API", async () => {
