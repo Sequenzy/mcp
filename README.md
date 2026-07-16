@@ -443,8 +443,8 @@ runs, known sequence volume, successful transactional send history, and every
 active sequence even when it has no enrolled subscribers or dated sends. Use
 the returned `windowStart` and `windowEnd` when passing a sequence or
 transactional day to `get_schedule_overlap`; direct transactional groups use a
-null `transactionalEmailId`. Daily-volume windows must have their start before
-their end and may span at most 130 days.
+null `transactionalEmailId`. Daily-volume windows must not have their start
+after their end and may span at most 130 days.
 
 `send_email` and `send_test_email` return a durable `emailSendId`. Pass that ID
 to `get_email_send` to inspect `status`, `errorMessage`, the stored body, and
