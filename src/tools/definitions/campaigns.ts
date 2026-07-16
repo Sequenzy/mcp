@@ -81,7 +81,7 @@ export const campaignToolDefinitions: Tool[] = [
   {
     name: "get_schedule_overlap",
     description:
-      "Count subscribers who would receive both of two schedule items flagged by get_send_schedule. Each item is a campaign, sequence day, or transactional day. For daily-volume items, use the schedule item's windowStart/windowEnd; windows must have from before to and span at most 130 days. Set transactionalEmailId to null for direct sends. The count is capped at 50,000.",
+      "Count subscribers who would receive both of two schedule items flagged by get_send_schedule. Each item is a campaign, sequence day, or transactional day. For daily-volume items, use the schedule item's windowStart/windowEnd; equal endpoints represent point-in-time volume, and windows span at most 130 days. Set transactionalEmailId to null for direct sends. The count is capped at 50,000.",
     inputSchema: {
       type: "object",
       properties: {
