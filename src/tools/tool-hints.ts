@@ -31,6 +31,8 @@ export const READ_ONLY_TOOL_NAMES = new Set([
   "get_ab_test_stats",
   "list_campaigns",
   "get_campaign",
+  "get_send_schedule",
+  "get_schedule_overlap",
   "get_email_send",
   "list_forms",
   "get_form_embed",

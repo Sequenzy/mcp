@@ -506,6 +506,76 @@ export async function handleCampaignTools(
       break;
     }
 
+    case "get_send_schedule": {
+      const companyId = args.companyId as string | undefined;
+      const scheduleParams = new URLSearchParams({
+        from: requiredString("get_send_schedule", args, "from"),
+        to: requiredString("get_send_schedule", args, "to"),
+      });
+      const timezone = optionalString(args, "timezone");
+      if (timezone) scheduleParams.set("timezone", timezone);
+      result = await apiRequest(
+        "GET",
+        `/api/v1/schedule?${scheduleParams}`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "get_schedule_overlap": {
+      const companyId = args.companyId as string | undefined;
+      const overlapParams = new URLSearchParams();
+      for (const side of ["a", "b"] as const) {
+        const label = side === "a" ? "itemA" : "itemB";
+        const item = args[label];
+        if (!isRecord(item)) {
+          throw new Error(
+            `\`${label}\` is required when calling \`get_schedule_overlap\`.`
+          );
+        }
+        const type = requiredString(label, item, "type");
+        overlapParams.set(`${side}Type`, type);
+        if (type === "campaign") {
+          overlapParams.set(
+            `${side}CampaignId`,
+            requiredString(label, item, "campaignId")
+          );
+        } else if (type === "sequence") {
+          overlapParams.set(
+            `${side}AutomationId`,
+            requiredString(label, item, "automationId")
+          );
+          overlapParams.set(`${side}From`, requiredString(label, item, "from"));
+          overlapParams.set(`${side}To`, requiredString(label, item, "to"));
+        } else if (type === "transactional") {
+          const transactionalEmailId = optionalString(
+            item,
+            "transactionalEmailId"
+          );
+          if (transactionalEmailId) {
+            overlapParams.set(
+              `${side}TransactionalEmailId`,
+              transactionalEmailId
+            );
+          }
+          overlapParams.set(`${side}From`, requiredString(label, item, "from"));
+          overlapParams.set(`${side}To`, requiredString(label, item, "to"));
+        } else {
+          throw new Error(
+            `\`${label}.type\` must be "campaign", "sequence", or "transactional".`
+          );
+        }
+      }
+      result = await apiRequest(
+        "GET",
+        `/api/v1/schedule/conflict?${overlapParams}`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
     // Campaigns
     case "list_campaigns": {
       const companyId = args.companyId as string | undefined;

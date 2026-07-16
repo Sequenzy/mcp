@@ -212,7 +212,7 @@ include the missing scopes.
 
 ## Tools
 
-This server currently exposes 144 MCP tools.
+This server currently exposes 146 MCP tools.
 
 ### Account, Companies, Setup
 
@@ -417,6 +417,8 @@ Use `get_ab_test` to discover variant IDs before editing. Variant updates accept
 | -------------------------------- | ----------------------------------------------------------------------------------------- |
 | `list_campaigns`                 | List campaigns, optionally filtered by status.                                            |
 | `get_campaign`                   | Get campaign details and stats.                                                           |
+| `get_send_schedule`              | List active sequences and dated campaign, sequence, and transactional send activity.      |
+| `get_schedule_overlap`           | Count shared subscribers for two flagged schedule items.                                  |
 | `get_email_send`                 | Inspect a queued, test, sent, suppressed, or failed delivery by durable email-send ID.    |
 | `get_recipient_suppression`      | Check local and regional SES suppression for one exact recipient.                         |
 | `remove_recipient_suppression`   | Remove stale bounce suppression for a company-associated recipient.                       |
@@ -435,6 +437,14 @@ Prompt-created campaigns are generated and persisted in one API request and
 remain drafts. Use `templateId`, `blocks`, or `html` only when copying or
 preserving existing content rather than asking the agent to author it. Omit all
 content fields to create an empty draft for later editing.
+
+`get_send_schedule` combines scheduled and sent campaigns, projected recurring
+runs, known sequence volume, successful transactional send history, and every
+active sequence even when it has no enrolled subscribers or dated sends. Use
+the returned `windowStart` and `windowEnd` when passing a sequence or
+transactional day to `get_schedule_overlap`; direct transactional groups use a
+null `transactionalEmailId`. Daily-volume windows must have their start before
+their end and may span at most 130 days.
 
 `send_email` and `send_test_email` return a durable `emailSendId`. Pass that ID
 to `get_email_send` to inspect `status`, `errorMessage`, the stored body, and

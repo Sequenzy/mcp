@@ -445,6 +445,19 @@ export const outputPropertiesByToolName: Record<
   get_campaign: {
     campaign: resourceOutputProperty("campaign"),
   },
+  get_send_schedule: {
+    items: resourceListOutputProperty("schedule item"),
+    conflicts: resourceListOutputProperty("audience-overlap warning"),
+    activeSequences: resourceListOutputProperty(
+      "active sequence, including enrollment counts and its next queued step"
+    ),
+  },
+  get_schedule_overlap: {
+    overlapCount: numberOutputProperty(
+      "Subscribers who would receive both items (capped at 50,000)."
+    ),
+    capped: booleanOutputProperty("Whether the count hit the cap."),
+  },
   get_email_send: {
     emailSend: resourceOutputProperty("email send"),
     events: resourceListOutputProperty("email delivery event"),

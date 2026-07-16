@@ -49,6 +49,120 @@ export const campaignToolDefinitions: Tool[] = [
     },
   },
   {
+    name: "get_send_schedule",
+    description:
+      "Everything going out between two dates: scheduled and sent campaigns (with STO/spread send windows), projected recurring campaign runs, known per-day sequence volume, transactional send history, and structural audience-overlap warnings (conflicts). Also returns every active sequence, even when it has no dated sends or enrolled subscribers. Use get_schedule_overlap to turn a warning into an exact shared-subscriber count.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        from: {
+          type: "string",
+          description: "Range start (ISO 8601).",
+        },
+        to: {
+          type: "string",
+          description:
+            "Range end (ISO 8601). Must be after 'from'; at most 130 days later.",
+        },
+        timezone: {
+          type: "string",
+          description:
+            "IANA timezone used to bucket daily volume (e.g. Europe/Kyiv). Defaults to UTC.",
+        },
+      },
+      required: ["from", "to"],
+    },
+  },
+  {
+    name: "get_schedule_overlap",
+    description:
+      "Count subscribers who would receive both of two schedule items flagged by get_send_schedule. Each item is a campaign, sequence day, or transactional day. For daily-volume items, use the schedule item's windowStart/windowEnd; windows must have from before to and span at most 130 days. Set transactionalEmailId to null for direct sends. The count is capped at 50,000.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        itemA: {
+          type: "object",
+          description: "First schedule item.",
+          properties: {
+            type: {
+              type: "string",
+              description: "'campaign', 'sequence', or 'transactional'.",
+            },
+            campaignId: {
+              type: "string",
+              description: "Campaign ID (campaign items).",
+            },
+            automationId: {
+              type: "string",
+              description: "Sequence ID (sequence items).",
+            },
+            transactionalEmailId: {
+              type: ["string", "null"],
+              description:
+                "Transactional template ID, or null for direct-content sends (transactional items).",
+            },
+            from: {
+              type: "string",
+              description:
+                "Sequence day window start, ISO 8601 (sequence items).",
+            },
+            to: {
+              type: "string",
+              description:
+                "Sequence day window end, ISO 8601 (sequence items).",
+            },
+          },
+          required: ["type"],
+        },
+        itemB: {
+          type: "object",
+          description: "Second schedule item; same shape as itemA.",
+          properties: {
+            type: {
+              type: "string",
+              description: "'campaign', 'sequence', or 'transactional'.",
+            },
+            campaignId: {
+              type: "string",
+              description: "Campaign ID (campaign items).",
+            },
+            automationId: {
+              type: "string",
+              description: "Sequence ID (sequence items).",
+            },
+            transactionalEmailId: {
+              type: ["string", "null"],
+              description:
+                "Transactional template ID, or null for direct-content sends (transactional items).",
+            },
+            from: {
+              type: "string",
+              description:
+                "Sequence day window start, ISO 8601 (sequence items).",
+            },
+            to: {
+              type: "string",
+              description:
+                "Sequence day window end, ISO 8601 (sequence items).",
+            },
+          },
+          required: ["type"],
+        },
+      },
+      required: ["itemA", "itemB"],
+    },
+  },
+  {
     name: "get_email_send",
     description:
       "Get an email delivery by emailSendId, including queued and test sends, delivery status, provider failure reason, stored HTML, and the ClickHouse event timeline. Queue jobs are internal execution details and are not exposed.",
