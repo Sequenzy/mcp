@@ -1237,7 +1237,7 @@ describe("transactional email tools", () => {
   it("maps send_email subject and html arguments to the transactional API body", async () => {
     mockApiRequest.mockResolvedValueOnce({
       success: true,
-      jobId: "job_123",
+      emailSendId: "send_123",
     });
 
     await handleToolCall("send_email", {
@@ -1266,7 +1266,7 @@ describe("transactional email tools", () => {
   it("maps send_email templateId to the transactional API slug", async () => {
     mockApiRequest.mockResolvedValueOnce({
       success: true,
-      jobId: "job_123",
+      emailSendId: "send_123",
     });
 
     await handleToolCall("send_email", {
@@ -6734,5 +6734,52 @@ describe("send_test_sms tool", () => {
 
     expect(result.isError).toBe(true);
     expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+});
+
+describe("recipient suppression tools", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("checks one exact recipient suppression", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      suppression: { email: "me@moltencoffee.shop", suppressed: true },
+    });
+
+    const result = await handleToolCall("get_recipient_suppression", {
+      companyId: "w5icln9p0l2sopp8anjcxx2d",
+      email: "me@moltencoffee.shop",
+      region: "us-east-1",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/suppressions/me%40moltencoffee.shop?region=us-east-1",
+      undefined,
+      "w5icln9p0l2sopp8anjcxx2d"
+    );
+  });
+
+  it("removes one exact recipient bounce suppression", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      removed: true,
+      removedSesRegions: ["us-east-1"],
+    });
+
+    const result = await handleToolCall("remove_recipient_suppression", {
+      email: "me@moltencoffee.shop",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "DELETE",
+      "/api/v1/suppressions/me%40moltencoffee.shop",
+      undefined,
+      undefined
+    );
   });
 });

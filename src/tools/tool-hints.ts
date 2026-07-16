@@ -32,6 +32,7 @@ export const READ_ONLY_TOOL_NAMES = new Set([
   "list_campaigns",
   "get_campaign",
   "get_email_send",
+  "get_recipient_suppression",
   "list_forms",
   "get_form_embed",
   "list_landing_pages",
@@ -150,6 +151,7 @@ export const MUTATING_TOOL_NAMES = new Set([
   "delete_webhook",
   "test_webhook",
   "replay_webhook_delivery",
+  "remove_recipient_suppression",
   "submit_feedback",
 ]);
 
@@ -173,6 +175,7 @@ export const OPEN_WORLD_TOOL_NAMES = new Set([
   "update_webhook",
   "test_webhook",
   "replay_webhook_delivery",
+  "remove_recipient_suppression",
 ]);
 
 export const DESTRUCTIVE_TOOL_NAMES = new Set([
@@ -191,6 +194,7 @@ export const DESTRUCTIVE_TOOL_NAMES = new Set([
   "delete_ab_test",
   "cancel_campaign",
   "delete_campaign",
+  "remove_recipient_suppression",
   "delete_landing_page",
   "unpublish_landing_page",
   "disable_sequence",

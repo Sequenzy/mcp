@@ -51,7 +51,7 @@ export const campaignToolDefinitions: Tool[] = [
   {
     name: "get_email_send",
     description:
-      "Get a sent email by emailSendId, including the stored HTML body when available and the ClickHouse event timeline. If the short-lived email send row has been cleaned up, returns the retained ClickHouse events and a sparse summary.",
+      "Get an email delivery by emailSendId, including queued and test sends, delivery status, provider failure reason, stored HTML, and the ClickHouse event timeline. Queue jobs are internal execution details and are not exposed.",
     inputSchema: {
       type: "object",
       properties: {
@@ -62,7 +62,7 @@ export const campaignToolDefinitions: Tool[] = [
         },
         emailSendId: {
           type: "string",
-          description: "Email send ID to inspect.",
+          description: "Durable email delivery ID to inspect.",
         },
       },
       required: ["emailSendId"],
@@ -358,7 +358,8 @@ export const campaignToolDefinitions: Tool[] = [
   },
   {
     name: "send_test_email",
-    description: "Send a test email to a single address",
+    description:
+      "Queue a campaign test email to a single address. Returns a durable emailSendId; pass it to get_email_send for delivery status and failure details.",
     inputSchema: {
       type: "object",
       properties: {

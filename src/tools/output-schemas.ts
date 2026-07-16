@@ -447,6 +447,26 @@ export const outputPropertiesByToolName: Record<
   },
   get_email_send: {
     emailSend: resourceOutputProperty("email send"),
+    events: resourceListOutputProperty("email delivery event"),
+  },
+  get_recipient_suppression: {
+    suppression: resourceOutputProperty("recipient suppression status"),
+  },
+  remove_recipient_suppression: {
+    removed: booleanOutputProperty(
+      "Whether stale bounce suppression was removed."
+    ),
+    removedLocalBounce: booleanOutputProperty(
+      "Whether the platform-local bounce block was removed."
+    ),
+    removedSesRegions: {
+      type: "array",
+      description: "AWS SES regions where a bounce suppression was removed.",
+      items: stringOutputProperty("One AWS SES region."),
+    },
+    remainingSuppression: resourceOutputProperty(
+      "recipient suppression status after cleanup"
+    ),
   },
   create_campaign: {
     campaign: resourceOutputProperty("campaign"),
@@ -459,8 +479,8 @@ export const outputPropertiesByToolName: Record<
     scheduledAt: stringOutputProperty("Scheduled send timestamp."),
   },
   send_test_email: {
-    emailSend: resourceOutputProperty("test email send"),
-    recipient: stringOutputProperty("Test email recipient."),
+    emailSendId: stringOutputProperty("Durable test email delivery ID."),
+    recipientEmail: stringOutputProperty("Test email recipient."),
   },
   send_test_sms: {
     smsSendId: stringOutputProperty("Created test SMS send ID."),
@@ -623,7 +643,7 @@ export const outputPropertiesByToolName: Record<
     transactional: resourceOutputProperty("transactional email"),
   },
   send_email: {
-    emailSend: resourceOutputProperty("transactional email send"),
+    emailSendId: stringOutputProperty("Durable transactional delivery ID."),
     transactional: resourceOutputProperty("transactional email"),
   },
   get_stats: {

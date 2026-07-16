@@ -9,6 +9,7 @@ import { handleLandingPageTools } from "./landing-pages.js";
 import { handleProductTools } from "./products.js";
 import { handleSequenceTools } from "./sequences.js";
 import { handleSubscriberTools } from "./subscribers.js";
+import { handleSuppressionTools } from "./suppressions.js";
 import { handleTeamInboxWebhookTools } from "./team-inbox-webhooks.js";
 
 export const toolHandlers = [
@@ -17,6 +18,7 @@ export const toolHandlers = [
   handleProductTools,
   handleAudienceTools,
   handleCampaignTools,
+  handleSuppressionTools,
   handleSavedFormTools,
   handleLandingPageTools,
   handleImageAssetTools,

@@ -15,6 +15,7 @@ import { productToolDefinitions } from "./products.js";
 import { sequenceBasicToolDefinitions } from "./sequences-basic.js";
 import { sequenceEditingToolDefinitions } from "./sequences-editing.js";
 import { subscriberToolDefinitions } from "./subscribers.js";
+import { suppressionToolDefinitions } from "./suppressions.js";
 import { tagListSegmentToolDefinitions } from "./tags-lists-segments.js";
 import { teamToolDefinitions } from "./team.js";
 import { templateToolDefinitions } from "./templates.js";
@@ -30,6 +31,7 @@ export const toolDefinitions: Tool[] = [
   ...templateToolDefinitions,
   ...abTestToolDefinitions,
   ...campaignToolDefinitions,
+  ...suppressionToolDefinitions,
   ...savedFormToolDefinitions,
   ...landingPageToolDefinitions,
   ...imageAssetToolDefinitions,

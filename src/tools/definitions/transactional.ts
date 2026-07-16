@@ -163,7 +163,7 @@ export const transactionalToolDefinitions: Tool[] = [
   {
     name: "send_email",
     description:
-      "Send one transactional email using either a saved transactional email API slug (`templateId`) or direct `subject` and `html` content.",
+      "Queue one transactional email using either a saved transactional email API slug (`templateId`) or direct `subject` and `html` content. Returns a durable emailSendId; pass it to get_email_send for delivery status and failure details.",
     inputSchema: {
       type: "object",
       properties: {

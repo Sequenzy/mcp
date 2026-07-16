@@ -22,6 +22,7 @@ Connect Sequenzy to Claude Desktop, Claude Code, Codex, Cursor, Windsurf, VS Cod
 - Manage team invitations, inbox conversations, and outbound webhook endpoints.
 - Generate email copy, subject lines, and multi-step sequences.
 - Inspect analytics, subscriber activity, deliverability health, and dashboard URLs.
+- Inspect and clean up exact-recipient bounce suppression without exposing the shared SES suppression list.
 - Configure company product info, account-wide sending identity defaults, sender domains, and integration examples for common frameworks.
 
 Every published MCP tool includes explicit `readOnlyHint`, `destructiveHint`, and `openWorldHint` annotations so compatible clients can display accurate tool-use affordances. Tools also publish `outputSchema` definitions and return `structuredContent`, giving clients and models machine-readable result shapes for follow-up calls.
@@ -211,7 +212,7 @@ include the missing scopes.
 
 ## Tools
 
-This server currently exposes 139 MCP tools.
+This server currently exposes 144 MCP tools.
 
 ### Account, Companies, Setup
 
@@ -416,7 +417,9 @@ Use `get_ab_test` to discover variant IDs before editing. Variant updates accept
 | -------------------------------- | ----------------------------------------------------------------------------------------- |
 | `list_campaigns`                 | List campaigns, optionally filtered by status.                                            |
 | `get_campaign`                   | Get campaign details and stats.                                                           |
-| `get_email_send`                 | Inspect a sent email detail record.                                                       |
+| `get_email_send`                 | Inspect a queued, test, sent, suppressed, or failed delivery by durable email-send ID.    |
+| `get_recipient_suppression`      | Check local and regional SES suppression for one exact recipient.                         |
+| `remove_recipient_suppression`   | Remove stale bounce suppression for a company-associated recipient.                       |
 | `create_campaign`                | Create a campaign with content, data, and optional From/Reply-To identity overrides.      |
 | `update_campaign`                | Update a draft campaign, including content, data, From, Reply-To, CC, and BCC.            |
 | `schedule_campaign`              | Schedule a draft or reschedule an existing scheduled campaign.                            |
@@ -432,6 +435,14 @@ Prompt-created campaigns are generated and persisted in one API request and
 remain drafts. Use `templateId`, `blocks`, or `html` only when copying or
 preserving existing content rather than asking the agent to author it. Omit all
 content fields to create an empty draft for later editing.
+
+`send_email` and `send_test_email` return a durable `emailSendId`. Pass that ID
+to `get_email_send` to inspect `status`, `errorMessage`, the stored body, and
+delivery events. Queue jobs are internal execution details and are not exposed
+through the MCP contract. Use `get_recipient_suppression` before cleanup, then
+`remove_recipient_suppression` only after confirming a hard-bounced mailbox is
+working again. Cleanup removes bounce entries but never complaint or unsubscribe
+protections.
 
 Email blocks may use conditional display rules or `conditional-group` branches.
 Conditions support render-time variables and subscriber attributes plus live
