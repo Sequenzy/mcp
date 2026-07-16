@@ -13,6 +13,9 @@ const mockApiRequest = mock<ApiRequestMock>(async () => {
 
 await mock.module("../runtime.js", () => ({
   apiRequest: mockApiRequest,
+  apiUploadRequest: async () => {
+    throw new Error("apiUploadRequest should not be called");
+  },
   areLocalFileUploadsEnabled: () => false,
   getSelectedCompanyId: () => null,
   setSelectedCompanyId: () => undefined,

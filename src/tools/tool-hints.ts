@@ -32,9 +32,9 @@ export const READ_ONLY_TOOL_NAMES = new Set([
   "list_campaigns",
   "get_campaign",
   "get_email_send",
-  "get_recipient_suppression",
   "list_forms",
   "get_form_embed",
+  "get_recipient_suppression",
   "list_landing_pages",
   "get_landing_page",
   "list_sequences",
@@ -151,8 +151,8 @@ export const MUTATING_TOOL_NAMES = new Set([
   "delete_webhook",
   "test_webhook",
   "replay_webhook_delivery",
-  "remove_recipient_suppression",
   "submit_feedback",
+  "remove_recipient_suppression",
 ]);
 
 export const OPEN_WORLD_TOOL_NAMES = new Set([
@@ -194,7 +194,6 @@ export const DESTRUCTIVE_TOOL_NAMES = new Set([
   "delete_ab_test",
   "cancel_campaign",
   "delete_campaign",
-  "remove_recipient_suppression",
   "delete_landing_page",
   "unpublish_landing_page",
   "disable_sequence",
@@ -203,6 +202,7 @@ export const DESTRUCTIVE_TOOL_NAMES = new Set([
   "delete_sequence",
   "cancel_team_invitation",
   "delete_webhook",
+  "remove_recipient_suppression",
 ]);
 
 export function getRequiredToolHints(toolName: string): RequiredToolHints {
