@@ -29,7 +29,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
   {
     name: "get_sequence",
     description:
-      "Get sequence details, editable step content, and graph topology. Each sequence.nodes item includes id, nodeType, current config, updatedAt, and updateHints with its editable/managed fields and ready-to-return expectedUpdatedAt token for update_sequence_node/update_sequence_nodes. The response also includes sequence.edges and graphRevision for safe edit_sequence_graph calls, plus sequence.emails with each email step's nodeId, linked emailId, subject, previewText, emailPreset (the per-email Style > Format), and blocks.",
+      "Get sequence details, editable step content, and graph topology. Each sequence.nodes item includes id, nodeType, current config, updatedAt, and updateHints with its editable/managed fields and ready-to-return expectedUpdatedAt token for update_sequence_node/update_sequence_nodes. The response also includes sequence.edges and graphRevision for safe edit_sequence_graph calls, plus sequence.emails with each email step's nodeId, linked emailId, subject, previewText, emailPreset (the per-email Style > Format for native blocks; null for raw HTML), and blocks.",
     inputSchema: {
       type: "object",
       properties: {

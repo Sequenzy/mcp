@@ -316,7 +316,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
                 type: "string",
                 enum: ["branded", "minimal"],
                 description:
-                  "Per-email Style > Format. Minimal removes the company logo/full footer for a text-forward note; branded restores them. Does not change the company default. Do not combine with html/htmlContent in the same update; change the format separately so imported HTML remains one raw block.",
+                  "Per-email Style > Format for native Sequenzy blocks. Minimal removes the company logo and uses the simple footer; branded restores the branded chrome. Does not change the company default. Not supported for raw HTML emails and must not be combined with html/htmlContent.",
               },
               blocks: {
                 type: "array",
@@ -370,7 +370,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
                 type: "string",
                 enum: ["branded", "minimal"],
                 description:
-                  "Per-email Style > Format. Minimal removes the company logo/full footer for a text-forward note; branded restores them. Does not change the company default. Do not combine with html/htmlContent in the same update; change the format separately so imported HTML remains one raw block.",
+                  "Per-email Style > Format for native Sequenzy blocks. Minimal removes the company logo and uses the simple footer; branded restores the branded chrome. Does not change the company default. Not supported for raw HTML emails and must not be combined with html/htmlContent.",
               },
               blocks: {
                 type: "array",

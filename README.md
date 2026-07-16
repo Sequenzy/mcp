@@ -605,12 +605,10 @@ Each linked email returned by `get_sequence` includes its effective
 `emailPreset` (`branded` or `minimal`), matching **Style > Format** in the
 dashboard. Set `emailPreset` on an `emails`/`steps` item, or in an
 `action_email` node's `changes`, to change only that linked email without
-changing the company theme. Block-only updates preserve the email's current
-format when the field is omitted, so revising Minimal copy does not re-add the
-company logo or full footer.
-
-Send raw `html`/`htmlContent` and `emailPreset` in separate updates. Combining
-them is rejected so imported provider HTML remains one lossless raw block.
+changing the company theme. This applies the same format transformation as the
+dashboard to native Sequenzy blocks. Raw HTML emails return `null` for
+`emailPreset`, do not support format changes, and cannot combine `emailPreset`
+with `html` or `htmlContent`.
 
 Use `update_sequence_node` for a focused in-place edit, or
 `update_sequence_nodes` when several node patches must commit atomically. Call
