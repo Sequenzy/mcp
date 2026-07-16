@@ -241,8 +241,8 @@ error points back to `add_sending_domain` with the requested domain.
 
 | Tool                 | Description                                                                         |
 | -------------------- | ----------------------------------------------------------------------------------- |
-| `add_subscriber`     | Add a subscriber with attributes, tags, status, opt-in mode, and optional list IDs. |
-| `update_subscriber`  | Update attributes, add tags, or remove tags.                                        |
+| `add_subscriber`     | Add a subscriber with native first/last name fields, attributes, tags, status, opt-in mode, and optional list IDs. |
+| `update_subscriber`  | Update native first/last name fields or attributes, and add or remove tags.          |
 | `remove_subscriber`  | Unsubscribe a subscriber or hard-delete them.                                       |
 | `get_subscriber`     | Fetch subscriber details by email or external ID.                                   |
 | `search_subscribers` | Search by query, tags, list, status, segment, or pagination.                        |
