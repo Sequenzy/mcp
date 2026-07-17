@@ -13,6 +13,9 @@ const mockApiRequest = mock<ApiRequestMock>(async () => {
 
 await mock.module("../runtime.js", () => ({
   apiRequest: mockApiRequest,
+  apiUploadRequest: async () => {
+    throw new Error("apiUploadRequest should not be called");
+  },
   areLocalFileUploadsEnabled: () => false,
   getSelectedCompanyId: () => null,
   setSelectedCompanyId: () => undefined,
@@ -114,6 +117,62 @@ describe("subscriber MCP tools", () => {
     expect(payload.emailStats.sent).toBe(1);
     expect(payload.activity[0]?.eventName).toBe("saas.purchase");
     expect(payload.sequenceEnrollments[0]?.sequenceName).toBe("Welcome");
+  });
+
+  it("passes native firstName/lastName fields when adding a subscriber", async () => {
+    mockApiRequest.mockResolvedValue({
+      success: true,
+      subscriber: { email: "named@example.com" },
+    });
+
+    const result = await handleToolCall("add_subscriber", {
+      companyId: "comp_123",
+      email: "named@example.com",
+      firstName: "Ada",
+      lastName: "Lovelace",
+      attributes: { plan: "pro" },
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/subscribers",
+      {
+        email: "named@example.com",
+        firstName: "Ada",
+        lastName: "Lovelace",
+        customAttributes: { plan: "pro" },
+        tags: undefined,
+        lists: undefined,
+      },
+      "comp_123"
+    );
+  });
+
+  it("updates native firstName/lastName fields on update_subscriber", async () => {
+    mockApiRequest
+      .mockResolvedValueOnce({
+        success: true,
+        subscriber: {
+          email: "detail@example.com",
+          tags: [],
+          customAttributes: null,
+        },
+      })
+      .mockResolvedValueOnce({ success: true });
+
+    await handleToolCall("update_subscriber", {
+      email: "detail@example.com",
+      firstName: "Grace",
+      lastName: "",
+    });
+
+    expect(mockApiRequest.mock.calls).toHaveLength(2);
+    expect(mockApiRequest.mock.calls[1]?.[0]).toBe("PATCH");
+    expect(mockApiRequest.mock.calls[1]?.[2]).toEqual({
+      firstName: "Grace",
+      lastName: "",
+    });
   });
 
   it("merges existing custom attributes when updating a subscriber", async () => {

@@ -635,6 +635,9 @@ describe("update_company tool validation", () => {
     expect(inputSchema?.properties).toHaveProperty("valueProps");
     expect(inputSchema?.properties).toHaveProperty("fromEmail");
     expect(inputSchema?.properties).toHaveProperty("replyTo");
+    expect(inputSchema?.properties).toHaveProperty("replyTrackingEnabled");
+    expect(inputSchema?.properties).toHaveProperty("replyTrackingDomainMode");
+    expect(inputSchema?.properties).toHaveProperty("forwardReplies");
   });
 
   it("calls the company PATCH API with editable fields", async () => {
@@ -651,6 +654,9 @@ describe("update_company tool validation", () => {
       primaryColor: "#0EA5E9",
       companyContext: "Lifecycle emails for SaaS teams.",
       toneVoice: "clear, direct, warm",
+      replyTrackingEnabled: true,
+      replyTrackingDomainMode: "sequenzy",
+      forwardReplies: false,
     });
 
     expect(result.isError).toBeUndefined();
@@ -661,6 +667,9 @@ describe("update_company tool validation", () => {
         primaryColor: "#0EA5E9",
         toneVoice: "clear, direct, warm",
         companyContext: "Lifecycle emails for SaaS teams.",
+        replyTrackingEnabled: true,
+        replyTrackingDomainMode: "sequenzy",
+        forwardReplies: false,
       }
     );
   });
@@ -686,6 +695,27 @@ describe("update_company tool validation", () => {
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain(
       "`primaryColor` must be a 6-digit hex color"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid update_company reply-tracking settings", async () => {
+    const invalidBoolean = await handleToolCall("update_company", {
+      companyId: "company_123",
+      replyTrackingEnabled: "yes",
+    });
+    const invalidMode = await handleToolCall("update_company", {
+      companyId: "company_123",
+      replyTrackingDomainMode: "managed",
+    });
+
+    expect(invalidBoolean.isError).toBe(true);
+    expect(invalidBoolean.content[0]?.text).toContain(
+      "`replyTrackingEnabled` must be a boolean"
+    );
+    expect(invalidMode.isError).toBe(true);
+    expect(invalidMode.content[0]?.text).toContain(
+      "`replyTrackingDomainMode` must be `sequenzy` or `custom`"
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
   });
@@ -952,6 +982,35 @@ describe("A/B test tools", () => {
       undefined,
       "company_123"
     );
+  });
+
+  it("documents and returns reply metrics from analytics tools", async () => {
+    const overviewTool = tools.find(
+      (candidate) => candidate.name === "get_stats"
+    );
+    const campaignTool = tools.find(
+      (candidate) => candidate.name === "get_campaign_stats"
+    );
+    const sequenceTool = tools.find(
+      (candidate) => candidate.name === "get_sequence_stats"
+    );
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      stats: { replies: 4, replyRate: 12.5 },
+    });
+
+    const result = await handleToolCall("get_stats", {
+      companyId: "company_123",
+      period: "7d",
+    });
+
+    expect(overviewTool?.description).toContain("reply count");
+    expect(campaignTool?.description).toContain("replies and reply rate");
+    expect(sequenceTool?.description).toContain("per-step replies");
+    expect(result.structuredContent?.["stats"]).toEqual({
+      replies: 4,
+      replyRate: 12.5,
+    });
   });
 
   it("passes machine engagement flags through analytics tools", async () => {
@@ -2899,16 +2958,11 @@ describe("create_sequence tool", () => {
     expect(inputSchema?.required).toEqual(["name", "trigger"]);
     expect(inputSchema?.properties).toHaveProperty("goal");
     expect(inputSchema?.properties).toHaveProperty("durationDays");
-    expect(inputSchema?.properties).toHaveProperty("emailStyle");
     expect(inputSchema?.properties).toHaveProperty("steps");
     expect(inputSchema?.properties).toHaveProperty("sendingWindow");
     expect(inputSchema?.properties).toHaveProperty("stopCondition");
     expect(inputSchema?.properties).toHaveProperty("fromEmail");
     expect(inputSchema?.properties).toHaveProperty("replyTo");
-    const emailStyle = inputSchema?.properties?.["emailStyle"] as
-      | { enum?: string[] }
-      | undefined;
-    expect(emailStyle?.enum).toEqual(["visual", "plain"]);
     const enrollmentFieldPath = inputSchema?.properties?.[
       "enrollmentFieldPath"
     ] as { description?: string } | undefined;

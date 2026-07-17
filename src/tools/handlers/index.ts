@@ -15,10 +15,10 @@ import { handleTeamInboxWebhookTools } from "./team-inbox-webhooks.js";
 export const toolHandlers = [
   handleAccountTools,
   handleSubscriberTools,
+  handleSuppressionTools,
   handleProductTools,
   handleAudienceTools,
   handleCampaignTools,
-  handleSuppressionTools,
   handleSavedFormTools,
   handleLandingPageTools,
   handleImageAssetTools,

@@ -111,7 +111,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "get_company",
     description:
-      "Get company details, processing status, product info, brand colors, AI writing context, and effective email localization settings",
+      "Get company details, processing status, product info, brand colors, AI writing context, reply-tracking settings, and effective email localization settings",
     inputSchema: {
       type: "object",
       properties: {
@@ -126,7 +126,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "update_company",
     description:
-      "Edit company product info, brand context, and account-wide sending identity defaults. fromEmail must use a verified sending domain; replyTo may be any valid mailbox. Missing sender/reply profiles are created automatically. Provide at least one editable field.",
+      "Edit company product info, brand context, reply-tracking settings, and account-wide sending identity defaults. fromEmail must use a verified sending domain; replyTo may be any valid mailbox. Missing sender/reply profiles are created automatically. Provide at least one editable field.",
     inputSchema: {
       type: "object",
       properties: {
@@ -250,6 +250,21 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
           type: "string",
           description:
             "Display name for a newly created default Reply-To profile. Requires replyTo.",
+        },
+        replyTrackingEnabled: {
+          type: "boolean",
+          description:
+            "Enable or disable inbound reply capture for this company.",
+        },
+        replyTrackingDomainMode: {
+          type: "string",
+          description:
+            "Reply-tracking domain mode: sequenzy for the managed domain or custom for a configured custom domain.",
+        },
+        forwardReplies: {
+          type: "boolean",
+          description:
+            "Enable or disable forwarding captured replies to the configured mailbox.",
         },
       },
     },

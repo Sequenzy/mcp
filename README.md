@@ -216,21 +216,21 @@ This server currently exposes 144 MCP tools.
 
 ### Account, Companies, Setup
 
-| Tool                    | Description                                                                                                      |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `get_account`           | Get account info, available companies, current key permissions, and the API Keys management URL.                 |
-| `select_company`        | Set the active company for future tool calls.                                                                    |
-| `get_app_urls`          | Build dashboard URLs for campaigns, landing pages, sequences, emails, settings, domains, and sent email details. |
-| `create_company`        | Create a new company or brand.                                                                                   |
-| `get_company`           | Read company details, product info, brand context, localization, and current From/Reply-To defaults.             |
-| `update_company`        | Edit product info, brand context, and account-wide From/Reply-To defaults.                                       |
-| `create_api_key`        | Create an API key for a company, with optional permission preset or explicit scopes.                             |
-| `list_websites`         | List sending domains with stored aggregate, SPF, DKIM, and MAIL FROM status.                                     |
-| `add_sending_domain`    | Add a sending domain and return its SPF, DKIM, MAIL FROM, and inbound DNS setup records.                         |
-| `add_website`           | Compatibility alias for `add_sending_domain`.                                                                    |
-| `check_website`         | Read a sending domain's stored SPF, DKIM, MAIL FROM, and aggregate verification details.                         |
-| `verify_sending_domain` | Run a fresh sending-domain DNS/provider verification and return current status and diagnostics.                  |
-| `get_integration_guide` | Get framework-specific integration examples.                                                                     |
+| Tool                    | Description                                                                                                                   |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `get_account`           | Get account info, available companies, current key permissions, and the API Keys management URL.                              |
+| `select_company`        | Set the active company for future tool calls.                                                                                 |
+| `get_app_urls`          | Build dashboard URLs for campaigns, landing pages, sequences, emails, settings, domains, and sent email details.              |
+| `create_company`        | Create a new company or brand.                                                                                                |
+| `get_company`           | Read company details, product info, brand context, localization, reply-tracking settings, and current From/Reply-To defaults. |
+| `update_company`        | Edit product info, brand context, reply-tracking settings, and account-wide From/Reply-To defaults.                           |
+| `create_api_key`        | Create an API key for a company, with optional permission preset or explicit scopes.                                          |
+| `list_websites`         | List sending domains with stored aggregate, SPF, DKIM, and MAIL FROM status.                                                  |
+| `add_sending_domain`    | Add a sending domain and return its SPF, DKIM, MAIL FROM, and inbound DNS setup records.                                      |
+| `add_website`           | Compatibility alias for `add_sending_domain`.                                                                                 |
+| `check_website`         | Read a sending domain's stored SPF, DKIM, MAIL FROM, and aggregate verification details.                                      |
+| `verify_sending_domain` | Run a fresh sending-domain DNS/provider verification and return current status and diagnostics.                               |
+| `get_integration_guide` | Get framework-specific integration examples.                                                                                  |
 
 For a new sending domain, call `add_sending_domain`, publish the DNS records in
 the returned `website.dnsRecords`, wait for DNS propagation, and then call
@@ -241,8 +241,8 @@ error points back to `add_sending_domain` with the requested domain.
 
 | Tool                 | Description                                                                         |
 | -------------------- | ----------------------------------------------------------------------------------- |
-| `add_subscriber`     | Add a subscriber with attributes, tags, status, opt-in mode, and optional list IDs. |
-| `update_subscriber`  | Update attributes, add tags, or remove tags.                                        |
+| `add_subscriber`     | Add a subscriber with native first/last name fields, attributes, tags, status, opt-in mode, and optional list IDs. |
+| `update_subscriber`  | Update native first/last name fields or attributes, and add or remove tags.          |
 | `remove_subscriber`  | Unsubscribe a subscriber or hard-delete them.                                       |
 | `get_subscriber`     | Fetch subscriber details by email or external ID.                                   |
 | `search_subscribers` | Search by query, tags, list, status, segment, or pagination.                        |
@@ -456,6 +456,11 @@ defaults. `fromEmail` must use a configured, verified sending domain; `replyTo`
 may be any valid mailbox. `create_campaign`, `update_campaign`,
 `create_sequence`, and `update_sequence` accept the same direct-address fields
 for resource-specific overrides and create the backing profile when needed.
+
+Reply tracking is available on the same company tools. Use
+`replyTrackingEnabled`, `replyTrackingDomainMode` (`sequenzy` or `custom`), and
+`forwardReplies` with `update_company`. Company reads also return the current
+read-only `replyRetentionDays` value.
 
 Polls and NPS surveys are native email blocks, so they work anywhere an email
 tool accepts `blocks`, including campaigns, templates, A/B variants,
@@ -683,14 +688,14 @@ its API slug through the compatibility-named `templateId` field instead.
 
 ### Analytics
 
-| Tool                      | Description                                            |
-| ------------------------- | ------------------------------------------------------ |
-| `get_stats`               | Get overview stats for `7d`, `30d`, or `90d`.          |
-| `get_campaign_stats`      | Get campaign performance plus Poll/NPS summaries.      |
-| `get_sequence_stats`      | Get sequence performance.                              |
-| `list_campaign_events`    | List paginated raw email events for a campaign.        |
-| `list_sequence_events`    | List paginated raw email events for a sequence.        |
-| `get_subscriber_activity` | Get subscriber email stats, activity, and enrollments. |
+| Tool                      | Description                                                                      |
+| ------------------------- | -------------------------------------------------------------------------------- |
+| `get_stats`               | Get overview stats, including replies and reply rate, for `7d`, `30d`, or `90d`. |
+| `get_campaign_stats`      | Get campaign performance, reply metrics, and Poll/NPS summaries.                 |
+| `get_sequence_stats`      | Get aggregate and per-step sequence performance, including reply metrics.        |
+| `list_campaign_events`    | List paginated raw email events for a campaign.                                  |
+| `list_sequence_events`    | List paginated raw email events for a sequence.                                  |
+| `get_subscriber_activity` | Get subscriber email stats, activity, and enrollments.                           |
 
 Analytics tools exclude detected bot, scanner, link-preview, and tracked asset opens/clicks by default. Pass `includeMachineEngagement: true` to `get_stats`, `get_campaign_stats`, `get_sequence_stats`, `get_ab_test_stats`, `get_subscriber`, or `get_subscriber_activity` when you need raw engagement diagnostics; included open/click activity rows expose `machine`, `engagementQuality`, and `classificationReasons` fields where the API returns event-level activity.
 
@@ -728,7 +733,7 @@ that reuses the key, so it is not an exact historical drill-down.
 | `cancel_team_invitation`     | Cancel a pending team invitation.                                   |
 | `list_conversations`         | List subscriber reply conversations with status and unread filters. |
 | `get_conversation`           | Read a conversation and its message history.                        |
-| `reply_to_conversation`      | Send an outbound reply or add an internal note.                     |
+| `reply_to_conversation`      | Queue an outbound reply or add an internal note.                    |
 | `update_conversation_status` | Open or close a conversation.                                       |
 | `mark_conversation_read`     | Mark all messages in a conversation as read.                        |
 | `list_webhooks`              | List outbound webhook endpoints.                                    |
