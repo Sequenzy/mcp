@@ -2955,7 +2955,7 @@ describe("create_sequence tool", () => {
         }
       | undefined;
 
-    expect(inputSchema?.required).toEqual(["name", "trigger"]);
+    expect(inputSchema?.required).toEqual(["name"]);
     expect(inputSchema?.properties).toHaveProperty("goal");
     expect(inputSchema?.properties).toHaveProperty("durationDays");
     expect(inputSchema?.properties).toHaveProperty("steps");
@@ -3035,6 +3035,55 @@ describe("create_sequence tool", () => {
     expect(stopCondition?.properties?.type?.enum).toContain("entered_segment");
     expect(stopCondition?.properties?.type?.enum).toContain("field_changed");
     expect(stopCondition?.properties?.value?.type).toEqual(["string", "null"]);
+  });
+
+  it("creates a blank dashboard-compatible draft without AI polling", async () => {
+    mockApiRequest
+      .mockResolvedValueOnce({
+        success: true,
+        sequence: {
+          id: "seq_blank",
+          name: "Cancellation feedback",
+          status: "draft",
+          emailCount: 0,
+          nodeCount: 2,
+        },
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        sequence: {
+          id: "seq_blank",
+          name: "Cancellation feedback",
+          status: "draft",
+          enrichmentStatus: "complete",
+          emailCount: 0,
+          enrichedCount: 0,
+          nodes: [],
+        },
+      });
+
+    const result = await handleToolCall("create_sequence", {
+      companyId: "comp_123",
+      name: "Cancellation feedback",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledTimes(2);
+    expect(mockApiRequest).toHaveBeenNthCalledWith(
+      1,
+      "POST",
+      "/api/v1/sequences",
+      { companyId: "comp_123", name: "Cancellation feedback" },
+      "comp_123"
+    );
+    expect(mockApiRequest).toHaveBeenNthCalledWith(
+      2,
+      "GET",
+      "/api/v1/sequences/seq_blank",
+      undefined,
+      "comp_123"
+    );
+    expect(result.content[0]?.text).toContain("blank draft");
   });
 
   it("creates explicit discount sequences without polling for AI enrichment", async () => {
@@ -3308,6 +3357,7 @@ describe("update_sequence tool", () => {
     expect(inputSchema?.properties).toHaveProperty("clearEnrollmentFieldPath");
     expect(inputSchema?.properties).toHaveProperty("enrollmentPaused");
     expect(inputSchema?.properties).toHaveProperty("confirmStructuralChange");
+    expect(inputSchema?.properties).toHaveProperty("confirmLiveChange");
     expect(inputSchema?.properties).toHaveProperty("sendingWindow");
     expect(inputSchema?.properties).toHaveProperty("clearSendingWindow");
     expect(inputSchema?.properties).toHaveProperty("bccEmails");
@@ -3318,6 +3368,9 @@ describe("update_sequence tool", () => {
     expect(inputSchema?.properties).toHaveProperty("branch");
     expect(inputSchema?.properties).toHaveProperty("insertSteps");
     expect(inputSchema?.properties).toHaveProperty("subscriberUpdateSteps");
+    expect(inputSchema?.properties).toHaveProperty("trigger");
+    expect(inputSchema?.properties).toHaveProperty("integrationSlug");
+    expect(inputSchema?.properties).toHaveProperty("customIntegration");
     const enrollmentFieldPath = inputSchema?.properties?.[
       "enrollmentFieldPath"
     ] as
@@ -3410,6 +3463,40 @@ describe("update_sequence tool", () => {
     expect(stopCondition?.properties?.type?.enum).toContain("entered_segment");
     expect(stopCondition?.properties?.type?.enum).toContain("field_changed");
     expect(stopCondition?.properties?.value?.type).toEqual(["string", "null"]);
+  });
+
+  it("forwards an atomic inbound-webhook trigger replacement", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true, sequence: {} });
+    const customIntegration = {
+      name: "HeySummit",
+      setupInstructions: "Add the generated URL as an event webhook.",
+      samplePayload: { attendee: { email: "person@example.com" } },
+      fieldMapping: { email: "attendee.email" },
+    };
+
+    const result = await handleToolCall("update_sequence", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      trigger: "inbound_webhook",
+      eventName: "summit.cancelled",
+      customIntegration,
+      confirmLiveChange: true,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/sequences/seq_123",
+      {
+        companyId: "comp_123",
+        sequenceId: "seq_123",
+        trigger: "inbound_webhook",
+        eventName: "summit.cancelled",
+        customIntegration,
+        confirmLiveChange: true,
+      },
+      "comp_123"
+    );
   });
 
   it("forwards sequence From and Reply-To overrides", async () => {
@@ -4311,6 +4398,244 @@ describe("insert_sequence_step tool", () => {
     expect(inputSchema?.properties).toHaveProperty("replyProfileId");
     expect(inputSchema?.properties).toHaveProperty("replyTo");
     expect(inputSchema?.properties).toHaveProperty("replyToName");
+    expect(inputSchema?.properties).toHaveProperty("eventName");
+    expect(inputSchema?.properties).toHaveProperty("timeoutDays");
+    expect(inputSchema?.properties).toHaveProperty("timeoutAction");
+    expect(inputSchema?.properties).toHaveProperty("url");
+    expect(inputSchema?.properties).toHaveProperty("method");
+    expect(inputSchema?.properties).toHaveProperty("headers");
+    expect(inputSchema?.properties).toHaveProperty("branches");
+    expect(inputSchema?.properties).toHaveProperty("elseSteps");
+    expect(inputSchema?.properties).toHaveProperty("elseTargetNodeId");
+    const typeSchema = inputSchema?.properties?.["type"] as
+      | { enum?: string[] }
+      | undefined;
+    expect(typeSchema?.enum).toEqual([
+      "email",
+      "sms",
+      "delay",
+      "create_discount",
+      "update_subscriber",
+      "add_tag",
+      "remove_tag",
+      "add_to_list",
+      "remove_from_list",
+      "webhook",
+      "condition",
+      "logic_wait_for_event",
+      "logic_branch",
+    ]);
+    const branchesSchema = inputSchema?.properties?.["branches"] as
+      | {
+          items?: { properties?: Record<string, unknown> };
+        }
+      | undefined;
+    expect(branchesSchema?.items?.properties).toHaveProperty("conditionType");
+    expect(branchesSchema?.items?.properties).toHaveProperty("activityScope");
+    expect(branchesSchema?.items?.properties).toHaveProperty("targetNodeId");
+  });
+
+  it("wraps a typed wait-for-event node in a linear sequence insertion", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      sequence: {
+        id: "seq_123",
+        insertedNodeIds: ["wait_reply"],
+      },
+    });
+
+    const result = await handleToolCall("insert_sequence_step", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      type: "logic_wait_for_event",
+      afterNodeId: "email_1",
+      label: "Wait for a reply",
+      eventName: "email.replied",
+      timeoutDays: 5,
+      timeoutAction: "exit",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.structuredContent?.["insertedNodeIds"]).toEqual([
+      "wait_reply",
+    ]);
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/sequences/seq_123",
+      {
+        insertSteps: {
+          afterNodeId: "email_1",
+          steps: [
+            {
+              nodeType: "logic_wait_for_event",
+              config: {
+                label: "Wait for a reply",
+                eventName: "email.replied",
+                timeoutDays: 5,
+                timeoutAction: "exit",
+              },
+            },
+          ],
+        },
+      },
+      "comp_123"
+    );
+  });
+
+  it("rejects an invalid typed wait-for-event before hitting the API", async () => {
+    const result = await handleToolCall("insert_sequence_step", {
+      sequenceId: "seq_123",
+      type: "logic_wait_for_event",
+      eventName: "email.replied",
+      timeoutDays: 0,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("timeoutDays");
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("wraps a typed outbound webhook in a linear sequence insertion", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      sequence: {
+        id: "seq_123",
+        insertedNodeIds: ["webhook_crm"],
+      },
+    });
+
+    const result = await handleToolCall("insert_sequence_step", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      type: "webhook",
+      afterNodeId: "email_1",
+      label: "Notify CRM",
+      url: "https://example.com/hooks/sequence",
+      method: "POST",
+      headers: { Authorization: "Bearer secret" },
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.structuredContent?.["insertedNodeIds"]).toEqual([
+      "webhook_crm",
+    ]);
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/sequences/seq_123",
+      {
+        insertSteps: {
+          afterNodeId: "email_1",
+          steps: [
+            {
+              type: "webhook",
+              nodeType: "action_webhook",
+              config: {
+                label: "Notify CRM",
+                url: "https://example.com/hooks/sequence",
+                method: "POST",
+                headers: { Authorization: "Bearer secret" },
+              },
+            },
+          ],
+        },
+      },
+      "comp_123"
+    );
+  });
+
+  it("rejects invalid webhook headers before hitting the API", async () => {
+    const result = await handleToolCall("insert_sequence_step", {
+      sequenceId: "seq_123",
+      type: "webhook",
+      url: "https://example.com/hooks/sequence",
+      headers: { Authorization: 123 },
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("headers");
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("creates and wires a typed reply branch in one request", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      sequence: {
+        id: "seq_123",
+        addedBranchNodeId: "branch_reply",
+        addedBranchPathNodeIds: { replied: [], else: [] },
+      },
+    });
+
+    const result = await handleToolCall("insert_sequence_step", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      type: "logic_branch",
+      afterNodeId: "email_1",
+      label: "Did they reply?",
+      branches: [
+        {
+          id: "replied",
+          label: "Replied",
+          conditionType: "event_received",
+          eventName: "email.replied",
+          activityScope: "this_sequence",
+          targetNodeId: "sequence_complete",
+        },
+      ],
+      elseTargetNodeId: "email_2",
+      confirmStructuralChange: true,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.structuredContent?.["addedBranchNodeId"]).toBe(
+      "branch_reply"
+    );
+    expect(result.structuredContent?.["addedBranchPathNodeIds"]).toEqual({
+      replied: [],
+      else: [],
+    });
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/sequences/seq_123",
+      {
+        confirmStructuralChange: true,
+        branch: {
+          afterNodeId: "email_1",
+          label: "Did they reply?",
+          branches: [
+            {
+              id: "replied",
+              label: "Replied",
+              conditionType: "event_received",
+              eventName: "email.replied",
+              activityScope: "this_sequence",
+              targetNodeId: "sequence_complete",
+            },
+          ],
+          elseTargetNodeId: "email_2",
+        },
+      },
+      "comp_123"
+    );
+  });
+
+  it("requires every typed branch lane to have steps or an existing target", async () => {
+    const result = await handleToolCall("insert_sequence_step", {
+      sequenceId: "seq_123",
+      type: "logic_branch",
+      afterNodeId: "email_1",
+      branches: [
+        {
+          conditionType: "event_received",
+          eventName: "email.replied",
+        },
+      ],
+      elseTargetNodeId: "email_2",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("targetNodeId");
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
   it("rejects conflicting sender fields before hitting the API", async () => {
@@ -4594,6 +4919,272 @@ describe("insert_sequence_step tool", () => {
     expect(result.content[0]?.type).toBe("text");
     expect(result.content[0]?.text).toContain(
       "Provide either `html` or `blocks` when calling `insert_sequence_step`, not both."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+});
+
+describe("sequence list lifecycle tools", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("publishes duplicate and archive tools", () => {
+    for (const toolName of [
+      "duplicate_sequence",
+      "archive_sequence",
+      "unarchive_sequence",
+    ]) {
+      const tool = tools.find((candidate) => candidate.name === toolName);
+      expect(tool?.inputSchema.type).toBe("object");
+      expect(tool?.inputSchema.required).toEqual(["sequenceId"]);
+    }
+  });
+
+  it("duplicates a sequence with an optional name", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      sequence: { id: "seq_copy", status: "draft" },
+    });
+
+    await handleToolCall("duplicate_sequence", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      name: "Independent copy",
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/sequences/seq_123/duplicate",
+      { name: "Independent copy" },
+      "comp_123"
+    );
+  });
+
+  it("archives and restores a sequence", async () => {
+    mockApiRequest.mockResolvedValue({
+      success: true,
+      sequence: { id: "seq_123" },
+    });
+
+    await handleToolCall("archive_sequence", { sequenceId: "seq_123" });
+    await handleToolCall("unarchive_sequence", { sequenceId: "seq_123" });
+
+    expect(mockApiRequest).toHaveBeenNthCalledWith(
+      1,
+      "POST",
+      "/api/v1/sequences/seq_123/archive",
+      undefined,
+      undefined
+    );
+    expect(mockApiRequest).toHaveBeenNthCalledWith(
+      2,
+      "POST",
+      "/api/v1/sequences/seq_123/unarchive",
+      undefined,
+      undefined
+    );
+  });
+
+  it("forwards dashboard list filters and pagination", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      sequences: [],
+      pagination: { limit: 25, offset: 50, total: 0 },
+    });
+
+    await handleToolCall("list_sequences", {
+      companyId: "comp_123",
+      status: "active",
+      search: "cancellation",
+      labels: ["Lifecycle", "Feedback"],
+      limit: 25,
+      offset: 50,
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/sequences?status=active&search=cancellation&limit=25&offset=50&labels=Lifecycle%2CFeedback",
+      undefined,
+      "comp_123"
+    );
+  });
+});
+
+describe("sequence goal tools", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("publishes typed goal CRUD tools", () => {
+    for (const toolName of [
+      "list_sequence_goals",
+      "create_sequence_goal",
+      "update_sequence_goal",
+      "delete_sequence_goal",
+    ]) {
+      const tool = tools.find((candidate) => candidate.name === toolName);
+      expect(tool?.inputSchema.type).toBe("object");
+      expect(tool?.inputSchema.required).toContain("sequenceId");
+    }
+    const createTool = tools.find(
+      (candidate) => candidate.name === "create_sequence_goal"
+    );
+    expect(createTool?.inputSchema.properties).toHaveProperty("triggerType");
+    expect(createTool?.inputSchema.properties).toHaveProperty("attributePath");
+    expect(
+      createTool?.inputSchema.properties?.["attributionWindowHours"]
+    ).toMatchObject({ minimum: 1, maximum: 720 });
+  });
+
+  it("forwards goal creation and deletion", async () => {
+    mockApiRequest.mockResolvedValue({ success: true, goal: {} });
+    await handleToolCall("create_sequence_goal", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      name: "Reactivated",
+      triggerType: "event",
+      triggerEventName: "account.reactivated",
+      attributionWindowHours: 168,
+    });
+    await handleToolCall("delete_sequence_goal", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      goalId: "goal_123",
+    });
+
+    expect(mockApiRequest).toHaveBeenNthCalledWith(
+      1,
+      "POST",
+      "/api/v1/sequences/seq_123/goals",
+      {
+        name: "Reactivated",
+        triggerType: "event",
+        triggerEventName: "account.reactivated",
+        attributionWindowHours: 168,
+      },
+      "comp_123"
+    );
+    expect(mockApiRequest).toHaveBeenNthCalledWith(
+      2,
+      "DELETE",
+      "/api/v1/sequences/seq_123/goals/goal_123",
+      undefined,
+      "comp_123"
+    );
+  });
+
+  it("rejects schema-valid goal creations the API would refuse", async () => {
+    const eventResult = await handleToolCall("create_sequence_goal", {
+      sequenceId: "seq_123",
+      name: "Reactivated",
+    });
+    expect(eventResult.isError).toBe(true);
+    expect(eventResult.content[0]?.text).toContain("triggerEventName");
+
+    const attributeResult = await handleToolCall("create_sequence_goal", {
+      sequenceId: "seq_123",
+      name: "Plan upgraded",
+      triggerType: "attribute_change",
+    });
+    expect(attributeResult.isError).toBe(true);
+    expect(attributeResult.content[0]?.text).toContain("attributePath");
+
+    const changedToResult = await handleToolCall("create_sequence_goal", {
+      sequenceId: "seq_123",
+      name: "Plan upgraded",
+      triggerType: "attribute_change",
+      attributePath: "plan",
+      attributeCondition: "changed_to",
+    });
+    expect(changedToResult.isError).toBe(true);
+    expect(changedToResult.content[0]?.text).toContain("attributeValue");
+
+    const updateResult = await handleToolCall("update_sequence_goal", {
+      sequenceId: "seq_123",
+      goalId: "goal_123",
+      triggerType: "event",
+    });
+    expect(updateResult.isError).toBe(true);
+    expect(updateResult.content[0]?.text).toContain("triggerEventName");
+
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+});
+
+describe("sequence inbound webhook tools", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("publishes setup, readback, and secret rotation tools", () => {
+    for (const toolName of [
+      "get_sequence_inbound_webhook",
+      "configure_sequence_inbound_webhook",
+      "rotate_sequence_inbound_webhook_secret",
+    ]) {
+      const tool = tools.find((candidate) => candidate.name === toolName);
+      expect(tool?.inputSchema.type).toBe("object");
+      expect(tool?.inputSchema.required).toEqual(["sequenceId"]);
+    }
+    const configureTool = tools.find(
+      (candidate) => candidate.name === "configure_sequence_inbound_webhook"
+    );
+    expect(configureTool?.inputSchema.properties).toHaveProperty(
+      "fieldMapping"
+    );
+    expect(configureTool?.inputSchema.properties).toHaveProperty(
+      "samplePayload"
+    );
+  });
+
+  it("configures and rotates the sequence endpoint", async () => {
+    mockApiRequest.mockResolvedValue({ success: true, webhook: {} });
+    await handleToolCall("configure_sequence_inbound_webhook", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      fieldMapping: {
+        email: "payload.email",
+        properties: { reply: "payload.reply" },
+      },
+      clearSamplePayload: true,
+    });
+    await handleToolCall("rotate_sequence_inbound_webhook_secret", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+    });
+
+    expect(mockApiRequest).toHaveBeenNthCalledWith(
+      1,
+      "PUT",
+      "/api/v1/sequences/seq_123/inbound-webhook",
+      {
+        fieldMapping: {
+          email: "payload.email",
+          properties: { reply: "payload.reply" },
+        },
+        samplePayload: null,
+      },
+      "comp_123"
+    );
+    expect(mockApiRequest).toHaveBeenNthCalledWith(
+      2,
+      "POST",
+      "/api/v1/sequences/seq_123/inbound-webhook/rotate-secret",
+      undefined,
+      "comp_123"
+    );
+  });
+
+  it("rejects clear flags beside replacement values", async () => {
+    const result = await handleToolCall("configure_sequence_inbound_webhook", {
+      sequenceId: "seq_123",
+      fieldMapping: { email: "payload.email" },
+      clearFieldMapping: true,
+    });
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "either `fieldMapping` or `clearFieldMapping`"
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
   });
@@ -5664,6 +6255,46 @@ describe("A/B test lifecycle tools", () => {
     );
   });
 
+  it("converts a sequence email node into an A/B test", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      abTest: { id: "ab_123", status: "draft" },
+    });
+
+    const result = await handleToolCall("create_ab_test", {
+      companyId: "comp_123",
+      automationNodeId: "node_123",
+      confirmLiveChange: true,
+      testType: "content",
+      winnerThreshold: 150,
+      variants: [{ subject: "Variant B subject" }],
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/ab-tests",
+      {
+        automationNodeId: "node_123",
+        confirmLiveChange: true,
+        testType: "content",
+        winnerThreshold: 150,
+        variants: [{ subject: "Variant B subject" }],
+      },
+      "comp_123"
+    );
+  });
+
+  it("requires exactly one A/B test owner before hitting the API", async () => {
+    const result = await handleToolCall("create_ab_test", {});
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Provide exactly one of `campaignId` or `automationNodeId`"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
   it("rejects out-of-range testPercentage before hitting the API", async () => {
     const result = await handleToolCall("create_ab_test", {
       campaignId: "camp_123",
@@ -5686,6 +6317,36 @@ describe("A/B test lifecycle tools", () => {
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain(
       "`variants` item 1 must include a non-empty `subject` when calling `create_ab_test`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("requires competing variants for sequence A/B conversions", async () => {
+    for (const variants of [undefined, []] as const) {
+      const result = await handleToolCall("create_ab_test", {
+        automationNodeId: "node_123",
+        ...(variants === undefined ? {} : { variants }),
+      });
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0]?.text).toContain(
+        "`variants` must include at least one competing variant"
+      );
+    }
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects more variants than the API supports", async () => {
+    const result = await handleToolCall("create_ab_test", {
+      campaignId: "camp_123",
+      variants: Array.from({ length: 5 }, (_, index) => ({
+        subject: `Variant ${index + 1}`,
+      })),
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`variants` supports at most four extra variants"
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
   });

@@ -9,6 +9,7 @@ import {
   sequenceNodeChangesSchema,
   sequenceNodeUpdateItemSchema,
   subscriberUpdateConfigSchema,
+  sequenceBranchConditionSchema,
   sequenceEmailStepIdentityProperties,
   sequencePathStepSchema,
 } from "../internal.js";
@@ -33,6 +34,162 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         name: {
           type: "string",
           description: "Sequence name",
+        },
+        description: {
+          type: "string",
+          description: "Sequence description shown in the dashboard.",
+        },
+        userCancellable: {
+          type: "boolean",
+          description:
+            "Whether subscribers may cancel their own active enrollment.",
+        },
+        labels: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Replace dashboard labels by name. Missing labels are created; [] clears labels.",
+        },
+        trigger: {
+          type: "string",
+          enum: [
+            "contact_added",
+            "tag_added",
+            "segment_entered",
+            "event_received",
+            "inbound_webhook",
+            "inactivity",
+            "frequency",
+          ],
+          description:
+            "Atomically replace the existing dashboard trigger. Include the fields required by the new trigger type. Active sequences also require confirmLiveChange:true.",
+        },
+        listId: {
+          type: "string",
+          description: "List ID for a contact_added trigger replacement.",
+        },
+        tagName: {
+          type: "string",
+          description: "Tag name required for a tag_added trigger replacement.",
+        },
+        segmentId: {
+          type: "string",
+          description:
+            "Saved segment ID required for a segment_entered trigger replacement.",
+        },
+        stopOnSegmentExit: {
+          type: "boolean",
+          description:
+            "For segment_entered, stop active enrollments when the subscriber leaves the segment.",
+        },
+        eventName: {
+          type: "string",
+          description:
+            "Event name required for event_received, inbound_webhook, inactivity, and frequency trigger replacements.",
+        },
+        propertyFilters: {
+          type: "array",
+          description:
+            "Optional event-property filters for event_received or inbound_webhook.",
+          items: {
+            type: "object",
+            properties: {
+              path: { type: "string" },
+              operator: {
+                type: "string",
+                enum: [
+                  "exists",
+                  "not_exists",
+                  "equals",
+                  "not_equals",
+                  "one_of",
+                  "contains",
+                  "greater_than",
+                  "less_than",
+                ],
+              },
+              value: {
+                description: "Scalar comparison value, or an array for one_of.",
+              },
+            },
+            required: ["path", "operator"],
+            additionalProperties: false,
+          },
+        },
+        integrationSlug: {
+          type: "string",
+          description: "Catalog integration slug for inbound_webhook.",
+        },
+        integrationEventKey: {
+          type: "string",
+          description: "Catalog integration event key for inbound_webhook.",
+        },
+        customIntegration: {
+          type: "object",
+          description:
+            "Typed custom inbound webhook descriptor used instead of a catalog integration.",
+          properties: {
+            name: { type: "string" },
+            setupInstructions: { type: "string" },
+            samplePayload: {
+              type: "object",
+              additionalProperties: true,
+            },
+            fieldMapping: {
+              type: "object",
+              properties: {
+                email: { type: "string" },
+                firstName: { type: "string" },
+                lastName: { type: "string" },
+                properties: {
+                  type: "object",
+                  additionalProperties: { type: "string" },
+                },
+              },
+              required: ["email"],
+              additionalProperties: false,
+            },
+            docsUrl: { type: "string" },
+            suggestedProperties: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  name: { type: "string" },
+                  path: { type: "string" },
+                  description: { type: "string" },
+                },
+                required: ["name", "path", "description"],
+                additionalProperties: false,
+              },
+            },
+          },
+          required: [
+            "name",
+            "setupInstructions",
+            "samplePayload",
+            "fieldMapping",
+          ],
+          additionalProperties: false,
+        },
+        inactiveDays: {
+          type: "number",
+          description:
+            "Days without event activity required for an inactivity trigger.",
+        },
+        inactivityBaseline: {
+          type: "string",
+          enum: ["sequence_created_at", "subscriber_created_at"],
+          description:
+            "Baseline for subscribers who have never produced the inactivity event.",
+        },
+        minCount: {
+          type: "number",
+          description: "Minimum event count for a frequency trigger.",
+        },
+        timeWindowDays: {
+          type: "number",
+          description: "Frequency trigger lookback window in days.",
         },
         fromEmail: {
           type: "string",
@@ -73,6 +230,11 @@ export const sequenceEditingToolDefinitions: Tool[] = [
           type: "boolean",
           description:
             "Set true only after the user explicitly confirms a structural edit to an active sequence. Required for insertSteps or branch when the sequence is active; not needed for content-only email edits.",
+        },
+        confirmLiveChange: {
+          type: "boolean",
+          description:
+            "Set true only after the user explicitly confirms replacing the trigger of an active sequence. Required with trigger when the sequence is active.",
         },
         enrollmentMode: {
           type: "string",
@@ -130,13 +292,19 @@ export const sequenceEditingToolDefinitions: Tool[] = [
               description:
                 "Tag name, list ID, segment ID, field path, or event name for the stop condition.",
             },
+            matchConfig: {
+              type: ["object", "null"],
+              description:
+                "Optional event_property or field_value match config used by dashboard stop-condition matching.",
+              additionalProperties: true,
+            },
           },
           required: ["type"],
         },
         branch: {
           type: "object",
           description:
-            "Insert an if/else branch into an existing sequence. The branch is inserted after afterNodeId and creates an if path plus an else fallback path. Use get_sequence first to choose afterNodeId. Each branch condition should include steps, and elseSteps is required unless allowEmptyPaths is true. Conditions support tag presence/absence, lists, saved segments, events, clicked links, and field comparisons. Use activityScope for event_received and link_clicked checks.",
+            "Insert an if/else branch into an existing sequence. Use get_sequence first to choose afterNodeId and existing target nodes. Each conditional path can provide new steps, targetNodeId, or both; the else path uses elseSteps and/or elseTargetNodeId. A target may be the completion node. Empty paths require allowEmptyPaths:true. Conditions support tag presence/absence, lists, saved segments, events, clicked links, and field comparisons. Use activityScope for event_received and link_clicked checks.",
           properties: {
             afterNodeId: {
               type: "string",
@@ -150,106 +318,23 @@ export const sequenceEditingToolDefinitions: Tool[] = [
             branches: {
               type: "array",
               description:
-                "Conditional branches evaluated in order. An else fallback is created automatically.",
-              items: {
-                type: "object",
-                properties: {
-                  id: {
-                    type: "string",
-                    description:
-                      "Optional stable branch ID. Defaults to branch-0, branch-1, etc.",
-                  },
-                  label: {
-                    type: "string",
-                    description: "Display label, e.g. 'If has customer tag'.",
-                  },
-                  conditionType: {
-                    type: "string",
-                    enum: [
-                      "has_tag",
-                      "does_not_have_tag",
-                      "in_list",
-                      "in_segment",
-                      "event_received",
-                      "link_clicked",
-                      "field_equals",
-                      "field_contains",
-                      "field_greater_than",
-                      "field_less_than",
-                      "has_phone",
-                      "sms_subscribed",
-                    ],
-                    description:
-                      "Condition type for this branch. has_phone (contact has a phone number) and sms_subscribed (contact opted in to SMS marketing) need no extra fields.",
-                  },
-                  tagName: {
-                    type: "string",
-                    description:
-                      "Tag name for has_tag and does_not_have_tag conditions. This can be used instead of tagId.",
-                  },
-                  tagId: {
-                    type: "string",
-                    description:
-                      "Tag ID or tag name for has_tag and does_not_have_tag conditions.",
-                  },
-                  listId: {
-                    type: "string",
-                    description: "List ID for in_list conditions.",
-                  },
-                  segmentId: {
-                    type: "string",
-                    description: "Segment ID for in_segment conditions.",
-                  },
-                  segmentName: {
-                    type: "string",
-                    description:
-                      "Optional display name for in_segment conditions.",
-                  },
-                  eventName: {
-                    type: "string",
-                    description:
-                      "Event name for event_received conditions, such as project.invite.accepted.",
-                  },
-                  linkUrl: {
-                    type: "string",
-                    description:
-                      "Optional URL substring for link_clicked conditions. Omit to match any clicked link.",
-                  },
-                  activityScope: {
-                    type: "string",
-                    enum: ["ever", "this_sequence", "previous_email"],
-                    description:
-                      "Scope for event_received and link_clicked conditions. Omit to check ever.",
-                  },
-                  fieldName: {
-                    type: "string",
-                    description:
-                      "Subscriber attribute name for field conditions.",
-                  },
-                  fieldValue: {
-                    type: "string",
-                    description: "Comparison value for field conditions.",
-                  },
-                  steps: {
-                    type: "array",
-                    description:
-                      "Steps to create inside this branch path. Required by default so the branch is not an empty placeholder.",
-                    items: sequencePathStepSchema,
-                  },
-                },
-                required: ["conditionType"],
-              },
+                "Conditional branches evaluated in order. Each path can create steps, route directly to an existing targetNodeId, or do both. An else fallback is created automatically.",
+              items: sequenceBranchConditionSchema,
             },
             elseSteps: {
               type: "array",
-              description:
-                "Steps to create inside the else fallback path. Required by default so the else arm is usable.",
+              description: "Optional new steps inside the else fallback path.",
               items: sequencePathStepSchema,
+            },
+            elseTargetNodeId: {
+              type: "string",
+              description:
+                "Optional existing node to route the else path to. Use a node ID from get_sequence, including the completion node. If elseSteps are also provided, they run before this target.",
             },
             allowEmptyPaths: {
               type: "boolean",
               description:
-                "Set true only when intentionally creating empty UI placeholders. Normal API/MCP use should omit this and provide branch steps plus elseSteps.",
+                "Set true only when intentionally creating UI placeholders. A path with targetNodeId is already explicit and does not need this flag.",
             },
           },
           required: ["afterNodeId", "branches"],
@@ -323,6 +408,15 @@ export const sequenceEditingToolDefinitions: Tool[] = [
                 description: replacementEmailBlocksDescription,
                 items: { type: "object" },
               },
+              isTransactional: { type: "boolean" },
+              ccEmails: {
+                type: "array",
+                items: { type: "string" },
+              },
+              bccEmails: {
+                type: "array",
+                items: { type: "string" },
+              },
               ...sequenceEmailStepIdentityProperties,
             },
           },
@@ -376,6 +470,15 @@ export const sequenceEditingToolDefinitions: Tool[] = [
                 type: "array",
                 description: replacementEmailBlocksDescription,
                 items: { type: "object" },
+              },
+              isTransactional: { type: "boolean" },
+              ccEmails: {
+                type: "array",
+                items: { type: "string" },
+              },
+              bccEmails: {
+                type: "array",
+                items: { type: "string" },
               },
               ...sequenceEmailStepIdentityProperties,
             },
@@ -508,7 +611,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
   {
     name: "edit_sequence_graph",
     description:
-      "Restructure an existing sequence graph using node IDs, edges, and graphRevision from get_sequence. move_node repositions one non-split step; beforeNodeId can place an A/B test or other step at the shared continuation below a branch. duplicate_node creates an independent copy and deep-copies linked email or A/B test content. delete_node safely splices a linear step; deleting a split node requires the complete replacement edges. replace_edges atomically replaces the complete topology for advanced reconnect or multi-node reorder work. Always call get_sequence immediately before this tool and pass its graphRevision. Active sequences require confirmStructuralChange:true after the user confirms live-flow impact.",
+      "Restructure an existing sequence graph using node IDs, edges, and graphRevision from get_sequence. move_node repositions one non-split step; duplicate_node creates an independent copy; delete_node safely splices a node; replace_edges replaces the complete topology. Always call get_sequence immediately before this tool and pass its graphRevision. Active sequences require confirmStructuralChange:true after the user confirms live-flow impact.",
     inputSchema: {
       type: "object",
       properties: {
@@ -524,8 +627,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         action: {
           type: "string",
           enum: ["move_node", "delete_node", "duplicate_node", "replace_edges"],
-          description:
-            "Graph operation. Use move_node for a single step reorder, duplicate_node for an independent copy, delete_node to remove a step/node, or replace_edges for an atomic reconnect/reorder of the whole topology.",
+          description: "Graph operation.",
         },
         graphRevision: {
           type: "string",
@@ -535,7 +637,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         nodeId: {
           type: "string",
           description:
-            "Existing node to move, duplicate, or delete. Required for those actions and unused by replace_edges.",
+            "Existing node to move, duplicate, or delete. Unused by replace_edges.",
         },
         afterNodeId: {
           type: "string",
@@ -579,7 +681,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
   {
     name: "insert_sequence_step",
     description:
-      "Insert one new email or SMS step into an existing sequence. Prefer this over update_sequence.steps/emails when adding a step: it creates the step node (plus an email template for email steps) and, when delay or delayMs is provided, a logic_delay node immediately before it. For SMS steps set type:'sms' and provide 'text' (generate copy with generate_sms; check get_sms_settings first and warn the user if SMS is not enabled). Use get_sequence first, then pass afterNodeId from sequence.nodes or sequence.emails to choose the insertion point. If afterNodeId is omitted, the step is appended only when the sequence has exactly one linear tail. For active sequences, set confirmStructuralChange:true only after the user confirms the live-flow impact.",
+      "Insert one dashboard-compatible typed step into an existing sequence: email, SMS, delay/date wait, discount, subscriber update, tag/list action, outbound webhook, condition gate, wait-for-event, or wired If/Else branch. Use get_sequence first and pass afterNodeId. Branch paths can target existing nodes, including completion. For active sequences, confirm the structural change first.",
     inputSchema: {
       type: "object",
       properties: {
@@ -594,9 +696,22 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         },
         type: {
           type: "string",
-          enum: ["email", "sms"],
-          description:
-            "Step type. Defaults to 'email'. Use 'sms' to insert an SMS step (requires 'text').",
+          enum: [
+            "email",
+            "sms",
+            "delay",
+            "create_discount",
+            "update_subscriber",
+            "add_tag",
+            "remove_tag",
+            "add_to_list",
+            "remove_from_list",
+            "webhook",
+            "condition",
+            "logic_wait_for_event",
+            "logic_branch",
+          ],
+          description: "Dashboard step type. Defaults to email.",
         },
         afterNodeId: {
           type: "string",
@@ -630,6 +745,21 @@ export const sequenceEditingToolDefinitions: Tool[] = [
           type: "string",
           description:
             "HTML content for the new step. Stored as one raw HTML block. Use this for imported provider HTML. Provide either html or blocks, not both.",
+        },
+        isTransactional: {
+          type: "boolean",
+          description: "Email only: omit the marketing unsubscribe footer.",
+        },
+        ccEmails: {
+          type: "array",
+          items: { type: "string" },
+          description: "Email only: addresses CC'd on this step.",
+        },
+        bccEmails: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Email only: addresses BCC'd in addition to sequence-level BCC.",
         },
         senderProfileId: {
           type: "string",
@@ -674,7 +804,8 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         },
         label: {
           type: "string",
-          description: "SMS steps only: display label for the step.",
+          description:
+            "Display label for SMS, wait-for-event, or branch steps.",
         },
         ineligibleAction: {
           type: "string",
@@ -682,6 +813,77 @@ export const sequenceEditingToolDefinitions: Tool[] = [
           description:
             "SMS steps only: what happens when the contact can't receive SMS (no phone, not opted in, unsupported country). Default 'skip' continues the sequence.",
         },
+        config: {
+          ...subscriberUpdateConfigSchema,
+          description:
+            "update_subscriber only: typed subscriber profile/custom-attribute changes.",
+        },
+        tagId: {
+          type: "string",
+          description: "Tag ID for tag actions or tag conditions.",
+        },
+        tagName: {
+          type: "string",
+          description:
+            "Tag name for tag actions or tag conditions; missing definitions are created.",
+        },
+        listId: {
+          type: "string",
+          description: "List ID for list actions or in_list conditions.",
+        },
+        listName: {
+          type: "string",
+          description: "Optional cached list display name for list actions.",
+        },
+        url: {
+          type: "string",
+          description:
+            "webhook only: destination URL called when a subscriber reaches this step.",
+        },
+        method: {
+          type: "string",
+          enum: ["POST", "GET"],
+          description: "webhook only: HTTP method. Defaults to POST.",
+        },
+        headers: {
+          type: "object",
+          description:
+            "webhook only: optional string-valued request headers. Secret values are redacted on sequence reads.",
+          additionalProperties: { type: "string" },
+        },
+        segmentId: {
+          type: "string",
+          description: "Segment ID for in_segment conditions.",
+        },
+        segmentName: {
+          type: "string",
+          description: "Optional cached segment display name.",
+        },
+        conditionType: {
+          type: "string",
+          enum: [
+            "has_tag",
+            "does_not_have_tag",
+            "in_list",
+            "in_segment",
+            "event_received",
+            "link_clicked",
+            "field_equals",
+            "field_contains",
+            "field_greater_than",
+            "field_less_than",
+            "has_phone",
+            "sms_subscribed",
+          ],
+          description: "condition only: condition evaluated before continuing.",
+        },
+        linkUrl: { type: "string" },
+        activityScope: {
+          type: "string",
+          enum: ["ever", "this_sequence", "previous_email"],
+        },
+        fieldName: { type: "string" },
+        fieldValue: { type: "string" },
         delay: sequenceDelaySchema,
         delayMs: {
           type: "number",
@@ -689,6 +891,66 @@ export const sequenceEditingToolDefinitions: Tool[] = [
             "Optional wait in milliseconds before the new step. Prefer delay for readability.",
         },
         waitUntil: sequenceWaitUntilSchema,
+        eventName: {
+          type: "string",
+          description:
+            "logic_wait_for_event only: event to wait for, for example email.replied.",
+        },
+        timeoutDays: {
+          type: "number",
+          description:
+            "logic_wait_for_event only: maximum wait in whole days from 1 to 365. Defaults to 7.",
+        },
+        timeoutAction: {
+          type: "string",
+          enum: ["continue", "exit"],
+          description:
+            "logic_wait_for_event only: continue to the next node or exit the sequence when the timeout is reached. Defaults to continue.",
+        },
+        discount: {
+          type: "object",
+          description: "create_discount only: provider discount configuration.",
+          additionalProperties: true,
+        },
+        provider: { type: "string", enum: ["stripe", "shopify"] },
+        discountType: { type: "string", enum: ["percent", "amount"] },
+        percentOff: { type: "number" },
+        amountOff: { type: "number" },
+        currency: { type: "string" },
+        duration: {
+          type: "string",
+          enum: ["once", "forever", "repeating"],
+        },
+        durationInMonths: { type: "number" },
+        appliesToAllPlans: { type: "boolean" },
+        planIds: { type: "array", items: { type: "string" } },
+        codePrefix: { type: "string" },
+        maxRedemptions: { type: "number" },
+        lockToSubscriber: { type: "boolean" },
+        expiresAt: { type: "string" },
+        expiresInHours: { type: "number" },
+        branches: {
+          type: "array",
+          description:
+            "logic_branch only: ordered conditional paths. Each path may provide targetNodeId, steps, or both.",
+          items: sequenceBranchConditionSchema,
+        },
+        elseSteps: {
+          type: "array",
+          description:
+            "logic_branch only: optional new steps for the else path.",
+          items: sequencePathStepSchema,
+        },
+        elseTargetNodeId: {
+          type: "string",
+          description:
+            "logic_branch only: existing node for the else path, such as the original follow-up node or completion node.",
+        },
+        allowEmptyPaths: {
+          type: "boolean",
+          description:
+            "logic_branch only: set true only to create empty dashboard placeholders. Explicit target nodes do not require it.",
+        },
       },
       required: ["sequenceId"],
       additionalProperties: false,
@@ -729,6 +991,65 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         sequenceId: {
           type: "string",
           description: "Sequence ID",
+        },
+      },
+      required: ["sequenceId"],
+    },
+  },
+  {
+    name: "duplicate_sequence",
+    description:
+      "Create an independent draft copy of a sequence, including its graph, email templates, and sequence A/B tests. The original is not changed.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        sequenceId: { type: "string", description: "Sequence ID to copy." },
+        name: {
+          type: "string",
+          description:
+            "Optional name for the copy. Defaults to the original name plus (Copy).",
+        },
+      },
+      required: ["sequenceId"],
+    },
+  },
+  {
+    name: "archive_sequence",
+    description:
+      "Archive a sequence and stop new enrollments. Archived sequences remain available in the dashboard's archive.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        sequenceId: { type: "string", description: "Sequence ID to archive." },
+      },
+      required: ["sequenceId"],
+    },
+  },
+  {
+    name: "unarchive_sequence",
+    description:
+      "Restore an archived sequence as a disabled draft so it can be reviewed before activation.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        sequenceId: {
+          type: "string",
+          description: "Archived sequence ID to restore.",
         },
       },
       required: ["sequenceId"],

@@ -6,8 +6,12 @@ import {
   buildSequenceGraphEditBody,
   buildInsertSequenceStepBody,
   buildCancelSequenceEnrollmentBody,
+  optionalString,
   requiredString,
   buildSequenceEnrollmentBody,
+  validateCreateSequenceGoalArgs,
+  validateUpdateSequenceGoalArgs,
+  validateLabelsArg,
 } from "../internal.js";
 
 const MAX_DEFAULT_SEQUENCE_NAME_LENGTH = 80;
@@ -61,9 +65,17 @@ export async function handleSequenceTools(
 
     case "list_sequences": {
       const companyId = args.companyId as string | undefined;
+      const query = new URLSearchParams();
+      for (const field of ["status", "search", "limit", "offset"] as const) {
+        if (args[field] !== undefined) query.set(field, String(args[field]));
+      }
+      if (Array.isArray(args.labels) && args.labels.length > 0) {
+        query.set("labels", args.labels.join(","));
+      }
+      const suffix = query.size > 0 ? `?${query.toString()}` : "";
       result = await apiRequest(
         "GET",
-        "/api/v1/sequences",
+        `/api/v1/sequences${suffix}`,
         undefined,
         companyId
       );
@@ -83,6 +95,7 @@ export async function handleSequenceTools(
 
     case "create_sequence": {
       const companyId = args.companyId as string | undefined;
+      validateLabelsArg("create_sequence", args);
       if (args.fromEmail !== undefined && args.senderProfileId !== undefined) {
         throw new Error(
           "Provide either `fromEmail` or `senderProfileId` when calling `create_sequence`, not both."
@@ -103,8 +116,9 @@ export async function handleSequenceTools(
           "`replyToName` requires `replyTo` when calling `create_sequence`."
         );
       }
-      const hasExplicitSteps =
-        Array.isArray(args.steps) && args.steps.length > 0;
+      const hasExplicitSteps = Array.isArray(args.steps);
+      const createsBlankDraft =
+        args.goal === undefined && args.steps === undefined;
       // Create the sequence - this queues AI enrichment
       const createSeqResult = await apiRequest<{
         success: boolean;
@@ -132,7 +146,7 @@ export async function handleSequenceTools(
 
       const sequenceId = createSeqResult.sequence.id;
 
-      if (hasExplicitSteps) {
+      if (hasExplicitSteps || createsBlankDraft) {
         const finalResult = await apiRequest<{
           success: boolean;
           sequence: {
@@ -153,7 +167,9 @@ export async function handleSequenceTools(
             ...createSeqResult,
             success: true,
             sequence: finalResult.sequence,
-            message: `Sequence "${finalResult.sequence.name}" created with explicit steps. Review it before enabling.${
+            message: `Sequence "${finalResult.sequence.name}" created ${
+              createsBlankDraft ? "as a blank draft" : "with explicit steps"
+            }. Review it before enabling.${
               createSeqResult.eventTrackingCode
                 ? " Add the custom event feed using eventTrackingCode and eventTracking before enabling."
                 : ""
@@ -294,12 +310,42 @@ export async function handleSequenceTools(
     case "insert_sequence_step": {
       const companyId = args.companyId as string | undefined;
       const body = buildInsertSequenceStepBody(args);
-      result = await apiRequest(
+      const insertResult = await apiRequest(
         "PUT",
         `/api/v1/sequences/${args.sequenceId}`,
         body,
         companyId
       );
+      if (typeof insertResult === "object" && insertResult !== null) {
+        const insertRecord = insertResult as Record<string, unknown>;
+        const sequence = insertRecord["sequence"];
+        if (typeof sequence === "object" && sequence !== null) {
+          const sequenceRecord = sequence as Record<string, unknown>;
+          result = {
+            ...insertRecord,
+            ...(sequenceRecord["insertedNodeIds"] !== undefined
+              ? { insertedNodeIds: sequenceRecord["insertedNodeIds"] }
+              : {}),
+            ...(sequenceRecord["insertedEmailIds"] !== undefined
+              ? { insertedEmailIds: sequenceRecord["insertedEmailIds"] }
+              : {}),
+            ...(sequenceRecord["insertedEmailCount"] !== undefined
+              ? { insertedEmailCount: sequenceRecord["insertedEmailCount"] }
+              : {}),
+            ...(sequenceRecord["addedBranchNodeId"] !== undefined
+              ? { addedBranchNodeId: sequenceRecord["addedBranchNodeId"] }
+              : {}),
+            ...(sequenceRecord["addedBranchPathNodeIds"] !== undefined
+              ? {
+                  addedBranchPathNodeIds:
+                    sequenceRecord["addedBranchPathNodeIds"],
+                }
+              : {}),
+          };
+          break;
+        }
+      }
+      result = insertResult;
       break;
     }
 
@@ -320,6 +366,136 @@ export async function handleSequenceTools(
         "POST",
         `/api/v1/sequences/${args.sequenceId}/disable`,
         undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "duplicate_sequence": {
+      const companyId = args.companyId as string | undefined;
+      const sequenceId = requiredString(
+        "duplicate_sequence",
+        args,
+        "sequenceId"
+      );
+      const name = optionalString(args, "name");
+      result = await apiRequest(
+        "POST",
+        `/api/v1/sequences/${encodeURIComponent(sequenceId)}/duplicate`,
+        name === undefined ? undefined : { name },
+        companyId
+      );
+      break;
+    }
+
+    case "archive_sequence":
+    case "unarchive_sequence": {
+      const companyId = args.companyId as string | undefined;
+      const sequenceId = requiredString(name, args, "sequenceId");
+      const action = name === "archive_sequence" ? "archive" : "unarchive";
+      result = await apiRequest(
+        "POST",
+        `/api/v1/sequences/${encodeURIComponent(sequenceId)}/${action}`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "list_sequence_goals": {
+      const companyId = args.companyId as string | undefined;
+      const sequenceId = requiredString(name, args, "sequenceId");
+      result = await apiRequest(
+        "GET",
+        `/api/v1/sequences/${encodeURIComponent(sequenceId)}/goals`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "create_sequence_goal":
+    case "update_sequence_goal": {
+      const companyId = args.companyId as string | undefined;
+      const sequenceId = requiredString(name, args, "sequenceId");
+      if (name === "create_sequence_goal") {
+        requiredString(name, args, "name");
+        validateCreateSequenceGoalArgs(args);
+      } else {
+        validateUpdateSequenceGoalArgs(args);
+      }
+      const goalId =
+        name === "update_sequence_goal"
+          ? requiredString(name, args, "goalId")
+          : undefined;
+      const body = { ...args };
+      delete body.companyId;
+      delete body.sequenceId;
+      delete body.goalId;
+      result = await apiRequest(
+        name === "create_sequence_goal" ? "POST" : "PATCH",
+        `/api/v1/sequences/${encodeURIComponent(sequenceId)}/goals${
+          goalId ? `/${encodeURIComponent(goalId)}` : ""
+        }`,
+        body,
+        companyId
+      );
+      break;
+    }
+
+    case "delete_sequence_goal": {
+      const companyId = args.companyId as string | undefined;
+      const sequenceId = requiredString(name, args, "sequenceId");
+      const goalId = requiredString(name, args, "goalId");
+      result = await apiRequest(
+        "DELETE",
+        `/api/v1/sequences/${encodeURIComponent(sequenceId)}/goals/${encodeURIComponent(goalId)}`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "get_sequence_inbound_webhook":
+    case "configure_sequence_inbound_webhook":
+    case "rotate_sequence_inbound_webhook_secret": {
+      const companyId = args.companyId as string | undefined;
+      const sequenceId = requiredString(name, args, "sequenceId");
+      if (args.clearFieldMapping === true && args.fieldMapping !== undefined) {
+        throw new Error(
+          "Provide either `fieldMapping` or `clearFieldMapping`, not both."
+        );
+      }
+      if (
+        args.clearSamplePayload === true &&
+        args.samplePayload !== undefined
+      ) {
+        throw new Error(
+          "Provide either `samplePayload` or `clearSamplePayload`, not both."
+        );
+      }
+      const isConfigure = name === "configure_sequence_inbound_webhook";
+      const isRotate = name === "rotate_sequence_inbound_webhook_secret";
+      const body = isConfigure
+        ? {
+            ...(args.clearFieldMapping === true
+              ? { fieldMapping: null }
+              : args.fieldMapping !== undefined
+                ? { fieldMapping: args.fieldMapping }
+                : {}),
+            ...(args.clearSamplePayload === true
+              ? { samplePayload: null }
+              : args.samplePayload !== undefined
+                ? { samplePayload: args.samplePayload }
+                : {}),
+          }
+        : undefined;
+      result = await apiRequest(
+        isRotate ? "POST" : isConfigure ? "PUT" : "GET",
+        `/api/v1/sequences/${encodeURIComponent(sequenceId)}/inbound-webhook${
+          isRotate ? "/rotate-secret" : ""
+        }`,
+        body,
         companyId
       );
       break;

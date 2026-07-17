@@ -383,7 +383,21 @@ export async function handleCampaignTools(
 
     case "create_ab_test": {
       const companyId = args.companyId as string | undefined;
-      const campaignId = requiredString("create_ab_test", args, "campaignId");
+      const campaignId = optionalString(args, "campaignId");
+      const automationNodeId = optionalString(args, "automationNodeId");
+      if (
+        args.confirmLiveChange !== undefined &&
+        typeof args.confirmLiveChange !== "boolean"
+      ) {
+        throw new Error(
+          "`confirmLiveChange` must be a boolean when calling `create_ab_test`."
+        );
+      }
+      if (Boolean(campaignId) === Boolean(automationNodeId)) {
+        throw new Error(
+          "Provide exactly one of `campaignId` or `automationNodeId` when calling `create_ab_test`."
+        );
+      }
       const name = optionalString(args, "name");
       const testPercentage = optionalIntegerInRange(
         "create_ab_test",
@@ -404,6 +418,19 @@ export async function handleCampaignTools(
         args,
         "winnerCriteria",
         ["open_rate", "click_rate"]
+      );
+      const testType = optionalAllowedString(
+        "create_ab_test",
+        args,
+        "testType",
+        ["subject", "content"]
+      );
+      const winnerThreshold = optionalIntegerInRange(
+        "create_ab_test",
+        args,
+        "winnerThreshold",
+        10,
+        1000
       );
 
       if (args.variants !== undefined) {
@@ -431,16 +458,36 @@ export async function handleCampaignTools(
           }
         });
       }
+      const variants = Array.isArray(args.variants) ? args.variants : undefined;
+      if (
+        automationNodeId !== undefined &&
+        (!variants || variants.length < 1)
+      ) {
+        throw new Error(
+          "`variants` must include at least one competing variant when calling `create_ab_test` with `automationNodeId`."
+        );
+      }
+      if (variants && variants.length > 4) {
+        throw new Error(
+          "`variants` supports at most four extra variants when calling `create_ab_test`."
+        );
+      }
 
       result = await apiRequest(
         "POST",
         "/api/v1/ab-tests",
         {
-          campaignId,
+          ...(campaignId !== undefined && { campaignId }),
+          ...(automationNodeId !== undefined && { automationNodeId }),
+          ...(args.confirmLiveChange === true && {
+            confirmLiveChange: true,
+          }),
           ...(name !== undefined && { name }),
           ...(testPercentage !== undefined && { testPercentage }),
           ...(testDurationMinutes !== undefined && { testDurationMinutes }),
           ...(winnerCriteria !== undefined && { winnerCriteria }),
+          ...(testType !== undefined && { testType }),
+          ...(winnerThreshold !== undefined && { winnerThreshold }),
           ...(args.variants !== undefined && { variants: args.variants }),
         },
         companyId

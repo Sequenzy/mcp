@@ -471,6 +471,30 @@ export function validateUpdateSequenceStepIdentities(
 export function buildUpdateSequenceBody(
   args: Record<string, unknown>
 ): Record<string, unknown> {
+  validateLabelsArg("update_sequence", args);
+  const triggerFields = [
+    "listId",
+    "tagName",
+    "segmentId",
+    "stopOnSegmentExit",
+    "eventName",
+    "propertyFilters",
+    "integrationSlug",
+    "integrationEventKey",
+    "customIntegration",
+    "inactiveDays",
+    "inactivityBaseline",
+    "minCount",
+    "timeWindowDays",
+  ];
+  if (
+    args.trigger === undefined &&
+    triggerFields.some((field) => args[field] !== undefined)
+  ) {
+    throw new Error(
+      "Provide `trigger` when replacing sequence trigger configuration with `update_sequence`."
+    );
+  }
   if (args.fromEmail !== undefined && args.senderProfileId !== undefined) {
     throw new Error(
       "Provide either `fromEmail` or `senderProfileId` when calling `update_sequence`, not both."
@@ -532,4 +556,70 @@ export function buildUpdateSequenceBody(
   }
 
   return body;
+}
+
+function validateSequenceGoalTriggerArgs(
+  toolName: "create_sequence_goal" | "update_sequence_goal",
+  args: Record<string, unknown>
+): void {
+  const triggerType = args.triggerType ?? "event";
+  if (triggerType === "event") {
+    if (
+      typeof args.triggerEventName !== "string" ||
+      args.triggerEventName.trim().length === 0
+    ) {
+      throw new Error(
+        `\`triggerEventName\` is required when calling \`${toolName}\` with an event goal${
+          toolName === "create_sequence_goal"
+            ? " (the default `triggerType`)"
+            : ""
+        }.`
+      );
+    }
+    return;
+  }
+
+  if (
+    typeof args.attributePath !== "string" ||
+    args.attributePath.trim().length === 0
+  ) {
+    throw new Error(
+      `\`attributePath\` is required when calling \`${toolName}\` with \`triggerType: "attribute_change"\`.`
+    );
+  }
+  const attributeCondition = args.attributeCondition ?? "changed";
+  const hasAttributeValue =
+    typeof args.attributeValue === "string" &&
+    args.attributeValue.trim().length > 0;
+  const hasAttributePreviousValue =
+    typeof args.attributePreviousValue === "string" &&
+    args.attributePreviousValue.trim().length > 0;
+  if (
+    (attributeCondition === "changed_to" ||
+      attributeCondition === "changed_from_to") &&
+    !hasAttributeValue
+  ) {
+    throw new Error(
+      `\`attributeValue\` is required when calling \`${toolName}\` with \`attributeCondition\` \`changed_to\` or \`changed_from_to\`.`
+    );
+  }
+  if (attributeCondition === "changed_from_to" && !hasAttributePreviousValue) {
+    throw new Error(
+      `\`attributePreviousValue\` is required when calling \`${toolName}\` with \`attributeCondition: "changed_from_to"\`.`
+    );
+  }
+}
+
+export function validateCreateSequenceGoalArgs(
+  args: Record<string, unknown>
+): void {
+  validateSequenceGoalTriggerArgs("create_sequence_goal", args);
+}
+
+export function validateUpdateSequenceGoalArgs(
+  args: Record<string, unknown>
+): void {
+  if (args.triggerType !== undefined) {
+    validateSequenceGoalTriggerArgs("update_sequence_goal", args);
+  }
 }

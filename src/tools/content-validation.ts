@@ -304,12 +304,13 @@ export const sequenceEmailStepIdentityProperties = {
 export const sequencePathStepSchema = {
   type: "object",
   description:
-    "A step to create inside a sequence path. Use type:'delay' for a standalone delay, type:'email' for an email, type:'create_discount' for a discount action, or type:'condition' for a condition gate.",
+    "A typed step to create inside a sequence path, including email, SMS, delay, discount, subscriber actions, conditions, waits, and webhooks.",
   properties: {
     type: {
       type: "string",
       enum: [
         "email",
+        "sms",
         "delay",
         "create_discount",
         "discount",
@@ -318,13 +319,14 @@ export const sequencePathStepSchema = {
         "webhook",
       ],
       description:
-        "Sequence path step type. Omit for email steps; use delay for standalone waits or update_subscriber for action_update_attributes.",
+        "Sequence path step type. Omit for email steps; use delay for fixed/date waits or update_subscriber for action_update_attributes. For an event gate, use nodeType:'logic_wait_for_event' with an explicit config object.",
     },
     nodeType: {
       type: "string",
       enum: [
         "logic_delay",
         "action_email",
+        "action_sms",
         "action_create_discount",
         "action_add_tag",
         "action_remove_tag",
@@ -361,6 +363,35 @@ export const sequencePathStepSchema = {
       type: "string",
       description:
         "HTML content for email steps. Stored as one raw HTML block. Use this for imported provider HTML.",
+    },
+    isTransactional: {
+      type: "boolean",
+      description: "Email only: omit the marketing unsubscribe footer.",
+    },
+    ccEmails: {
+      type: "array",
+      items: { type: "string" },
+      description: "Email only: addresses CC'd on this step.",
+    },
+    bccEmails: {
+      type: "array",
+      items: { type: "string" },
+      description:
+        "Email only: addresses BCC'd on this step in addition to sequence BCC.",
+    },
+    text: {
+      type: "string",
+      description: "SMS only: plain-text message body.",
+    },
+    imageUrls: {
+      type: "array",
+      items: { type: "string" },
+      description: "SMS only: up to two public MMS image URLs.",
+    },
+    ineligibleAction: {
+      type: "string",
+      enum: ["skip", "exit"],
+      description: "SMS only: behavior when the contact cannot receive SMS.",
     },
     delay: sequenceDelaySchema,
     delayMs: {
@@ -439,6 +470,97 @@ export const sequencePathStepSchema = {
     expiresAt: { type: "string" },
     expiresInHours: { type: "number" },
   },
+  additionalProperties: false,
+} as const;
+
+export const sequenceBranchConditionSchema = {
+  type: "object",
+  properties: {
+    id: {
+      type: "string",
+      description:
+        "Optional stable path ID. Defaults to branch-0, branch-1, and so on. The value 'else' is reserved.",
+    },
+    label: {
+      type: "string",
+      description: "Display label, for example 'Replied in this sequence'.",
+    },
+    conditionType: {
+      type: "string",
+      enum: [
+        "has_tag",
+        "does_not_have_tag",
+        "in_list",
+        "in_segment",
+        "event_received",
+        "link_clicked",
+        "field_equals",
+        "field_contains",
+        "field_greater_than",
+        "field_less_than",
+        "has_phone",
+        "sms_subscribed",
+      ],
+      description:
+        "Condition for this path. has_phone and sms_subscribed need no resource fields.",
+    },
+    tagName: {
+      type: "string",
+      description:
+        "Tag name for has_tag and does_not_have_tag. This can be used instead of tagId.",
+    },
+    tagId: {
+      type: "string",
+      description: "Tag ID or tag name for has_tag and does_not_have_tag.",
+    },
+    listId: {
+      type: "string",
+      description: "List ID for in_list.",
+    },
+    segmentId: {
+      type: "string",
+      description: "Segment ID for in_segment.",
+    },
+    segmentName: {
+      type: "string",
+      description: "Optional display name for in_segment.",
+    },
+    eventName: {
+      type: "string",
+      description: "Event name for event_received, for example email.replied.",
+    },
+    linkUrl: {
+      type: "string",
+      description:
+        "Optional URL substring for link_clicked. Omit to match any tracked click.",
+    },
+    activityScope: {
+      type: "string",
+      enum: ["ever", "this_sequence", "previous_email"],
+      description:
+        "Scope for event_received and link_clicked. Use this_sequence to restrict activity to the current enrollment.",
+    },
+    fieldName: {
+      type: "string",
+      description: "Subscriber attribute name/path for field conditions.",
+    },
+    fieldValue: {
+      type: "string",
+      description: "Comparison value for field conditions.",
+    },
+    targetNodeId: {
+      type: "string",
+      description:
+        "Optional existing node to route this branch path to. Use a node ID from get_sequence, including the sequence completion node when this path should stop. If steps are also provided, they run before this target.",
+    },
+    steps: {
+      type: "array",
+      description:
+        "Optional new steps for this path. When targetNodeId is also set, the last new step connects to that existing node.",
+      items: sequencePathStepSchema,
+    },
+  },
+  required: ["conditionType"],
   additionalProperties: false,
 } as const;
 

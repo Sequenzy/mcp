@@ -239,13 +239,13 @@ error points back to `add_sending_domain` with the requested domain.
 
 ### Subscribers
 
-| Tool                 | Description                                                                         |
-| -------------------- | ----------------------------------------------------------------------------------- |
+| Tool                 | Description                                                                                                        |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | `add_subscriber`     | Add a subscriber with native first/last name fields, attributes, tags, status, opt-in mode, and optional list IDs. |
-| `update_subscriber`  | Update native first/last name fields or attributes, and add or remove tags.          |
-| `remove_subscriber`  | Unsubscribe a subscriber or hard-delete them.                                       |
-| `get_subscriber`     | Fetch subscriber details by email or external ID.                                   |
-| `search_subscribers` | Search by query, tags, list, status, segment, or pagination.                        |
+| `update_subscriber`  | Update native first/last name fields or attributes, and add or remove tags.                                        |
+| `remove_subscriber`  | Unsubscribe a subscriber or hard-delete them.                                                                      |
+| `get_subscriber`     | Fetch subscriber details by email or external ID.                                                                  |
+| `search_subscribers` | Search by query, tags, list, status, segment, or pagination.                                                       |
 
 ### Products & Digital Delivery
 
@@ -409,7 +409,7 @@ even when automatic on-save localization is disabled.
 | `delete_ab_test_variant` | Delete a draft A/B test variant.                               |
 | `delete_ab_test`         | Delete an A/B test.                                            |
 
-Use `get_ab_test` to discover variant IDs before editing. Variant updates accept either `html` or `blocks`, not both.
+Use `get_ab_test` to discover variant IDs before editing. Variant updates accept either `html` or `blocks`, not both. `create_ab_test` accepts exactly one of `campaignId` or `automationNodeId`; the latter requires one to four extra variants and converts a sequence email node into `action_ab_test` with typed `testType` and `winnerThreshold` settings. Pass `confirmLiveChange: true` when converting a node in an active sequence. Together with control A, an A/B test supports at most five variants. Sequence variants receive independent email templates and can be added or removed while the test is a draft.
 
 ### Campaigns
 
@@ -523,28 +523,41 @@ Landing page content uses Sequenzy's editor-compatible JSON schema with `version
 
 ### Sequences
 
-| Tool                             | Description                                                                                  |
-| -------------------------------- | -------------------------------------------------------------------------------------------- |
-| `list_sequences`                 | List email sequences and automation status.                                                  |
-| `get_sequence`                   | Get sequence details, including nodes, edges, linked emails, blocks, and per-email format.   |
-| `create_sequence`                | Create AI-generated or explicit-step sequences with optional From/Reply-To overrides.        |
-| `update_sequence`                | Update identity, settings, enrollment, existing steps, branch logic, or insert linear steps. |
-| `update_sequence_node`           | Type-aware patch of one existing sequence node.                                              |
-| `update_sequence_nodes`          | Atomically patch multiple existing sequence nodes.                                           |
-| `insert_sequence_step`           | Insert one new email step, optionally with a delay node before it.                           |
-| `edit_sequence_graph`            | Move, reconnect, delete, or duplicate existing graph nodes, including A/B test steps.        |
-| `enable_sequence`                | Activate a sequence.                                                                         |
-| `disable_sequence`               | Freeze a sequence, blocking new enrollments and holding current recipients.                  |
-| `pause_sequence_enrollments`     | Stop new enrollments for an active sequence while current recipients continue.               |
-| `resume_sequence_enrollments`    | Reopen new enrollments for an active sequence without changing current recipients.           |
-| `enroll_subscribers_in_sequence` | Enroll up to 500 subscribers by email, subscriber ID, or both, optionally at a target node.  |
-| `cancel_sequence_enrollments`    | Stop active or waiting enrollments by subscriber or entry-event field values.                |
-| `delete_sequence`                | Delete a sequence.                                                                           |
+| Tool                                     | Description                                                                                  |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `list_sequences`                         | List sequences with dashboard status, search, label, limit, and offset filters.              |
+| `get_sequence`                           | Get sequence details, including nodes, edges, linked emails, blocks, and per-email format.   |
+| `create_sequence`                        | Create a blank dashboard draft or an AI-generated/explicit-step sequence.                    |
+| `update_sequence`                        | Update identity, settings, enrollment, existing steps, branch logic, or insert linear steps. |
+| `update_sequence_node`                   | Type-aware patch of one existing sequence node.                                              |
+| `update_sequence_nodes`                  | Atomically patch multiple existing sequence nodes.                                           |
+| `insert_sequence_step`                   | Insert any typed dashboard step, including outbound webhooks, waits, and wired branches.     |
+| `edit_sequence_graph`                    | Move, reconnect, delete, or duplicate existing graph nodes, including A/B test steps.        |
+| `enable_sequence`                        | Activate a sequence.                                                                         |
+| `disable_sequence`                       | Freeze a sequence, blocking new enrollments and holding current recipients.                  |
+| `duplicate_sequence`                     | Create an independent draft copy of the graph, emails, and sequence A/B tests.               |
+| `archive_sequence`                       | Move a sequence into the dashboard archive and stop new enrollments.                         |
+| `unarchive_sequence`                     | Restore an archived sequence as a disabled draft.                                            |
+| `list_sequence_goals`                    | List the conversion goals persisted for a sequence.                                          |
+| `create_sequence_goal`                   | Add an event or subscriber-attribute conversion goal.                                        |
+| `update_sequence_goal`                   | Update a persisted sequence conversion goal.                                                 |
+| `delete_sequence_goal`                   | Delete a persisted sequence conversion goal.                                                 |
+| `get_sequence_inbound_webhook`           | Read the endpoint and setup state for an inbound-webhook sequence.                           |
+| `configure_sequence_inbound_webhook`     | Configure field mapping, sample payload, and integration metadata.                           |
+| `rotate_sequence_inbound_webhook_secret` | Rotate an inbound sequence endpoint's secret path.                                           |
+| `pause_sequence_enrollments`             | Stop new enrollments for an active sequence while current recipients continue.               |
+| `resume_sequence_enrollments`            | Reopen new enrollments for an active sequence without changing current recipients.           |
+| `enroll_subscribers_in_sequence`         | Enroll up to 500 subscribers by email, subscriber ID, or both, optionally at a target node.  |
+| `cancel_sequence_enrollments`            | Stop active or waiting enrollments by subscriber or entry-event field values.                |
+| `delete_sequence`                        | Delete a sequence.                                                                           |
 
 Sequence creation supports:
 
+- Name-only creation for a blank, disabled trigger-to-completion draft matching the dashboard.
+- Dashboard metadata and delivery settings: `description`, `labels`, `userCancellable`, sequence BCC, and From/Reply-To identity.
 - `trigger: "segment_entered"` plus `segmentId` for saved-segment entry automations.
 - `trigger: "event_received"` plus `{{event.*}}` merge tags in subjects or body content.
+- `trigger: "inbound_webhook"` plus integration metadata for dashboard-compatible webhook entry nodes.
 - `trigger: "inactivity"` plus `eventName`, `inactiveDays`, and optional `inactivityBaseline` (`sequence_created_at` or `subscriber_created_at`).
 - `goal` for AI-generated email content.
 - `emailStyle: "visual"` or `"plain"` to choose the presentation of goal-based AI-generated emails; when omitted, the company's saved preference is used.
@@ -604,7 +617,30 @@ Number and boolean values must be literals or one standalone merge tag. Use
 `update_sequence.subscriberUpdateSteps` with an `action_update_attributes`
 node ID from `get_sequence` to replace an existing step's config.
 
-Sequence updates support `insertSteps` for adding new linear steps after a `nodeId` returned by `get_sequence`. Omit `afterNodeId` only when appending to a sequence with exactly one linear tail. `insertSteps` supports addable steps that do not require companion records, such as email, delay, tag/list actions, attribute updates, discounts, conditions, wait-for-event steps, and webhooks. Use `branch` for multi-path if/else branches; provide either `branch` or `insertSteps`, not both. Branch conditions support tag presence and absence checks with `has_tag` and `does_not_have_tag`, plus lists, saved segments, events, clicked links, and field comparisons. The `emails` and `steps` arrays only edit existing email steps by `nodeId`, `emailId`, or array order; use `insertSteps` to create new steps and include a step-level `delay`, `delayMs`, or `waitUntil` when the inserted email needs a timer. `waitUntil` accepts a date field from the trigger event plus optional `offset`, `direction` (`before` or `after`), and `missingAction` (`continue` or `exit`). For active sequences, pass `confirmStructuralChange: true` with `insertSteps` or `branch` only after confirming the live-flow impact.
+Sequence updates support `insertSteps` for adding new linear steps after a `nodeId` returned by `get_sequence`. Omit `afterNodeId` only when appending to a sequence with exactly one linear tail. `insertSteps` supports addable steps that do not require companion records, such as email, delay, tag/list actions, attribute updates, discounts, conditions, wait-for-event steps, and webhooks. Use `branch` for multi-path if/else branches; provide either `branch` or `insertSteps`, not both. Branch conditions support tag presence and absence checks with `has_tag` and `does_not_have_tag`, plus lists, saved segments, events, clicked links, and field comparisons. Each branch path may provide new `steps`, an existing `targetNodeId`, or both; the fallback uses `elseSteps` and/or `elseTargetNodeId`. A target can be the completion node returned by `get_sequence`, so one atomic request can route replies to completion and Else to an existing follow-up. The `emails` and `steps` arrays only edit existing email steps by `nodeId`, `emailId`, or array order; use `insertSteps` to create new steps and include a step-level `delay`, `delayMs`, or `waitUntil` when the inserted email needs a timer. `waitUntil` accepts a date field from the trigger event plus optional `offset`, `direction` (`before` or `after`), and `missingAction` (`continue` or `exit`). For active sequences, pass `confirmStructuralChange: true` with `insertSteps` or `branch` only after confirming the live-flow impact.
+
+`insert_sequence_step` exposes every companion-record-free dashboard step directly: email, SMS, delay, discount, subscriber update, tag/list action, outbound webhook, condition, wait, and branch. Outbound webhooks accept `url`, `method` (`POST` or `GET`), and string-valued `headers`. Email steps support transactional mode, per-step identity, and CC/BCC delivery settings. For a wait gate, set
+`type: "logic_wait_for_event"` with `eventName`, optional `timeoutDays` (1-365),
+and `timeoutAction` (`continue` or `exit`). For a branch, set
+`type: "logic_branch"`, provide typed `branches`, and wire their targets:
+
+```json
+{
+  "sequenceId": "seq_123",
+  "type": "logic_branch",
+  "afterNodeId": "node_email_1",
+  "branches": [
+    {
+      "id": "replied",
+      "conditionType": "event_received",
+      "eventName": "email.replied",
+      "activityScope": "this_sequence",
+      "targetNodeId": "node_complete"
+    }
+  ],
+  "elseTargetNodeId": "node_email_2"
+}
+```
 
 Each linked email returned by `get_sequence` includes its effective
 `emailPreset` (`branded` or `minimal`), matching **Style > Format** in the

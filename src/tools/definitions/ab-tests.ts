@@ -168,7 +168,7 @@ export const abTestToolDefinitions: Tool[] = [
   {
     name: "create_ab_test",
     description:
-      "Create a campaign A/B test. Control variant A is created automatically from the campaign's current email; optionally provide extra variants. The campaign must be in draft or rejected status, and each campaign can only have one A/B test.",
+      "Create a campaign A/B test or convert a sequence email node into a typed A/B test node. Provide exactly one of campaignId or automationNodeId. Control variant A is created automatically from the current email. Campaign tests may add variants later; automationNodeId conversions require at least one variants[] entry to compete with control variant A.",
     inputSchema: {
       type: "object",
       properties: {
@@ -179,7 +179,18 @@ export const abTestToolDefinitions: Tool[] = [
         },
         campaignId: {
           type: "string",
-          description: "Draft campaign ID to create the A/B test for.",
+          description:
+            "Draft campaign ID. Mutually exclusive with automationNodeId.",
+        },
+        automationNodeId: {
+          type: "string",
+          description:
+            "Sequence email-node ID to convert to action_ab_test. Mutually exclusive with campaignId.",
+        },
+        confirmLiveChange: {
+          type: "boolean",
+          description:
+            "Required as true when converting an email node in an active sequence.",
         },
         name: {
           type: "string",
@@ -200,10 +211,22 @@ export const abTestToolDefinitions: Tool[] = [
           enum: ["open_rate", "click_rate"],
           description: "Winner selection criteria. Defaults to open_rate.",
         },
+        testType: {
+          type: "string",
+          enum: ["subject", "content"],
+          description:
+            "Sequence A/B test type. Subject tests use open_rate; content tests use click_rate. Defaults to content.",
+        },
+        winnerThreshold: {
+          type: "number",
+          description:
+            "Sequence test sample size from 10 to 1000. Defaults to 100.",
+        },
         variants: {
           type: "array",
+          maxItems: 4,
           description:
-            "Optional extra variants to create in addition to control variant A.",
+            "Extra variants to create in addition to control variant A. Optional for campaign tests; automationNodeId conversions require at least one entry.",
           items: {
             type: "object",
             properties: {
@@ -225,13 +248,12 @@ export const abTestToolDefinitions: Tool[] = [
           },
         },
       },
-      required: ["campaignId"],
     },
   },
   {
     name: "add_ab_test_variant",
     description:
-      "Add a variant to a draft campaign A/B test. Variants cannot be added after the test has started.",
+      "Add a variant to a draft campaign or sequence A/B test. Sequence variants receive their own editable email template. Variants cannot be added after the test has started.",
     inputSchema: {
       type: "object",
       properties: {
@@ -264,7 +286,7 @@ export const abTestToolDefinitions: Tool[] = [
   {
     name: "delete_ab_test_variant",
     description:
-      "Permanently delete a variant from a draft campaign A/B test. This cannot be undone. Variant A is the control and cannot be deleted, and the test must keep at least the minimum number of variants. Variants cannot be removed after the test has started.",
+      "Permanently delete a variant from a draft campaign or sequence A/B test. This cannot be undone. Variant A is the control and cannot be deleted, and the test must keep at least the minimum number of variants. Variants cannot be removed after the test has started.",
     inputSchema: {
       type: "object",
       properties: {
