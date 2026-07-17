@@ -7,6 +7,8 @@ import {
   getSubscriberDetailPath,
   getSubscriberNotesPath,
   fetchDetailedSubscriberByIdentifier,
+  optionalAllowedString,
+  requiredString,
 } from "../internal.js";
 
 export async function handleSubscriberTools(
@@ -34,6 +36,83 @@ export async function handleSubscriberTools(
             optInMode: args.optInMode,
           }),
         },
+        companyId
+      );
+      break;
+    }
+
+    case "create_subscriber_import": {
+      const companyId = args.companyId as string | undefined;
+      if (!Array.isArray(args.subscribers) || args.subscribers.length === 0) {
+        throw new Error(
+          "`subscribers` must be a non-empty array when calling `create_subscriber_import`."
+        );
+      }
+      if (args.subscribers.length > 5000) {
+        throw new Error(
+          "`create_subscriber_import` accepts at most 5000 subscriber records per call."
+        );
+      }
+      for (let index = 0; index < args.subscribers.length; index += 1) {
+        const subscriber = args.subscribers[index];
+        if (
+          !isRecord(subscriber) ||
+          typeof subscriber.email !== "string" ||
+          subscriber.email.trim() === ""
+        ) {
+          throw new Error(
+            `Subscriber record ${index} must include a non-empty email string.`
+          );
+        }
+      }
+
+      const duplicateStrategy = optionalAllowedString(
+        "create_subscriber_import",
+        args,
+        "duplicateStrategy",
+        ["skip", "merge", "overwrite"] as const
+      );
+      const optInMode = optionalAllowedString(
+        "create_subscriber_import",
+        args,
+        "optInMode",
+        ["default", "confirmed", "double_opt_in"] as const
+      );
+      result = await apiRequest(
+        "POST",
+        "/api/v1/subscribers/imports",
+        {
+          subscribers: args.subscribers,
+          ...(duplicateStrategy !== undefined && { duplicateStrategy }),
+          ...(args.fileName !== undefined && { fileName: args.fileName }),
+          ...(args.listIds !== undefined && { listIds: args.listIds }),
+          ...(args.enrollInSequences !== undefined && {
+            enrollInSequences: args.enrollInSequences,
+          }),
+          ...(args.defaultPhoneCountry !== undefined && {
+            defaultPhoneCountry: args.defaultPhoneCountry,
+          }),
+          ...(args.smsConsent !== undefined && {
+            smsConsent: args.smsConsent,
+          }),
+          ...(optInMode !== undefined && { optInMode }),
+        },
+        companyId
+      );
+      break;
+    }
+
+    case "get_subscriber_import": {
+      const companyId = args.companyId as string | undefined;
+      const importId = requiredString(
+        "get_subscriber_import",
+        args,
+        "importId"
+      );
+      result = await apiRequest(
+        "GET",
+        `/api/v1/subscribers/imports/${encodeURIComponent(importId)}`,
+        undefined,
         companyId
       );
       break;

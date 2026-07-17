@@ -1,6 +1,7 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 
 import {
+  rawHtmlContentWarning,
   sequenceEmailBlocksDescription,
   sequenceSendingWindowSchema,
   sequenceWaitUntilSchema,
@@ -299,8 +300,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
               },
               html: {
                 type: "string",
-                description:
-                  "HTML content for email steps. Stored as one raw HTML block. Use this for imported provider HTML.",
+                description: `HTML content for email steps. Use this for imported provider HTML. ${rawHtmlContentWarning}`,
               },
               text: {
                 type: "string",

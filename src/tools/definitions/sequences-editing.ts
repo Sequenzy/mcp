@@ -1,6 +1,7 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 
 import {
+  rawHtmlContentWarning,
   replacementEmailBlocksDescription,
   sequenceEmailBlocksDescription,
   sequenceSendingWindowSchema,
@@ -304,13 +305,11 @@ export const sequenceEditingToolDefinitions: Tool[] = [
               },
               html: {
                 type: "string",
-                description:
-                  "Updated HTML content. Stored as one raw HTML block. Use this to preserve imported provider HTML.",
+                description: `Updated HTML content for imported provider markup. ${rawHtmlContentWarning}`,
               },
               htmlContent: {
                 type: "string",
-                description:
-                  "Alias for html. Stored as one raw HTML block. Use this when updating imported provider HTML for a step.",
+                description: `Alias for html for imported provider markup. ${rawHtmlContentWarning}`,
               },
               emailPreset: {
                 type: "string",
@@ -358,13 +357,11 @@ export const sequenceEditingToolDefinitions: Tool[] = [
               },
               html: {
                 type: "string",
-                description:
-                  "Updated HTML content. Stored as one raw HTML block. Use this to preserve imported provider HTML.",
+                description: `Updated HTML content for imported provider markup. ${rawHtmlContentWarning}`,
               },
               htmlContent: {
                 type: "string",
-                description:
-                  "Alias for html. Stored as one raw HTML block. Use this when updating HTML content for a step.",
+                description: `Alias for html. ${rawHtmlContentWarning}`,
               },
               emailPreset: {
                 type: "string",
@@ -628,8 +625,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         },
         html: {
           type: "string",
-          description:
-            "HTML content for the new step. Stored as one raw HTML block. Use this for imported provider HTML. Provide either html or blocks, not both.",
+          description: `HTML content for an imported provider step. Provide either html or blocks, not both. ${rawHtmlContentWarning}`,
         },
         senderProfileId: {
           type: "string",

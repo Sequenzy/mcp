@@ -1,6 +1,6 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 
-import { emailBlocksDescription } from "../internal.js";
+import { emailBlocksDescription, rawHtmlContentWarning } from "../internal.js";
 
 export const campaignToolDefinitions: Tool[] = [
   // ============================================================================
@@ -111,8 +111,7 @@ export const campaignToolDefinitions: Tool[] = [
         },
         html: {
           type: "string",
-          description:
-            "Email HTML content. Mutually exclusive with `blocks`. Use this for imported provider campaigns; Sequenzy stores it as one raw HTML block to preserve the design.",
+          description: `Email HTML content. Mutually exclusive with \`blocks\`. Use this for imported provider campaigns. ${rawHtmlContentWarning}`,
         },
         blocks: {
           type: "array",
@@ -229,8 +228,7 @@ export const campaignToolDefinitions: Tool[] = [
         },
         html: {
           type: "string",
-          description:
-            "Email HTML content. Mutually exclusive with `blocks`. Use this for imported provider campaigns; Sequenzy stores it as one raw HTML block to preserve the design.",
+          description: `Email HTML content. Mutually exclusive with \`blocks\`. Use this for imported provider campaigns. ${rawHtmlContentWarning}`,
         },
         blocks: {
           type: "array",

@@ -107,6 +107,12 @@ export const genericOutputProperties: OutputSchemaProperties = {
   success: successOutputProperty,
   message: messageOutputProperty,
   note: noteOutputProperty,
+  warnings: {
+    type: "array",
+    description:
+      "Non-fatal cautions about content, permissions, or follow-up actions.",
+    items: stringOutputProperty("One warning."),
+  },
   items: {
     type: "array",
     description:
@@ -247,6 +253,12 @@ export const outputPropertiesByToolName: Record<
   },
   add_subscriber: {
     subscriber: resourceOutputProperty("subscriber"),
+  },
+  create_subscriber_import: {
+    import: resourceOutputProperty("subscriber import"),
+  },
+  get_subscriber_import: {
+    import: resourceOutputProperty("subscriber import"),
   },
   update_subscriber: {
     subscriber: resourceOutputProperty("subscriber"),

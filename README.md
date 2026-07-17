@@ -210,9 +210,14 @@ connection, open `manageUrl`, create a replacement key with **Read-only**,
 reauthorize the Sequenzy connection with a preset or custom permissions that
 include the missing scopes.
 
+The AI drafting preset includes `subscribers:write`, so drafting agents can
+build a list as well as create it. Imports that apply `listIds` also need
+`lists:write`; sequence enrollment or double-opt-in delivery additionally needs
+`automations:trigger`.
+
 ## Tools
 
-This server currently exposes 144 MCP tools.
+This server currently exposes 146 MCP tools.
 
 ### Account, Companies, Setup
 
@@ -239,13 +244,21 @@ error points back to `add_sending_domain` with the requested domain.
 
 ### Subscribers
 
-| Tool                 | Description                                                                         |
-| -------------------- | ----------------------------------------------------------------------------------- |
-| `add_subscriber`     | Add a subscriber with native first/last name fields, attributes, tags, status, opt-in mode, and optional list IDs. |
-| `update_subscriber`  | Update native first/last name fields or attributes, and add or remove tags.          |
-| `remove_subscriber`  | Unsubscribe a subscriber or hard-delete them.                                       |
-| `get_subscriber`     | Fetch subscriber details by email or external ID.                                   |
-| `search_subscribers` | Search by query, tags, list, status, segment, or pagination.                        |
+| Tool                       | Description                                                                                                     |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `add_subscriber`           | Add one subscriber with native names, attributes, tags, status, opt-in mode, and optional list IDs.             |
+| `create_subscriber_import` | Queue up to 5,000 full CRM records with names, IDs, phones, statuses, tags, lists, and typed custom attributes. |
+| `get_subscriber_import`    | Read progress, row outcome counts, and failure summaries for a queued import.                                   |
+| `update_subscriber`        | Update native first/last name fields or attributes, and add or remove tags.                                     |
+| `remove_subscriber`        | Unsubscribe a subscriber or hard-delete them.                                                                   |
+| `get_subscriber`           | Fetch subscriber details by email or external ID.                                                               |
+| `search_subscribers`       | Search by query, tags, list, status, segment, or pagination.                                                    |
+
+Use `create_subscriber_import` for CRM onboarding instead of looping over
+`add_subscriber`. One call accepts 5,000 full records and returns an asynchronous
+import ID; poll it with `get_subscriber_import`. A `completed` import can still
+contain row failures, so inspect `failedCount` and `failedReasons`. Use
+`optInMode: "confirmed"` only when consent was already verified.
 
 ### Products & Digital Delivery
 
@@ -450,6 +463,19 @@ subscriber data such as segment/list membership, tags, events, engagement,
 subscription/SMS status, and Stripe or commerce purchases. Live-data
 conditions use the same field values and operators as segment filters;
 recipients without a stored subscriber match use the OTHERWISE branch.
+
+Core block shapes are `{ "type": "heading", "content": "Title", "level": 1
+}`, `{ "type": "text", "content": "<p>Copy</p>" }`, `{ "type": "button",
+"text": "Book a call", "url": "https://example.com", "variant": "primary" }
+`, and `{ "type": "image", "src": "https://...", "alt": "Description",
+"width": 100, "widthType": "percent" }`. Buttons also accept `content` as an
+alias for `text` and default to the `primary` variant. Image `widthType` accepts
+`percent` or `px`.
+
+Raw `html` is stored as one opaque block. It preserves supplied markup but does
+not add a company logo, native branded sections, or theme-driven block design.
+Use `prompt` for a new branded draft or `blocks` for editor-native design; MCP
+authoring results include a warning when raw HTML is used.
 
 Use `update_company` with `fromEmail` and/or `replyTo` to set account-wide
 defaults. `fromEmail` must use a configured, verified sending domain; `replyTo`

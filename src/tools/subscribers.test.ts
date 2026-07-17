@@ -149,6 +149,86 @@ describe("subscriber MCP tools", () => {
     );
   });
 
+  it("queues full CRM records with create_subscriber_import", async () => {
+    mockApiRequest.mockResolvedValue({
+      success: true,
+      import: { id: "import_123", status: "running" },
+    });
+
+    const result = await handleToolCall("create_subscriber_import", {
+      companyId: "comp_123",
+      fileName: "copper-export.csv",
+      duplicateStrategy: "merge",
+      listIds: ["list_123"],
+      optInMode: "confirmed",
+      subscribers: [
+        {
+          email: "coach@example.com",
+          externalId: "copper-23",
+          firstName: "Ari",
+          lastName: "Tan",
+          tags: ["copper"],
+          customAttributes: { source: "Copper" },
+        },
+      ],
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/subscribers/imports",
+      {
+        fileName: "copper-export.csv",
+        duplicateStrategy: "merge",
+        listIds: ["list_123"],
+        optInMode: "confirmed",
+        subscribers: [
+          {
+            email: "coach@example.com",
+            externalId: "copper-23",
+            firstName: "Ari",
+            lastName: "Tan",
+            tags: ["copper"],
+            customAttributes: { source: "Copper" },
+          },
+        ],
+      },
+      "comp_123"
+    );
+  });
+
+  it("gets subscriber import progress", async () => {
+    mockApiRequest.mockResolvedValue({
+      success: true,
+      import: { id: "import_123", status: "completed" },
+    });
+
+    const result = await handleToolCall("get_subscriber_import", {
+      companyId: "comp_123",
+      importId: "import/123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/subscribers/imports/import%2F123",
+      undefined,
+      "comp_123"
+    );
+  });
+
+  it("rejects malformed subscriber import records before calling the API", async () => {
+    const result = await handleToolCall("create_subscriber_import", {
+      subscribers: [{ firstName: "Missing email" }],
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Subscriber record 0 must include a non-empty email string"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
   it("updates native firstName/lastName fields on update_subscriber", async () => {
     mockApiRequest
       .mockResolvedValueOnce({
