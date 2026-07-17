@@ -21,6 +21,17 @@ export async function handleSubscriberTools(
     case "add_subscriber": {
       const companyId = args.companyId as string | undefined;
       const identifier = requireSubscriberIdentifier("add_subscriber", args);
+      const status = optionalAllowedString("add_subscriber", args, "status", [
+        "active",
+        "unsubscribed",
+        "bounced",
+      ] as const);
+      const optInMode = optionalAllowedString(
+        "add_subscriber",
+        args,
+        "optInMode",
+        ["default", "confirmed", "double_opt_in"] as const
+      );
       result = await apiRequest(
         "POST",
         "/api/v1/subscribers",
@@ -31,13 +42,23 @@ export async function handleSubscriberTools(
           customAttributes: args.attributes,
           tags: args.tags,
           lists: args.listIds,
-          ...(args.status !== undefined && { status: args.status }),
-          ...(args.optInMode !== undefined && {
-            optInMode: args.optInMode,
-          }),
+          ...(status !== undefined && { status }),
+          ...(optInMode !== undefined && { optInMode }),
         },
         companyId
       );
+
+      if (
+        status !== undefined &&
+        isRecord(result) &&
+        isRecord(result.subscriber) &&
+        result.subscriber.skipped === true &&
+        result.subscriber.status !== status
+      ) {
+        throw new Error(
+          `Existing subscriber was not changed to status '${status}'. Use update_subscriber to change an existing contact's status.`
+        );
+      }
       break;
     }
 
@@ -121,11 +142,20 @@ export async function handleSubscriberTools(
     case "update_subscriber": {
       const companyId = args.companyId as string | undefined;
       const identifier = requireSubscriberIdentifier("update_subscriber", args);
-      const detail = await fetchDetailedSubscriberByIdentifier(
-        identifier,
-        companyId
+      const status = optionalAllowedString(
+        "update_subscriber",
+        args,
+        "status",
+        ["active", "unsubscribed", "bounced"] as const
       );
-      const currentTags = Array.isArray(detail.subscriber.tags)
+      const needsCurrentProfile =
+        isRecord(args.attributes) ||
+        args.addTags !== undefined ||
+        args.removeTags !== undefined;
+      const detail = needsCurrentProfile
+        ? await fetchDetailedSubscriberByIdentifier(identifier, companyId)
+        : null;
+      const currentTags = Array.isArray(detail?.subscriber.tags)
         ? detail.subscriber.tags.filter(
             (tag): tag is string => typeof tag === "string"
           )
@@ -165,9 +195,12 @@ export async function handleSubscriberTools(
       if (args.lastName !== undefined) {
         body.lastName = args.lastName;
       }
+      if (status !== undefined) {
+        body.status = status;
+      }
       if (isRecord(args.attributes)) {
         body.customAttributes = {
-          ...(isRecord(detail.subscriber.customAttributes)
+          ...(isRecord(detail?.subscriber.customAttributes)
             ? detail.subscriber.customAttributes
             : {}),
           ...args.attributes,

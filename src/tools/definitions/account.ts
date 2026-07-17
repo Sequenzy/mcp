@@ -346,7 +346,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "get_sync_rules",
     description:
-      "Get the company's sync rules: the automatic tag changes applied when events fire (e.g. order placed -> add a tag). Returns the effective rules plus isDefault, which is true while the company still uses the platform defaults.",
+      "Get the company's sync rules: the automatic tag changes applied when events fire (e.g. order placed -> add a tag). New companies start with no rules. Returns the effective rules plus isDefault, which is true when the company has explicitly opted into the inherited SaaS/ecommerce platform preset.",
     inputSchema: {
       type: "object",
       properties: {
@@ -362,7 +362,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "update_sync_rules",
     description:
-      "Replace the company's sync rules. Pass the FULL rule set (fetch with get_sync_rules first and edit it - this is not a partial update), or null to reset to the platform defaults. Each rule: { triggerEvent, actions: { addTags, removeTags }, conditions? }. Conditions support requiresTags, requiresNotTags, and purchasedProduct ({ tags?, collectionIds?, productTypes?, vendors? }) which matches products on commerce events - e.g. tag buyers of products carrying a given product tag.",
+      "Replace the company's sync rules. Pass the FULL rule set (fetch with get_sync_rules first and edit it - this is not a partial update), [] to disable rules, or null to opt into the inherited SaaS/ecommerce platform preset. Each rule: { triggerEvent, actions: { addTags, removeTags }, conditions? }. Conditions support requiresTags, requiresNotTags, and purchasedProduct ({ tags?, collectionIds?, productTypes?, vendors? }) which matches products on commerce events - e.g. tag buyers of products carrying a given product tag.",
     inputSchema: {
       type: "object",
       properties: {
@@ -374,7 +374,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
         syncRules: {
           type: ["array", "null"],
           description:
-            "Full replacement rule set, or null to reset to the platform defaults.",
+            "Full replacement rule set. Use [] to disable sync rules, or null to opt into the inherited SaaS/ecommerce platform preset.",
           items: {
             type: "object",
             properties: {

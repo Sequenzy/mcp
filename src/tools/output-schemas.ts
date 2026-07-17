@@ -176,7 +176,7 @@ export const outputPropertiesByToolName: Record<
       items: objectOutputProperty("One sync rule."),
     },
     isDefault: booleanOutputProperty(
-      "Whether the company still uses the platform default rules."
+      "Whether the company uses the inherited SaaS/ecommerce platform preset."
     ),
   },
   update_sync_rules: {
@@ -186,7 +186,7 @@ export const outputPropertiesByToolName: Record<
       items: objectOutputProperty("One sync rule."),
     },
     isDefault: booleanOutputProperty(
-      "Whether the company now uses the platform default rules."
+      "Whether the company now uses the inherited SaaS/ecommerce platform preset."
     ),
   },
   get_shopify_automation_settings: {

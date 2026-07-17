@@ -229,6 +229,8 @@ This server currently exposes 146 MCP tools.
 | `create_company`        | Create a new company or brand.                                                                                                |
 | `get_company`           | Read company details, product info, brand context, localization, reply-tracking settings, and current From/Reply-To defaults. |
 | `update_company`        | Edit product info, brand context, reply-tracking settings, and account-wide From/Reply-To defaults.                           |
+| `get_sync_rules`        | Read the company's event-to-tag rules and whether it uses the inherited platform preset.                                      |
+| `update_sync_rules`     | Replace all sync rules; pass `[]` to disable them or `null` to opt into the SaaS/ecommerce platform preset.                   |
 | `create_api_key`        | Create an API key for a company, with optional permission preset or explicit scopes.                                          |
 | `list_websites`         | List sending domains with stored aggregate, SPF, DKIM, and MAIL FROM status.                                                  |
 | `add_sending_domain`    | Add a sending domain and return its SPF, DKIM, MAIL FROM, and inbound DNS setup records.                                      |
@@ -242,15 +244,19 @@ the returned `website.dnsRecords`, wait for DNS propagation, and then call
 `verify_sending_domain`. If verification is attempted before creation, the
 error points back to `add_sending_domain` with the requested domain.
 
+New companies start with no sync rules. The inherited preset remains available
+for SaaS/ecommerce companies by passing `null` to `update_sync_rules`; services
+and consulting companies should normally keep `[]` or define explicit rules.
+
 ### Subscribers
 
 | Tool                       | Description                                                                                                     |
 | -------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `add_subscriber`           | Add one subscriber with native names, attributes, tags, status, opt-in mode, and optional list IDs.             |
+| `add_subscriber`           | Add one subscriber; status is creation-only, so use `update_subscriber` for an existing contact.                |
 | `create_subscriber_import` | Queue up to 5,000 full CRM records with names, IDs, phones, statuses, tags, lists, and typed custom attributes. |
 | `get_subscriber_import`    | Read progress, row outcome counts, and failure summaries for a queued import.                                   |
-| `update_subscriber`        | Update native first/last name fields or attributes, and add or remove tags.                                     |
-| `remove_subscriber`        | Unsubscribe a subscriber or hard-delete them.                                                                   |
+| `update_subscriber`        | Update profile fields, attributes, tags, or global status; `unsubscribed` safely suppresses marketing.          |
+| `remove_subscriber`        | Unsubscribe while preserving suppression history, or permanently delete only with `hardDelete: true`.           |
 | `get_subscriber`           | Fetch subscriber details by email or external ID.                                                               |
 | `search_subscribers`       | Search by query, tags, list, status, segment, or pagination.                                                    |
 
@@ -259,6 +265,12 @@ Use `create_subscriber_import` for CRM onboarding instead of looping over
 import ID; poll it with `get_subscriber_import`. A `completed` import can still
 contain row failures, so inspect `failedCount` and `failedReasons`. Use
 `optInMode: "confirmed"` only when consent was already verified.
+
+For compliance suppression, call `update_subscriber` with
+`status: "unsubscribed"` (or use `remove_subscriber` without `hardDelete`). Do
+not retry `add_subscriber` with a different status: status on that tool applies
+only when the contact is first created, and a mismatched skipped result is
+reported as an error.
 
 ### Products & Digital Delivery
 

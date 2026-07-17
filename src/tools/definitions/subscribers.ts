@@ -40,7 +40,7 @@ export const subscriberToolDefinitions: Tool[] = [
   {
     name: "add_subscriber",
     description:
-      "Add one subscriber. For multiple contacts or CRM records, use create_subscriber_import instead of looping this tool. For an email-only batch going into one list, add_subscribers_to_list is also available.",
+      "Add one subscriber. Status is only applied when creating a new contact; use update_subscriber to change an existing contact's status. For multiple contacts or CRM records, use create_subscriber_import instead of looping this tool. For an email-only batch going into one list, add_subscribers_to_list is also available.",
     inputSchema: {
       type: "object",
       properties: {
@@ -85,11 +85,13 @@ export const subscriberToolDefinitions: Tool[] = [
         },
         status: {
           type: "string",
+          enum: ["active", "unsubscribed", "bounced"],
           description:
-            "Initial subscriber status: active, unsubscribed, or bounced. Defaults to active.",
+            "Initial subscriber status: active, unsubscribed, or bounced. Defaults to active and does not change an existing contact; use update_subscriber for existing contacts.",
         },
         optInMode: {
           type: "string",
+          enum: ["default", "confirmed", "double_opt_in"],
           description:
             "Consent mode: confirmed creates active immediately when consent is verified, double_opt_in sends a confirmation email before activation, and default obeys company double opt-in settings.",
         },
@@ -181,7 +183,8 @@ export const subscriberToolDefinitions: Tool[] = [
   },
   {
     name: "update_subscriber",
-    description: "Update an existing subscriber's attributes or tags",
+    description:
+      "Update an existing subscriber's profile, status, attributes, or tags. Setting status to unsubscribed suppresses the contact from all marketing, deactivates list memberships, and cancels active sequence enrollments while preserving the record and suppression history.",
     inputSchema: {
       type: "object",
       properties: {
@@ -210,6 +213,12 @@ export const subscriberToolDefinitions: Tool[] = [
           description:
             "New last name, stored as a native profile field. Pass an empty string to clear it.",
         },
+        status: {
+          type: "string",
+          enum: ["active", "unsubscribed", "bounced"],
+          description:
+            "New global subscriber status. Use unsubscribed for compliance-grade suppression without deleting the record. Use active only when the contact has valid consent to be resubscribed.",
+        },
         attributes: {
           type: "object",
           description:
@@ -231,7 +240,8 @@ export const subscriberToolDefinitions: Tool[] = [
   },
   {
     name: "remove_subscriber",
-    description: "Unsubscribe or delete a subscriber",
+    description:
+      "Unsubscribe a subscriber while preserving the record and suppression history. Only permanently deletes when hardDelete is true.",
     inputSchema: {
       type: "object",
       properties: {
@@ -253,7 +263,7 @@ export const subscriberToolDefinitions: Tool[] = [
         hardDelete: {
           type: "boolean",
           description:
-            "If true, permanently deletes. If false, just unsubscribes.",
+            "If true, permanently deletes the subscriber and suppression history. Defaults to false, which globally unsubscribes the contact, deactivates list memberships, and cancels active sequence enrollments.",
         },
       },
       required: [],
