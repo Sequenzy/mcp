@@ -611,9 +611,11 @@ Each linked email returned by `get_sequence` includes its effective
 dashboard. Set `emailPreset` on an `emails`/`steps` item, or in an
 `action_email` node's `changes`, to change only that linked email without
 changing the company theme. This applies the same format transformation as the
-dashboard to native Sequenzy blocks. Raw HTML emails return `null` for
-`emailPreset`, do not support format changes, and cannot combine `emailPreset`
-with `html` or `htmlContent`.
+dashboard to native Sequenzy blocks, including emails that contain supported
+custom HTML blocks. Emails stored entirely as one standalone raw HTML block
+return `null` for `emailPreset` and do not support format changes.
+`emailPreset` cannot be combined with `html` or `htmlContent` because those
+fields replace the entire email with standalone raw HTML.
 
 Use `update_sequence_node` for a focused in-place edit, or
 `update_sequence_nodes` when several node patches must commit atomically. Call

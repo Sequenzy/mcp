@@ -3989,6 +3989,10 @@ describe("sequence node update tools", () => {
     expect(
       tools.find((tool) => tool.name === "get_sequence")?.description
     ).toContain("emailPreset");
+    expect(
+      (changesSchema?.properties?.["emailPreset"] as { description?: string })
+        .description
+    ).toContain("supported custom HTML blocks");
     expect(singleTool?.annotations?.readOnlyHint).toBe(false);
     expect(singleTool?.annotations?.destructiveHint).toBe(false);
   });
