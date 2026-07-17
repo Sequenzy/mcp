@@ -215,6 +215,17 @@ export const outputPropertiesByToolName: Record<
       "Newly created API key if the API response uses the short key field."
     ),
   },
+  list_api_keys: {
+    apiKeys: resourceListOutputProperty(
+      "non-secret API key metadata, including ID, name, prefix, permissions, timestamps, and active-credential status"
+    ),
+  },
+  revoke_api_key: {
+    apiKey: resourceOutputProperty("revoked non-secret API key metadata"),
+  },
+  delete_api_key: {
+    apiKey: resourceOutputProperty("deleted non-secret API key metadata"),
+  },
   list_websites: {
     websites: resourceListOutputProperty("sender website"),
   },

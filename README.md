@@ -194,6 +194,13 @@ For OpenClaw, Hermes, and other MCP-compatible clients, point the client at `npx
 
 Personal keys start with `seq_user_`. You can revoke them any time in the dashboard.
 
+Company keys can also be cleaned up without exposing secrets. Call
+`list_api_keys` to compare the key ID, name, non-secret prefix, permissions,
+last-use timestamp, and `isCurrent` marker, then pass the exact ID to
+`revoke_api_key`. `delete_api_key` is a compatibility alias for the same
+permanent operation. List and revoke responses never contain the plain key or
+stored key hash.
+
 ### Recover from missing API key permissions
 
 If a tool reports a missing scope such as `campaigns:read` or
@@ -217,7 +224,7 @@ build a list as well as create it. Imports that apply `listIds` also need
 
 ## Tools
 
-This server currently exposes 146 MCP tools.
+This server currently exposes 149 MCP tools.
 
 ### Account, Companies, Setup
 
@@ -232,6 +239,9 @@ This server currently exposes 146 MCP tools.
 | `get_sync_rules`        | Read the company's event-to-tag rules and whether it uses the inherited platform preset.                                      |
 | `update_sync_rules`     | Replace all sync rules; pass `[]` to disable them or `null` to opt into the SaaS/ecommerce platform preset.                   |
 | `create_api_key`        | Create an API key for a company, with optional permission preset or explicit scopes.                                          |
+| `list_api_keys`         | List company API keys as non-secret metadata for safe identification and cleanup.                                             |
+| `revoke_api_key`        | Permanently revoke an exact company API key by ID after checking it with `list_api_keys`.                                     |
+| `delete_api_key`        | Compatibility alias for `revoke_api_key`.                                                                                     |
 | `list_websites`         | List sending domains with stored aggregate, SPF, DKIM, and MAIL FROM status.                                                  |
 | `add_sending_domain`    | Add a sending domain and return its SPF, DKIM, MAIL FROM, and inbound DNS setup records.                                      |
 | `add_website`           | Compatibility alias for `add_sending_domain`.                                                                                 |

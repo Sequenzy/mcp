@@ -472,6 +472,59 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
     },
   },
   {
+    name: "list_api_keys",
+    description:
+      "List company-scoped API keys as non-secret metadata. Returns IDs, names, prefixes, permissions, usage timestamps, and whether each key is the active credential. It never returns a plain key or stored key hash. Use this before revoke_api_key or delete_api_key to identify the exact unused key.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description: "Company ID whose API keys should be listed",
+        },
+      },
+      required: ["companyId"],
+    },
+  },
+  {
+    name: "revoke_api_key",
+    description:
+      "Permanently revoke a company-scoped API key by ID. The response contains non-secret metadata only. Call list_api_keys first and compare the ID, name, prefix, and isCurrent flag because revoking a key cannot be undone and may invalidate the active credential.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description: "Company ID that owns the API key",
+        },
+        apiKeyId: {
+          type: "string",
+          description: "Exact API key ID returned by list_api_keys",
+        },
+      },
+      required: ["companyId", "apiKeyId"],
+    },
+  },
+  {
+    name: "delete_api_key",
+    description:
+      "Compatibility alias for revoke_api_key. Permanently delete a company-scoped API key by ID and return non-secret metadata only. Call list_api_keys first to verify the exact target.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description: "Company ID that owns the API key",
+        },
+        apiKeyId: {
+          type: "string",
+          description: "Exact API key ID returned by list_api_keys",
+        },
+      },
+      required: ["companyId", "apiKeyId"],
+    },
+  },
+  {
     name: "list_websites",
     description:
       "List configured sending domains with stored aggregate, SPF, DKIM, and MAIL FROM verification status",
