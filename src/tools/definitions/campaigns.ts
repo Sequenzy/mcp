@@ -312,7 +312,7 @@ export const campaignToolDefinitions: Tool[] = [
   {
     name: "schedule_campaign",
     description:
-      "Schedule a draft or already scheduled campaign. Returns dashboard edit and preview URLs.",
+      "Schedule a draft or already scheduled campaign. The campaign must have a non-empty subject, at least one content block, and at least one audience include rule. Returns dashboard edit and preview URLs; validation errors explain what must be fixed before retrying.",
     inputSchema: {
       type: "object",
       properties: {
