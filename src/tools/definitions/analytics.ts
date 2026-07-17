@@ -8,7 +8,8 @@ export const analyticsToolDefinitions: Tool[] = [
   // ============================================================================
   {
     name: "get_stats",
-    description: "Get overview statistics for a time period",
+    description:
+      "Get overview statistics for a time period, including reply count and reply rate",
     inputSchema: {
       type: "object",
       properties: {
@@ -28,7 +29,7 @@ export const analyticsToolDefinitions: Tool[] = [
   {
     name: "get_campaign_stats",
     description:
-      "Get detailed statistics for a campaign, including attributed conversions, revenue (revenueCents), a per-link click breakdown in the top-level clickedLinks array, and any Poll or NPS survey summaries in the top-level polls array",
+      "Get detailed statistics for a campaign, including replies and reply rate, attributed conversions, revenue (revenueCents), a per-link click breakdown in the top-level clickedLinks array, and any Poll or NPS survey summaries in the top-level polls array",
     inputSchema: {
       type: "object",
       properties: {
@@ -49,7 +50,7 @@ export const analyticsToolDefinitions: Tool[] = [
   {
     name: "get_sequence_stats",
     description:
-      "Get statistics for a sequence, including attributed conversions and revenue (revenueCents) plus per-step failed subscribers and failure reasons",
+      "Get statistics for a sequence, including aggregate and per-step replies and reply rates, attributed conversions and revenue (revenueCents), plus per-step failed subscribers and failure reasons",
     inputSchema: {
       type: "object",
       properties: {

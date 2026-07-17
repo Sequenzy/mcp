@@ -186,6 +186,9 @@ export const COMPANY_UPDATE_FIELDS = [
   "fromName",
   "replyTo",
   "replyToName",
+  "replyTrackingEnabled",
+  "replyTrackingDomainMode",
+  "forwardReplies",
 ] as const;
 
 export function validateOptionalObjectArg(
@@ -222,7 +225,7 @@ export function buildUpdateCompanyBody(
 
   if (unsupportedKeys.length > 0) {
     throw new Error(
-      `\`update_company\` accepts only company product-info fields. Unsupported field${unsupportedKeys.length === 1 ? "" : "s"}: ${unsupportedKeys.map((key) => `\`${key}\``).join(", ")}.`
+      `\`update_company\` accepts only editable company settings. Unsupported field${unsupportedKeys.length === 1 ? "" : "s"}: ${unsupportedKeys.map((key) => `\`${key}\``).join(", ")}.`
     );
   }
 
@@ -258,6 +261,7 @@ export function buildUpdateCompanyBody(
     "fromName",
     "replyTo",
     "replyToName",
+    "replyTrackingDomainMode",
   ]) {
     if (args[key] !== undefined && typeof args[key] !== "string") {
       throw new Error(
@@ -271,6 +275,24 @@ export function buildUpdateCompanyBody(
   validateOptionalObjectArg("update_company", args, "pricing");
   validateOptionalArrayArg("update_company", args, "valueProps");
   validateOptionalArrayArg("update_company", args, "testimonials");
+
+  for (const key of ["replyTrackingEnabled", "forwardReplies"] as const) {
+    if (args[key] !== undefined && typeof args[key] !== "boolean") {
+      throw new Error(
+        `\`${key}\` must be a boolean when calling \`update_company\`.`
+      );
+    }
+  }
+
+  if (
+    args.replyTrackingDomainMode !== undefined &&
+    args.replyTrackingDomainMode !== "sequenzy" &&
+    args.replyTrackingDomainMode !== "custom"
+  ) {
+    throw new Error(
+      "`replyTrackingDomainMode` must be `sequenzy` or `custom` when calling `update_company`."
+    );
+  }
 
   if (
     typeof args.primaryColor === "string" &&

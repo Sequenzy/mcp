@@ -26,9 +26,20 @@ export const subscriberToolDefinitions: Tool[] = [
           description:
             "Customer-owned subscriber ID. Provide this with email when creating, or instead of email for an existing subscriber.",
         },
+        firstName: {
+          type: "string",
+          description:
+            "Subscriber first name, stored as a native profile field.",
+        },
+        lastName: {
+          type: "string",
+          description:
+            "Subscriber last name, stored as a native profile field.",
+        },
         attributes: {
           type: "object",
-          description: "Custom attributes (name, plan, etc.)",
+          description:
+            "Custom attributes (plan, company, etc.). Use firstName/lastName for names instead of attributes.",
         },
         tags: {
           type: "array",
@@ -75,9 +86,20 @@ export const subscriberToolDefinitions: Tool[] = [
           description:
             "Customer-owned subscriber ID. Provide email or externalId to identify the subscriber.",
         },
+        firstName: {
+          type: "string",
+          description:
+            "New first name, stored as a native profile field. Pass an empty string to clear it.",
+        },
+        lastName: {
+          type: "string",
+          description:
+            "New last name, stored as a native profile field. Pass an empty string to clear it.",
+        },
         attributes: {
           type: "object",
-          description: "Attributes to update",
+          description:
+            "Custom attributes to update. Use firstName/lastName for names instead of attributes.",
         },
         addTags: {
           type: "array",

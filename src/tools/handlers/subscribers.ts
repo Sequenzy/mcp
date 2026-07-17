@@ -24,6 +24,8 @@ export async function handleSubscriberTools(
         "/api/v1/subscribers",
         {
           ...identifier,
+          ...(args.firstName !== undefined && { firstName: args.firstName }),
+          ...(args.lastName !== undefined && { lastName: args.lastName }),
           customAttributes: args.attributes,
           tags: args.tags,
           lists: args.listIds,
@@ -77,6 +79,12 @@ export async function handleSubscriberTools(
       const body: Record<string, unknown> = {};
       if (identifier.email && identifier.externalId) {
         body.externalId = identifier.externalId;
+      }
+      if (args.firstName !== undefined) {
+        body.firstName = args.firstName;
+      }
+      if (args.lastName !== undefined) {
+        body.lastName = args.lastName;
       }
       if (isRecord(args.attributes)) {
         body.customAttributes = {
