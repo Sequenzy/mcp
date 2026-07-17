@@ -1,6 +1,7 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 
 import {
+  rawHtmlContentWarning,
   replacementEmailBlocksDescription,
   sequenceEmailBlocksDescription,
   sequenceSendingWindowSchema,
@@ -389,19 +390,17 @@ export const sequenceEditingToolDefinitions: Tool[] = [
               },
               html: {
                 type: "string",
-                description:
-                  "Updated HTML content. Stored as one raw HTML block. Use this to preserve imported provider HTML.",
+                description: `Updated HTML content for imported provider markup. ${rawHtmlContentWarning}`,
               },
               htmlContent: {
                 type: "string",
-                description:
-                  "Alias for html. Stored as one raw HTML block. Use this when updating imported provider HTML for a step.",
+                description: `Alias for html for imported provider markup. ${rawHtmlContentWarning}`,
               },
               emailPreset: {
                 type: "string",
                 enum: ["branded", "minimal"],
                 description:
-                  "Per-email Style > Format for native Sequenzy blocks. Minimal removes the company logo and uses the simple footer; branded restores the branded chrome. Does not change the company default. Not supported for raw HTML emails and must not be combined with html/htmlContent.",
+                  "Per-email Style > Format for native Sequenzy blocks, including emails that contain supported custom HTML blocks. Minimal removes the company logo and uses the simple footer; branded restores the branded chrome. Does not change the company default. Not supported when the entire email is standalone raw HTML and must not be combined with html/htmlContent.",
               },
               blocks: {
                 type: "array",
@@ -452,19 +451,17 @@ export const sequenceEditingToolDefinitions: Tool[] = [
               },
               html: {
                 type: "string",
-                description:
-                  "Updated HTML content. Stored as one raw HTML block. Use this to preserve imported provider HTML.",
+                description: `Updated HTML content for imported provider markup. ${rawHtmlContentWarning}`,
               },
               htmlContent: {
                 type: "string",
-                description:
-                  "Alias for html. Stored as one raw HTML block. Use this when updating HTML content for a step.",
+                description: `Alias for html. ${rawHtmlContentWarning}`,
               },
               emailPreset: {
                 type: "string",
                 enum: ["branded", "minimal"],
                 description:
-                  "Per-email Style > Format for native Sequenzy blocks. Minimal removes the company logo and uses the simple footer; branded restores the branded chrome. Does not change the company default. Not supported for raw HTML emails and must not be combined with html/htmlContent.",
+                  "Per-email Style > Format for native Sequenzy blocks, including emails that contain supported custom HTML blocks. Minimal removes the company logo and uses the simple footer; branded restores the branded chrome. Does not change the company default. Not supported when the entire email is standalone raw HTML and must not be combined with html/htmlContent.",
               },
               blocks: {
                 type: "array",
@@ -743,8 +740,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         },
         html: {
           type: "string",
-          description:
-            "HTML content for the new step. Stored as one raw HTML block. Use this for imported provider HTML. Provide either html or blocks, not both.",
+          description: `HTML content for an imported provider step. Provide either html or blocks, not both. ${rawHtmlContentWarning}`,
         },
         isTransactional: {
           type: "boolean",

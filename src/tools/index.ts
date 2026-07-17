@@ -12,6 +12,7 @@ import {
   withToolOutputSchema,
 } from "./internal.js";
 import type { SequenzyToolCallResult } from "./output-schemas.js";
+import { addRawHtmlWarning } from "./raw-html-warning.js";
 
 export const tools: Tool[] = toolDefinitions
   .map(withToolOutputSchema)
@@ -43,6 +44,7 @@ export async function handleToolCall(
       throw resultError;
     }
 
+    result = addRawHtmlWarning(name, args, result);
     result = await addAppUrlsToToolResult(name, args, result);
 
     return {

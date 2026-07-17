@@ -107,6 +107,12 @@ export const genericOutputProperties: OutputSchemaProperties = {
   success: successOutputProperty,
   message: messageOutputProperty,
   note: noteOutputProperty,
+  warnings: {
+    type: "array",
+    description:
+      "Non-fatal cautions about content, permissions, or follow-up actions.",
+    items: stringOutputProperty("One warning."),
+  },
   items: {
     type: "array",
     description:
@@ -170,7 +176,7 @@ export const outputPropertiesByToolName: Record<
       items: objectOutputProperty("One sync rule."),
     },
     isDefault: booleanOutputProperty(
-      "Whether the company still uses the platform default rules."
+      "Whether the company uses the inherited SaaS/ecommerce platform preset."
     ),
   },
   update_sync_rules: {
@@ -180,7 +186,7 @@ export const outputPropertiesByToolName: Record<
       items: objectOutputProperty("One sync rule."),
     },
     isDefault: booleanOutputProperty(
-      "Whether the company now uses the platform default rules."
+      "Whether the company now uses the inherited SaaS/ecommerce platform preset."
     ),
   },
   get_shopify_automation_settings: {
@@ -208,6 +214,17 @@ export const outputPropertiesByToolName: Record<
     key: stringOutputProperty(
       "Newly created API key if the API response uses the short key field."
     ),
+  },
+  list_api_keys: {
+    apiKeys: resourceListOutputProperty(
+      "non-secret API key metadata, including ID, name, prefix, permissions, timestamps, and active-credential status"
+    ),
+  },
+  revoke_api_key: {
+    apiKey: resourceOutputProperty("revoked non-secret API key metadata"),
+  },
+  delete_api_key: {
+    apiKey: resourceOutputProperty("deleted non-secret API key metadata"),
   },
   list_websites: {
     websites: resourceListOutputProperty("sender website"),
@@ -247,6 +264,12 @@ export const outputPropertiesByToolName: Record<
   },
   add_subscriber: {
     subscriber: resourceOutputProperty("subscriber"),
+  },
+  create_subscriber_import: {
+    import: resourceOutputProperty("subscriber import"),
+  },
+  get_subscriber_import: {
+    import: resourceOutputProperty("subscriber import"),
   },
   update_subscriber: {
     subscriber: resourceOutputProperty("subscriber"),

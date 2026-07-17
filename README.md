@@ -194,6 +194,13 @@ For OpenClaw, Hermes, and other MCP-compatible clients, point the client at `npx
 
 Personal keys start with `seq_user_`. You can revoke them any time in the dashboard.
 
+Company keys can also be cleaned up without exposing secrets. Call
+`list_api_keys` to compare the key ID, name, non-secret prefix, permissions,
+last-use timestamp, and `isCurrent` marker, then pass the exact ID to
+`revoke_api_key`. `delete_api_key` is a compatibility alias for the same
+permanent operation. List and revoke responses never contain the plain key or
+stored key hash.
+
 ### Recover from missing API key permissions
 
 If a tool reports a missing scope such as `campaigns:read` or
@@ -210,9 +217,14 @@ connection, open `manageUrl`, create a replacement key with **Read-only**,
 reauthorize the Sequenzy connection with a preset or custom permissions that
 include the missing scopes.
 
+The AI drafting preset includes `subscribers:write`, so drafting agents can
+build a list as well as create it. Imports that apply `listIds` also need
+`lists:write`; sequence enrollment or double-opt-in delivery additionally needs
+`automations:trigger`.
+
 ## Tools
 
-This server currently exposes 144 MCP tools.
+This server currently exposes 149 MCP tools.
 
 ### Account, Companies, Setup
 
@@ -224,7 +236,12 @@ This server currently exposes 144 MCP tools.
 | `create_company`        | Create a new company or brand.                                                                                                |
 | `get_company`           | Read company details, product info, brand context, localization, reply-tracking settings, and current From/Reply-To defaults. |
 | `update_company`        | Edit product info, brand context, reply-tracking settings, and account-wide From/Reply-To defaults.                           |
+| `get_sync_rules`        | Read the company's event-to-tag rules and whether it uses the inherited platform preset.                                      |
+| `update_sync_rules`     | Replace all sync rules; pass `[]` to disable them or `null` to opt into the SaaS/ecommerce platform preset.                   |
 | `create_api_key`        | Create an API key for a company, with optional permission preset or explicit scopes.                                          |
+| `list_api_keys`         | List company API keys as non-secret metadata for safe identification and cleanup.                                             |
+| `revoke_api_key`        | Permanently revoke an exact company API key by ID after checking it with `list_api_keys`.                                     |
+| `delete_api_key`        | Compatibility alias for `revoke_api_key`.                                                                                     |
 | `list_websites`         | List sending domains with stored aggregate, SPF, DKIM, and MAIL FROM status.                                                  |
 | `add_sending_domain`    | Add a sending domain and return its SPF, DKIM, MAIL FROM, and inbound DNS setup records.                                      |
 | `add_website`           | Compatibility alias for `add_sending_domain`.                                                                                 |
@@ -237,15 +254,33 @@ the returned `website.dnsRecords`, wait for DNS propagation, and then call
 `verify_sending_domain`. If verification is attempted before creation, the
 error points back to `add_sending_domain` with the requested domain.
 
+New companies start with no sync rules. The inherited preset remains available
+for SaaS/ecommerce companies by passing `null` to `update_sync_rules`; services
+and consulting companies should normally keep `[]` or define explicit rules.
+
 ### Subscribers
 
-| Tool                 | Description                                                                                                        |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `add_subscriber`     | Add a subscriber with native first/last name fields, attributes, tags, status, opt-in mode, and optional list IDs. |
-| `update_subscriber`  | Update native first/last name fields or attributes, and add or remove tags.                                        |
-| `remove_subscriber`  | Unsubscribe a subscriber or hard-delete them.                                                                      |
-| `get_subscriber`     | Fetch subscriber details by email or external ID.                                                                  |
-| `search_subscribers` | Search by query, tags, list, status, segment, or pagination.                                                       |
+| Tool                       | Description                                                                                                     |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `add_subscriber`           | Add one subscriber; status is creation-only, so use `update_subscriber` for an existing contact.                |
+| `create_subscriber_import` | Queue up to 5,000 full CRM records with names, IDs, phones, statuses, tags, lists, and typed custom attributes. |
+| `get_subscriber_import`    | Read progress, row outcome counts, and failure summaries for a queued import.                                   |
+| `update_subscriber`        | Update profile fields, attributes, tags, or global status; `unsubscribed` safely suppresses marketing.          |
+| `remove_subscriber`        | Unsubscribe while preserving suppression history, or permanently delete only with `hardDelete: true`.           |
+| `get_subscriber`           | Fetch subscriber details by email or external ID.                                                               |
+| `search_subscribers`       | Search by query, tags, list, status, segment, or pagination.                                                    |
+
+Use `create_subscriber_import` for CRM onboarding instead of looping over
+`add_subscriber`. One call accepts 5,000 full records and returns an asynchronous
+import ID; poll it with `get_subscriber_import`. A `completed` import can still
+contain row failures, so inspect `failedCount` and `failedReasons`. Use
+`optInMode: "confirmed"` only when consent was already verified.
+
+For compliance suppression, call `update_subscriber` with
+`status: "unsubscribed"` (or use `remove_subscriber` without `hardDelete`). Do
+not retry `add_subscriber` with a different status: status on that tool applies
+only when the contact is first created, and a mismatched skipped result is
+reported as an error.
 
 ### Products & Digital Delivery
 
@@ -451,6 +486,19 @@ subscription/SMS status, and Stripe or commerce purchases. Live-data
 conditions use the same field values and operators as segment filters;
 recipients without a stored subscriber match use the OTHERWISE branch.
 
+Core block shapes are `{ "type": "heading", "content": "Title", "level": 1
+}`, `{ "type": "text", "content": "<p>Copy</p>" }`, `{ "type": "button",
+"text": "Book a call", "url": "https://example.com", "variant": "primary" }
+`, and `{ "type": "image", "src": "https://...", "alt": "Description",
+"width": 100, "widthType": "percent" }`. Buttons also accept `content` as an
+alias for `text` and default to the `primary` variant. Image `widthType` accepts
+`percent` or `px`.
+
+Raw `html` is stored as one opaque block. It preserves supplied markup but does
+not add a company logo, native branded sections, or theme-driven block design.
+Use `prompt` for a new branded draft or `blocks` for editor-native design; MCP
+authoring results include a warning when raw HTML is used.
+
 Use `update_company` with `fromEmail` and/or `replyTo` to set account-wide
 defaults. `fromEmail` must use a configured, verified sending domain; `replyTo`
 may be any valid mailbox. `create_campaign`, `update_campaign`,
@@ -647,9 +695,11 @@ Each linked email returned by `get_sequence` includes its effective
 dashboard. Set `emailPreset` on an `emails`/`steps` item, or in an
 `action_email` node's `changes`, to change only that linked email without
 changing the company theme. This applies the same format transformation as the
-dashboard to native Sequenzy blocks. Raw HTML emails return `null` for
-`emailPreset`, do not support format changes, and cannot combine `emailPreset`
-with `html` or `htmlContent`.
+dashboard to native Sequenzy blocks, including emails that contain supported
+custom HTML blocks. Emails stored entirely as one standalone raw HTML block
+return `null` for `emailPreset` and do not support format changes.
+`emailPreset` cannot be combined with `html` or `htmlContent` because those
+fields replace the entire email with standalone raw HTML.
 
 Use `update_sequence_node` for a focused in-place edit, or
 `update_sequence_nodes` when several node patches must commit atomically. Call

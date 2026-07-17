@@ -368,6 +368,101 @@ describe("create_api_key tool schema", () => {
   });
 });
 
+describe("API key lifecycle tools", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("publishes metadata-only list and destructive revoke aliases", () => {
+    const listTool = tools.find(
+      (candidate) => candidate.name === "list_api_keys"
+    );
+    const revokeTool = tools.find(
+      (candidate) => candidate.name === "revoke_api_key"
+    );
+    const deleteTool = tools.find(
+      (candidate) => candidate.name === "delete_api_key"
+    );
+
+    expect(listTool?.inputSchema.required).toEqual(["companyId"]);
+    expect(listTool?.description).toContain("never returns a plain key");
+    expect(listTool?.annotations).toMatchObject({
+      readOnlyHint: true,
+      destructiveHint: false,
+    });
+    for (const tool of [revokeTool, deleteTool]) {
+      expect(tool?.inputSchema.required).toEqual(["companyId", "apiKeyId"]);
+      expect(tool?.annotations).toMatchObject({
+        readOnlyHint: false,
+        destructiveHint: true,
+      });
+    }
+  });
+
+  it("lists API key metadata for the selected company", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      apiKeys: [
+        {
+          id: "key_unused",
+          name: "Failed SST handoff",
+          prefix: "seq_live_X",
+          scopes: ["account:read"],
+          isCurrent: false,
+        },
+      ],
+    });
+
+    const result = await handleToolCall("list_api_keys", {
+      companyId: "company_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/api-keys",
+      undefined,
+      "company_123"
+    );
+    expect(result.structuredContent?.["apiKeys"]).toEqual([
+      expect.objectContaining({
+        id: "key_unused",
+        prefix: "seq_live_X",
+        isCurrent: false,
+      }),
+    ]);
+  });
+
+  it.each(["revoke_api_key", "delete_api_key"])(
+    "routes %s through the same revoke endpoint",
+    async (toolName) => {
+      mockApiRequest.mockResolvedValueOnce({
+        success: true,
+        apiKey: {
+          id: "key_unused",
+          name: "Failed SST handoff",
+          prefix: "seq_live_X",
+          isCurrent: false,
+        },
+        message: "API key revoked successfully.",
+      });
+
+      const result = await handleToolCall(toolName, {
+        companyId: "company_123",
+        apiKeyId: "key_unused",
+      });
+
+      expect(result.isError).toBeUndefined();
+      expect(mockApiRequest).toHaveBeenCalledWith(
+        "DELETE",
+        "/api/v1/api-keys/key_unused",
+        undefined,
+        "company_123"
+      );
+    }
+  );
+});
+
 describe("update_template tool validation", () => {
   beforeEach(() => {
     mockApiRequest.mockClear();
@@ -4076,6 +4171,10 @@ describe("sequence node update tools", () => {
     expect(
       tools.find((tool) => tool.name === "get_sequence")?.description
     ).toContain("emailPreset");
+    expect(
+      (changesSchema?.properties?.["emailPreset"] as { description?: string })
+        .description
+    ).toContain("supported custom HTML blocks");
     expect(singleTool?.annotations?.readOnlyHint).toBe(false);
     expect(singleTool?.annotations?.destructiveHint).toBe(false);
   });

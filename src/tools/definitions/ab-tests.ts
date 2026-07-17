@@ -1,6 +1,7 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 
 import {
+  rawHtmlContentWarning,
   replacementEmailBlocksDescription,
   includeMachineEngagementToolProperty,
 } from "../internal.js";
@@ -151,7 +152,7 @@ export const abTestToolDefinitions: Tool[] = [
         },
         html: {
           type: "string",
-          description: "Replacement HTML body. Mutually exclusive with blocks.",
+          description: `Replacement HTML body. Mutually exclusive with blocks. ${rawHtmlContentWarning}`,
         },
         blocks: {
           type: "array",
