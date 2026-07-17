@@ -50,10 +50,15 @@ const goalProperties = {
     description: "Display label for the tracked event property.",
   },
   attributionWindowHours: {
-    type: "number" as const,
+    type: "integer" as const,
     minimum: 1,
     maximum: 720,
-    description: "Attribution window in hours.",
+    description: "Attribution window in whole hours.",
+  },
+  isActive: {
+    type: "boolean" as const,
+    description:
+      "Whether conversion tracking is active for this goal. Defaults to true when creating.",
   },
 };
 
@@ -90,10 +95,6 @@ export const sequenceGoalToolDefinitions: Tool[] = [
         ...companyAndSequenceProperties,
         goalId: { type: "string", description: "Sequence goal ID." },
         ...goalProperties,
-        isActive: {
-          type: "boolean",
-          description: "Whether conversion tracking is active for this goal.",
-        },
       },
       required: ["sequenceId", "goalId"],
       additionalProperties: false,

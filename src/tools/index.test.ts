@@ -5160,9 +5160,10 @@ describe("sequence goal tools", () => {
     );
     expect(createTool?.inputSchema.properties).toHaveProperty("triggerType");
     expect(createTool?.inputSchema.properties).toHaveProperty("attributePath");
+    expect(createTool?.inputSchema.properties).toHaveProperty("isActive");
     expect(
       createTool?.inputSchema.properties?.["attributionWindowHours"]
-    ).toMatchObject({ minimum: 1, maximum: 720 });
+    ).toMatchObject({ type: "integer", minimum: 1, maximum: 720 });
   });
 
   it("forwards goal creation and deletion", async () => {
@@ -5174,6 +5175,7 @@ describe("sequence goal tools", () => {
       triggerType: "event",
       triggerEventName: "account.reactivated",
       attributionWindowHours: 168,
+      isActive: false,
     });
     await handleToolCall("delete_sequence_goal", {
       companyId: "comp_123",
@@ -5190,6 +5192,7 @@ describe("sequence goal tools", () => {
         triggerType: "event",
         triggerEventName: "account.reactivated",
         attributionWindowHours: 168,
+        isActive: false,
       },
       "comp_123"
     );
