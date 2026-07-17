@@ -19,7 +19,8 @@ export const campaignToolDefinitions: Tool[] = [
         },
         status: {
           type: "string",
-          description: "Filter by status (draft, scheduled, sent)",
+          description:
+            "Filter by status (draft, scheduled, sent, sending, cancelled, paused, waiting_approval, or rejected). Rejected campaign results include rejectionComment feedback when provided.",
         },
         label: {
           type: "string",
@@ -31,7 +32,8 @@ export const campaignToolDefinitions: Tool[] = [
   },
   {
     name: "get_campaign",
-    description: "Get campaign details and stats",
+    description:
+      "Get campaign details and stats, including rejectionComment reviewer feedback for rejected campaigns",
     inputSchema: {
       type: "object",
       properties: {

@@ -450,8 +450,8 @@ Use `get_ab_test` to discover variant IDs before editing. Variant updates accept
 
 | Tool                             | Description                                                                               |
 | -------------------------------- | ----------------------------------------------------------------------------------------- |
-| `list_campaigns`                 | List campaigns, optionally filtered by status.                                            |
-| `get_campaign`                   | Get campaign details and stats.                                                           |
+| `list_campaigns`                 | List campaigns by status, including reviewer feedback for rejected campaigns.             |
+| `get_campaign`                   | Get details, stats, and reviewer feedback for a rejected campaign.                        |
 | `get_email_send`                 | Inspect a queued, test, sent, suppressed, or failed delivery by durable email-send ID.    |
 | `get_recipient_suppression`      | Check local and regional SES suppression for one exact recipient.                         |
 | `remove_recipient_suppression`   | Remove stale bounce suppression for a company-associated recipient.                       |

@@ -2305,6 +2305,35 @@ describe("label list filters", () => {
       "comp_123"
     );
   });
+
+  it("returns rejection feedback from campaign list results", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      campaigns: [
+        {
+          id: "camp_123",
+          name: "Launch",
+          status: "rejected",
+          rejectionComment: "Remove the misleading urgency claim.",
+        },
+      ],
+    });
+
+    const result = await handleToolCall("list_campaigns", {
+      companyId: "comp_123",
+      status: "rejected",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.structuredContent?.["campaigns"]).toEqual([
+      expect.objectContaining({
+        id: "camp_123",
+        name: "Launch",
+        status: "rejected",
+        rejectionComment: "Remove the misleading urgency claim.",
+      }),
+    ]);
+  });
 });
 
 describe("saved form tools", () => {
