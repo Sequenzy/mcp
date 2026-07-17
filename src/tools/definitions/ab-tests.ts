@@ -254,7 +254,7 @@ export const abTestToolDefinitions: Tool[] = [
   {
     name: "add_ab_test_variant",
     description:
-      "Add a variant to a draft campaign or sequence A/B test. Sequence variants receive their own editable email template. Variants cannot be added after the test has started.",
+      "Add a variant to a draft campaign or sequence A/B test. Sequence variants receive their own editable email template. Variants cannot be added after the test has started. Sequence tests whose parent sequence is active require confirmLiveChange.",
     inputSchema: {
       type: "object",
       properties: {
@@ -280,6 +280,11 @@ export const abTestToolDefinitions: Tool[] = [
           description: replacementEmailBlocksDescription,
           items: { type: "object" },
         },
+        confirmLiveChange: {
+          type: "boolean",
+          description:
+            "Required as true when the A/B test belongs to an active sequence, because new variants immediately enter the live rotation.",
+        },
       },
       required: ["abTestId", "subject"],
     },
@@ -287,7 +292,7 @@ export const abTestToolDefinitions: Tool[] = [
   {
     name: "delete_ab_test_variant",
     description:
-      "Permanently delete a variant from a draft campaign or sequence A/B test. This cannot be undone. Variant A is the control and cannot be deleted, and the test must keep at least the minimum number of variants. Variants cannot be removed after the test has started.",
+      "Permanently delete a variant from a draft campaign or sequence A/B test. This cannot be undone. Variant A is the control and cannot be deleted, and the test must keep at least the minimum number of variants. Variants cannot be removed after the test has started. Sequence tests whose parent sequence is active require confirmLiveChange.",
     inputSchema: {
       type: "object",
       properties: {
@@ -303,6 +308,11 @@ export const abTestToolDefinitions: Tool[] = [
         variantId: {
           type: "string",
           description: "A/B test variant ID to delete.",
+        },
+        confirmLiveChange: {
+          type: "boolean",
+          description:
+            "Required as true when the A/B test belongs to an active sequence, because deletion immediately changes the live rotation.",
         },
       },
       required: ["abTestId", "variantId"],

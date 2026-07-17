@@ -43,7 +43,8 @@ export const sequenceBasicToolDefinitions: Tool[] = [
         },
         limit: {
           type: "number",
-          description: "Page size from 1 to 100. Defaults to 50.",
+          description:
+            "Page size from 1 to 100. When limit and offset are both omitted, every sequence is returned.",
         },
         offset: {
           type: "number",

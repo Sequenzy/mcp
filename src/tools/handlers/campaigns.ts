@@ -506,6 +506,14 @@ export async function handleCampaignTools(
           "`blocks` must be an array when calling `add_ab_test_variant`."
         );
       }
+      if (
+        args.confirmLiveChange !== undefined &&
+        typeof args.confirmLiveChange !== "boolean"
+      ) {
+        throw new Error(
+          "`confirmLiveChange` must be a boolean when calling `add_ab_test_variant`."
+        );
+      }
 
       result = await apiRequest(
         "POST",
@@ -514,6 +522,7 @@ export async function handleCampaignTools(
           subject,
           ...(previewText !== undefined && { previewText }),
           ...(args.blocks !== undefined && { blocks: args.blocks }),
+          ...(args.confirmLiveChange === true && { confirmLiveChange: true }),
         },
         companyId
       );
@@ -532,9 +541,19 @@ export async function handleCampaignTools(
         args,
         "variantId"
       );
+      if (
+        args.confirmLiveChange !== undefined &&
+        typeof args.confirmLiveChange !== "boolean"
+      ) {
+        throw new Error(
+          "`confirmLiveChange` must be a boolean when calling `delete_ab_test_variant`."
+        );
+      }
       result = await apiRequest(
         "DELETE",
-        `/api/v1/ab-tests/${encodeURIComponent(abTestId)}/variants/${encodeURIComponent(variantId)}`,
+        `/api/v1/ab-tests/${encodeURIComponent(abTestId)}/variants/${encodeURIComponent(variantId)}${
+          args.confirmLiveChange === true ? "?confirmLiveChange=true" : ""
+        }`,
         undefined,
         companyId
       );

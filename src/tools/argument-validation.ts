@@ -559,7 +559,7 @@ export function buildUpdateSequenceBody(
 }
 
 function validateSequenceGoalTriggerArgs(
-  toolName: "create_sequence_goal" | "update_sequence_goal",
+  toolName: "create_sequence_goal",
   args: Record<string, unknown>
 ): void {
   const triggerType = args.triggerType ?? "event";
@@ -569,11 +569,7 @@ function validateSequenceGoalTriggerArgs(
       args.triggerEventName.trim().length === 0
     ) {
       throw new Error(
-        `\`triggerEventName\` is required when calling \`${toolName}\` with an event goal${
-          toolName === "create_sequence_goal"
-            ? " (the default `triggerType`)"
-            : ""
-        }.`
+        `\`triggerEventName\` is required when calling \`${toolName}\` with an event goal (the default \`triggerType\`).`
       );
     }
     return;
@@ -619,7 +615,23 @@ export function validateCreateSequenceGoalArgs(
 export function validateUpdateSequenceGoalArgs(
   args: Record<string, unknown>
 ): void {
-  if (args.triggerType !== undefined) {
-    validateSequenceGoalTriggerArgs("update_sequence_goal", args);
+  // Partial updates are allowed: when the trigger type is unchanged, the API
+  // preserves the goal's stored trigger fields, so omitted fields must not be
+  // required here. Only explicitly provided empty values are rejected locally.
+  if (
+    typeof args.triggerEventName === "string" &&
+    args.triggerEventName.trim().length === 0
+  ) {
+    throw new Error(
+      "`triggerEventName` must be a non-empty string when provided to `update_sequence_goal`."
+    );
+  }
+  if (
+    typeof args.attributePath === "string" &&
+    args.attributePath.trim().length === 0
+  ) {
+    throw new Error(
+      "`attributePath` must be a non-empty string when provided to `update_sequence_goal`."
+    );
   }
 }

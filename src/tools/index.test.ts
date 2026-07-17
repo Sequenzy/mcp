@@ -5202,12 +5202,32 @@ describe("sequence goal tools", () => {
     const updateResult = await handleToolCall("update_sequence_goal", {
       sequenceId: "seq_123",
       goalId: "goal_123",
-      triggerType: "event",
+      triggerEventName: "   ",
     });
     expect(updateResult.isError).toBe(true);
     expect(updateResult.content[0]?.text).toContain("triggerEventName");
 
     expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("allows partial goal updates that keep the stored trigger fields", async () => {
+    mockApiRequest.mockResolvedValue({ success: true, goal: {} });
+
+    // The PATCH API preserves existing trigger fields when the type is
+    // unchanged, so triggerType alone must be forwarded, not rejected.
+    await handleToolCall("update_sequence_goal", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      goalId: "goal_123",
+      triggerType: "event",
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/sequences/seq_123/goals/goal_123",
+      { triggerType: "event" },
+      "comp_123"
+    );
   });
 });
 
