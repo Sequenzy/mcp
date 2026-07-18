@@ -485,6 +485,7 @@ describe("update_template tool validation", () => {
     expect(inputSchema?.properties).toBeDefined();
     expect(inputSchema?.properties).toHaveProperty("name");
     expect(inputSchema?.properties).toHaveProperty("subject");
+    expect(inputSchema?.properties).toHaveProperty("previewText");
     expect(inputSchema?.properties).toHaveProperty("html");
     expect(inputSchema?.properties).toHaveProperty("blocks");
     expect(inputSchema?.properties).toHaveProperty("labels");
@@ -498,7 +499,7 @@ describe("update_template tool validation", () => {
     expect(result.isError).toBe(true);
     expect(result.content[0]?.type).toBe("text");
     expect(result.content[0]?.text).toContain(
-      "Provide at least one of `name`, `subject`, `html`, `blocks`, or `labels` when calling `update_template`."
+      "Provide at least one of `name`, `subject`, `previewText`, `html`, `blocks`, or `labels` when calling `update_template`."
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
   });
@@ -514,6 +515,35 @@ describe("update_template tool validation", () => {
     expect(result.content[0]?.type).toBe("text");
     expect(result.content[0]?.text).toContain("Unsupported field: `unknown`.");
     expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("allows previewText as the only update_template field", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      template: {
+        id: "tmpl_123",
+        name: "Welcome",
+        subject: "Hello",
+        previewText: "A warmer inbox preview",
+        labels: [],
+      },
+    });
+
+    const result = await handleToolCall("update_template", {
+      templateId: "tmpl_123",
+      previewText: "A warmer inbox preview",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/templates/tmpl_123",
+      {
+        templateId: "tmpl_123",
+        previewText: "A warmer inbox preview",
+      },
+      undefined
+    );
   });
 
   it("rejects mixed html and blocks content in update_template", async () => {

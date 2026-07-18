@@ -66,6 +66,7 @@ export async function handleCampaignTools(
         "templateId",
         "name",
         "subject",
+        "previewText",
         "html",
         "blocks",
         "labels",
@@ -76,7 +77,7 @@ export async function handleCampaignTools(
 
       if (unsupportedTemplateUpdateKeys.length > 0) {
         throw new Error(
-          `\`update_template\` accepts only \`name\`, \`subject\`, \`html\`, \`blocks\`, and \`labels\` update fields. Unsupported field${unsupportedTemplateUpdateKeys.length === 1 ? "" : "s"}: ${unsupportedTemplateUpdateKeys.map((key) => `\`${key}\``).join(", ")}.`
+          `\`update_template\` accepts only \`name\`, \`subject\`, \`previewText\`, \`html\`, \`blocks\`, and \`labels\` update fields. Unsupported field${unsupportedTemplateUpdateKeys.length === 1 ? "" : "s"}: ${unsupportedTemplateUpdateKeys.map((key) => `\`${key}\``).join(", ")}.`
         );
       }
 
@@ -86,12 +87,13 @@ export async function handleCampaignTools(
       if (
         args.name === undefined &&
         args.subject === undefined &&
+        args.previewText === undefined &&
         args.html === undefined &&
         args.blocks === undefined &&
         args.labels === undefined
       ) {
         throw new Error(
-          "Provide at least one of `name`, `subject`, `html`, `blocks`, or `labels` when calling `update_template`."
+          "Provide at least one of `name`, `subject`, `previewText`, `html`, `blocks`, or `labels` when calling `update_template`."
         );
       }
 

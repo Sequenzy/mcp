@@ -407,15 +407,15 @@ Audiences are add-only: subscribers who later leave the segment stay in the Meta
 
 ### Templates
 
-| Tool                          | Description                                                           |
-| ----------------------------- | --------------------------------------------------------------------- |
-| `list_templates`              | List templates with localization status.                              |
-| `get_template`                | Read template details, content, and localized variants.               |
-| `create_template`             | Create templates from a prompt, HTML, or Sequenzy blocks.             |
-| `update_template`             | Update template metadata, labels, HTML, or blocks.                    |
-| `set_template_localization`   | Create or replace a caller-supplied localized variant.                |
-| `sync_template_localizations` | Queue AI translation for selected or all enabled non-primary locales. |
-| `delete_template`             | Delete a template.                                                    |
+| Tool                          | Description                                                            |
+| ----------------------------- | ---------------------------------------------------------------------- |
+| `list_templates`              | List templates with localization status.                               |
+| `get_template`                | Read template details, content, and localized variants.                |
+| `create_template`             | Create templates from a prompt, HTML, or Sequenzy blocks.              |
+| `update_template`             | Update template metadata, inbox preview text, labels, HTML, or blocks. |
+| `set_template_localization`   | Create or replace a caller-supplied localized variant.                 |
+| `sync_template_localizations` | Queue AI translation for selected or all enabled non-primary locales.  |
+| `delete_template`             | Delete a template.                                                     |
 
 For net-new content requested in natural language, pass `prompt` so Sequenzy
 generates branded native blocks server-side. Use `blocks` only for finished

@@ -104,7 +104,7 @@ export const templateToolDefinitions: Tool[] = [
   {
     name: "update_template",
     description:
-      "Update an existing template. At least one of `name`, `subject`, `html`, `blocks`, or `labels` is required, and only those update fields are accepted.",
+      "Update an existing template. At least one of `name`, `subject`, `previewText`, `html`, `blocks`, or `labels` is required, and only those update fields are accepted.",
     inputSchema: {
       type: "object",
       properties: {
@@ -124,6 +124,11 @@ export const templateToolDefinitions: Tool[] = [
         subject: {
           type: "string",
           description: "Email subject line",
+        },
+        previewText: {
+          type: ["string", "null"],
+          description:
+            "Inbox preview text. Send null to clear the existing preview text.",
         },
         html: {
           type: "string",
