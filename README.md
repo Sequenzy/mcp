@@ -309,6 +309,11 @@ use `displayWidthPercent`, `cropHeight`, `objectFit` (`cover` or `contain`), and
 be copied directly into the block array accepted by campaign, sequence,
 template, and transactional-email tools.
 
+Authenticated image bytes are always uploaded to the origin configured by
+`SEQUENZY_API_URL`, even if a reverse proxy returns an equivalent upload URL
+under another host. API credentials are never forwarded to that alternate
+origin.
+
 ```json
 {
   "filePath": "/Users/me/Desktop/product-results.png",

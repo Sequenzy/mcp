@@ -7,6 +7,10 @@ import {
 } from "./error-output.js";
 
 const DEFAULT_API_URL = "https://api.sequenzy.com";
+const AUTHENTICATED_IMAGE_UPLOAD_PATHS = new Set([
+  "/api/v1/media/upload-bytes",
+  "/v1/media/upload-bytes",
+]);
 
 export interface McpRequestContext {
   apiKey?: string | undefined;
@@ -265,13 +269,23 @@ export async function apiUploadRequest(
   companyIdOverride?: string
 ): Promise<void> {
   const apiOrigin = new URL(getApiUrl()).origin;
-  const targetUrl = new URL(uploadUrl, `${apiOrigin}/`);
+  let targetUrl = new URL(uploadUrl, `${apiOrigin}/`);
   if (targetUrl.origin !== apiOrigin) {
-    throw new McpApiError(
-      "The image upload URL did not point to the configured Sequenzy API.",
-      500,
-      undefined,
-      "INVALID_UPLOAD_URL"
+    if (!AUTHENTICATED_IMAGE_UPLOAD_PATHS.has(targetUrl.pathname)) {
+      throw new McpApiError(
+        "The image upload URL did not point to the configured Sequenzy API.",
+        500,
+        undefined,
+        "INVALID_UPLOAD_URL"
+      );
+    }
+
+    // The authenticated API response is trusted, but its absolute URL can use
+    // stale deployment or proxy metadata. Keep its scoped path and query while
+    // pinning credentials to the API origin configured by this MCP process.
+    targetUrl = new URL(
+      `${targetUrl.pathname}${targetUrl.search}`,
+      `${apiOrigin}/`
     );
   }
 
