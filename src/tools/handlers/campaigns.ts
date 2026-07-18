@@ -348,6 +348,7 @@ export async function handleCampaignTools(
         "previewText",
         "html",
         "blocks",
+        "confirmLiveChange",
       ]);
       const unsupportedAbTestUpdateKeys = Object.keys(args).filter(
         (key) => !allowedAbTestUpdateKeys.has(key)
@@ -355,11 +356,20 @@ export async function handleCampaignTools(
 
       if (unsupportedAbTestUpdateKeys.length > 0) {
         throw new Error(
-          `\`update_ab_test_variant\` accepts only \`subject\`, \`previewText\`, \`html\`, and \`blocks\` update fields. Unsupported field${unsupportedAbTestUpdateKeys.length === 1 ? "" : "s"}: ${unsupportedAbTestUpdateKeys.map((key) => `\`${key}\``).join(", ")}.`
+          `\`update_ab_test_variant\` accepts only \`subject\`, \`previewText\`, \`html\`, \`blocks\`, and \`confirmLiveChange\` fields. Unsupported field${unsupportedAbTestUpdateKeys.length === 1 ? "" : "s"}: ${unsupportedAbTestUpdateKeys.map((key) => `\`${key}\``).join(", ")}.`
         );
       }
 
       validateHtmlOrBlocksArgs("update_ab_test_variant", args);
+
+      if (
+        args.confirmLiveChange !== undefined &&
+        typeof args.confirmLiveChange !== "boolean"
+      ) {
+        throw new Error(
+          "`confirmLiveChange` must be a boolean when calling `update_ab_test_variant`."
+        );
+      }
 
       if (
         args.subject === undefined &&

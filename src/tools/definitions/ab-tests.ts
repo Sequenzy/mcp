@@ -124,7 +124,7 @@ export const abTestToolDefinitions: Tool[] = [
   {
     name: "update_ab_test_variant",
     description:
-      "Update a draft A/B test variant. Provide at least one of subject, previewText, html, or blocks. Use either html or blocks, not both.",
+      "Update a draft A/B test variant. Provide at least one of subject, previewText, html, or blocks. Use either html or blocks, not both. Sequence tests whose parent sequence is active require confirmLiveChange.",
     inputSchema: {
       type: "object",
       properties: {
@@ -160,6 +160,11 @@ export const abTestToolDefinitions: Tool[] = [
           items: {
             type: "object",
           },
+        },
+        confirmLiveChange: {
+          type: "boolean",
+          description:
+            "Required as true when the A/B test belongs to an active sequence, because the content change immediately affects live rotation.",
         },
       },
       required: ["abTestId", "variantId"],

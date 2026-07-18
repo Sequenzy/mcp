@@ -985,6 +985,7 @@ describe("A/B test tools", () => {
     expect(inputSchema?.properties).toHaveProperty("previewText");
     expect(inputSchema?.properties).toHaveProperty("html");
     expect(inputSchema?.properties).toHaveProperty("blocks");
+    expect(inputSchema?.properties).toHaveProperty("confirmLiveChange");
   });
 
   it("passes sequence filters through to the A/B test list API", async () => {
@@ -1296,6 +1297,7 @@ describe("A/B test tools", () => {
       abTestId: "ab_123",
       variantId: "var_b",
       subject: "New subject",
+      confirmLiveChange: true,
     });
 
     expect(mockApiRequest).toHaveBeenCalledWith(
@@ -1306,6 +1308,7 @@ describe("A/B test tools", () => {
         abTestId: "ab_123",
         variantId: "var_b",
         subject: "New subject",
+        confirmLiveChange: true,
       },
       "company_123"
     );
