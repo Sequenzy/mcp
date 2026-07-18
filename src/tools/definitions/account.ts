@@ -126,7 +126,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "update_company",
     description:
-      "Edit company product info, brand context, reply-tracking settings, and account-wide sending identity defaults. fromEmail must use a verified sending domain; replyTo may be any valid mailbox. Missing sender/reply profiles are created automatically. Provide at least one editable field.",
+      "Edit company product info, brand context, the default email theme, reply-tracking settings, and account-wide sending identity defaults. fromEmail must use a verified sending domain; replyTo may be any valid mailbox. Missing sender/reply profiles are created automatically. Provide at least one editable field.",
     inputSchema: {
       type: "object",
       properties: {
@@ -226,6 +226,64 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
         fontFamily: {
           type: "string",
           description: "Default email font family stack.",
+        },
+        emailTheme: {
+          type: ["object", "null"],
+          description:
+            "Default email theme applied to campaigns, sequences, and transactional email. Partial update: omitted fields keep their current value (or the preset default). Pass null to reset to the platform default theme. Numeric values are clamped to supported ranges.",
+          properties: {
+            presetId: {
+              type: "string",
+              description:
+                "Theme preset to base the theme on: default, soft, editorial, or bold.",
+            },
+            colors: {
+              type: "object",
+              description: "6-digit hex colors.",
+              properties: {
+                primary: { type: "string" },
+                background: { type: "string" },
+                surface: { type: "string" },
+                text: { type: "string" },
+                mutedText: { type: "string" },
+                heading: { type: "string" },
+                border: { type: "string" },
+                link: { type: "string" },
+              },
+              additionalProperties: false,
+            },
+            typography: {
+              type: "object",
+              description: "Numeric type settings.",
+              properties: {
+                baseFontSize: { type: "number" },
+                leadFontSize: { type: "number" },
+                baseLineHeight: { type: "number" },
+                heading1Size: { type: "number" },
+                heading2Size: { type: "number" },
+                heading3Size: { type: "number" },
+                buttonFontSize: { type: "number" },
+              },
+              additionalProperties: false,
+            },
+            layout: {
+              type: "object",
+              description: "Numeric layout settings.",
+              properties: {
+                contentWidth: { type: "number" },
+                containerPaddingX: { type: "number" },
+                containerPaddingY: { type: "number" },
+                blockSpacing: { type: "number" },
+                baseRadius: { type: "number" },
+                sectionPadding: { type: "number" },
+                buttonPaddingX: { type: "number" },
+                buttonPaddingY: { type: "number" },
+                borderedBlockPadding: { type: "number" },
+              },
+              additionalProperties: false,
+            },
+          },
+          additionalProperties: false,
         },
         emailDirection: {
           type: "string",

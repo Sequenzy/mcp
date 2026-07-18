@@ -181,6 +181,7 @@ export const COMPANY_UPDATE_FIELDS = [
   "language",
   "pricing",
   "fontFamily",
+  "emailTheme",
   "emailDirection",
   "fromEmail",
   "fromName",
@@ -273,6 +274,18 @@ export function buildUpdateCompanyBody(
   validateOptionalObjectArg("update_company", args, "brandColors");
   validateOptionalObjectArg("update_company", args, "socialLinks");
   validateOptionalObjectArg("update_company", args, "pricing");
+
+  // emailTheme is nullable: null resets the company to the platform default
+  // theme, so it cannot use validateOptionalObjectArg.
+  if (
+    args.emailTheme !== undefined &&
+    args.emailTheme !== null &&
+    !isRecord(args.emailTheme)
+  ) {
+    throw new Error(
+      "`emailTheme` must be an object or null when calling `update_company`."
+    );
+  }
   validateOptionalArrayArg("update_company", args, "valueProps");
   validateOptionalArrayArg("update_company", args, "testimonials");
 
