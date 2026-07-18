@@ -725,6 +725,7 @@ describe("update_company tool validation", () => {
     expect(updateCompanyTool).toBeDefined();
     expect(inputSchema?.additionalProperties).toBeUndefined();
     expect(inputSchema?.properties).toHaveProperty("primaryColor");
+    expect(inputSchema?.properties).toHaveProperty("emailTheme");
     expect(inputSchema?.properties).toHaveProperty("companyContext");
     expect(inputSchema?.properties).toHaveProperty("toneVoice");
     expect(inputSchema?.properties).toHaveProperty("valueProps");
@@ -777,6 +778,55 @@ describe("update_company tool validation", () => {
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain(
       "Provide at least one of `name`, `description`"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("forwards partial and null emailTheme updates", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true, company: {} });
+    const partialResult = await handleToolCall("update_company", {
+      companyId: "company_123",
+      emailTheme: {
+        presetId: "editorial",
+        colors: { mutedText: "#374151" },
+      },
+    });
+
+    expect(partialResult.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/companies/company_123",
+      {
+        emailTheme: {
+          presetId: "editorial",
+          colors: { mutedText: "#374151" },
+        },
+      }
+    );
+
+    mockApiRequest.mockResolvedValueOnce({ success: true, company: {} });
+    const resetResult = await handleToolCall("update_company", {
+      companyId: "company_123",
+      emailTheme: null,
+    });
+
+    expect(resetResult.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "PATCH",
+      "/api/v1/companies/company_123",
+      { emailTheme: null }
+    );
+  });
+
+  it("rejects non-object update_company emailTheme values", async () => {
+    const result = await handleToolCall("update_company", {
+      companyId: "company_123",
+      emailTheme: "editorial",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`emailTheme` must be an object or null"
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
   });

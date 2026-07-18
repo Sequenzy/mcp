@@ -235,7 +235,7 @@ This server currently exposes 149 MCP tools.
 | `get_app_urls`          | Build dashboard URLs for campaigns, landing pages, sequences, emails, settings, domains, and sent email details.              |
 | `create_company`        | Create a new company or brand.                                                                                                |
 | `get_company`           | Read company details, product info, brand context, localization, reply-tracking settings, and current From/Reply-To defaults. |
-| `update_company`        | Edit product info, brand context, reply-tracking settings, and account-wide From/Reply-To defaults.                           |
+| `update_company`        | Edit product info, brand context, the default email theme, reply-tracking settings, and account-wide From/Reply-To defaults.  |
 | `get_sync_rules`        | Read the company's event-to-tag rules and whether it uses the inherited platform preset.                                      |
 | `update_sync_rules`     | Replace all sync rules; pass `[]` to disable them or `null` to opt into the SaaS/ecommerce platform preset.                   |
 | `create_api_key`        | Create an API key for a company, with optional permission preset or explicit scopes.                                          |
@@ -504,6 +504,12 @@ defaults. `fromEmail` must use a configured, verified sending domain; `replyTo`
 may be any valid mailbox. `create_campaign`, `update_campaign`,
 `create_sequence`, and `update_sequence` accept the same direct-address fields
 for resource-specific overrides and create the backing profile when needed.
+
+`update_company` also manages the company's default email theme through
+`emailTheme` (`presetId`, `colors`, `typography`, `layout`). Theme updates are
+partial - omitted fields keep their current value (or the preset default) and
+numeric values are clamped to supported ranges. Pass `emailTheme: null` to
+reset the company to the platform default theme.
 
 Reply tracking is available on the same company tools. Use
 `replyTrackingEnabled`, `replyTrackingDomainMode` (`sequenzy` or `custom`), and
