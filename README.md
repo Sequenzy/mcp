@@ -194,6 +194,13 @@ For OpenClaw, Hermes, and other MCP-compatible clients, point the client at `npx
 
 Personal keys start with `seq_user_`. You can revoke them any time in the dashboard.
 
+Company keys can also be cleaned up without exposing secrets. Call
+`list_api_keys` to compare the key ID, name, non-secret prefix, permissions,
+last-use timestamp, and `isCurrent` marker, then pass the exact ID to
+`revoke_api_key`. `delete_api_key` is a compatibility alias for the same
+permanent operation. List and revoke responses never contain the plain key or
+stored key hash.
+
 ### Recover from missing API key permissions
 
 If a tool reports a missing scope such as `campaigns:read` or
@@ -210,9 +217,14 @@ connection, open `manageUrl`, create a replacement key with **Read-only**,
 reauthorize the Sequenzy connection with a preset or custom permissions that
 include the missing scopes.
 
+The AI drafting preset includes `subscribers:write`, so drafting agents can
+build a list as well as create it. Imports that apply `listIds` also need
+`lists:write`; sequence enrollment or double-opt-in delivery additionally needs
+`automations:trigger`.
+
 ## Tools
 
-This server currently exposes 144 MCP tools.
+This server currently exposes 149 MCP tools.
 
 ### Account, Companies, Setup
 
@@ -223,8 +235,13 @@ This server currently exposes 144 MCP tools.
 | `get_app_urls`          | Build dashboard URLs for campaigns, landing pages, sequences, emails, settings, domains, and sent email details.              |
 | `create_company`        | Create a new company or brand.                                                                                                |
 | `get_company`           | Read company details, product info, brand context, localization, reply-tracking settings, and current From/Reply-To defaults. |
-| `update_company`        | Edit product info, brand context, reply-tracking settings, and account-wide From/Reply-To defaults.                           |
+| `update_company`        | Edit product info, brand context, the default email theme, reply-tracking settings, and account-wide From/Reply-To defaults.  |
+| `get_sync_rules`        | Read the company's event-to-tag rules and whether it uses the inherited platform preset.                                      |
+| `update_sync_rules`     | Replace all sync rules; pass `[]` to disable them or `null` to opt into the SaaS/ecommerce platform preset.                   |
 | `create_api_key`        | Create an API key for a company, with optional permission preset or explicit scopes.                                          |
+| `list_api_keys`         | List company API keys as non-secret metadata for safe identification and cleanup.                                             |
+| `revoke_api_key`        | Permanently revoke an exact company API key by ID after checking it with `list_api_keys`.                                     |
+| `delete_api_key`        | Compatibility alias for `revoke_api_key`.                                                                                     |
 | `list_websites`         | List sending domains with stored aggregate, SPF, DKIM, and MAIL FROM status.                                                  |
 | `add_sending_domain`    | Add a sending domain and return its SPF, DKIM, MAIL FROM, and inbound DNS setup records.                                      |
 | `add_website`           | Compatibility alias for `add_sending_domain`.                                                                                 |
@@ -237,15 +254,33 @@ the returned `website.dnsRecords`, wait for DNS propagation, and then call
 `verify_sending_domain`. If verification is attempted before creation, the
 error points back to `add_sending_domain` with the requested domain.
 
+New companies start with no sync rules. The inherited preset remains available
+for SaaS/ecommerce companies by passing `null` to `update_sync_rules`; services
+and consulting companies should normally keep `[]` or define explicit rules.
+
 ### Subscribers
 
-| Tool                 | Description                                                                         |
-| -------------------- | ----------------------------------------------------------------------------------- |
-| `add_subscriber`     | Add a subscriber with native first/last name fields, attributes, tags, status, opt-in mode, and optional list IDs. |
-| `update_subscriber`  | Update native first/last name fields or attributes, and add or remove tags.          |
-| `remove_subscriber`  | Unsubscribe a subscriber or hard-delete them.                                       |
-| `get_subscriber`     | Fetch subscriber details by email or external ID.                                   |
-| `search_subscribers` | Search by query, tags, list, status, segment, or pagination.                        |
+| Tool                       | Description                                                                                                     |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `add_subscriber`           | Add one subscriber; status is creation-only, so use `update_subscriber` for an existing contact.                |
+| `create_subscriber_import` | Queue up to 5,000 full CRM records with names, IDs, phones, statuses, tags, lists, and typed custom attributes. |
+| `get_subscriber_import`    | Read progress, row outcome counts, and failure summaries for a queued import.                                   |
+| `update_subscriber`        | Update profile fields, attributes, tags, or global status; `unsubscribed` safely suppresses marketing.          |
+| `remove_subscriber`        | Unsubscribe while preserving suppression history, or permanently delete only with `hardDelete: true`.           |
+| `get_subscriber`           | Fetch subscriber details by email or external ID.                                                               |
+| `search_subscribers`       | Search by query, tags, list, status, segment, or pagination.                                                    |
+
+Use `create_subscriber_import` for CRM onboarding instead of looping over
+`add_subscriber`. One call accepts 5,000 full records and returns an asynchronous
+import ID; poll it with `get_subscriber_import`. A `completed` import can still
+contain row failures, so inspect `failedCount` and `failedReasons`. Use
+`optInMode: "confirmed"` only when consent was already verified.
+
+For compliance suppression, call `update_subscriber` with
+`status: "unsubscribed"` (or use `remove_subscriber` without `hardDelete`). Do
+not retry `add_subscriber` with a different status: status on that tool applies
+only when the contact is first created, and a mismatched skipped result is
+reported as an error.
 
 ### Products & Digital Delivery
 
@@ -273,6 +308,11 @@ use `displayWidthPercent`, `cropHeight`, `objectFit` (`cover` or `contain`), and
 `align` to standardize screenshot presentation. The returned `imageBlock` can
 be copied directly into the block array accepted by campaign, sequence,
 template, and transactional-email tools.
+
+Authenticated image bytes are always uploaded to the origin configured by
+`SEQUENZY_API_URL`, even if a reverse proxy returns an equivalent upload URL
+under another host. API credentials are never forwarded to that alternate
+origin.
 
 ```json
 {
@@ -372,15 +412,15 @@ Audiences are add-only: subscribers who later leave the segment stay in the Meta
 
 ### Templates
 
-| Tool                          | Description                                                           |
-| ----------------------------- | --------------------------------------------------------------------- |
-| `list_templates`              | List templates with localization status.                              |
-| `get_template`                | Read template details, content, and localized variants.               |
-| `create_template`             | Create templates from a prompt, HTML, or Sequenzy blocks.             |
-| `update_template`             | Update template metadata, labels, HTML, or blocks.                    |
-| `set_template_localization`   | Create or replace a caller-supplied localized variant.                |
-| `sync_template_localizations` | Queue AI translation for selected or all enabled non-primary locales. |
-| `delete_template`             | Delete a template.                                                    |
+| Tool                          | Description                                                            |
+| ----------------------------- | ---------------------------------------------------------------------- |
+| `list_templates`              | List templates with localization status.                               |
+| `get_template`                | Read template details, content, and localized variants.                |
+| `create_template`             | Create templates from a prompt, HTML, or Sequenzy blocks.              |
+| `update_template`             | Update template metadata, inbox preview text, labels, HTML, or blocks. |
+| `set_template_localization`   | Create or replace a caller-supplied localized variant.                 |
+| `sync_template_localizations` | Queue AI translation for selected or all enabled non-primary locales.  |
+| `delete_template`             | Delete a template.                                                     |
 
 For net-new content requested in natural language, pass `prompt` so Sequenzy
 generates branded native blocks server-side. Use `blocks` only for finished
@@ -409,14 +449,14 @@ even when automatic on-save localization is disabled.
 | `delete_ab_test_variant` | Delete a draft A/B test variant.                               |
 | `delete_ab_test`         | Delete an A/B test.                                            |
 
-Use `get_ab_test` to discover variant IDs before editing. Variant updates accept either `html` or `blocks`, not both.
+Use `get_ab_test` to discover variant IDs before editing. Variant updates accept either `html` or `blocks`, not both. `create_ab_test` accepts exactly one of `campaignId` or `automationNodeId`; the latter requires one to four extra variants and converts a sequence email node into `action_ab_test` with typed `testType` and `winnerThreshold` settings. Pass `confirmLiveChange: true` when converting a node in an active sequence. Together with control A, an A/B test supports at most five variants. Sequence variants receive independent email templates and can be edited, added, or removed while the test is a draft; when the parent sequence is active, `update_ab_test_variant`, `add_ab_test_variant`, and `delete_ab_test_variant` also require `confirmLiveChange: true` because they immediately change the live rotation.
 
 ### Campaigns
 
 | Tool                             | Description                                                                               |
 | -------------------------------- | ----------------------------------------------------------------------------------------- |
-| `list_campaigns`                 | List campaigns, optionally filtered by status.                                            |
-| `get_campaign`                   | Get campaign details and stats.                                                           |
+| `list_campaigns`                 | List campaigns by status, including reviewer feedback for rejected campaigns.             |
+| `get_campaign`                   | Get details, stats, and reviewer feedback for a rejected campaign.                        |
 | `get_email_send`                 | Inspect a queued, test, sent, suppressed, or failed delivery by durable email-send ID.    |
 | `get_recipient_suppression`      | Check local and regional SES suppression for one exact recipient.                         |
 | `remove_recipient_suppression`   | Remove stale bounce suppression for a company-associated recipient.                       |
@@ -451,11 +491,30 @@ subscription/SMS status, and Stripe or commerce purchases. Live-data
 conditions use the same field values and operators as segment filters;
 recipients without a stored subscriber match use the OTHERWISE branch.
 
+Core block shapes are `{ "type": "heading", "content": "Title", "level": 1
+}`, `{ "type": "text", "content": "<p>Copy</p>" }`, `{ "type": "button",
+"text": "Book a call", "url": "https://example.com", "variant": "primary" }
+`, and `{ "type": "image", "src": "https://...", "alt": "Description",
+"width": 100, "widthType": "percent" }`. Buttons also accept `content` as an
+alias for `text` and default to the `primary` variant. Image `widthType` accepts
+`percent` or `px`.
+
+Raw `html` is stored as one opaque block. It preserves supplied markup but does
+not add a company logo, native branded sections, or theme-driven block design.
+Use `prompt` for a new branded draft or `blocks` for editor-native design; MCP
+authoring results include a warning when raw HTML is used.
+
 Use `update_company` with `fromEmail` and/or `replyTo` to set account-wide
 defaults. `fromEmail` must use a configured, verified sending domain; `replyTo`
 may be any valid mailbox. `create_campaign`, `update_campaign`,
 `create_sequence`, and `update_sequence` accept the same direct-address fields
 for resource-specific overrides and create the backing profile when needed.
+
+`update_company` also manages the company's default email theme through
+`emailTheme` (`presetId`, `colors`, `typography`, `layout`). Theme updates are
+partial - omitted fields keep their current value (or the preset default) and
+numeric values are clamped to supported ranges. Pass `emailTheme: null` to
+reset the company to the platform default theme.
 
 Reply tracking is available on the same company tools. Use
 `replyTrackingEnabled`, `replyTrackingDomainMode` (`sequenzy` or `custom`), and
@@ -523,28 +582,41 @@ Landing page content uses Sequenzy's editor-compatible JSON schema with `version
 
 ### Sequences
 
-| Tool                             | Description                                                                                  |
-| -------------------------------- | -------------------------------------------------------------------------------------------- |
-| `list_sequences`                 | List email sequences and automation status.                                                  |
-| `get_sequence`                   | Get sequence details, including nodes, edges, linked emails, blocks, and per-email format.   |
-| `create_sequence`                | Create AI-generated or explicit-step sequences with optional From/Reply-To overrides.        |
-| `update_sequence`                | Update identity, settings, enrollment, existing steps, branch logic, or insert linear steps. |
-| `update_sequence_node`           | Type-aware patch of one existing sequence node.                                              |
-| `update_sequence_nodes`          | Atomically patch multiple existing sequence nodes.                                           |
-| `insert_sequence_step`           | Insert one new email step, optionally with a delay node before it.                           |
-| `edit_sequence_graph`            | Move, reconnect, delete, or duplicate existing graph nodes, including A/B test steps.        |
-| `enable_sequence`                | Activate a sequence.                                                                         |
-| `disable_sequence`               | Freeze a sequence, blocking new enrollments and holding current recipients.                  |
-| `pause_sequence_enrollments`     | Stop new enrollments for an active sequence while current recipients continue.               |
-| `resume_sequence_enrollments`    | Reopen new enrollments for an active sequence without changing current recipients.           |
-| `enroll_subscribers_in_sequence` | Enroll up to 500 subscribers by email, subscriber ID, or both, optionally at a target node.  |
-| `cancel_sequence_enrollments`    | Stop active or waiting enrollments by subscriber or entry-event field values.                |
-| `delete_sequence`                | Delete a sequence.                                                                           |
+| Tool                                     | Description                                                                                  |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `list_sequences`                         | List sequences with dashboard status, search, label, limit, and offset filters.              |
+| `get_sequence`                           | Get sequence details, including nodes, edges, linked emails, blocks, and per-email format.   |
+| `create_sequence`                        | Create a blank dashboard draft or an AI-generated/explicit-step sequence.                    |
+| `update_sequence`                        | Update identity, settings, enrollment, existing steps, branch logic, or insert linear steps. |
+| `update_sequence_node`                   | Type-aware patch of one existing sequence node.                                              |
+| `update_sequence_nodes`                  | Atomically patch multiple existing sequence nodes.                                           |
+| `insert_sequence_step`                   | Insert any typed dashboard step, including outbound webhooks, waits, and wired branches.     |
+| `edit_sequence_graph`                    | Move, reconnect, delete, or duplicate existing graph nodes, including A/B test steps.        |
+| `enable_sequence`                        | Activate a sequence.                                                                         |
+| `disable_sequence`                       | Freeze a sequence, blocking new enrollments and holding current recipients.                  |
+| `duplicate_sequence`                     | Create an independent draft copy of the graph, emails, and sequence A/B tests.               |
+| `archive_sequence`                       | Move a sequence into the dashboard archive and stop new enrollments.                         |
+| `unarchive_sequence`                     | Restore an archived sequence as a disabled draft.                                            |
+| `list_sequence_goals`                    | List the conversion goals persisted for a sequence.                                          |
+| `create_sequence_goal`                   | Add an event or subscriber-attribute conversion goal.                                        |
+| `update_sequence_goal`                   | Update a persisted sequence conversion goal.                                                 |
+| `delete_sequence_goal`                   | Delete a persisted sequence conversion goal.                                                 |
+| `get_sequence_inbound_webhook`           | Read the endpoint and setup state for an inbound-webhook sequence.                           |
+| `configure_sequence_inbound_webhook`     | Configure field mapping, sample payload, and integration metadata.                           |
+| `rotate_sequence_inbound_webhook_secret` | Rotate an inbound sequence endpoint's secret path.                                           |
+| `pause_sequence_enrollments`             | Stop new enrollments for an active sequence while current recipients continue.               |
+| `resume_sequence_enrollments`            | Reopen new enrollments for an active sequence without changing current recipients.           |
+| `enroll_subscribers_in_sequence`         | Enroll up to 500 subscribers by email, subscriber ID, or both, optionally at a target node.  |
+| `cancel_sequence_enrollments`            | Stop active or waiting enrollments by subscriber or entry-event field values.                |
+| `delete_sequence`                        | Delete a sequence.                                                                           |
 
 Sequence creation supports:
 
+- Name-only creation for a blank, disabled trigger-to-completion draft matching the dashboard.
+- Dashboard metadata and delivery settings: `description`, `labels`, `userCancellable`, sequence BCC, and From/Reply-To identity.
 - `trigger: "segment_entered"` plus `segmentId` for saved-segment entry automations.
 - `trigger: "event_received"` plus `{{event.*}}` merge tags in subjects or body content.
+- `trigger: "inbound_webhook"` plus integration metadata for dashboard-compatible webhook entry nodes.
 - `trigger: "inactivity"` plus `eventName`, `inactiveDays`, and optional `inactivityBaseline` (`sequence_created_at` or `subscriber_created_at`).
 - `goal` for AI-generated email content.
 - `emailStyle: "visual"` or `"plain"` to choose the presentation of goal-based AI-generated emails; when omitted, the company's saved preference is used.
@@ -604,16 +676,41 @@ Number and boolean values must be literals or one standalone merge tag. Use
 `update_sequence.subscriberUpdateSteps` with an `action_update_attributes`
 node ID from `get_sequence` to replace an existing step's config.
 
-Sequence updates support `insertSteps` for adding new linear steps after a `nodeId` returned by `get_sequence`. Omit `afterNodeId` only when appending to a sequence with exactly one linear tail. `insertSteps` supports addable steps that do not require companion records, such as email, delay, tag/list actions, attribute updates, discounts, conditions, wait-for-event steps, and webhooks. Use `branch` for multi-path if/else branches; provide either `branch` or `insertSteps`, not both. Branch conditions support tag presence and absence checks with `has_tag` and `does_not_have_tag`, plus lists, saved segments, events, clicked links, and field comparisons. The `emails` and `steps` arrays only edit existing email steps by `nodeId`, `emailId`, or array order; use `insertSteps` to create new steps and include a step-level `delay`, `delayMs`, or `waitUntil` when the inserted email needs a timer. `waitUntil` accepts a date field from the trigger event plus optional `offset`, `direction` (`before` or `after`), and `missingAction` (`continue` or `exit`). For active sequences, pass `confirmStructuralChange: true` with `insertSteps` or `branch` only after confirming the live-flow impact.
+Sequence updates support `insertSteps` for adding new linear steps after a `nodeId` returned by `get_sequence`. Omit `afterNodeId` only when appending to a sequence with exactly one linear tail. `insertSteps` supports addable steps that do not require companion records, such as email, delay, tag/list actions, attribute updates, discounts, conditions, wait-for-event steps, and webhooks. Use `branch` for multi-path if/else branches; provide either `branch` or `insertSteps`, not both. Branch conditions support tag presence and absence checks with `has_tag` and `does_not_have_tag`, plus lists, saved segments, events, clicked links, and field comparisons. Each branch path may provide new `steps`, an existing `targetNodeId`, or both; the fallback uses `elseSteps` and/or `elseTargetNodeId`. A target can be the completion node returned by `get_sequence`, so one atomic request can route replies to completion and Else to an existing follow-up. The `emails` and `steps` arrays only edit existing email steps by `nodeId`, `emailId`, or array order; use `insertSteps` to create new steps and include a step-level `delay`, `delayMs`, or `waitUntil` when the inserted email needs a timer. `waitUntil` accepts a date field from the trigger event plus optional `offset`, `direction` (`before` or `after`), and `missingAction` (`continue` or `exit`). For active sequences, pass `confirmStructuralChange: true` with `insertSteps` or `branch` only after confirming the live-flow impact.
+
+`insert_sequence_step` exposes every companion-record-free dashboard step directly: email, SMS, delay, discount, subscriber update, tag/list action, outbound webhook, condition, wait, and branch. Outbound webhooks accept `url`, `method` (`POST` or `GET`), and string-valued `headers`. Email steps support transactional mode, per-step identity, and CC/BCC delivery settings. For a wait gate, set
+`type: "logic_wait_for_event"` with `eventName`, optional `timeoutDays` (1-365),
+and `timeoutAction` (`continue` or `exit`). For a branch, set
+`type: "logic_branch"`, provide typed `branches`, and wire their targets:
+
+```json
+{
+  "sequenceId": "seq_123",
+  "type": "logic_branch",
+  "afterNodeId": "node_email_1",
+  "branches": [
+    {
+      "id": "replied",
+      "conditionType": "event_received",
+      "eventName": "email.replied",
+      "activityScope": "this_sequence",
+      "targetNodeId": "node_complete"
+    }
+  ],
+  "elseTargetNodeId": "node_email_2"
+}
+```
 
 Each linked email returned by `get_sequence` includes its effective
 `emailPreset` (`branded` or `minimal`), matching **Style > Format** in the
 dashboard. Set `emailPreset` on an `emails`/`steps` item, or in an
 `action_email` node's `changes`, to change only that linked email without
 changing the company theme. This applies the same format transformation as the
-dashboard to native Sequenzy blocks. Raw HTML emails return `null` for
-`emailPreset`, do not support format changes, and cannot combine `emailPreset`
-with `html` or `htmlContent`.
+dashboard to native Sequenzy blocks, including emails that contain supported
+custom HTML blocks. Emails stored entirely as one standalone raw HTML block
+return `null` for `emailPreset` and do not support format changes.
+`emailPreset` cannot be combined with `html` or `htmlContent` because those
+fields replace the entire email with standalone raw HTML.
 
 Use `update_sequence_node` for a focused in-place edit, or
 `update_sequence_nodes` when several node patches must commit atomically. Call
@@ -684,7 +781,9 @@ For a direct send, pass `to`, `subject`, and `html`; the MCP server maps `html`
 to the transactional API's `body` field. For a saved transactional email, pass
 its API slug through the compatibility-named `templateId` field instead.
 `send_email` variables support nested arrays for repeat blocks, such as
-`{ "event": { "items": [...] } }`.
+`{ "event": { "items": [...] } }`. When the recipient matches a stored
+subscriber by external ID or email, saved first and last names fill omitted name
+variables automatically. Explicit values, including blanks, take precedence.
 
 ### Analytics
 

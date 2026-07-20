@@ -149,17 +149,111 @@ describe("subscriber MCP tools", () => {
     );
   });
 
-  it("updates native firstName/lastName fields on update_subscriber", async () => {
-    mockApiRequest
-      .mockResolvedValueOnce({
-        success: true,
-        subscriber: {
-          email: "detail@example.com",
-          tags: [],
-          customAttributes: null,
+  it("reports when add_subscriber cannot apply an existing contact's requested status", async () => {
+    mockApiRequest.mockResolvedValue({
+      success: true,
+      subscriber: {
+        email: "existing@example.com",
+        status: "active",
+        created: false,
+        updated: false,
+        skipped: true,
+      },
+    });
+
+    const result = await handleToolCall("add_subscriber", {
+      email: "existing@example.com",
+      status: "unsubscribed",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Use update_subscriber to change an existing contact's status"
+    );
+  });
+
+  it("queues full CRM records with create_subscriber_import", async () => {
+    mockApiRequest.mockResolvedValue({
+      success: true,
+      import: { id: "import_123", status: "running" },
+    });
+
+    const result = await handleToolCall("create_subscriber_import", {
+      companyId: "comp_123",
+      fileName: "copper-export.csv",
+      duplicateStrategy: "merge",
+      listIds: ["list_123"],
+      optInMode: "confirmed",
+      subscribers: [
+        {
+          email: "coach@example.com",
+          externalId: "copper-23",
+          firstName: "Ari",
+          lastName: "Tan",
+          tags: ["copper"],
+          customAttributes: { source: "Copper" },
         },
-      })
-      .mockResolvedValueOnce({ success: true });
+      ],
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/subscribers/imports",
+      {
+        fileName: "copper-export.csv",
+        duplicateStrategy: "merge",
+        listIds: ["list_123"],
+        optInMode: "confirmed",
+        subscribers: [
+          {
+            email: "coach@example.com",
+            externalId: "copper-23",
+            firstName: "Ari",
+            lastName: "Tan",
+            tags: ["copper"],
+            customAttributes: { source: "Copper" },
+          },
+        ],
+      },
+      "comp_123"
+    );
+  });
+
+  it("gets subscriber import progress", async () => {
+    mockApiRequest.mockResolvedValue({
+      success: true,
+      import: { id: "import_123", status: "completed" },
+    });
+
+    const result = await handleToolCall("get_subscriber_import", {
+      companyId: "comp_123",
+      importId: "import/123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/subscribers/imports/import%2F123",
+      undefined,
+      "comp_123"
+    );
+  });
+
+  it("rejects malformed subscriber import records before calling the API", async () => {
+    const result = await handleToolCall("create_subscriber_import", {
+      subscribers: [{ firstName: "Missing email" }],
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Subscriber record 0 must include a non-empty email string"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("updates native firstName/lastName fields on update_subscriber", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true });
 
     await handleToolCall("update_subscriber", {
       email: "detail@example.com",
@@ -167,12 +261,70 @@ describe("subscriber MCP tools", () => {
       lastName: "",
     });
 
-    expect(mockApiRequest.mock.calls).toHaveLength(2);
-    expect(mockApiRequest.mock.calls[1]?.[0]).toBe("PATCH");
-    expect(mockApiRequest.mock.calls[1]?.[2]).toEqual({
+    expect(mockApiRequest.mock.calls).toHaveLength(1);
+    expect(mockApiRequest.mock.calls[0]?.[0]).toBe("PATCH");
+    expect(mockApiRequest.mock.calls[0]?.[2]).toEqual({
       firstName: "Grace",
       lastName: "",
     });
+  });
+
+  it("updates subscriber status without requiring a profile read", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      subscriber: { email: "suppress@example.com", status: "unsubscribed" },
+    });
+
+    const result = await handleToolCall("update_subscriber", {
+      companyId: "comp_123",
+      email: "suppress@example.com",
+      status: "unsubscribed",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledTimes(1);
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/subscribers/suppress%40example.com",
+      { status: "unsubscribed" },
+      "comp_123"
+    );
+  });
+
+  it("keeps status when updating tags on a subscriber", async () => {
+    mockApiRequest
+      .mockResolvedValueOnce({
+        success: true,
+        subscriber: {
+          email: "detail@example.com",
+          tags: ["lead"],
+          customAttributes: null,
+        },
+      })
+      .mockResolvedValueOnce({ success: true });
+
+    await handleToolCall("update_subscriber", {
+      email: "detail@example.com",
+      status: "unsubscribed",
+      addTags: ["lost-to-competitor"],
+    });
+
+    expect(mockApiRequest.mock.calls).toHaveLength(2);
+    expect(mockApiRequest.mock.calls[1]?.[2]).toEqual({
+      status: "unsubscribed",
+      tags: ["lead", "lost-to-competitor"],
+    });
+  });
+
+  it("rejects an invalid subscriber status before making an API request", async () => {
+    const result = await handleToolCall("update_subscriber", {
+      email: "detail@example.com",
+      status: "suppressed",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("must be one of");
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
   it("merges existing custom attributes when updating a subscriber", async () => {
@@ -250,6 +402,9 @@ describe("subscriber MCP tools", () => {
     expect(mockApiRequest.mock.calls[0]?.[1]).toBe(
       "/api/v1/subscribers/soft%40example.com"
     );
+    expect(mockApiRequest.mock.calls[0]?.[2]).toEqual({
+      status: "unsubscribed",
+    });
     expect(mockApiRequest.mock.calls[1]?.[0]).toBe("DELETE");
     expect(mockApiRequest.mock.calls[1]?.[1]).toBe(
       "/api/v1/subscribers/hard%40example.com"

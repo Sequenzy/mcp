@@ -126,7 +126,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "update_company",
     description:
-      "Edit company product info, brand context, reply-tracking settings, and account-wide sending identity defaults. fromEmail must use a verified sending domain; replyTo may be any valid mailbox. Missing sender/reply profiles are created automatically. Provide at least one editable field.",
+      "Edit company product info, brand context, the default email theme, reply-tracking settings, and account-wide sending identity defaults. fromEmail must use a verified sending domain; replyTo may be any valid mailbox. Missing sender/reply profiles are created automatically. Provide at least one editable field.",
     inputSchema: {
       type: "object",
       properties: {
@@ -226,6 +226,64 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
         fontFamily: {
           type: "string",
           description: "Default email font family stack.",
+        },
+        emailTheme: {
+          type: ["object", "null"],
+          description:
+            "Default email theme applied to campaigns, sequences, and transactional email. Partial update: omitted fields keep their current value (or the preset default). Pass null to reset to the platform default theme. Numeric values are clamped to supported ranges.",
+          properties: {
+            presetId: {
+              type: "string",
+              description:
+                "Theme preset to base the theme on: default, soft, editorial, or bold.",
+            },
+            colors: {
+              type: "object",
+              description: "6-digit hex colors.",
+              properties: {
+                primary: { type: "string" },
+                background: { type: "string" },
+                surface: { type: "string" },
+                text: { type: "string" },
+                mutedText: { type: "string" },
+                heading: { type: "string" },
+                border: { type: "string" },
+                link: { type: "string" },
+              },
+              additionalProperties: false,
+            },
+            typography: {
+              type: "object",
+              description: "Numeric type settings.",
+              properties: {
+                baseFontSize: { type: "number" },
+                leadFontSize: { type: "number" },
+                baseLineHeight: { type: "number" },
+                heading1Size: { type: "number" },
+                heading2Size: { type: "number" },
+                heading3Size: { type: "number" },
+                buttonFontSize: { type: "number" },
+              },
+              additionalProperties: false,
+            },
+            layout: {
+              type: "object",
+              description: "Numeric layout settings.",
+              properties: {
+                contentWidth: { type: "number" },
+                containerPaddingX: { type: "number" },
+                containerPaddingY: { type: "number" },
+                blockSpacing: { type: "number" },
+                baseRadius: { type: "number" },
+                sectionPadding: { type: "number" },
+                buttonPaddingX: { type: "number" },
+                buttonPaddingY: { type: "number" },
+                borderedBlockPadding: { type: "number" },
+              },
+              additionalProperties: false,
+            },
+          },
+          additionalProperties: false,
         },
         emailDirection: {
           type: "string",
@@ -346,7 +404,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "get_sync_rules",
     description:
-      "Get the company's sync rules: the automatic tag changes applied when events fire (e.g. order placed -> add a tag). Returns the effective rules plus isDefault, which is true while the company still uses the platform defaults.",
+      "Get the company's sync rules: the automatic tag changes applied when events fire (e.g. order placed -> add a tag). New companies start with no rules. Returns the effective rules plus isDefault, which is true when the company has explicitly opted into the inherited SaaS/ecommerce platform preset.",
     inputSchema: {
       type: "object",
       properties: {
@@ -362,7 +420,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "update_sync_rules",
     description:
-      "Replace the company's sync rules. Pass the FULL rule set (fetch with get_sync_rules first and edit it - this is not a partial update), or null to reset to the platform defaults. Each rule: { triggerEvent, actions: { addTags, removeTags }, conditions? }. Conditions support requiresTags, requiresNotTags, and purchasedProduct ({ tags?, collectionIds?, productTypes?, vendors? }) which matches products on commerce events - e.g. tag buyers of products carrying a given product tag.",
+      "Replace the company's sync rules. Pass the FULL rule set (fetch with get_sync_rules first and edit it - this is not a partial update), [] to disable rules, or null to opt into the inherited SaaS/ecommerce platform preset. Each rule: { triggerEvent, actions: { addTags, removeTags }, conditions? }. Conditions support requiresTags, requiresNotTags, and purchasedProduct ({ tags?, collectionIds?, productTypes?, vendors? }) which matches products on commerce events - e.g. tag buyers of products carrying a given product tag.",
     inputSchema: {
       type: "object",
       properties: {
@@ -374,7 +432,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
         syncRules: {
           type: ["array", "null"],
           description:
-            "Full replacement rule set, or null to reset to the platform defaults.",
+            "Full replacement rule set. Use [] to disable sync rules, or null to opt into the inherited SaaS/ecommerce platform preset.",
           items: {
             type: "object",
             properties: {
@@ -469,6 +527,59 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
         },
       },
       required: ["companyId"],
+    },
+  },
+  {
+    name: "list_api_keys",
+    description:
+      "List company-scoped API keys as non-secret metadata. Returns IDs, names, prefixes, permissions, usage timestamps, and whether each key is the active credential. It never returns a plain key or stored key hash. Use this before revoke_api_key or delete_api_key to identify the exact unused key.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description: "Company ID whose API keys should be listed",
+        },
+      },
+      required: ["companyId"],
+    },
+  },
+  {
+    name: "revoke_api_key",
+    description:
+      "Permanently revoke a company-scoped API key by ID. The response contains non-secret metadata only. Call list_api_keys first and compare the ID, name, prefix, and isCurrent flag because revoking a key cannot be undone and may invalidate the active credential.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description: "Company ID that owns the API key",
+        },
+        apiKeyId: {
+          type: "string",
+          description: "Exact API key ID returned by list_api_keys",
+        },
+      },
+      required: ["companyId", "apiKeyId"],
+    },
+  },
+  {
+    name: "delete_api_key",
+    description:
+      "Compatibility alias for revoke_api_key. Permanently delete a company-scoped API key by ID and return non-secret metadata only. Call list_api_keys first to verify the exact target.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description: "Company ID that owns the API key",
+        },
+        apiKeyId: {
+          type: "string",
+          description: "Exact API key ID returned by list_api_keys",
+        },
+      },
+      required: ["companyId", "apiKeyId"],
     },
   },
   {

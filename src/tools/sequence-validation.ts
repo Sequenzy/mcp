@@ -210,7 +210,450 @@ export function buildSequenceGraphEditBody(
 export function buildInsertSequenceStepBody(
   args: Record<string, unknown>
 ): Record<string, unknown> {
-  const isSmsStep = args.type === "sms";
+  const stepType = optionalString(args, "type") ?? "email";
+  const allowedStepTypes = new Set([
+    "email",
+    "sms",
+    "delay",
+    "create_discount",
+    "update_subscriber",
+    "condition",
+    "add_tag",
+    "remove_tag",
+    "add_to_list",
+    "remove_from_list",
+    "webhook",
+    "logic_wait_for_event",
+    "logic_branch",
+  ]);
+  if (!allowedStepTypes.has(stepType)) {
+    throw new Error(
+      "`type` is not a supported dashboard sequence step when calling `insert_sequence_step`."
+    );
+  }
+
+  if (stepType === "logic_wait_for_event") {
+    const eventName = requiredString("insert_sequence_step", args, "eventName");
+    const timeoutDaysValue = args.timeoutDays;
+    const timeoutDays = timeoutDaysValue === undefined ? 7 : timeoutDaysValue;
+    if (
+      typeof timeoutDays !== "number" ||
+      !Number.isInteger(timeoutDays) ||
+      timeoutDays < 1 ||
+      timeoutDays > 365
+    ) {
+      throw new Error(
+        "`timeoutDays` must be a whole number from 1 to 365 when inserting `logic_wait_for_event` with `insert_sequence_step`."
+      );
+    }
+    const timeoutAction = optionalString(args, "timeoutAction") ?? "continue";
+    if (timeoutAction !== "continue" && timeoutAction !== "exit") {
+      throw new Error(
+        "`timeoutAction` must be `continue` or `exit` when inserting `logic_wait_for_event` with `insert_sequence_step`."
+      );
+    }
+
+    const insertSteps: Record<string, unknown> = {
+      steps: [
+        {
+          nodeType: "logic_wait_for_event",
+          config: {
+            label: optionalString(args, "label") ?? `Wait for ${eventName}`,
+            eventName,
+            timeoutDays,
+            timeoutAction,
+          },
+        },
+      ],
+    };
+    const afterNodeId = optionalString(args, "afterNodeId");
+    if (afterNodeId) {
+      insertSteps.afterNodeId = afterNodeId;
+    }
+
+    return {
+      ...(args.confirmStructuralChange !== undefined && {
+        confirmStructuralChange: args.confirmStructuralChange,
+      }),
+      insertSteps,
+    };
+  }
+
+  if (stepType === "logic_branch") {
+    const afterNodeId = requiredString(
+      "insert_sequence_step",
+      args,
+      "afterNodeId"
+    );
+    if (!Array.isArray(args.branches) || args.branches.length === 0) {
+      throw new Error(
+        "`branches` must contain at least one typed condition when inserting `logic_branch` with `insert_sequence_step`."
+      );
+    }
+
+    const conditionTypes = new Set([
+      "has_tag",
+      "does_not_have_tag",
+      "in_list",
+      "in_segment",
+      "event_received",
+      "link_clicked",
+      "field_equals",
+      "field_contains",
+      "field_greater_than",
+      "field_less_than",
+      "has_phone",
+      "sms_subscribed",
+    ]);
+    const branchKeys = [
+      "id",
+      "label",
+      "conditionType",
+      "tagName",
+      "tagId",
+      "listId",
+      "segmentId",
+      "segmentName",
+      "eventName",
+      "linkUrl",
+      "activityScope",
+      "fieldName",
+      "fieldValue",
+      "targetNodeId",
+      "steps",
+    ] as const;
+    const allowEmptyPaths = args.allowEmptyPaths === true;
+    const branches = args.branches.map((value, index) => {
+      if (!isRecord(value)) {
+        throw new Error(
+          `\`branches[${index}]\` must be an object when calling \`insert_sequence_step\`.`
+        );
+      }
+      const conditionType = requiredString(
+        "insert_sequence_step",
+        value,
+        "conditionType"
+      );
+      if (!conditionTypes.has(conditionType)) {
+        throw new Error(
+          `\`branches[${index}].conditionType\` is not supported when calling \`insert_sequence_step\`.`
+        );
+      }
+      const pathLabel = `branches[${index}]`;
+      if (
+        (conditionType === "has_tag" ||
+          conditionType === "does_not_have_tag") &&
+        !optionalString(value, "tagId") &&
+        !optionalString(value, "tagName")
+      ) {
+        throw new Error(
+          `\`${pathLabel}\` must provide \`tagId\` or \`tagName\` for ${conditionType} when calling \`insert_sequence_step\`.`
+        );
+      }
+      if (conditionType === "in_list" && !optionalString(value, "listId")) {
+        throw new Error(
+          `\`${pathLabel}.listId\` is required for in_list when calling \`insert_sequence_step\`.`
+        );
+      }
+      if (
+        conditionType === "in_segment" &&
+        !optionalString(value, "segmentId")
+      ) {
+        throw new Error(
+          `\`${pathLabel}.segmentId\` is required for in_segment when calling \`insert_sequence_step\`.`
+        );
+      }
+      if (
+        conditionType === "event_received" &&
+        !optionalString(value, "eventName")
+      ) {
+        throw new Error(
+          `\`${pathLabel}.eventName\` is required for event_received when calling \`insert_sequence_step\`.`
+        );
+      }
+      if (
+        conditionType.startsWith("field_") &&
+        (!optionalString(value, "fieldName") ||
+          !optionalString(value, "fieldValue"))
+      ) {
+        throw new Error(
+          `\`${pathLabel}\` must provide \`fieldName\` and \`fieldValue\` for ${conditionType} when calling \`insert_sequence_step\`.`
+        );
+      }
+      if (value.steps !== undefined && !Array.isArray(value.steps)) {
+        throw new Error(
+          `\`branches[${index}].steps\` must be an array when calling \`insert_sequence_step\`.`
+        );
+      }
+      const targetNodeId = optionalString(value, "targetNodeId");
+      const hasSteps = Array.isArray(value.steps) && value.steps.length > 0;
+      if (!targetNodeId && !hasSteps && !allowEmptyPaths) {
+        throw new Error(
+          `\`branches[${index}]\` must provide \`targetNodeId\` or non-empty \`steps\` when inserting \`logic_branch\` with \`insert_sequence_step\`.`
+        );
+      }
+
+      return Object.fromEntries(
+        branchKeys.flatMap((key) =>
+          value[key] === undefined ? [] : [[key, value[key]]]
+        )
+      );
+    });
+
+    if (args.elseSteps !== undefined && !Array.isArray(args.elseSteps)) {
+      throw new Error(
+        "`elseSteps` must be an array when calling `insert_sequence_step`."
+      );
+    }
+    const elseTargetNodeId = optionalString(args, "elseTargetNodeId");
+    const hasElseSteps =
+      Array.isArray(args.elseSteps) && args.elseSteps.length > 0;
+    if (!elseTargetNodeId && !hasElseSteps && !allowEmptyPaths) {
+      throw new Error(
+        "Provide `elseTargetNodeId` or non-empty `elseSteps` when inserting `logic_branch` with `insert_sequence_step`."
+      );
+    }
+
+    return {
+      ...(args.confirmStructuralChange !== undefined && {
+        confirmStructuralChange: args.confirmStructuralChange,
+      }),
+      branch: {
+        afterNodeId,
+        ...(optionalString(args, "label")
+          ? { label: optionalString(args, "label") }
+          : {}),
+        branches,
+        ...(Array.isArray(args.elseSteps) ? { elseSteps: args.elseSteps } : {}),
+        ...(elseTargetNodeId ? { elseTargetNodeId } : {}),
+        ...(allowEmptyPaths ? { allowEmptyPaths: true } : {}),
+      },
+    };
+  }
+
+  if (
+    stepType === "delay" ||
+    stepType === "create_discount" ||
+    stepType === "update_subscriber" ||
+    stepType === "condition" ||
+    stepType === "add_tag" ||
+    stepType === "remove_tag" ||
+    stepType === "add_to_list" ||
+    stepType === "remove_from_list" ||
+    stepType === "webhook"
+  ) {
+    let step: Record<string, unknown>;
+    if (stepType === "delay") {
+      step = { type: "delay" };
+      for (const key of ["delay", "delayMs", "waitUntil"]) {
+        if (args[key] !== undefined) step[key] = args[key];
+      }
+      if (
+        step.delay === undefined &&
+        step.delayMs === undefined &&
+        step.waitUntil === undefined
+      ) {
+        throw new Error(
+          "Provide `delay`, `delayMs`, or `waitUntil` when inserting a delay step."
+        );
+      }
+    } else if (stepType === "create_discount") {
+      step = { type: "create_discount" };
+      for (const key of [
+        "discount",
+        "label",
+        "provider",
+        "discountType",
+        "percentOff",
+        "amountOff",
+        "currency",
+        "duration",
+        "durationInMonths",
+        "appliesToAllPlans",
+        "planIds",
+        "codePrefix",
+        "maxRedemptions",
+        "lockToSubscriber",
+        "expiresAt",
+        "expiresInHours",
+      ]) {
+        if (args[key] !== undefined) step[key] = args[key];
+      }
+    } else if (stepType === "update_subscriber") {
+      if (!isRecord(args.config)) {
+        throw new Error(
+          "`config` is required when inserting an update_subscriber step."
+        );
+      }
+      step = {
+        type: "update_subscriber",
+        nodeType: "action_update_attributes",
+        config: args.config,
+      };
+    } else if (stepType === "webhook") {
+      const method = optionalString(args, "method") ?? "POST";
+      if (method !== "POST" && method !== "GET") {
+        throw new Error(
+          "`method` must be `POST` or `GET` when inserting a webhook step."
+        );
+      }
+      if (
+        args.headers !== undefined &&
+        (!isRecord(args.headers) ||
+          Object.values(args.headers).some(
+            (value) => typeof value !== "string"
+          ))
+      ) {
+        throw new Error(
+          "`headers` must be an object with string values when inserting a webhook step."
+        );
+      }
+      step = {
+        type: "webhook",
+        nodeType: "action_webhook",
+        config: {
+          label: optionalString(args, "label") ?? "Webhook",
+          url: requiredString("insert_sequence_step", args, "url"),
+          method,
+          ...(args.headers !== undefined ? { headers: args.headers } : {}),
+        },
+      };
+    } else if (stepType === "condition") {
+      const conditionType = requiredString(
+        "insert_sequence_step",
+        args,
+        "conditionType"
+      );
+      const allowedConditionTypes = new Set([
+        "has_tag",
+        "does_not_have_tag",
+        "in_list",
+        "in_segment",
+        "event_received",
+        "link_clicked",
+        "field_equals",
+        "field_contains",
+        "field_greater_than",
+        "field_less_than",
+        "has_phone",
+        "sms_subscribed",
+      ]);
+      if (!allowedConditionTypes.has(conditionType)) {
+        throw new Error(
+          "`conditionType` is not supported for condition steps."
+        );
+      }
+      if (
+        (conditionType === "has_tag" ||
+          conditionType === "does_not_have_tag") &&
+        !optionalString(args, "tagId") &&
+        !optionalString(args, "tagName")
+      ) {
+        throw new Error(
+          "Provide `tagId` or `tagName` for this condition step."
+        );
+      }
+      if (conditionType === "in_list" && !optionalString(args, "listId")) {
+        throw new Error("`listId` is required for an in_list condition.");
+      }
+      if (
+        conditionType === "in_segment" &&
+        !optionalString(args, "segmentId")
+      ) {
+        throw new Error("`segmentId` is required for an in_segment condition.");
+      }
+      if (
+        conditionType === "event_received" &&
+        !optionalString(args, "eventName")
+      ) {
+        throw new Error(
+          "`eventName` is required for an event_received condition."
+        );
+      }
+      if (
+        conditionType.startsWith("field_") &&
+        (!optionalString(args, "fieldName") ||
+          !optionalString(args, "fieldValue"))
+      ) {
+        throw new Error(
+          "`fieldName` and `fieldValue` are required for field conditions."
+        );
+      }
+      const config: Record<string, unknown> = {
+        label: optionalString(args, "label") ?? "Condition",
+        conditionType,
+      };
+      for (const key of [
+        "tagId",
+        "tagName",
+        "listId",
+        "segmentId",
+        "segmentName",
+        "eventName",
+        "linkUrl",
+        "activityScope",
+        "fieldName",
+        "fieldValue",
+      ]) {
+        if (args[key] !== undefined) config[key] = args[key];
+      }
+      step = { type: "condition", nodeType: "logic_condition", config };
+    } else {
+      const isTagAction = stepType === "add_tag" || stepType === "remove_tag";
+      const nodeType =
+        stepType === "add_tag"
+          ? "action_add_tag"
+          : stepType === "remove_tag"
+            ? "action_remove_tag"
+            : stepType === "add_to_list"
+              ? "action_add_to_list"
+              : "action_remove_from_list";
+      const config: Record<string, unknown> = {
+        label:
+          optionalString(args, "label") ??
+          (stepType === "add_tag"
+            ? "Add Tag"
+            : stepType === "remove_tag"
+              ? "Remove Tag"
+              : stepType === "add_to_list"
+                ? "Add to List"
+                : "Remove from List"),
+      };
+      if (isTagAction) {
+        const tagId = optionalString(args, "tagId");
+        const tagName = optionalString(args, "tagName");
+        if (!tagId && !tagName) {
+          throw new Error(
+            "Provide `tagId` or `tagName` when inserting a tag action."
+          );
+        }
+        if (tagId) config.tagId = tagId;
+        if (tagName) config.tagName = tagName;
+      } else {
+        config.listId = requiredString("insert_sequence_step", args, "listId");
+        const listName = optionalString(args, "listName");
+        if (listName) config.listName = listName;
+      }
+      step = { nodeType, config };
+    }
+
+    for (const key of ["delay", "delayMs", "waitUntil"]) {
+      if (stepType !== "delay" && args[key] !== undefined) {
+        step[key] = args[key];
+      }
+    }
+    const insertSteps: Record<string, unknown> = { steps: [step] };
+    const afterNodeId = optionalString(args, "afterNodeId");
+    if (afterNodeId) insertSteps.afterNodeId = afterNodeId;
+    return {
+      ...(args.confirmStructuralChange !== undefined && {
+        confirmStructuralChange: args.confirmStructuralChange,
+      }),
+      insertSteps,
+    };
+  }
+
+  const isSmsStep = stepType === "sms";
 
   let step: Record<string, unknown>;
   if (isSmsStep) {
@@ -270,6 +713,10 @@ export function buildInsertSequenceStepBody(
       "replyProfileId",
       "replyTo",
       "replyToName",
+      "isTransactional",
+      "ccEmails",
+      "bccEmails",
+      "attachments",
     ]) {
       if (args[key] !== undefined) {
         step[key] = args[key];

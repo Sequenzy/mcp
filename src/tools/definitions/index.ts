@@ -12,6 +12,8 @@ import { imageAssetToolDefinitions } from "./image-assets.js";
 import { inboxToolDefinitions } from "./inbox.js";
 import { landingPageToolDefinitions } from "./landing-pages.js";
 import { productToolDefinitions } from "./products.js";
+import { sequenceGoalToolDefinitions } from "./sequence-goals.js";
+import { sequenceInboundWebhookToolDefinitions } from "./sequence-inbound-webhook.js";
 import { sequenceBasicToolDefinitions } from "./sequences-basic.js";
 import { sequenceEditingToolDefinitions } from "./sequences-editing.js";
 import { subscriberToolDefinitions } from "./subscribers.js";
@@ -37,6 +39,8 @@ export const toolDefinitions: Tool[] = [
   ...imageAssetToolDefinitions,
   ...sequenceBasicToolDefinitions,
   ...sequenceEditingToolDefinitions,
+  ...sequenceGoalToolDefinitions,
+  ...sequenceInboundWebhookToolDefinitions,
   ...transactionalToolDefinitions,
   ...analyticsToolDefinitions,
   ...teamToolDefinitions,

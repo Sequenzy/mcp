@@ -1,6 +1,6 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 
-import { emailBlocksDescription } from "../internal.js";
+import { emailBlocksDescription, rawHtmlContentWarning } from "../internal.js";
 
 export const campaignToolDefinitions: Tool[] = [
   // ============================================================================
@@ -19,7 +19,8 @@ export const campaignToolDefinitions: Tool[] = [
         },
         status: {
           type: "string",
-          description: "Filter by status (draft, scheduled, sent)",
+          description:
+            "Filter by status (draft, scheduled, sent, sending, cancelled, paused, waiting_approval, or rejected). Rejected campaign results include rejectionComment feedback when provided.",
         },
         label: {
           type: "string",
@@ -31,7 +32,8 @@ export const campaignToolDefinitions: Tool[] = [
   },
   {
     name: "get_campaign",
-    description: "Get campaign details and stats",
+    description:
+      "Get campaign details and stats, including rejectionComment reviewer feedback for rejected campaigns",
     inputSchema: {
       type: "object",
       properties: {
@@ -111,8 +113,7 @@ export const campaignToolDefinitions: Tool[] = [
         },
         html: {
           type: "string",
-          description:
-            "Email HTML content. Mutually exclusive with `blocks`. Use this for imported provider campaigns; Sequenzy stores it as one raw HTML block to preserve the design.",
+          description: `Email HTML content. Mutually exclusive with \`blocks\`. Use this for imported provider campaigns. ${rawHtmlContentWarning}`,
         },
         blocks: {
           type: "array",
@@ -229,8 +230,7 @@ export const campaignToolDefinitions: Tool[] = [
         },
         html: {
           type: "string",
-          description:
-            "Email HTML content. Mutually exclusive with `blocks`. Use this for imported provider campaigns; Sequenzy stores it as one raw HTML block to preserve the design.",
+          description: `Email HTML content. Mutually exclusive with \`blocks\`. Use this for imported provider campaigns. ${rawHtmlContentWarning}`,
         },
         blocks: {
           type: "array",

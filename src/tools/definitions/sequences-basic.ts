@@ -1,11 +1,13 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 
 import {
+  rawHtmlContentWarning,
   sequenceEmailBlocksDescription,
   sequenceSendingWindowSchema,
   sequenceWaitUntilSchema,
   sequenceDelaySchema,
   subscriberUpdateConfigSchema,
+  sequenceEmailStepIdentityProperties,
 } from "../internal.js";
 
 export const sequenceBasicToolDefinitions: Tool[] = [
@@ -23,13 +25,38 @@ export const sequenceBasicToolDefinitions: Tool[] = [
           description:
             "Company ID to list sequences for. If not provided, uses the currently selected company.",
         },
+        status: {
+          type: "string",
+          enum: ["draft", "active", "paused", "archived"],
+          description: "Optional dashboard status filter.",
+        },
+        search: {
+          type: "string",
+          description:
+            "Case-insensitive search across sequence name and description.",
+        },
+        labels: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Return sequences assigned any of these dashboard label names.",
+        },
+        limit: {
+          type: "number",
+          description:
+            "Page size from 1 to 100. When limit and offset are both omitted, every sequence is returned.",
+        },
+        offset: {
+          type: "number",
+          description: "Zero-based result offset.",
+        },
       },
     },
   },
   {
     name: "get_sequence",
     description:
-      "Get sequence details, editable step content, and graph topology. Each sequence.nodes item includes id, nodeType, current config, updatedAt, and updateHints with its editable/managed fields and ready-to-return expectedUpdatedAt token for update_sequence_node/update_sequence_nodes. The response also includes sequence.edges and graphRevision for safe edit_sequence_graph calls, plus sequence.emails with each email step's nodeId, linked emailId, subject, previewText, emailPreset (the per-email Style > Format for native blocks; null for raw HTML), and blocks.",
+      "Get sequence details, editable step content, and graph topology. Each sequence.nodes item includes id, nodeType, current config, updatedAt, and updateHints with its editable/managed fields and ready-to-return expectedUpdatedAt token for update_sequence_node/update_sequence_nodes. The response also includes sequence.edges and graphRevision for safe edit_sequence_graph calls, plus sequence.emails with each email step's nodeId, linked emailId, subject, previewText, emailPreset (the per-email Style > Format for native blocks, including emails with supported custom HTML blocks; null when the entire email is standalone raw HTML), and blocks.",
     inputSchema: {
       type: "object",
       properties: {
@@ -94,6 +121,27 @@ export const sequenceBasicToolDefinitions: Tool[] = [
           description:
             "Sequence name (e.g., 'User Onboarding', 'Welcome Series')",
         },
+        description: {
+          type: "string",
+          description: "Optional sequence description shown in the dashboard.",
+        },
+        userCancellable: {
+          type: "boolean",
+          description:
+            "Whether subscribers may cancel their own active enrollment.",
+        },
+        bccEmails: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Email addresses blind-copied on every email in the sequence (max 10).",
+        },
+        labels: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Dashboard label names to assign. Missing labels are created.",
+        },
         trigger: {
           type: "string",
           enum: [
@@ -101,11 +149,12 @@ export const sequenceBasicToolDefinitions: Tool[] = [
             "tag_added",
             "segment_entered",
             "event_received",
+            "inbound_webhook",
             "inactivity",
             "frequency",
           ],
           description:
-            "Trigger type: 'contact_added' (when added to a list), 'tag_added' (when tag is applied), 'segment_entered' (when a contact newly enters a saved segment), 'event_received' (when custom event fires), 'inactivity' (when subscriber hasn't performed an event for X days), 'frequency' (when subscriber performs event X times in Y days)",
+            "Trigger type: contact_added, tag_added, segment_entered, event_received, inbound_webhook, inactivity, or frequency. Defaults to contact_added for a blank dashboard-compatible draft.",
         },
         // contact_added trigger options
         listId: {
@@ -125,16 +174,60 @@ export const sequenceBasicToolDefinitions: Tool[] = [
           description:
             "Segment ID to trigger on (required for segment_entered trigger). Use list_segments first to choose a saved segment.",
         },
+        stopOnSegmentExit: {
+          type: "boolean",
+          description:
+            "For segment_entered triggers, cancel active enrollments when the contact leaves the segment.",
+        },
         // event_received, inactivity, frequency trigger options
         eventName: {
           type: "string",
           description:
-            "Event name to trigger on (required for event_received, inactivity, and frequency triggers)",
+            "Event name to trigger on (required for event_received, inbound_webhook, inactivity, and frequency triggers)",
+        },
+        integrationSlug: {
+          type: "string",
+          description:
+            "Catalog integration slug for inbound_webhook, for example cal-com.",
+        },
+        integrationEventKey: {
+          type: "string",
+          description: "Catalog integration event key for inbound_webhook.",
+        },
+        customIntegration: {
+          type: "object",
+          description:
+            "Custom inbound webhook integration descriptor with name, setupInstructions, samplePayload, and fieldMapping.",
+          properties: {
+            name: { type: "string" },
+            setupInstructions: { type: "string" },
+            samplePayload: { type: "object", additionalProperties: true },
+            fieldMapping: { type: "object", additionalProperties: true },
+            docsUrl: { type: "string" },
+            suggestedProperties: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  name: { type: "string" },
+                  path: { type: "string" },
+                  description: { type: "string" },
+                },
+                required: ["name", "path", "description"],
+              },
+            },
+          },
+          required: [
+            "name",
+            "setupInstructions",
+            "samplePayload",
+            "fieldMapping",
+          ],
         },
         propertyFilters: {
           type: "array",
           description:
-            "Optional event property filters for event_received triggers. The sequence only starts when the triggering event's properties match ALL filters. Use a dot-path into the event properties; use [] to match inside arrays. Examples: scope a purchase sequence to one product with { path: 'lineItems[].providerProductId', operator: 'equals', value: 'prod_123' } (ecommerce.order_placed) or { path: 'productIds', operator: 'equals', value: 'prod_123' } (saas.purchase); to match any of several products use { path: 'lineItems[].providerProductId', operator: 'one_of', value: ['prod_123', 'prod_456'] }. Max 10 filters.",
+            "Optional filters for event_received or inbound_webhook triggers. The sequence starts only when all filters match. Max 10.",
           items: {
             type: "object",
             properties: {
@@ -250,6 +343,12 @@ export const sequenceBasicToolDefinitions: Tool[] = [
               description:
                 "Tag name, list ID, segment ID, field path, or event name for the stop condition. Use null or omit for type 'none'.",
             },
+            matchConfig: {
+              type: ["object", "null"],
+              description:
+                "Optional dashboard-compatible match config: event_property with rules[{entryFieldPath,eventFieldPath}] for event_received, or field_value with operator/value for field_changed.",
+              additionalProperties: true,
+            },
           },
           required: ["type"],
         },
@@ -299,9 +398,46 @@ export const sequenceBasicToolDefinitions: Tool[] = [
               },
               html: {
                 type: "string",
-                description:
-                  "HTML content for email steps. Stored as one raw HTML block. Use this for imported provider HTML.",
+                description: `HTML content for email steps. Use this for imported provider HTML. ${rawHtmlContentWarning}`,
               },
+              isTransactional: {
+                type: "boolean",
+                description:
+                  "Send this email as transactional and omit the marketing unsubscribe footer.",
+              },
+              ccEmails: {
+                type: "array",
+                items: { type: "string" },
+                description: "Addresses CC'd on this email step.",
+              },
+              bccEmails: {
+                type: "array",
+                items: { type: "string" },
+                description:
+                  "Addresses BCC'd on this email step in addition to sequence BCC.",
+              },
+              attachments: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    filename: {
+                      type: "string",
+                      description:
+                        "Filename shown in the recipient's email client. Event merge tags are supported, for example file-{{event.order_id}}.pdf.",
+                    },
+                    path: {
+                      type: "string",
+                      description:
+                        "Public HTTPS URL or event-backed URL template such as {{event.file_url}}; resolved per enrollment and fetched at send time.",
+                    },
+                  },
+                  required: ["filename", "path"],
+                },
+                description:
+                  "URL-backed file attachments for this email step (max 10, 7MB total per email). Paths may use {{event.*}} values from the event that enrolled the subscriber; the resolved public URL is validated and fetched at send time.",
+              },
+              ...sequenceEmailStepIdentityProperties,
               text: {
                 type: "string",
                 description:
@@ -498,7 +634,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
           },
         },
       },
-      required: ["name", "trigger"],
+      required: ["name"],
     },
   },
 ];
