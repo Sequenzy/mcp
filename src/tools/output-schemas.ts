@@ -107,6 +107,12 @@ export const genericOutputProperties: OutputSchemaProperties = {
   success: successOutputProperty,
   message: messageOutputProperty,
   note: noteOutputProperty,
+  warnings: {
+    type: "array",
+    description:
+      "Non-fatal cautions about content, permissions, or follow-up actions.",
+    items: stringOutputProperty("One warning."),
+  },
   items: {
     type: "array",
     description:
@@ -170,7 +176,7 @@ export const outputPropertiesByToolName: Record<
       items: objectOutputProperty("One sync rule."),
     },
     isDefault: booleanOutputProperty(
-      "Whether the company still uses the platform default rules."
+      "Whether the company uses the inherited SaaS/ecommerce platform preset."
     ),
   },
   update_sync_rules: {
@@ -180,7 +186,7 @@ export const outputPropertiesByToolName: Record<
       items: objectOutputProperty("One sync rule."),
     },
     isDefault: booleanOutputProperty(
-      "Whether the company now uses the platform default rules."
+      "Whether the company now uses the inherited SaaS/ecommerce platform preset."
     ),
   },
   get_shopify_automation_settings: {
@@ -208,6 +214,17 @@ export const outputPropertiesByToolName: Record<
     key: stringOutputProperty(
       "Newly created API key if the API response uses the short key field."
     ),
+  },
+  list_api_keys: {
+    apiKeys: resourceListOutputProperty(
+      "non-secret API key metadata, including ID, name, prefix, permissions, timestamps, and active-credential status"
+    ),
+  },
+  revoke_api_key: {
+    apiKey: resourceOutputProperty("revoked non-secret API key metadata"),
+  },
+  delete_api_key: {
+    apiKey: resourceOutputProperty("deleted non-secret API key metadata"),
   },
   list_websites: {
     websites: resourceListOutputProperty("sender website"),
@@ -247,6 +264,12 @@ export const outputPropertiesByToolName: Record<
   },
   add_subscriber: {
     subscriber: resourceOutputProperty("subscriber"),
+  },
+  create_subscriber_import: {
+    import: resourceOutputProperty("subscriber import"),
+  },
+  get_subscriber_import: {
+    import: resourceOutputProperty("subscriber import"),
   },
   update_subscriber: {
     subscriber: resourceOutputProperty("subscriber"),
@@ -601,7 +624,7 @@ export const outputPropertiesByToolName: Record<
     insertedNodeIds: {
       type: "array",
       description:
-        "Node IDs created for the inserted step, including any delay node.",
+        "Node IDs created for a linear inserted step, including any delay or wait-for-event node.",
       items: stringOutputProperty("Inserted automation node ID."),
     },
     insertedEmailIds: {
@@ -610,12 +633,50 @@ export const outputPropertiesByToolName: Record<
       items: stringOutputProperty("Inserted email template ID."),
     },
     insertedEmailCount: numberOutputProperty("Number of email steps inserted."),
+    addedBranchNodeId: stringOutputProperty(
+      "New logic_branch node ID when the inserted step is a branch."
+    ),
+    addedBranchPathNodeIds: objectOutputProperty(
+      "Created path node IDs keyed by branch ID, plus else. Directly wired paths have empty arrays."
+    ),
   },
   enable_sequence: {
     sequence: resourceOutputProperty("sequence"),
   },
   disable_sequence: {
     sequence: resourceOutputProperty("sequence"),
+  },
+  duplicate_sequence: {
+    sequence: resourceOutputProperty("sequence"),
+    nodes: resourceListOutputProperty("sequence node"),
+    edges: resourceListOutputProperty("sequence edge"),
+  },
+  archive_sequence: {
+    sequence: resourceOutputProperty("sequence"),
+  },
+  unarchive_sequence: {
+    sequence: resourceOutputProperty("sequence"),
+  },
+  list_sequence_goals: {
+    goals: resourceListOutputProperty("sequence goal"),
+  },
+  create_sequence_goal: {
+    goal: resourceOutputProperty("sequence goal"),
+  },
+  update_sequence_goal: {
+    goal: resourceOutputProperty("sequence goal"),
+  },
+  delete_sequence_goal: {
+    goalId: stringOutputProperty("Deleted sequence goal ID."),
+  },
+  get_sequence_inbound_webhook: {
+    webhook: resourceOutputProperty("sequence inbound webhook"),
+  },
+  configure_sequence_inbound_webhook: {
+    webhook: resourceOutputProperty("sequence inbound webhook"),
+  },
+  rotate_sequence_inbound_webhook_secret: {
+    webhook: resourceOutputProperty("sequence inbound webhook"),
   },
   pause_sequence_enrollments: {
     sequenceId: stringOutputProperty("Sequence ID."),

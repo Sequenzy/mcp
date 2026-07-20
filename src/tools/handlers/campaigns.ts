@@ -66,6 +66,7 @@ export async function handleCampaignTools(
         "templateId",
         "name",
         "subject",
+        "previewText",
         "html",
         "blocks",
         "labels",
@@ -76,7 +77,7 @@ export async function handleCampaignTools(
 
       if (unsupportedTemplateUpdateKeys.length > 0) {
         throw new Error(
-          `\`update_template\` accepts only \`name\`, \`subject\`, \`html\`, \`blocks\`, and \`labels\` update fields. Unsupported field${unsupportedTemplateUpdateKeys.length === 1 ? "" : "s"}: ${unsupportedTemplateUpdateKeys.map((key) => `\`${key}\``).join(", ")}.`
+          `\`update_template\` accepts only \`name\`, \`subject\`, \`previewText\`, \`html\`, \`blocks\`, and \`labels\` update fields. Unsupported field${unsupportedTemplateUpdateKeys.length === 1 ? "" : "s"}: ${unsupportedTemplateUpdateKeys.map((key) => `\`${key}\``).join(", ")}.`
         );
       }
 
@@ -86,12 +87,13 @@ export async function handleCampaignTools(
       if (
         args.name === undefined &&
         args.subject === undefined &&
+        args.previewText === undefined &&
         args.html === undefined &&
         args.blocks === undefined &&
         args.labels === undefined
       ) {
         throw new Error(
-          "Provide at least one of `name`, `subject`, `html`, `blocks`, or `labels` when calling `update_template`."
+          "Provide at least one of `name`, `subject`, `previewText`, `html`, `blocks`, or `labels` when calling `update_template`."
         );
       }
 
@@ -348,6 +350,7 @@ export async function handleCampaignTools(
         "previewText",
         "html",
         "blocks",
+        "confirmLiveChange",
       ]);
       const unsupportedAbTestUpdateKeys = Object.keys(args).filter(
         (key) => !allowedAbTestUpdateKeys.has(key)
@@ -355,11 +358,20 @@ export async function handleCampaignTools(
 
       if (unsupportedAbTestUpdateKeys.length > 0) {
         throw new Error(
-          `\`update_ab_test_variant\` accepts only \`subject\`, \`previewText\`, \`html\`, and \`blocks\` update fields. Unsupported field${unsupportedAbTestUpdateKeys.length === 1 ? "" : "s"}: ${unsupportedAbTestUpdateKeys.map((key) => `\`${key}\``).join(", ")}.`
+          `\`update_ab_test_variant\` accepts only \`subject\`, \`previewText\`, \`html\`, \`blocks\`, and \`confirmLiveChange\` fields. Unsupported field${unsupportedAbTestUpdateKeys.length === 1 ? "" : "s"}: ${unsupportedAbTestUpdateKeys.map((key) => `\`${key}\``).join(", ")}.`
         );
       }
 
       validateHtmlOrBlocksArgs("update_ab_test_variant", args);
+
+      if (
+        args.confirmLiveChange !== undefined &&
+        typeof args.confirmLiveChange !== "boolean"
+      ) {
+        throw new Error(
+          "`confirmLiveChange` must be a boolean when calling `update_ab_test_variant`."
+        );
+      }
 
       if (
         args.subject === undefined &&
@@ -383,7 +395,21 @@ export async function handleCampaignTools(
 
     case "create_ab_test": {
       const companyId = args.companyId as string | undefined;
-      const campaignId = requiredString("create_ab_test", args, "campaignId");
+      const campaignId = optionalString(args, "campaignId");
+      const automationNodeId = optionalString(args, "automationNodeId");
+      if (
+        args.confirmLiveChange !== undefined &&
+        typeof args.confirmLiveChange !== "boolean"
+      ) {
+        throw new Error(
+          "`confirmLiveChange` must be a boolean when calling `create_ab_test`."
+        );
+      }
+      if (Boolean(campaignId) === Boolean(automationNodeId)) {
+        throw new Error(
+          "Provide exactly one of `campaignId` or `automationNodeId` when calling `create_ab_test`."
+        );
+      }
       const name = optionalString(args, "name");
       const testPercentage = optionalIntegerInRange(
         "create_ab_test",
@@ -404,6 +430,19 @@ export async function handleCampaignTools(
         args,
         "winnerCriteria",
         ["open_rate", "click_rate"]
+      );
+      const testType = optionalAllowedString(
+        "create_ab_test",
+        args,
+        "testType",
+        ["subject", "content"]
+      );
+      const winnerThreshold = optionalIntegerInRange(
+        "create_ab_test",
+        args,
+        "winnerThreshold",
+        10,
+        1000
       );
 
       if (args.variants !== undefined) {
@@ -431,16 +470,36 @@ export async function handleCampaignTools(
           }
         });
       }
+      const variants = Array.isArray(args.variants) ? args.variants : undefined;
+      if (
+        automationNodeId !== undefined &&
+        (!variants || variants.length < 1)
+      ) {
+        throw new Error(
+          "`variants` must include at least one competing variant when calling `create_ab_test` with `automationNodeId`."
+        );
+      }
+      if (variants && variants.length > 4) {
+        throw new Error(
+          "`variants` supports at most four extra variants when calling `create_ab_test`."
+        );
+      }
 
       result = await apiRequest(
         "POST",
         "/api/v1/ab-tests",
         {
-          campaignId,
+          ...(campaignId !== undefined && { campaignId }),
+          ...(automationNodeId !== undefined && { automationNodeId }),
+          ...(args.confirmLiveChange === true && {
+            confirmLiveChange: true,
+          }),
           ...(name !== undefined && { name }),
           ...(testPercentage !== undefined && { testPercentage }),
           ...(testDurationMinutes !== undefined && { testDurationMinutes }),
           ...(winnerCriteria !== undefined && { winnerCriteria }),
+          ...(testType !== undefined && { testType }),
+          ...(winnerThreshold !== undefined && { winnerThreshold }),
           ...(args.variants !== undefined && { variants: args.variants }),
         },
         companyId
@@ -459,6 +518,14 @@ export async function handleCampaignTools(
           "`blocks` must be an array when calling `add_ab_test_variant`."
         );
       }
+      if (
+        args.confirmLiveChange !== undefined &&
+        typeof args.confirmLiveChange !== "boolean"
+      ) {
+        throw new Error(
+          "`confirmLiveChange` must be a boolean when calling `add_ab_test_variant`."
+        );
+      }
 
       result = await apiRequest(
         "POST",
@@ -467,6 +534,7 @@ export async function handleCampaignTools(
           subject,
           ...(previewText !== undefined && { previewText }),
           ...(args.blocks !== undefined && { blocks: args.blocks }),
+          ...(args.confirmLiveChange === true && { confirmLiveChange: true }),
         },
         companyId
       );
@@ -485,9 +553,19 @@ export async function handleCampaignTools(
         args,
         "variantId"
       );
+      if (
+        args.confirmLiveChange !== undefined &&
+        typeof args.confirmLiveChange !== "boolean"
+      ) {
+        throw new Error(
+          "`confirmLiveChange` must be a boolean when calling `delete_ab_test_variant`."
+        );
+      }
       result = await apiRequest(
         "DELETE",
-        `/api/v1/ab-tests/${encodeURIComponent(abTestId)}/variants/${encodeURIComponent(variantId)}`,
+        `/api/v1/ab-tests/${encodeURIComponent(abTestId)}/variants/${encodeURIComponent(variantId)}${
+          args.confirmLiveChange === true ? "?confirmLiveChange=true" : ""
+        }`,
         undefined,
         companyId
       );

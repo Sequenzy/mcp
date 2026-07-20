@@ -245,6 +245,29 @@ export async function handleAccountTools(
       break;
     }
 
+    case "list_api_keys": {
+      const companyId = await resolveRequiredCompanyId(name, args);
+      result = await apiRequest(
+        "GET",
+        "/api/v1/api-keys",
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "revoke_api_key":
+    case "delete_api_key": {
+      const companyId = await resolveRequiredCompanyId(name, args);
+      result = await apiRequest(
+        "DELETE",
+        `/api/v1/api-keys/${encodeURIComponent(String(args.apiKeyId))}`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
     case "list_websites": {
       const companyId = args.companyId as string | undefined;
       result = await apiRequest(

@@ -1,3 +1,5 @@
+import { coreEmailBlockExamples } from "./email-block-examples.generated.js";
+
 export const blockConditionsHint =
   ' Any block accepts a `conditions` array so it only renders for matching recipients. To branch on a value passed in transactional `variables` or an automation `event` payload, use { "id": "c1", "field": "variable", "operator": "is", "value": "plan:pro" }; "attribute" uses the same "name:value" form, while "email"/"firstName"/"lastName" use a plain comparison value. Live subscriber fields are "status", "tag", "list", "segment", "event", "emailProvider", "phone", "smsStatus", "added", "stripeProduct", "stripeCurrentProduct", "stripeTrialProduct", "commerceProduct", "emailSent", "emailDelivered", "emailOpened", "emailClicked", "emailBounced", and "emailComplained". They use the same field-specific values and operators as segment filters, for example { "id": "c2", "field": "segment", "operator": "is", "value": "seg_123" }, { "id": "c3", "field": "tag", "operator": "contains", "value": "vip" }, or { "id": "c4", "field": "event", "operator": "at_least", "value": "purchase:3:30d" }. Supported operators across fields are is, is_not, contains, not_contains, gt, gte, lt, lte, less_than, more_than, at_least, less_than_count, is_empty, is_not_empty, is_temporary_bounce, and is_permanent_bounce; each field accepts only its segment-filter operators. Recipients without a stored subscriber match use the OTHERWISE branch or hide a conditionally displayed block. For if/else, use a { type: "conditional-group", conditions: [...], ifBranch: { children: [...] }, elseBranch: { children: [...] } } block.';
 
@@ -7,20 +9,23 @@ export const pollBlockHint =
 export const imageBlockHint =
   ' For a new image, call `upload_image_asset` first and insert its returned `imageBlock`. A responsive fixed-height screenshot crop uses { "type": "image", "src": "https://...", "alt": "Product dashboard", "width": 100, "widthType": "percent", "height": 320, "objectFit": "cover", "align": "center" }.';
 
+export const rawHtmlContentWarning =
+  "Raw HTML is stored as one opaque block. Sequenzy preserves that markup but does not add a company logo, branded native sections, or theme-driven block design. Use blocks for editor-native design, or a drafting prompt when you want Sequenzy to compose a new branded email.";
+
 export const pollRespondentFilterHint =
   'For exact historical Poll/NPS respondents, use field `pollResponse`, operator `is`, and a JSON value shaped like {"v":1,"campaignId":"camp_123","blockId":"poll_1","match":{"kind":"answer","value":"loved"}}. For NPS buckets, use match {"kind":"npsBucket","bucket":"promoters"}; bucket may be `promoters`, `passives`, or `detractors`.';
 
 export const emailBlocksDescription = `Sequenzy email blocks. Use this for editor-compatible content, including conditional and repeat blocks. For provider-migrated HTML from another email platform, prefer the \`html\` field instead; Sequenzy stores it as one raw HTML block to preserve the original design. Use \`styles\` for per-block background, background opacity, text color, padding, border radius, border width, and border color. Top-level style aliases such as \`backgroundColor\`, \`backgroundOpacity\`, \`borderColor\`, \`borderWidth\`, and \`borderRadius\` are also accepted and saved under \`styles\`. Repeat blocks use { type: 'repeat', source: 'items', itemAlias: 'item', children: [...] }.${
   blockConditionsHint
-}${pollBlockHint}${imageBlockHint}`;
+}${pollBlockHint}${imageBlockHint}${coreEmailBlockExamples}`;
 
 export const replacementEmailBlocksDescription = `Replacement Sequenzy email blocks. Use \`styles\` for per-block background, background opacity, text color, padding, border radius, border width, and border color. Top-level style aliases such as \`backgroundColor\`, \`backgroundOpacity\`, \`borderColor\`, \`borderWidth\`, and \`borderRadius\` are also accepted and saved under \`styles\`.${
   blockConditionsHint
-}${pollBlockHint}${imageBlockHint}`;
+}${pollBlockHint}${imageBlockHint}${coreEmailBlockExamples}`;
 
 export const sequenceEmailBlocksDescription = `Sequenzy email blocks. Provide blocks or html for email steps. For migrated provider HTML, prefer \`html\`; Sequenzy stores it as one raw HTML block and does not recreate it as native blocks. Use \`styles\` for per-block background, background opacity, text color, padding, border radius, border width, and border color. Top-level style aliases such as \`backgroundColor\`, \`backgroundOpacity\`, \`borderColor\`, \`borderWidth\`, and \`borderRadius\` are also accepted and saved under \`styles\`. Blocks can include repeat blocks over array variables such as items.${
   blockConditionsHint
-}${pollBlockHint}${imageBlockHint}`;
+}${pollBlockHint}${imageBlockHint}${coreEmailBlockExamples}`;
 
 export const landingPageContentDescription =
   "Complete Sequenzy landing page content JSON. Use this when replacing the page structure. The content must be the editor-compatible landing page schema with version, template, seo, theme, and blocks. Landing pages must include exactly one footer block and at most one form block.";
@@ -199,13 +204,13 @@ export const sequenceDelaySchema = {
 export const sequenceNodeChangesSchema = {
   type: "object",
   description:
-    "Type-aware patch for the existing node. Start from get_sequence.sequence.nodes[].config. For logic_delay, set exactly one of delay ({ days, hours, minutes }), delayMs, or waitUntil; optional label is also accepted. For action_email, use name/label, subject, previewText, html/htmlContent or blocks, emailPreset, isTransactional, and sender/reply identity fields. For action_sms, use text, blocks, imageUrls, label, or ineligibleAction. Other node types accept their editable config keys. Managed IDs, nodeType conversion, and branch path IDs/count are not editable here; use edit_sequence_graph for topology. Webhook header patches are merged, and redacted values from get_sequence must be omitted or replaced with a real new value.",
+    "Type-aware patch for the existing node. Start from get_sequence.sequence.nodes[].config. For logic_delay, set exactly one of delay ({ days, hours, minutes }), delayMs, or waitUntil; optional label is also accepted. For action_email, use name/label, subject, previewText, html/htmlContent or blocks, emailPreset, isTransactional, attachments ([{ filename, path }] URL-backed files fetched at send time; path may use {{event.*}} from the enrollment event; [] removes them), and sender/reply identity fields. For action_sms, use text, blocks, imageUrls, label, or ineligibleAction. Other node types accept their editable config keys. Managed IDs, nodeType conversion, and branch path IDs/count are not editable here; use edit_sequence_graph for topology. Webhook header patches are merged, and redacted values from get_sequence must be omitted or replaced with a real new value.",
   properties: {
     emailPreset: {
       type: "string",
       enum: ["branded", "minimal"],
       description:
-        "For an action_email node with native Sequenzy blocks, set the linked email's per-email Style > Format. Use minimal for a direct text-forward note without the company logo and with the simple footer, or branded to restore branded chrome. This does not change the company-wide default. Raw HTML emails do not support this field, and it must not be combined with html/htmlContent.",
+        "For an action_email node with native Sequenzy blocks, set the linked email's per-email Style > Format. Native block emails may include supported custom HTML blocks. Use minimal for a direct text-forward note without the company logo and with the simple footer, or branded to restore branded chrome. This does not change the company-wide default. A standalone raw HTML email does not support this field, and emailPreset must not be combined with html/htmlContent.",
     },
   },
   additionalProperties: true,

@@ -59,6 +59,27 @@ describe("apiUploadRequest", () => {
     expect(init?.body).toBe(bytes);
   });
 
+  it("pins a returned authenticated upload endpoint to the configured API origin", async () => {
+    const fetchMock = mock(
+      async (_input: string | URL | Request, _init?: RequestInit) =>
+        Response.json({ success: true }, { status: 200 })
+    );
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await apiUploadRequest(
+      "https://app.example.com/api/v1/media/upload-bytes?key=image.png",
+      Uint8Array.from([1, 2, 3]),
+      "image/png",
+      "company_123"
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [target] = fetchMock.mock.calls[0] ?? [];
+    expect(target?.toString()).toBe(
+      "https://api.example.com/api/v1/media/upload-bytes?key=image.png"
+    );
+  });
+
   it("refuses to send API credentials to another origin", async () => {
     const fetchMock = mock(
       async (_input: string | URL | Request, _init?: RequestInit) =>
