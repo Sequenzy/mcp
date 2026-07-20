@@ -416,6 +416,19 @@ export const sequenceEditingToolDefinitions: Tool[] = [
                 type: "array",
                 items: { type: "string" },
               },
+              attachments: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    filename: { type: "string" },
+                    path: { type: "string" },
+                  },
+                  required: ["filename", "path"],
+                },
+                description:
+                  "URL-backed file attachments for this email step (max 10, 7MB total per email). path may be a public HTTPS URL or an {{event.*}} URL template resolved from the enrollment event at send time. Pass [] to remove all attachments.",
+              },
               ...sequenceEmailStepIdentityProperties,
             },
           },
@@ -476,6 +489,19 @@ export const sequenceEditingToolDefinitions: Tool[] = [
               bccEmails: {
                 type: "array",
                 items: { type: "string" },
+              },
+              attachments: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    filename: { type: "string" },
+                    path: { type: "string" },
+                  },
+                  required: ["filename", "path"],
+                },
+                description:
+                  "URL-backed file attachments for this email step (max 10, 7MB total per email). path may be a public HTTPS URL or an {{event.*}} URL template resolved from the enrollment event at send time. Pass [] to remove all attachments.",
               },
               ...sequenceEmailStepIdentityProperties,
             },
@@ -756,6 +782,19 @@ export const sequenceEditingToolDefinitions: Tool[] = [
           items: { type: "string" },
           description:
             "Email only: addresses BCC'd in addition to sequence-level BCC.",
+        },
+        attachments: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              filename: { type: "string" },
+              path: { type: "string" },
+            },
+            required: ["filename", "path"],
+          },
+          description:
+            "Email only: URL-backed file attachments (max 10, 7MB total per email). path may be a public HTTPS URL or an {{event.*}} URL template resolved from the enrollment event at send time.",
         },
         senderProfileId: {
           type: "string",

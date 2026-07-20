@@ -416,6 +416,27 @@ export const sequenceBasicToolDefinitions: Tool[] = [
                 description:
                   "Addresses BCC'd on this email step in addition to sequence BCC.",
               },
+              attachments: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    filename: {
+                      type: "string",
+                      description:
+                        "Filename shown in the recipient's email client. Event merge tags are supported, for example file-{{event.order_id}}.pdf.",
+                    },
+                    path: {
+                      type: "string",
+                      description:
+                        "Public HTTPS URL or event-backed URL template such as {{event.file_url}}; resolved per enrollment and fetched at send time.",
+                    },
+                  },
+                  required: ["filename", "path"],
+                },
+                description:
+                  "URL-backed file attachments for this email step (max 10, 7MB total per email). Paths may use {{event.*}} values from the event that enrolled the subscriber; the resolved public URL is validated and fetched at send time.",
+              },
               ...sequenceEmailStepIdentityProperties,
               text: {
                 type: "string",

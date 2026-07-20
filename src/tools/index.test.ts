@@ -1463,12 +1463,25 @@ describe("transactional email tools", () => {
           properties?: Record<string, unknown>;
         }
       | undefined;
+    const properties = inputSchema?.properties as
+      | Record<string, { description?: string }>
+      | undefined;
 
     expect(inputSchema?.required).toEqual(["to"]);
     expect(inputSchema?.additionalProperties).toBe(false);
     expect(inputSchema?.properties).toHaveProperty("subject");
     expect(inputSchema?.properties).toHaveProperty("html");
     expect(inputSchema?.properties).toHaveProperty("templateId");
+    expect(inputSchema?.properties).toHaveProperty("emailType");
+    expect(sendEmailTool?.description).toContain(
+      "saved first and last names fill omitted name variables"
+    );
+    expect(properties?.["variables"]?.description).toContain(
+      "explicit values, including blanks, take precedence"
+    );
+    expect(properties?.["subscriberExternalId"]?.description).toContain(
+      "saved-name personalization"
+    );
   });
 
   it("maps send_email subject and html arguments to the transactional API body", async () => {
@@ -1522,6 +1535,44 @@ describe("transactional email tools", () => {
       },
       undefined
     );
+  });
+
+  it("maps marketing emailType to the transactional send API", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      emailSendId: "send_marketing_123",
+    });
+
+    await handleToolCall("send_email", {
+      to: "user@example.com",
+      templateId: "trial-reminder",
+      emailType: "marketing",
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/transactional/send",
+      {
+        to: "user@example.com",
+        slug: "trial-reminder",
+        emailType: "marketing",
+      },
+      undefined
+    );
+  });
+
+  it("rejects unsupported send_email emailType values", async () => {
+    const result = await handleToolCall("send_email", {
+      to: "user@example.com",
+      templateId: "welcome-email",
+      emailType: "bulk",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`emailType` must be `marketing` or `transactional` when calling `send_email`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
   it("rejects mixed send_email template and direct-content modes", async () => {
@@ -3187,6 +3238,7 @@ describe("create_sequence tool", () => {
     expect(steps?.items?.properties).toHaveProperty("waitUntil");
     expect(steps?.items?.properties).toHaveProperty("nodeType");
     expect(steps?.items?.properties).toHaveProperty("config");
+    expect(steps?.items?.properties).toHaveProperty("attachments");
     const createStepNodeType = steps?.items?.properties?.["nodeType"] as
       | { enum?: string[] }
       | undefined;
@@ -3643,11 +3695,15 @@ describe("update_sequence tool", () => {
     expect(insertSteps?.properties?.steps?.items?.properties).toHaveProperty(
       "replyProfileId"
     );
+    expect(insertSteps?.properties?.steps?.items?.properties).toHaveProperty(
+      "attachments"
+    );
     const emails = inputSchema?.properties?.["emails"] as
       | { items?: { properties?: Record<string, unknown> } }
       | undefined;
     expect(emails?.items?.properties).toHaveProperty("fromEmail");
     expect(emails?.items?.properties).toHaveProperty("replyTo");
+    expect(emails?.items?.properties).toHaveProperty("attachments");
     const insertedStepType = insertSteps?.properties?.steps?.items?.properties
       ?.type as { enum?: string[] } | undefined;
     const insertedStepNodeType = insertSteps?.properties?.steps?.items
@@ -3727,6 +3783,34 @@ describe("update_sequence tool", () => {
         fromEmail: "hello@example.com",
         fromName: "Acme",
         replyTo: "support@example.com",
+      },
+      "comp_123"
+    );
+  });
+
+  it("forwards event-backed per-enrollment attachments", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true, sequence: {} });
+    const attachments = [
+      {
+        filename: "ticket-{{event.order_id}}.pdf",
+        path: "{{event.ticket_url}}",
+      },
+    ];
+
+    const result = await handleToolCall("update_sequence", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      emails: [{ nodeId: "node_ticket", attachments }],
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/sequences/seq_123",
+      {
+        companyId: "comp_123",
+        sequenceId: "seq_123",
+        emails: [{ nodeId: "node_ticket", attachments }],
       },
       "comp_123"
     );
@@ -4609,6 +4693,7 @@ describe("insert_sequence_step tool", () => {
     expect(inputSchema?.properties).toHaveProperty("replyProfileId");
     expect(inputSchema?.properties).toHaveProperty("replyTo");
     expect(inputSchema?.properties).toHaveProperty("replyToName");
+    expect(inputSchema?.properties).toHaveProperty("attachments");
     expect(inputSchema?.properties).toHaveProperty("eventName");
     expect(inputSchema?.properties).toHaveProperty("timeoutDays");
     expect(inputSchema?.properties).toHaveProperty("timeoutAction");

@@ -781,7 +781,9 @@ For a direct send, pass `to`, `subject`, and `html`; the MCP server maps `html`
 to the transactional API's `body` field. For a saved transactional email, pass
 its API slug through the compatibility-named `templateId` field instead.
 `send_email` variables support nested arrays for repeat blocks, such as
-`{ "event": { "items": [...] } }`.
+`{ "event": { "items": [...] } }`. When the recipient matches a stored
+subscriber by external ID or email, saved first and last names fill omitted name
+variables automatically. Explicit values, including blanks, take precedence.
 
 ### Analytics
 

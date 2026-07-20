@@ -144,6 +144,20 @@ export async function handleAnalyticsAndTransactionalTools(
         args.html === undefined
           ? undefined
           : requiredString("send_email", args, "html");
+      const emailType =
+        args.emailType === undefined
+          ? undefined
+          : requiredString("send_email", args, "emailType");
+
+      if (
+        emailType !== undefined &&
+        emailType !== "marketing" &&
+        emailType !== "transactional"
+      ) {
+        throw new Error(
+          "`emailType` must be `marketing` or `transactional` when calling `send_email`."
+        );
+      }
 
       if (
         templateId !== undefined &&
@@ -171,6 +185,7 @@ export async function handleAnalyticsAndTransactionalTools(
           body: html,
           variables: args.variables,
           subscriberExternalId: args.subscriberExternalId,
+          emailType,
         }).filter(([, value]) => value !== undefined)
       );
 

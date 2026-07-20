@@ -716,6 +716,7 @@ export function buildInsertSequenceStepBody(
       "isTransactional",
       "ccEmails",
       "bccEmails",
+      "attachments",
     ]) {
       if (args[key] !== undefined) {
         step[key] = args[key];

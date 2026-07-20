@@ -162,7 +162,7 @@ export const transactionalToolDefinitions: Tool[] = [
   {
     name: "send_email",
     description:
-      "Queue one transactional email using either a saved transactional email API slug (`templateId`) or direct `subject` and `html` content. Returns a durable emailSendId; pass it to get_email_send for delivery status and failure details.",
+      "Queue one email using either a saved transactional email API slug (`templateId`) or direct `subject` and `html` content. The default delivery policy is transactional. When the recipient matches a subscriber, saved first and last names fill omitted name variables; explicit variables take precedence. Set `emailType` to `marketing` to add subscriber suppression, a marketing footer, and RFC 8058 one-click unsubscribe. Returns a durable emailSendId; pass it to get_email_send for delivery status and failure details.",
     inputSchema: {
       type: "object",
       properties: {
@@ -193,12 +193,17 @@ export const transactionalToolDefinitions: Tool[] = [
         variables: {
           type: "object",
           description:
-            "Variables for template personalization. Nested objects and arrays are supported for repeat blocks, for example { items: [...] }.",
+            "Variables for template personalization. Nested objects and arrays are supported for repeat blocks, for example { items: [...] }. When the recipient matches a subscriber, saved first and last names fill omitted name variables; explicit values, including blanks, take precedence.",
         },
         subscriberExternalId: {
           type: "string",
           description:
-            "Customer-owned subscriber ID for attaching analytics/localization on single-recipient sends. Maximum length: 255 characters.",
+            "Customer-owned subscriber ID for attaching analytics, localization, and saved-name personalization on single-recipient sends. Maximum length: 255 characters.",
+        },
+        emailType: {
+          type: "string",
+          description:
+            "Delivery policy: `transactional` (default) or `marketing`. Marketing mode supports exactly one recipient and automatically applies subscriber suppression, the standard unsubscribe footer, and RFC 8058 headers.",
         },
       },
       required: ["to"],

@@ -379,6 +379,19 @@ export const sequencePathStepSchema = {
       description:
         "Email only: addresses BCC'd on this step in addition to sequence BCC.",
     },
+    attachments: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          filename: { type: "string" },
+          path: { type: "string" },
+        },
+        required: ["filename", "path"],
+      },
+      description:
+        "Email only: URL-backed file attachments (max 10, 7MB total per email). path may be a public HTTPS URL or an {{event.*}} URL template resolved from the enrollment event at send time.",
+    },
     text: {
       type: "string",
       description: "SMS only: plain-text message body.",
