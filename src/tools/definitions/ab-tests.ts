@@ -124,7 +124,7 @@ export const abTestToolDefinitions: Tool[] = [
   {
     name: "update_ab_test_variant",
     description:
-      "Update a draft A/B test variant. Provide at least one of subject, previewText, html, or blocks. Use either html or blocks, not both. Sequence tests whose parent sequence is active require confirmLiveChange.",
+      "Update an A/B test variant. Campaign variants are editable only in draft. Sequence variants can be edited after activity with confirmLiveChange, but earlier sends stay unchanged and combined results may no longer be accurate. Provide at least one of subject, previewText, html, or blocks. Use either html or blocks, not both.",
     inputSchema: {
       type: "object",
       properties: {
@@ -164,7 +164,7 @@ export const abTestToolDefinitions: Tool[] = [
         confirmLiveChange: {
           type: "boolean",
           description:
-            "Required as true when the A/B test belongs to an active sequence, because the content change immediately affects live rotation.",
+            "Required as true when the sequence is active, the test is no longer a draft, or it has recorded activity. The edit affects future sends and can make combined results inaccurate.",
         },
       },
       required: ["abTestId", "variantId"],

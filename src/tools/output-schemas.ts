@@ -193,6 +193,9 @@ export const outputPropertiesByToolName: Record<
     browseAbandonment: objectOutputProperty(
       "Effective browse-abandonment settings (defaults applied)."
     ),
+    cartAbandonment: objectOutputProperty(
+      "Effective cart-abandonment settings (defaults applied)."
+    ),
     priceDrop: objectOutputProperty(
       "Effective price-drop settings (defaults applied)."
     ),
@@ -201,6 +204,9 @@ export const outputPropertiesByToolName: Record<
   update_shopify_automation_settings: {
     browseAbandonment: objectOutputProperty(
       "Effective browse-abandonment settings after the update."
+    ),
+    cartAbandonment: objectOutputProperty(
+      "Effective cart-abandonment settings after the update."
     ),
     priceDrop: objectOutputProperty(
       "Effective price-drop settings after the update."
