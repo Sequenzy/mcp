@@ -228,26 +228,28 @@ This server currently exposes 149 MCP tools.
 
 ### Account, Companies, Setup
 
-| Tool                    | Description                                                                                                                   |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `get_account`           | Get account info, available companies, current key permissions, and the API Keys management URL.                              |
-| `select_company`        | Set the active company for future tool calls.                                                                                 |
-| `get_app_urls`          | Build dashboard URLs for campaigns, landing pages, sequences, emails, settings, domains, and sent email details.              |
-| `create_company`        | Create a new company or brand.                                                                                                |
-| `get_company`           | Read company details, product info, brand context, localization, reply-tracking settings, and current From/Reply-To defaults. |
-| `update_company`        | Edit product info, brand context, the default email theme, reply-tracking settings, and account-wide From/Reply-To defaults.  |
-| `get_sync_rules`        | Read the company's event-to-tag rules and whether it uses the inherited platform preset.                                      |
-| `update_sync_rules`     | Replace all sync rules; pass `[]` to disable them or `null` to opt into the SaaS/ecommerce platform preset.                   |
-| `create_api_key`        | Create an API key for a company, with optional permission preset or explicit scopes.                                          |
-| `list_api_keys`         | List company API keys as non-secret metadata for safe identification and cleanup.                                             |
-| `revoke_api_key`        | Permanently revoke an exact company API key by ID after checking it with `list_api_keys`.                                     |
-| `delete_api_key`        | Compatibility alias for `revoke_api_key`.                                                                                     |
-| `list_websites`         | List sending domains with stored aggregate, SPF, DKIM, and MAIL FROM status.                                                  |
-| `add_sending_domain`    | Add a sending domain and return its SPF, DKIM, MAIL FROM, and inbound DNS setup records.                                      |
-| `add_website`           | Compatibility alias for `add_sending_domain`.                                                                                 |
-| `check_website`         | Read a sending domain's stored SPF, DKIM, MAIL FROM, and aggregate verification details.                                      |
-| `verify_sending_domain` | Run a fresh sending-domain DNS/provider verification and return current status and diagnostics.                               |
-| `get_integration_guide` | Get framework-specific integration examples.                                                                                  |
+| Tool                                 | Description                                                                                                                   |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `get_account`                        | Get account info, available companies, current key permissions, and the API Keys management URL.                              |
+| `select_company`                     | Set the active company for future tool calls.                                                                                 |
+| `get_app_urls`                       | Build dashboard URLs for campaigns, landing pages, sequences, emails, settings, domains, and sent email details.              |
+| `create_company`                     | Create a new company or brand.                                                                                                |
+| `get_company`                        | Read company details, product info, brand context, localization, reply-tracking settings, and current From/Reply-To defaults. |
+| `update_company`                     | Edit product info, brand context, the default email theme, reply-tracking settings, and account-wide From/Reply-To defaults.  |
+| `get_sync_rules`                     | Read the company's event-to-tag rules and whether it uses the inherited platform preset.                                      |
+| `update_sync_rules`                  | Replace all sync rules; pass `[]` to disable them or `null` to opt into the SaaS/ecommerce platform preset.                   |
+| `get_shopify_automation_settings`    | Read browse-abandonment, cart-abandonment, and price-drop settings for the connected Shopify store.                           |
+| `update_shopify_automation_settings` | Partially update Shopify automation settings or reset an individual section to its platform defaults.                         |
+| `create_api_key`                     | Create an API key for a company, with optional permission preset or explicit scopes.                                          |
+| `list_api_keys`                      | List company API keys as non-secret metadata for safe identification and cleanup.                                             |
+| `revoke_api_key`                     | Permanently revoke an exact company API key by ID after checking it with `list_api_keys`.                                     |
+| `delete_api_key`                     | Compatibility alias for `revoke_api_key`.                                                                                     |
+| `list_websites`                      | List sending domains with stored aggregate, SPF, DKIM, and MAIL FROM status.                                                  |
+| `add_sending_domain`                 | Add a sending domain and return its SPF, DKIM, MAIL FROM, and inbound DNS setup records.                                      |
+| `add_website`                        | Compatibility alias for `add_sending_domain`.                                                                                 |
+| `check_website`                      | Read a sending domain's stored SPF, DKIM, MAIL FROM, and aggregate verification details.                                      |
+| `verify_sending_domain`              | Run a fresh sending-domain DNS/provider verification and return current status and diagnostics.                               |
+| `get_integration_guide`              | Get framework-specific integration examples.                                                                                  |
 
 For a new sending domain, call `add_sending_domain`, publish the DNS records in
 the returned `website.dnsRecords`, wait for DNS propagation, and then call
@@ -257,6 +259,13 @@ error points back to `add_sending_domain` with the requested domain.
 New companies start with no sync rules. The inherited preset remains available
 for SaaS/ecommerce companies by passing `null` to `update_sync_rules`; services
 and consulting companies should normally keep `[]` or define explicit rules.
+
+Shopify cart abandonment is enabled by default. It fires
+`ecommerce.cart_abandoned` after one hour of cart inactivity, with a 24-hour
+per-subscriber cooldown. Use `update_shopify_automation_settings` to change the
+`cartAbandonment.enabled`, `delayHours`, or `cooldownHours` fields; pass
+`cartAbandonment: null` to restore those defaults without changing browse
+abandonment or price-drop settings.
 
 ### Subscribers
 

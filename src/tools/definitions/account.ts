@@ -330,7 +330,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "get_shopify_automation_settings",
     description:
-      "Get the connected Shopify store's automation settings: browse abandonment (emails shoppers who viewed a product but didn't buy) and price drop alerts (emails recent viewers when a product's price falls). Returns the effective values with platform defaults applied.",
+      "Get the connected Shopify store's automation settings: browse abandonment (emails shoppers who viewed a product but didn't buy), cart abandonment (fires ecommerce.cart_abandoned with the full cart after the cart sits inactive), and price drop alerts (emails recent viewers when a product's price falls). Returns the effective values with platform defaults applied.",
     inputSchema: {
       type: "object",
       properties: {
@@ -346,7 +346,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "update_shopify_automation_settings",
     description:
-      "Update the connected Shopify store's browse-abandonment and/or price-drop automation settings. Partial update: omitted sections are untouched, omitted fields within a section keep their current value, and passing null for a section resets it to the platform defaults (browse abandonment: on, 2h delay, 24h cooldown; price drop: on, 5% minimum drop, 30-day viewer lookback, 7-day cooldown).",
+      "Update the connected Shopify store's browse-abandonment, cart-abandonment, and/or price-drop automation settings. Partial update: omitted sections are untouched, omitted fields within a section keep their current value, and passing null for a section resets it to the platform defaults (browse abandonment: on, 2h delay, 24h cooldown; cart abandonment: on, 1h inactivity, 24h cooldown; price drop: on, 5% minimum drop, 30-day viewer lookback, 7-day cooldown).",
     inputSchema: {
       type: "object",
       properties: {
@@ -370,6 +370,25 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
               type: "number",
               description:
                 "Minimum hours between browse-abandoned events per subscriber (default 24).",
+            },
+          },
+          additionalProperties: false,
+        },
+        cartAbandonment: {
+          type: ["object", "null"],
+          description:
+            "Cart abandonment settings, or null to reset to defaults.",
+          properties: {
+            enabled: { type: "boolean" },
+            delayHours: {
+              type: "number",
+              description:
+                "Hours of cart inactivity before the cart counts as abandoned (default 1).",
+            },
+            cooldownHours: {
+              type: "number",
+              description:
+                "Minimum hours between cart-abandoned events per subscriber (default 24).",
             },
           },
           additionalProperties: false,
