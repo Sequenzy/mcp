@@ -1170,6 +1170,9 @@ describe("A/B test tools", () => {
     const sequenceTool = tools.find(
       (candidate) => candidate.name === "get_sequence_stats"
     );
+    const emailTypeInput = overviewTool?.inputSchema.properties?.[
+      "emailType"
+    ] as { type?: string } | undefined;
     mockApiRequest.mockResolvedValueOnce({
       success: true,
       stats: { replies: 4, replyRate: 12.5 },
@@ -1185,6 +1188,9 @@ describe("A/B test tools", () => {
     });
 
     expect(overviewTool?.description).toContain("reply count");
+    expect(overviewTool?.description).toContain("Send API");
+    expect(overviewTool?.inputSchema.properties).toHaveProperty("emailType");
+    expect(emailTypeInput?.type).toBe("string");
     expect(overviewTool?.description).toContain("commerceForecast");
     expect(overviewTool?.outputSchema?.properties).toHaveProperty(
       "commerceForecast"
@@ -1259,6 +1265,7 @@ describe("A/B test tools", () => {
     await handleToolCall("get_stats", {
       companyId: "company_123",
       period: "7d",
+      emailType: "transactional",
       includeMachineEngagement: true,
     });
     await handleToolCall("get_campaign_stats", {
@@ -1281,7 +1288,7 @@ describe("A/B test tools", () => {
     expect(mockApiRequest).toHaveBeenNthCalledWith(
       1,
       "GET",
-      "/api/v1/metrics?period=7d&includeMachineEngagement=true",
+      "/api/v1/metrics?period=7d&emailType=transactional&includeMachineEngagement=true",
       undefined,
       "company_123"
     );
@@ -1306,6 +1313,92 @@ describe("A/B test tools", () => {
       undefined,
       "company_123"
     );
+  });
+
+  it("gets time-scoped stats for one saved transactional email", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      transactional: { id: "transactional_123", slug: "password-reset" },
+      stats: { sent: 10, opened: 5, clicked: 2 },
+    });
+
+    const result = await handleToolCall("get_transactional_stats", {
+      companyId: "company_123",
+      idOrSlug: "password reset",
+      period: "30d",
+      includeMachineEngagement: true,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/metrics/transactional/password%20reset?period=30d&includeMachineEngagement=true",
+      undefined,
+      "company_123"
+    );
+    const tool = tools.find(
+      (candidate) => candidate.name === "get_transactional_stats"
+    );
+    expect(tool?.inputSchema.required).toEqual(["idOrSlug"]);
+    expect(tool?.outputSchema?.properties).toHaveProperty("stats");
+    expect(tool?.outputSchema?.properties).toHaveProperty("clickedLinks");
+    expect(tool?.outputSchema?.properties).toHaveProperty("bounceBreakdown");
+    expect(tool?.outputSchema?.properties).toHaveProperty(
+      "engagementBreakdown"
+    );
+  });
+
+  it("filters and sorts transactional templates with dashboard metrics", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      transactional: [
+        {
+          id: "transactional_123",
+          slug: "password-reset",
+          subject: "Reset your password",
+          stats: { sends: 10, openRate: 60 },
+        },
+      ],
+    });
+
+    const result = await handleToolCall("list_transactional_emails", {
+      companyId: "company_123",
+      search: "reset",
+      status: "active",
+      sort: "open-rate",
+      order: "desc",
+      includeMachineEngagement: true,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/transactional?search=reset&status=active&sort=open-rate&order=desc&includeMachineEngagement=true",
+      undefined,
+      "company_123"
+    );
+    const payload = JSON.parse(result.content[0]?.text ?? "{}") as {
+      transactional: Array<{ url: string }>;
+    };
+    expect(payload.transactional[0]?.url).toBe(
+      "https://sequenzy.com/dashboard/company/company_123/transactional/transactional_123"
+    );
+  });
+
+  it("rejects unsupported overview email type filters", async () => {
+    const result = await handleToolCall("get_stats", {
+      companyId: "company_123",
+      emailType: "bulk",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]).toMatchObject({
+      type: "text",
+      text: expect.stringContaining(
+        "`emailType` must be `campaign`, `transactional`, or `sequence`"
+      ),
+    });
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
   it("calls campaign and sequence event APIs with pagination filters", async () => {
@@ -1949,6 +2042,62 @@ describe("update_campaign tool validation", () => {
     expect(getEmailSendTool?.description).toContain(
       "copied-recipient identity"
     );
+  });
+
+  it("lists sent emails with dashboard-style filters", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      retentionDays: 14,
+      emailSends: [{ id: "send_123", status: "opened" }],
+      pagination: { page: 2, limit: 50, total: 1, totalPages: 1 },
+    });
+
+    const result = await handleToolCall("list_email_sends", {
+      companyId: "comp_123",
+      search: "Welcome",
+      subject: "onboarding",
+      recipient: "example.com",
+      status: "opened",
+      emailType: "transactional",
+      transactionalEmailId: "transactional_123",
+      days: 7,
+      page: 2,
+      limit: 50,
+      sortField: "eventAt",
+      sortOrder: "asc",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/email-sends?search=Welcome&subject=onboarding&recipient=example.com&transactionalEmailId=transactional_123&status=opened&emailType=transactional&sortField=eventAt&sortOrder=asc&days=7&page=2&limit=50",
+      undefined,
+      "comp_123"
+    );
+    const tool = tools.find(
+      (candidate) => candidate.name === "list_email_sends"
+    );
+    expect(tool?.description).toContain("14 days");
+    expect(tool?.inputSchema.properties).toHaveProperty("subject");
+    expect(tool?.outputSchema?.properties).toHaveProperty("retentionDays");
+    const payload = JSON.parse(result.content[0]?.text ?? "{}") as {
+      emailSends: Array<{ url: string }>;
+    };
+    expect(payload.emailSends[0]?.url).toBe(
+      "https://sequenzy.com/dashboard/company/comp_123/sent-emails/send_123"
+    );
+  });
+
+  it("rejects unsupported sent-email filters before the API request", async () => {
+    const result = await handleToolCall("list_email_sends", {
+      status: "unknown",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`status` must be one of pending, sent, delivered"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
   it("publishes sending identity update fields in the schema", () => {

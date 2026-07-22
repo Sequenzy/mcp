@@ -457,6 +457,7 @@ Use `get_ab_test` to discover variant IDs before editing. Variant updates accept
 | -------------------------------- | ----------------------------------------------------------------------------------------- |
 | `list_campaigns`                 | List campaigns by status, including reviewer feedback for rejected campaigns.             |
 | `get_campaign`                   | Get details, stats, and reviewer feedback for a rejected campaign.                        |
+| `list_email_sends`               | Search and filter recent delivery history; every row includes its dashboard URL.          |
 | `get_email_send`                 | Inspect a queued, test, sent, suppressed, or failed delivery by durable email-send ID.    |
 | `get_recipient_suppression`      | Check local and regional SES suppression for one exact recipient.                         |
 | `remove_recipient_suppression`   | Remove stale bounce suppression for a company-associated recipient.                       |
@@ -476,10 +477,13 @@ remain drafts. Use `templateId`, `blocks`, or `html` only when copying or
 preserving existing content rather than asking the agent to author it. Omit all
 content fields to create an empty draft for later editing.
 
-`send_email` and `send_test_email` return a durable `emailSendId`. Pass that ID
-to `get_email_send` to inspect `status`, `errorMessage`, the stored body, and
-delivery events. Queue jobs are internal execution details and are not exposed
-through the MCP contract. Use `get_recipient_suppression` before cleanup, then
+`send_email` and `send_test_email` return a durable `emailSendId`. Use
+`list_email_sends` to discover recent IDs by subject/title, recipient, delivery
+status, type, bounce type, or source; pass an ID to `get_email_send` to inspect
+`status`, `errorMessage`, the stored body, and delivery events. Delivery-list
+rows are retained for 14 days. Queue jobs are internal execution details and
+are not exposed through the MCP contract. Every returned delivery has a direct
+dashboard `url`. Use `get_recipient_suppression` before cleanup, then
 `remove_recipient_suppression` only after confirming a hard-bounced mailbox is
 working again. Cleanup removes bounce entries but never complaint or unsubscribe
 protections.
@@ -765,13 +769,13 @@ For compatibility with older agent prompts, top-level style keys such as `backgr
 
 ### Transactional Email
 
-| Tool                         | Description                                                     |
-| ---------------------------- | --------------------------------------------------------------- |
-| `list_transactional_emails`  | List transactional templates and API slugs.                     |
-| `get_transactional_email`    | Read a transactional email by ID or slug.                       |
-| `create_transactional_email` | Create a transactional template from a prompt, HTML, or blocks. |
-| `update_transactional_email` | Update transactional metadata or body content.                  |
-| `send_email`                 | Send a single transactional email by template or HTML.          |
+| Tool                         | Description                                                                                |
+| ---------------------------- | ------------------------------------------------------------------------------------------ |
+| `list_transactional_emails`  | Search/filter templates and sort by delivery metrics; returns subjects and dashboard URLs. |
+| `get_transactional_email`    | Read a transactional email by ID or slug.                                                  |
+| `create_transactional_email` | Create a transactional template from a prompt, HTML, or blocks.                            |
+| `update_transactional_email` | Update transactional metadata or body content.                                             |
+| `send_email`                 | Send a single transactional email by template or HTML.                                     |
 
 Prompt-created transactional templates are generated server-side and default
 to disabled for review. Explicit HTML or block templates retain the
@@ -788,16 +792,28 @@ variables automatically. Explicit values, including blanks, take precedence.
 
 ### Analytics
 
-| Tool                      | Description                                                                      |
-| ------------------------- | -------------------------------------------------------------------------------- |
-| `get_stats`               | Get overview stats, including replies and reply rate, for `7d`, `30d`, or `90d`. |
-| `get_campaign_stats`      | Get campaign performance, reply metrics, and Poll/NPS summaries.                 |
-| `get_sequence_stats`      | Get aggregate and per-step sequence performance, including reply metrics.        |
-| `list_campaign_events`    | List paginated raw email events for a campaign.                                  |
-| `list_sequence_events`    | List paginated raw email events for a sequence.                                  |
-| `get_subscriber_activity` | Get subscriber email stats, activity, and enrollments.                           |
+| Tool                      | Description                                                                          |
+| ------------------------- | ------------------------------------------------------------------------------------ |
+| `get_stats`               | Get overview stats for `7d`, `30d`, or `90d`; filter by structural email type.       |
+| `get_transactional_stats` | Get all-time or time-scoped metrics for one saved transactional email by ID or slug. |
+| `get_campaign_stats`      | Get campaign performance, reply metrics, and Poll/NPS summaries.                     |
+| `get_sequence_stats`      | Get aggregate and per-step sequence performance, including reply metrics.            |
+| `list_campaign_events`    | List paginated raw email events for a campaign.                                      |
+| `list_sequence_events`    | List paginated raw email events for a sequence.                                      |
+| `get_subscriber_activity` | Get subscriber email stats, activity, and enrollments.                               |
 
 Analytics tools exclude detected bot, scanner, link-preview, and tracked asset opens/clicks by default. Pass `includeMachineEngagement: true` to `get_stats`, `get_campaign_stats`, `get_sequence_stats`, `get_ab_test_stats`, `get_subscriber`, or `get_subscriber_activity` when you need raw engagement diagnostics; included open/click activity rows expose `machine`, `engagementQuality`, and `classificationReasons` fields where the API returns event-level activity.
+
+Pass `emailType: "transactional"` to `get_stats` for Send API and
+transactional SMTP delivery, open, click, and reply rates. This includes direct
+and saved-template sends. Use the `emailSendId` returned by `send_email` with
+`get_email_send` when you need one delivery's status and event timeline.
+Use `get_transactional_stats` when you need aggregate rates for one saved
+transactional email. Its response includes top clicked links, complaints,
+replies, latest permanent/transient bounce classifications, and separate human
+and machine open/click counts. Direct-content sends do not have a stable
+template ID and remain available through account transactional stats plus
+delivery search.
 
 When a campaign collects Poll or NPS answers, `get_campaign_stats` includes a
 top-level `polls` array. Each subscriber counts once per poll block using their

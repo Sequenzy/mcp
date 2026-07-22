@@ -11,7 +11,7 @@ export const transactionalToolDefinitions: Tool[] = [
   {
     name: "list_transactional_emails",
     description:
-      "List transactional email templates, including their API slugs and linked email IDs",
+      "List transactional email templates with subjects, delivery metrics, API slugs, and dashboard URLs. Search by name, slug, or email title; filter active state; and sort by sends, opens, open rate, clicks, or CTR.",
     inputSchema: {
       type: "object",
       properties: {
@@ -20,7 +20,31 @@ export const transactionalToolDefinitions: Tool[] = [
           description:
             "Company ID. If not provided, uses the currently selected company.",
         },
+        search: {
+          type: "string",
+          description:
+            "Case-insensitive search across template name, API slug, and linked email subject/title.",
+        },
+        status: {
+          type: "string",
+          description: "Template status: all, active, or disabled.",
+        },
+        sort: {
+          type: "string",
+          description:
+            "Sort field: date, sends, opens, open-rate, clicks, or ctr. Defaults to date.",
+        },
+        order: {
+          type: "string",
+          description: "Sort order: asc or desc. Defaults to desc.",
+        },
+        includeMachineEngagement: {
+          type: "boolean",
+          description:
+            "Include bot, scanner, and privacy-proxy engagement in open and click metrics. Defaults to false.",
+        },
       },
+      additionalProperties: false,
     },
   },
   {

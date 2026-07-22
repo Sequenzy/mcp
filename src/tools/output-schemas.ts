@@ -474,6 +474,13 @@ export const outputPropertiesByToolName: Record<
     ),
     events: resourceListOutputProperty("email delivery event"),
   },
+  list_email_sends: {
+    emailSends: resourceListOutputProperty("email send"),
+    pagination: resourceOutputProperty("email send pagination"),
+    retentionDays: numberOutputProperty(
+      "Number of days sent-email rows remain queryable in this collection."
+    ),
+  },
   get_recipient_suppression: {
     suppression: resourceOutputProperty("recipient suppression status"),
   },
@@ -701,7 +708,9 @@ export const outputPropertiesByToolName: Record<
     sequenceId: stringOutputProperty("Deleted sequence ID."),
   },
   list_transactional_emails: {
-    transactional: resourceListOutputProperty("transactional email"),
+    transactional: resourceListOutputProperty(
+      "transactional email with subject, all-time delivery metrics, and dashboard URL"
+    ),
   },
   get_transactional_email: {
     transactional: resourceOutputProperty("transactional email"),
@@ -718,6 +727,9 @@ export const outputPropertiesByToolName: Record<
   },
   get_stats: {
     stats: resourceOutputProperty("account or company statistics"),
+    emailType: stringOutputProperty(
+      "Applied structural email type filter when one was requested."
+    ),
     commerceForecast: resourceOutputProperty(
       "Optional background-computed commerce AOV, 12-month customer value, and 90-day revenue forecast. Omitted when no snapshot is available; insufficient_data is returned only after eligibility was evaluated successfully."
     ),
@@ -736,6 +748,22 @@ export const outputPropertiesByToolName: Record<
       description: `Poll and NPS summaries. Each subscriber counts once per campaign poll block using their latest answer to that block; NPS entries include score, average, and promoter/passive/detractor counts. To list the exact historical respondents behind a count, use the summary blockId and the get_campaign_stats campaignId with create_segment. ${pollRespondentFilterHint} A summary's attributeKey identifies the subscriber attribute that stores their current/latest response and may be overwritten by a later poll that reuses the key.`,
       items: objectOutputProperty("One poll or NPS results summary."),
     },
+  },
+  get_transactional_stats: {
+    transactional: resourceOutputProperty("transactional email"),
+    stats: resourceOutputProperty("transactional email statistics"),
+    complaints: resourceOutputProperty(
+      "complaint count and rate for the selected transactional email"
+    ),
+    clickedLinks: resourceListOutputProperty(
+      "clicked link with click count and percentage share"
+    ),
+    bounceBreakdown: resourceOutputProperty(
+      "permanent, transient, and undetermined bounce counts plus subtype details"
+    ),
+    engagementBreakdown: resourceOutputProperty(
+      "human and machine open and click counts"
+    ),
   },
   get_sequence_stats: {
     sequence: resourceOutputProperty("sequence"),

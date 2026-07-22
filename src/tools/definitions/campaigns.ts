@@ -51,6 +51,80 @@ export const campaignToolDefinitions: Tool[] = [
     },
   },
   {
+    name: "list_email_sends",
+    description:
+      "List and filter the recent sent-email delivery history shown in the dashboard. Search subject/title or recipient, filter by delivery status, email type, bounce type, or source ID, then pass a returned emailSendId to get_email_send for exact open/click timestamps and the complete event timeline. Delivery rows are retained for 14 days.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        search: {
+          type: "string",
+          description:
+            "Case-insensitive search across subject and recipient email.",
+        },
+        subject: {
+          type: "string",
+          description: "Case-insensitive subject/title filter.",
+        },
+        recipient: {
+          type: "string",
+          description: "Case-insensitive recipient email filter.",
+        },
+        status: {
+          type: "string",
+          description:
+            "Delivery status: pending, sent, delivered, opened, clicked, bounced, complained, failed, or suppressed. Opened includes clicked deliveries, matching the dashboard.",
+        },
+        emailType: {
+          type: "string",
+          description: "Email type: campaign, transactional, or sequence.",
+        },
+        bounceType: {
+          type: "string",
+          description: "Bounce type: Permanent or Transient.",
+        },
+        campaignId: {
+          type: "string",
+          description: "Filter deliveries from one campaign.",
+        },
+        transactionalEmailId: {
+          type: "string",
+          description: "Filter deliveries from one saved transactional email.",
+        },
+        automationId: {
+          type: "string",
+          description: "Filter deliveries from one sequence/automation.",
+        },
+        days: {
+          type: "number",
+          description: "History window in days, from 1 to 14. Defaults to 14.",
+        },
+        page: {
+          type: "number",
+          description: "Page number starting at 1. Defaults to 1.",
+        },
+        limit: {
+          type: "number",
+          description: "Results per page, from 1 to 100. Defaults to 20.",
+        },
+        sortField: {
+          type: "string",
+          description:
+            "Sort field: recipientEmail, subject, status, eventAt, sentAt, or createdAt. Defaults to createdAt.",
+        },
+        sortOrder: {
+          type: "string",
+          description: "Sort order: asc or desc. Defaults to desc.",
+        },
+      },
+    },
+  },
+  {
     name: "get_email_send",
     description:
       "Get an email delivery by emailSendId, including queued and test sends, delivery status, provider failure reason, stored HTML, copied-recipient identity and primary email send ID, and the ClickHouse event timeline. Queue jobs are internal execution details and are not exposed.",
