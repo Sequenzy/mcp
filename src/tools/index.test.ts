@@ -141,6 +141,25 @@ describe("account tools", () => {
       },
     ]);
   });
+
+  it("publishes bounded Shopify automation timing fields", () => {
+    const tool = tools.find(
+      (candidate) => candidate.name === "update_shopify_automation_settings"
+    );
+    const properties = tool?.inputSchema.properties as
+      | Record<string, { properties?: Record<string, Record<string, unknown>> }>
+      | undefined;
+
+    expect(
+      properties?.["cartAbandonment"]?.properties?.["delayHours"]
+    ).toMatchObject({ type: "number", exclusiveMinimum: 0, maximum: 168 });
+    expect(
+      properties?.["cartAbandonment"]?.properties?.["cooldownHours"]
+    ).toMatchObject({ type: "number", exclusiveMinimum: 0, maximum: 720 });
+    expect(properties?.["priceDrop"]?.properties?.["minPercent"]).toMatchObject(
+      { type: "number", exclusiveMinimum: 0, maximum: 95 }
+    );
+  });
 });
 
 describe("API key permission errors", () => {

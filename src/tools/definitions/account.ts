@@ -363,11 +363,15 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
             enabled: { type: "boolean" },
             delayHours: {
               type: "number",
+              exclusiveMinimum: 0,
+              maximum: 168,
               description:
                 "Hours to wait after a product view before checking for abandonment (default 2).",
             },
             cooldownHours: {
               type: "number",
+              exclusiveMinimum: 0,
+              maximum: 720,
               description:
                 "Minimum hours between browse-abandoned events per subscriber (default 24).",
             },
@@ -382,11 +386,15 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
             enabled: { type: "boolean" },
             delayHours: {
               type: "number",
+              exclusiveMinimum: 0,
+              maximum: 168,
               description:
                 "Hours of cart inactivity before the cart counts as abandoned (default 1).",
             },
             cooldownHours: {
               type: "number",
+              exclusiveMinimum: 0,
+              maximum: 720,
               description:
                 "Minimum hours between cart-abandoned events per subscriber (default 24).",
             },
@@ -400,16 +408,22 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
             enabled: { type: "boolean" },
             minPercent: {
               type: "number",
+              exclusiveMinimum: 0,
+              maximum: 95,
               description:
                 "Minimum price decrease percent to alert on (default 5).",
             },
             lookbackDays: {
               type: "number",
+              exclusiveMinimum: 0,
+              maximum: 90,
               description:
                 "How many days back product viewers qualify as the audience (default 30).",
             },
             cooldownDays: {
               type: "number",
+              exclusiveMinimum: 0,
+              maximum: 90,
               description:
                 "Minimum days between price-drop events per subscriber and product (default 7).",
             },

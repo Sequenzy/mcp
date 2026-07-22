@@ -265,7 +265,8 @@ Shopify cart abandonment is enabled by default. It fires
 per-subscriber cooldown. Use `update_shopify_automation_settings` to change the
 `cartAbandonment.enabled`, `delayHours`, or `cooldownHours` fields; pass
 `cartAbandonment: null` to restore those defaults without changing browse
-abandonment or price-drop settings.
+abandonment or price-drop settings. Timing values must be positive;
+`delayHours` is capped at 168 and `cooldownHours` at 720.
 
 ### Subscribers
 
