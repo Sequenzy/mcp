@@ -272,7 +272,7 @@ export const subscriberToolDefinitions: Tool[] = [
   {
     name: "get_subscriber",
     description:
-      "Get the full subscriber profile, including tags, notes, list memberships, sequence enrollments, email stats, and recent activity",
+      "Get the full subscriber profile, including tags, notes, list memberships, sequence enrollments, email stats, and recent activity. For commerce customers, customAttributes include nightly predictive analytics: predictedLtv (next-12-month spend), churnRisk (percent), expectedNextOrderAt, avgDaysBetweenOrders, and predictionConfidence.",
     inputSchema: {
       type: "object",
       properties: {

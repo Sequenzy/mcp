@@ -1160,7 +1160,7 @@ describe("A/B test tools", () => {
     );
   });
 
-  it("documents and returns reply metrics from analytics tools", async () => {
+  it("documents and returns overview analytics including commerce forecasts", async () => {
     const overviewTool = tools.find(
       (candidate) => candidate.name === "get_stats"
     );
@@ -1173,6 +1173,10 @@ describe("A/B test tools", () => {
     mockApiRequest.mockResolvedValueOnce({
       success: true,
       stats: { replies: 4, replyRate: 12.5 },
+      commerceForecast: {
+        status: "insufficient_data",
+        eligibility: { reasons: [{ code: "needs_orders" }] },
+      },
     });
 
     const result = await handleToolCall("get_stats", {
@@ -1181,12 +1185,69 @@ describe("A/B test tools", () => {
     });
 
     expect(overviewTool?.description).toContain("reply count");
+    expect(overviewTool?.description).toContain("commerceForecast");
+    expect(overviewTool?.outputSchema?.properties).toHaveProperty(
+      "commerceForecast"
+    );
     expect(campaignTool?.description).toContain("replies and reply rate");
     expect(sequenceTool?.description).toContain("per-step replies");
     expect(result.structuredContent?.["stats"]).toEqual({
       replies: 4,
       replyRate: 12.5,
     });
+    expect(result.structuredContent?.["commerceForecast"]).toEqual({
+      status: "insufficient_data",
+      eligibility: { reasons: [{ code: "needs_orders" }] },
+    });
+  });
+
+  it("does not fabricate a commerce forecast when the snapshot is absent", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      stats: { replies: 4, replyRate: 12.5 },
+    });
+
+    const result = await handleToolCall("get_stats", {
+      companyId: "company_123",
+      period: "7d",
+    });
+
+    expect(result.structuredContent).not.toHaveProperty("commerceForecast");
+  });
+
+  it("documents and returns skipped enrollment metrics for sequences", async () => {
+    const sequenceTool = tools.find(
+      (candidate) => candidate.name === "get_sequence_stats"
+    );
+    const enrollmentSkippedSchema = sequenceTool?.outputSchema?.properties?.[
+      "enrollmentSkipped"
+    ] as
+      | {
+          properties?: Record<string, unknown>;
+          required?: string[];
+        }
+      | undefined;
+    const enrollmentSkipped = {
+      count: 3,
+      byReason: { unsubscribed: 2, bounced: 1 },
+    };
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      stats: { sent: 0 },
+      enrollmentSkipped,
+    });
+
+    const result = await handleToolCall("get_sequence_stats", {
+      companyId: "company_123",
+      sequenceId: "seq_123",
+    });
+
+    expect(enrollmentSkippedSchema?.properties).toHaveProperty("count");
+    expect(enrollmentSkippedSchema?.properties).toHaveProperty("byReason");
+    expect(enrollmentSkippedSchema?.required).toEqual(["count", "byReason"]);
+    expect(result.structuredContent?.["enrollmentSkipped"]).toEqual(
+      enrollmentSkipped
+    );
   });
 
   it("passes machine engagement flags through analytics tools", async () => {
@@ -1208,6 +1269,7 @@ describe("A/B test tools", () => {
     await handleToolCall("get_sequence_stats", {
       companyId: "company_123",
       sequenceId: "seq_123",
+      period: "30d",
       includeMachineEngagement: true,
     });
     await handleToolCall("get_ab_test_stats", {
@@ -1233,7 +1295,7 @@ describe("A/B test tools", () => {
     expect(mockApiRequest).toHaveBeenNthCalledWith(
       3,
       "GET",
-      "/api/v1/metrics/sequences/seq_123?includeMachineEngagement=true",
+      "/api/v1/metrics/sequences/seq_123?period=30d&includeMachineEngagement=true",
       undefined,
       "company_123"
     );
@@ -1880,6 +1942,13 @@ describe("update_campaign tool validation", () => {
       "https://sequenzy.com/dashboard/company/comp_123/sent-emails/send_123"
     );
     expect(payload.appUrls.emailSend).toBe(payload.emailSend.url);
+
+    const getEmailSendTool = tools.find(
+      (tool) => tool.name === "get_email_send"
+    );
+    expect(getEmailSendTool?.description).toContain(
+      "copied-recipient identity"
+    );
   });
 
   it("publishes sending identity update fields in the schema", () => {
@@ -7201,6 +7270,82 @@ describe("enroll_subscribers_in_sequence tool", () => {
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain(
       "`subscriberIds` must include at least one subscriber ID when calling `enroll_subscribers_in_sequence`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+});
+
+describe("send_sequence_test_email tool", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("publishes a direct multi-recipient sequence-step test schema", () => {
+    const tool = tools.find(
+      (candidate) => candidate.name === "send_sequence_test_email"
+    );
+    const inputSchema = tool?.inputSchema as
+      | {
+          required?: string[];
+          properties?: Record<string, unknown>;
+        }
+      | undefined;
+
+    expect(inputSchema?.required).toEqual([
+      "sequenceId",
+      "nodeId",
+      "recipients",
+    ]);
+    expect(inputSchema?.properties).toHaveProperty("recipients");
+    expect(tool?.outputSchema?.properties).toHaveProperty("results");
+  });
+
+  it("queues tests for multiple normalized reviewers", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      sequenceId: "seq_123",
+      nodeId: "node_email_2",
+      results: [
+        {
+          recipientEmail: "one@example.com",
+          emailSendId: "send_1",
+          jobId: "job_1",
+        },
+        {
+          recipientEmail: "two@example.com",
+          emailSendId: "send_2",
+          jobId: "job_2",
+        },
+      ],
+    });
+
+    const result = await handleToolCall("send_sequence_test_email", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      nodeId: "node_email_2",
+      recipients: [" One@Example.com ", "two@example.com", "one@example.com"],
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/sequences/seq_123/nodes/node_email_2/test",
+      { recipients: ["one@example.com", "two@example.com"] },
+      "comp_123"
+    );
+    expect(result.structuredContent?.["results"]).toHaveLength(2);
+  });
+
+  it("rejects empty recipient lists before calling the API", async () => {
+    const result = await handleToolCall("send_sequence_test_email", {
+      sequenceId: "seq_123",
+      nodeId: "node_email_2",
+      recipients: [],
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`recipients` must include at least one email address"
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
   });

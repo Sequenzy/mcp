@@ -12,7 +12,7 @@ Connect Sequenzy to Claude Desktop, Claude Code, Codex, Cursor, Windsurf, VS Cod
 - Upload hosted email images with alt text and reusable responsive crop settings.
 - Draft, update, schedule, and inspect campaigns, including From, Reply-To, CC, and BCC identities.
 - Add one-click Poll and NPS survey blocks to emails and inspect campaign response summaries.
-- Create and edit email sequences, including event-triggered and segment-entry automations, sending identity overrides, and existing graph restructuring.
+- Create and edit email sequences, including event-triggered and segment-entry automations, sending identity overrides, existing graph restructuring, and direct step test sends to internal reviewers.
 - Cancel, pause, resume, duplicate, or delete campaigns and enroll contacts into sequences.
 - Manage transactional email templates and send single transactional emails.
 - Supply localized template variants or queue AI translation for enabled locales.
@@ -586,6 +586,7 @@ Landing page content uses Sequenzy's editor-compatible JSON schema with `version
 | ---------------------------------------- | -------------------------------------------------------------------------------------------- |
 | `list_sequences`                         | List sequences with dashboard status, search, label, limit, and offset filters.              |
 | `get_sequence`                           | Get sequence details, including nodes, edges, linked emails, blocks, and per-email format.   |
+| `send_sequence_test_email`               | Send one saved email step to 1-10 reviewers and return a durable delivery ID for each.       |
 | `create_sequence`                        | Create a blank dashboard draft or an AI-generated/explicit-step sequence.                    |
 | `update_sequence`                        | Update identity, settings, enrollment, existing steps, branch logic, or insert linear steps. |
 | `update_sequence_node`                   | Type-aware patch of one existing sequence node.                                              |

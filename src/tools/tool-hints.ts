@@ -133,6 +133,7 @@ export const MUTATING_TOOL_NAMES = new Set([
   "update_landing_page_domain_settings",
   "create_sequence",
   "generate_sequence",
+  "send_sequence_test_email",
   "update_sequence",
   "update_sequence_node",
   "update_sequence_nodes",
@@ -173,6 +174,7 @@ export const MUTATING_TOOL_NAMES = new Set([
 export const OPEN_WORLD_TOOL_NAMES = new Set([
   "send_test_email",
   "send_test_sms",
+  "send_sequence_test_email",
   "schedule_campaign",
   "resume_campaign",
   "publish_landing_page",

@@ -234,6 +234,11 @@ export async function handleAnalyticsAndTransactionalTools(
     case "get_sequence_stats": {
       const companyId = args.companyId as string | undefined;
       const params = new URLSearchParams();
+      for (const key of ["period", "start", "end"] as const) {
+        if (typeof args[key] === "string" && args[key].trim()) {
+          params.set(key, args[key].trim());
+        }
+      }
       if (args.includeMachineEngagement === true) {
         params.set("includeMachineEngagement", "true");
       }

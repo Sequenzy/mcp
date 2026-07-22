@@ -75,6 +75,40 @@ export const sequenceBasicToolDefinitions: Tool[] = [
     },
   },
   {
+    name: "send_sequence_test_email",
+    description:
+      "Queue a real test send for one saved email step in a sequence. Call get_sequence first and pass the target email step's nodeId. Accepts 1-10 reviewer email addresses and returns one durable emailSendId per recipient for get_email_send delivery inspection. The sequence is not enabled and no subscribers are enrolled.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        sequenceId: {
+          type: "string",
+          description: "Sequence ID containing the saved email step.",
+        },
+        nodeId: {
+          type: "string",
+          description:
+            "Email step nodeId from get_sequence. The node must belong to sequenceId.",
+        },
+        recipients: {
+          type: "array",
+          minItems: 1,
+          maxItems: 10,
+          items: { type: "string", format: "email" },
+          description:
+            "One to ten internal reviewer email addresses. Duplicate addresses are sent only once.",
+        },
+      },
+      required: ["sequenceId", "nodeId", "recipients"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "create_sequence",
     description:
       "Create and persist a disabled draft email sequence, follow-up series, drip campaign, nurture flow, or automation workflow. For natural-language content, provide goal and emailCount. Use explicit steps for finished caller-supplied content, exact workflows, or migrations. Configure trigger plus its relevant field, such as listId, tagName, segmentId, or eventName. Supports email and SMS steps, delays and date waits, actions that dynamically create a provider discount/code, subscriber updates, event filters, enrollment rules, sending windows, and stop conditions. The saved draft appears in list_sequences. Never call enable_sequence unless the user explicitly asks to activate it.",

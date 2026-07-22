@@ -9,7 +9,7 @@ export const analyticsToolDefinitions: Tool[] = [
   {
     name: "get_stats",
     description:
-      "Get overview statistics for a time period, including reply count and reply rate",
+      "Get overview statistics for a time period, including reply count and reply rate. When a background-computed snapshot is available, the response also includes a top-level commerceForecast with predicted AOV, 12-month customer value, 90-day revenue, confidence, and data-eligibility reasons.",
     inputSchema: {
       type: "object",
       properties: {
@@ -50,7 +50,7 @@ export const analyticsToolDefinitions: Tool[] = [
   {
     name: "get_sequence_stats",
     description:
-      "Get statistics for a sequence, including aggregate and per-step replies and reply rates, attributed conversions and revenue (revenueCents), plus per-step failed subscribers and failure reasons",
+      "Get statistics for a sequence, including aggregate and per-step replies and reply rates, attributed conversions and revenue (revenueCents), per-step failed subscribers and failure reasons, plus enrollmentSkipped counts for trigger matches where the contact could not be enrolled (unsubscribed/bounced). Pass period or start/end to use one explicit window for every metric; without them, enrollmentSkipped defaults to the last 30 days.",
     inputSchema: {
       type: "object",
       properties: {
@@ -62,6 +62,21 @@ export const analyticsToolDefinitions: Tool[] = [
         sequenceId: {
           type: "string",
           description: "Sequence ID",
+        },
+        period: {
+          type: "string",
+          description:
+            "Optional sliding window: 1h, 24h, 7d, 30d, or 90d. Ignored when start and end are provided.",
+        },
+        start: {
+          type: "string",
+          description:
+            "Optional ISO 8601 custom range start. Must be provided with end.",
+        },
+        end: {
+          type: "string",
+          description:
+            "Optional ISO 8601 custom range end. Must be provided with start; maximum range is 90 days.",
         },
         includeMachineEngagement: includeMachineEngagementToolProperty,
       },

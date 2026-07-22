@@ -53,7 +53,7 @@ export const campaignToolDefinitions: Tool[] = [
   {
     name: "get_email_send",
     description:
-      "Get an email delivery by emailSendId, including queued and test sends, delivery status, provider failure reason, stored HTML, and the ClickHouse event timeline. Queue jobs are internal execution details and are not exposed.",
+      "Get an email delivery by emailSendId, including queued and test sends, delivery status, provider failure reason, stored HTML, copied-recipient identity and primary email send ID, and the ClickHouse event timeline. Queue jobs are internal execution details and are not exposed.",
     inputSchema: {
       type: "object",
       properties: {
