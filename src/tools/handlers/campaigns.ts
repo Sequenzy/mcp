@@ -917,6 +917,22 @@ export async function handleCampaignTools(
       break;
     }
 
+    case "unschedule_campaign": {
+      const companyId = args.companyId as string | undefined;
+      const campaignId = requiredString(
+        "unschedule_campaign",
+        args,
+        "campaignId"
+      );
+      result = await apiRequest(
+        "POST",
+        `/api/v1/campaigns/${encodeURIComponent(campaignId)}/unschedule`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
     case "pause_campaign": {
       const companyId = args.companyId as string | undefined;
       const campaignId = requiredString("pause_campaign", args, "campaignId");

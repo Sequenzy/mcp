@@ -129,4 +129,42 @@ describe("formatMcpError", () => {
     );
     expect(message).toContain('Details: {"segmentName":"VIP"}');
   });
+
+  it("uses campaign refresh guidance for unschedule conflicts", () => {
+    const message = formatMcpError(
+      new McpApiError(
+        "Campaign can no longer be unscheduled",
+        409,
+        '{"campaignId":"campaign-1"}',
+        "CAMPAIGN_UNSCHEDULE_CONFLICT",
+        {
+          title: "Campaign can no longer be unscheduled",
+          description:
+            "Delivery has already started or the campaign scheduling state changed.",
+          howToFix:
+            "Call get_campaign to refresh status, then use pause_campaign or cancel_campaign if delivery is sending.",
+          docsUrl:
+            "https://docs.sequenzy.com/api-reference/campaigns/unschedule",
+        }
+      )
+    );
+
+    expect(message).toContain(
+      "Sequenzy MCP error: Campaign can no longer be unscheduled"
+    );
+    expect(message).toContain("Call get_campaign to refresh status");
+    expect(message).toContain("pause_campaign or cancel_campaign");
+    expect(message).not.toContain("choose a unique");
+  });
+
+  it("does not describe unstructured lifecycle conflicts as duplicates", () => {
+    const message = formatMcpError(
+      new McpApiError("Campaign status changed", 409)
+    );
+
+    expect(message).toContain("Sequenzy MCP error: Request conflict");
+    expect(message).toContain("Refresh the resource state");
+    expect(message).not.toContain("Resource already exists");
+    expect(message).not.toContain("unique name or domain");
+  });
 });

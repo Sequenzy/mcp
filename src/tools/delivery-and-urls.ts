@@ -264,6 +264,7 @@ export const dashboardUrlToolNames = new Set([
   "create_campaign",
   "update_campaign",
   "schedule_campaign",
+  "unschedule_campaign",
   "send_test_email",
   "cancel_campaign",
   "pause_campaign",

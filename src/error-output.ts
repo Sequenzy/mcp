@@ -181,16 +181,25 @@ function describeMcpError(error: unknown): McpErrorDescriptor {
     };
   }
 
-  if (
-    normalized.statusCode === 409 ||
-    lowerMessage.includes("already exists")
-  ) {
+  if (lowerMessage.includes("already exists")) {
     return {
       title: "Resource already exists",
       description:
         "Sequenzy rejected this MCP request because it would create a duplicate resource.",
       howToFix:
         "List the existing resources first, reuse the matching resource when appropriate, or retry with a unique name or domain.",
+      docsUrl: MCP_DOCS_URL,
+      details,
+    };
+  }
+
+  if (normalized.statusCode === 409) {
+    return {
+      title: "Request conflict",
+      description:
+        "Sequenzy rejected this request because the resource changed or an operation is already in progress.",
+      howToFix:
+        "Refresh the resource state, choose the lifecycle action allowed by its current status, and retry at most once.",
       docsUrl: MCP_DOCS_URL,
       details,
     };

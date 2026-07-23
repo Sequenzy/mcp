@@ -224,7 +224,7 @@ build a list as well as create it. Imports that apply `listIds` also need
 
 ## Tools
 
-This server currently exposes 149 MCP tools.
+This server currently exposes 163 MCP tools.
 
 ### Account, Companies, Setup
 
@@ -802,17 +802,22 @@ variables automatically. Explicit values, including blanks, take precedence.
 
 ### Analytics
 
-| Tool                      | Description                                                                          |
-| ------------------------- | ------------------------------------------------------------------------------------ |
-| `get_stats`               | Get overview stats for `7d`, `30d`, or `90d`; filter by structural email type.       |
-| `get_transactional_stats` | Get all-time or time-scoped metrics for one saved transactional email by ID or slug. |
-| `get_campaign_stats`      | Get campaign performance, reply metrics, and Poll/NPS summaries.                     |
-| `get_sequence_stats`      | Get aggregate and per-step sequence performance, including reply metrics.            |
-| `list_campaign_events`    | List paginated raw email events for a campaign.                                      |
-| `list_sequence_events`    | List paginated raw email events for a sequence.                                      |
-| `get_subscriber_activity` | Get subscriber email stats, activity, and enrollments.                               |
+| Tool                      | Description                                                                                                 |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `get_stats`               | Get overview stats for `7d`, `30d`, or `90d`; filter by structural email type.                              |
+| `get_transactional_stats` | Get all-time or time-scoped metrics for one saved transactional email by ID or slug.                        |
+| `get_campaign_stats`      | Get campaign performance, reply metrics, and Poll/NPS summaries.                                            |
+| `get_sequence_stats`      | Get aggregate and per-step sequence performance plus live active/waiting enrollment counts by current node. |
+| `list_campaign_events`    | List paginated raw email events for a campaign.                                                             |
+| `list_sequence_events`    | List paginated raw email events for a sequence.                                                             |
+| `get_subscriber_activity` | Get subscriber email stats, activity, and enrollments.                                                      |
 
 Analytics tools exclude detected bot, scanner, link-preview, and tracked asset opens/clicks by default. Pass `includeMachineEngagement: true` to `get_stats`, `get_campaign_stats`, `get_sequence_stats`, `get_ab_test_stats`, `get_subscriber`, or `get_subscriber_activity` when you need raw engagement diagnostics; included open/click activity rows expose `machine`, `engagementQuality`, and `classificationReasons` fields where the API returns event-level activity.
+
+`get_sequence_stats.enrollmentCounts` is a live point-in-time snapshot of
+active and waiting enrollment runs grouped by current node. It counts
+enrollment tokens rather than necessarily distinct subscribers, and it is not
+limited by historical `period`, `start`, or `end` filters.
 
 Pass `emailType: "transactional"` to `get_stats` for Send API and
 transactional SMTP delivery, open, click, and reply rates. This includes direct
