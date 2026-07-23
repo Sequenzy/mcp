@@ -105,7 +105,7 @@ export const analyticsToolDefinitions: Tool[] = [
   {
     name: "get_sequence_stats",
     description:
-      "Get statistics for a sequence, including aggregate and per-step replies and reply rates, attributed conversions and revenue (revenueCents), product recommendation funnel metrics, per-step failed subscribers and failure reasons, plus enrollmentSkipped counts for trigger matches where the contact could not be enrolled (unsubscribed/bounced). The enrollmentCounts field is a live snapshot of active and waiting enrollments grouped by current node, so it is not limited by period or start/end. Date filters scope the historical metrics; without them, enrollmentSkipped defaults to the last 30 days.",
+      "Get statistics for a sequence, including aggregate and per-step replies and reply rates, attributed conversions and revenue (revenueCents), product recommendation funnel metrics, per-step failed subscribers and failure reasons, plus enrollmentSkipped counts for trigger matches where the contact could not be enrolled (unsubscribed/bounced). Pass period or start/end to use one explicit window for every historical metric; without them, enrollmentSkipped defaults to the last 30 days. The enrollmentCounts field is a live snapshot of active and waiting enrollments grouped by current node, so it is not limited by period or start/end.",
     inputSchema: {
       type: "object",
       properties: {

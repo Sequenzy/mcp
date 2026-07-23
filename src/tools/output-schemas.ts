@@ -466,6 +466,9 @@ export const outputPropertiesByToolName: Record<
     abTest: resourceOutputProperty("A/B test"),
     variant: resourceOutputProperty("A/B test variant"),
   },
+  update_ab_test: {
+    abTest: resourceOutputProperty("A/B test"),
+  },
   create_ab_test: {
     abTest: resourceOutputProperty("A/B test"),
   },
