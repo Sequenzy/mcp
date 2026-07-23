@@ -692,6 +692,110 @@ export async function handleCampaignTools(
       break;
     }
 
+    case "list_email_sends": {
+      const companyId = args.companyId as string | undefined;
+      const params = new URLSearchParams();
+      const stringFilters = [
+        "search",
+        "subject",
+        "recipient",
+        "campaignId",
+        "transactionalEmailId",
+        "automationId",
+      ] as const;
+      for (const key of stringFilters) {
+        const value = optionalString(args, key);
+        if (value) params.set(key, value);
+      }
+
+      const status = optionalAllowedString("list_email_sends", args, "status", [
+        "pending",
+        "sent",
+        "delivered",
+        "opened",
+        "clicked",
+        "bounced",
+        "complained",
+        "failed",
+        "suppressed",
+      ]);
+      const emailType = optionalAllowedString(
+        "list_email_sends",
+        args,
+        "emailType",
+        ["campaign", "transactional", "sequence"]
+      );
+      const bounceType = optionalAllowedString(
+        "list_email_sends",
+        args,
+        "bounceType",
+        ["Permanent", "Transient"]
+      );
+      const sortField = optionalAllowedString(
+        "list_email_sends",
+        args,
+        "sortField",
+        [
+          "recipientEmail",
+          "subject",
+          "status",
+          "eventAt",
+          "sentAt",
+          "createdAt",
+        ]
+      );
+      const sortOrder = optionalAllowedString(
+        "list_email_sends",
+        args,
+        "sortOrder",
+        ["asc", "desc"]
+      );
+      const days = optionalIntegerInRange(
+        "list_email_sends",
+        args,
+        "days",
+        1,
+        14
+      );
+      const page = optionalIntegerInRange(
+        "list_email_sends",
+        args,
+        "page",
+        1,
+        Number.MAX_SAFE_INTEGER
+      );
+      const limit = optionalIntegerInRange(
+        "list_email_sends",
+        args,
+        "limit",
+        1,
+        100
+      );
+
+      const optionalParams: Array<[string, string | number | undefined]> = [
+        ["status", status],
+        ["emailType", emailType],
+        ["bounceType", bounceType],
+        ["sortField", sortField],
+        ["sortOrder", sortOrder],
+        ["days", days],
+        ["page", page],
+        ["limit", limit],
+      ];
+      for (const [key, value] of optionalParams) {
+        if (value !== undefined) params.set(key, String(value));
+      }
+
+      const query = params.toString();
+      result = await apiRequest(
+        "GET",
+        `/api/v1/email-sends${query ? `?${query}` : ""}`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
     case "create_campaign": {
       const companyId = args.companyId as string | undefined;
       validateCreateCampaignContentArgs(args);
@@ -877,6 +981,22 @@ export async function handleCampaignTools(
       result = await apiRequest(
         "POST",
         `/api/v1/campaigns/${encodeURIComponent(campaignId)}/cancel`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "unschedule_campaign": {
+      const companyId = args.companyId as string | undefined;
+      const campaignId = requiredString(
+        "unschedule_campaign",
+        args,
+        "campaignId"
+      );
+      result = await apiRequest(
+        "POST",
+        `/api/v1/campaigns/${encodeURIComponent(campaignId)}/unschedule`,
         undefined,
         companyId
       );

@@ -175,7 +175,13 @@ export function addCampaignUrlsToRecord(
 export function addListItemUrls(
   value: unknown,
   companyId: string | undefined,
-  kind: "campaign" | "landingPage" | "sequence" | "template" | "transactional"
+  kind:
+    | "campaign"
+    | "landingPage"
+    | "sequence"
+    | "template"
+    | "transactional"
+    | "emailSend"
 ): unknown {
   if (!Array.isArray(value) || !companyId) {
     return value;
@@ -198,6 +204,7 @@ export function addListItemUrls(
       ...(kind === "sequence" && { sequenceId: id }),
       ...(kind === "template" && { emailId: id }),
       ...(kind === "transactional" && { transactionalId: id }),
+      ...(kind === "emailSend" && { emailSendId: id }),
     });
 
     if (kind === "campaign") {
@@ -211,7 +218,9 @@ export function addListItemUrls(
           ? appUrls.urls.landingPage
           : kind === "template"
             ? appUrls.urls.email
-            : appUrls.urls.transactionalEmail;
+            : kind === "transactional"
+              ? appUrls.urls.transactionalEmail
+              : appUrls.urls.emailSend;
 
     return addUrlToRecord(item, url);
   });
@@ -251,9 +260,11 @@ export const dashboardUrlToolNames = new Set([
   "list_campaigns",
   "get_campaign",
   "get_email_send",
+  "list_email_sends",
   "create_campaign",
   "update_campaign",
   "schedule_campaign",
+  "unschedule_campaign",
   "send_test_email",
   "cancel_campaign",
   "pause_campaign",
@@ -269,6 +280,7 @@ export const dashboardUrlToolNames = new Set([
   "delete_landing_page",
   "list_sequences",
   "get_sequence",
+  "send_sequence_test_email",
   "create_sequence",
   "generate_sequence",
   "update_sequence",
@@ -404,6 +416,9 @@ export async function addAppUrlsToToolResult(
         companyId,
         "transactional"
       ),
+    }),
+    ...(Array.isArray(result.emailSends) && {
+      emailSends: addListItemUrls(result.emailSends, companyId, "emailSend"),
     }),
     ...(companyRecord &&
       companyAppUrls !== undefined && {

@@ -12,7 +12,7 @@ Connect Sequenzy to Claude Desktop, Claude Code, Codex, Cursor, Windsurf, VS Cod
 - Upload hosted email images with alt text and reusable responsive crop settings.
 - Draft, update, schedule, and inspect campaigns, including From, Reply-To, CC, and BCC identities.
 - Add one-click Poll and NPS survey blocks to emails and inspect campaign response summaries.
-- Create and edit email sequences, including event-triggered and segment-entry automations, sending identity overrides, and existing graph restructuring.
+- Create and edit email sequences, including event-triggered and segment-entry automations, sending identity overrides, existing graph restructuring, and direct step test sends to internal reviewers.
 - Cancel, pause, resume, duplicate, or delete campaigns and enroll contacts into sequences.
 - Manage transactional email templates and send single transactional emails.
 - Supply localized template variants or queue AI translation for enabled locales.
@@ -228,26 +228,28 @@ This server currently exposes 161 MCP tools.
 
 ### Account, Companies, Setup
 
-| Tool                    | Description                                                                                                                   |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `get_account`           | Get account info, available companies, current key permissions, and the API Keys management URL.                              |
-| `select_company`        | Set the active company for future tool calls.                                                                                 |
-| `get_app_urls`          | Build dashboard URLs for campaigns, landing pages, sequences, emails, settings, domains, and sent email details.              |
-| `create_company`        | Create a new company or brand.                                                                                                |
-| `get_company`           | Read company details, product info, brand context, localization, reply-tracking settings, and current From/Reply-To defaults. |
-| `update_company`        | Edit product info, brand context, the default email theme, reply-tracking settings, and account-wide From/Reply-To defaults.  |
-| `get_sync_rules`        | Read the company's event-to-tag rules and whether it uses the inherited platform preset.                                      |
-| `update_sync_rules`     | Replace all sync rules; pass `[]` to disable them or `null` to opt into the SaaS/ecommerce platform preset.                   |
-| `create_api_key`        | Create an API key for a company, with optional permission preset or explicit scopes.                                          |
-| `list_api_keys`         | List company API keys as non-secret metadata for safe identification and cleanup.                                             |
-| `revoke_api_key`        | Permanently revoke an exact company API key by ID after checking it with `list_api_keys`.                                     |
-| `delete_api_key`        | Compatibility alias for `revoke_api_key`.                                                                                     |
-| `list_websites`         | List sending domains with stored aggregate, SPF, DKIM, and MAIL FROM status.                                                  |
-| `add_sending_domain`    | Add a sending domain and return its SPF, DKIM, MAIL FROM, and inbound DNS setup records.                                      |
-| `add_website`           | Compatibility alias for `add_sending_domain`.                                                                                 |
-| `check_website`         | Read a sending domain's stored SPF, DKIM, MAIL FROM, and aggregate verification details.                                      |
-| `verify_sending_domain` | Run a fresh sending-domain DNS/provider verification and return current status and diagnostics.                               |
-| `get_integration_guide` | Get framework-specific integration examples.                                                                                  |
+| Tool                                 | Description                                                                                                                   |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `get_account`                        | Get account info, available companies, current key permissions, and the API Keys management URL.                              |
+| `select_company`                     | Set the active company for future tool calls.                                                                                 |
+| `get_app_urls`                       | Build dashboard URLs for campaigns, landing pages, sequences, emails, settings, domains, and sent email details.              |
+| `create_company`                     | Create a new company or brand.                                                                                                |
+| `get_company`                        | Read company details, product info, brand context, localization, reply-tracking settings, and current From/Reply-To defaults. |
+| `update_company`                     | Edit product info, brand context, the default email theme, reply-tracking settings, and account-wide From/Reply-To defaults.  |
+| `get_sync_rules`                     | Read the company's event-to-tag rules and whether it uses the inherited platform preset.                                      |
+| `update_sync_rules`                  | Replace all sync rules; pass `[]` to disable them or `null` to opt into the SaaS/ecommerce platform preset.                   |
+| `get_shopify_automation_settings`    | Read browse-abandonment, cart-abandonment, and price-drop settings for the connected Shopify store.                           |
+| `update_shopify_automation_settings` | Partially update Shopify automation settings or reset an individual section to its platform defaults.                         |
+| `create_api_key`                     | Create an API key for a company, with optional permission preset or explicit scopes.                                          |
+| `list_api_keys`                      | List company API keys as non-secret metadata for safe identification and cleanup.                                             |
+| `revoke_api_key`                     | Permanently revoke an exact company API key by ID after checking it with `list_api_keys`.                                     |
+| `delete_api_key`                     | Compatibility alias for `revoke_api_key`.                                                                                     |
+| `list_websites`                      | List sending domains with stored aggregate, SPF, DKIM, and MAIL FROM status.                                                  |
+| `add_sending_domain`                 | Add a sending domain and return its SPF, DKIM, MAIL FROM, and inbound DNS setup records.                                      |
+| `add_website`                        | Compatibility alias for `add_sending_domain`.                                                                                 |
+| `check_website`                      | Read a sending domain's stored SPF, DKIM, MAIL FROM, and aggregate verification details.                                      |
+| `verify_sending_domain`              | Run a fresh sending-domain DNS/provider verification and return current status and diagnostics.                               |
+| `get_integration_guide`              | Get framework-specific integration examples.                                                                                  |
 
 For a new sending domain, call `add_sending_domain`, publish the DNS records in
 the returned `website.dnsRecords`, wait for DNS propagation, and then call
@@ -257,6 +259,14 @@ error points back to `add_sending_domain` with the requested domain.
 New companies start with no sync rules. The inherited preset remains available
 for SaaS/ecommerce companies by passing `null` to `update_sync_rules`; services
 and consulting companies should normally keep `[]` or define explicit rules.
+
+Shopify cart abandonment is enabled by default. It fires
+`ecommerce.cart_abandoned` after one hour of cart inactivity, with a 24-hour
+per-subscriber cooldown. Use `update_shopify_automation_settings` to change the
+`cartAbandonment.enabled`, `delayHours`, or `cooldownHours` fields; pass
+`cartAbandonment: null` to restore those defaults without changing browse
+abandonment or price-drop settings. Timing values must be positive;
+`delayHours` is capped at 168 and `cooldownHours` at 720.
 
 ### Subscribers
 
@@ -459,6 +469,7 @@ Use `get_ab_test` to discover variant IDs before editing. Variant updates accept
 | `get_campaign`                   | Get details, stats, and reviewer feedback for a rejected campaign.                        |
 | `get_send_schedule`              | List active sequences and dated campaign, sequence, and transactional send activity.      |
 | `get_schedule_overlap`           | Count shared subscribers for two flagged schedule items.                                  |
+| `list_email_sends`               | Search and filter recent delivery history; every row includes its dashboard URL.          |
 | `get_email_send`                 | Inspect a queued, test, sent, suppressed, or failed delivery by durable email-send ID.    |
 | `get_recipient_suppression`      | Check local and regional SES suppression for one exact recipient.                         |
 | `remove_recipient_suppression`   | Remove stale bounce suppression for a company-associated recipient.                       |
@@ -486,10 +497,13 @@ transactional day to `get_schedule_overlap`; direct transactional groups use a
 null `transactionalEmailId`. Daily-volume windows must not have their start
 after their end and may span at most 130 days.
 
-`send_email` and `send_test_email` return a durable `emailSendId`. Pass that ID
-to `get_email_send` to inspect `status`, `errorMessage`, the stored body, and
-delivery events. Queue jobs are internal execution details and are not exposed
-through the MCP contract. Use `get_recipient_suppression` before cleanup, then
+`send_email` and `send_test_email` return a durable `emailSendId`. Use
+`list_email_sends` to discover recent IDs by subject/title, recipient, delivery
+status, type, bounce type, or source; pass an ID to `get_email_send` to inspect
+`status`, `errorMessage`, the stored body, and delivery events. Delivery-list
+rows are retained for 14 days. Queue jobs are internal execution details and
+are not exposed through the MCP contract. Every returned delivery has a direct
+dashboard `url`. Use `get_recipient_suppression` before cleanup, then
 `remove_recipient_suppression` only after confirming a hard-bounced mailbox is
 working again. Cleanup removes bounce entries but never complaint or unsubscribe
 protections.
@@ -596,6 +610,7 @@ Landing page content uses Sequenzy's editor-compatible JSON schema with `version
 | ---------------------------------------- | -------------------------------------------------------------------------------------------- |
 | `list_sequences`                         | List sequences with dashboard status, search, label, limit, and offset filters.              |
 | `get_sequence`                           | Get sequence details, including nodes, edges, linked emails, blocks, and per-email format.   |
+| `send_sequence_test_email`               | Send one saved email step to 1-10 reviewers and return a durable delivery ID for each.       |
 | `create_sequence`                        | Create a blank dashboard draft or an AI-generated/explicit-step sequence.                    |
 | `update_sequence`                        | Update identity, settings, enrollment, existing steps, branch logic, or insert linear steps. |
 | `update_sequence_node`                   | Type-aware patch of one existing sequence node.                                              |
@@ -774,13 +789,13 @@ For compatibility with older agent prompts, top-level style keys such as `backgr
 
 ### Transactional Email
 
-| Tool                         | Description                                                     |
-| ---------------------------- | --------------------------------------------------------------- |
-| `list_transactional_emails`  | List transactional templates and API slugs.                     |
-| `get_transactional_email`    | Read a transactional email by ID or slug.                       |
-| `create_transactional_email` | Create a transactional template from a prompt, HTML, or blocks. |
-| `update_transactional_email` | Update transactional metadata or body content.                  |
-| `send_email`                 | Send a single transactional email by template or HTML.          |
+| Tool                         | Description                                                                                |
+| ---------------------------- | ------------------------------------------------------------------------------------------ |
+| `list_transactional_emails`  | Search/filter templates and sort by delivery metrics; returns subjects and dashboard URLs. |
+| `get_transactional_email`    | Read a transactional email by ID or slug.                                                  |
+| `create_transactional_email` | Create a transactional template from a prompt, HTML, or blocks.                            |
+| `update_transactional_email` | Update transactional metadata or body content.                                             |
+| `send_email`                 | Send a single transactional email by template or HTML.                                     |
 
 Prompt-created transactional templates are generated server-side and default
 to disabled for review. Explicit HTML or block templates retain the
@@ -797,16 +812,28 @@ variables automatically. Explicit values, including blanks, take precedence.
 
 ### Analytics
 
-| Tool                      | Description                                                                      |
-| ------------------------- | -------------------------------------------------------------------------------- |
-| `get_stats`               | Get overview stats, including replies and reply rate, for `7d`, `30d`, or `90d`. |
-| `get_campaign_stats`      | Get campaign performance, reply metrics, and Poll/NPS summaries.                 |
-| `get_sequence_stats`      | Get aggregate and per-step sequence performance, including reply metrics.        |
-| `list_campaign_events`    | List paginated raw email events for a campaign.                                  |
-| `list_sequence_events`    | List paginated raw email events for a sequence.                                  |
-| `get_subscriber_activity` | Get subscriber email stats, activity, and enrollments.                           |
+| Tool                      | Description                                                                          |
+| ------------------------- | ------------------------------------------------------------------------------------ |
+| `get_stats`               | Get overview stats for `7d`, `30d`, or `90d`; filter by structural email type.       |
+| `get_transactional_stats` | Get all-time or time-scoped metrics for one saved transactional email by ID or slug. |
+| `get_campaign_stats`      | Get campaign performance, reply metrics, and Poll/NPS summaries.                     |
+| `get_sequence_stats`      | Get aggregate and per-step sequence performance, including reply metrics.            |
+| `list_campaign_events`    | List paginated raw email events for a campaign.                                      |
+| `list_sequence_events`    | List paginated raw email events for a sequence.                                      |
+| `get_subscriber_activity` | Get subscriber email stats, activity, and enrollments.                               |
 
 Analytics tools exclude detected bot, scanner, link-preview, and tracked asset opens/clicks by default. Pass `includeMachineEngagement: true` to `get_stats`, `get_campaign_stats`, `get_sequence_stats`, `get_ab_test_stats`, `get_subscriber`, or `get_subscriber_activity` when you need raw engagement diagnostics; included open/click activity rows expose `machine`, `engagementQuality`, and `classificationReasons` fields where the API returns event-level activity.
+
+Pass `emailType: "transactional"` to `get_stats` for Send API and
+transactional SMTP delivery, open, click, and reply rates. This includes direct
+and saved-template sends. Use the `emailSendId` returned by `send_email` with
+`get_email_send` when you need one delivery's status and event timeline.
+Use `get_transactional_stats` when you need aggregate rates for one saved
+transactional email. Its response includes top clicked links, complaints,
+replies, latest permanent/transient bounce classifications, and separate human
+and machine open/click counts. Direct-content sends do not have a stable
+template ID and remain available through account transactional stats plus
+delivery search.
 
 When a campaign collects Poll or NPS answers, `get_campaign_stats` includes a
 top-level `polls` array. Each subscriber counts once per poll block using their
