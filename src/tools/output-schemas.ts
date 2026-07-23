@@ -95,6 +95,18 @@ export function resourceListOutputProperty(
   );
 }
 
+const sequenceMutationOutputProperty: OutputSchemaProperty = {
+  ...resourceOutputProperty("sequence"),
+  properties: {
+    migratedRecipientCount: numberOutputProperty(
+      "Recipients moved immediately from deleted steps to their surviving successor."
+    ),
+    completedRecipientCount: numberOutputProperty(
+      "Recipients completed because a deleted step had no surviving successor."
+    ),
+  },
+};
+
 export const dashboardUrlOutputProperties: OutputSchemaProperties = {
   appUrls: objectOutputProperty(
     "Dashboard URLs for relevant Sequenzy resources."
@@ -620,7 +632,7 @@ export const outputPropertiesByToolName: Record<
     },
   },
   update_sequence: {
-    sequence: resourceOutputProperty("sequence"),
+    sequence: sequenceMutationOutputProperty,
   },
   update_sequence_node: {
     sequence: resourceOutputProperty("sequence"),
@@ -629,7 +641,7 @@ export const outputPropertiesByToolName: Record<
     sequence: resourceOutputProperty("sequence"),
   },
   edit_sequence_graph: {
-    sequence: resourceOutputProperty("sequence"),
+    sequence: sequenceMutationOutputProperty,
   },
   insert_sequence_step: {
     sequence: resourceOutputProperty("sequence"),

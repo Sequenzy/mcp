@@ -606,7 +606,7 @@ Landing page content uses Sequenzy's editor-compatible JSON schema with `version
 | `update_sequence_node`                   | Type-aware patch of one existing sequence node.                                              |
 | `update_sequence_nodes`                  | Atomically patch multiple existing sequence nodes.                                           |
 | `insert_sequence_step`                   | Insert any typed dashboard step, including outbound webhooks, waits, and wired branches.     |
-| `edit_sequence_graph`                    | Move, reconnect, delete, or duplicate existing graph nodes, including A/B test steps.        |
+| `edit_sequence_graph`                    | Move, reconnect, delete, or duplicate graph nodes; reports recipients moved or completed.    |
 | `enable_sequence`                        | Activate a sequence.                                                                         |
 | `disable_sequence`                       | Freeze a sequence, blocking new enrollments and holding current recipients.                  |
 | `duplicate_sequence`                     | Create an independent draft copy of the graph, emails, and sequence A/B tests.               |
@@ -751,7 +751,7 @@ nearest sequence email. After a branch merge, only identity fields shared by
 every incoming path are inherited; conflicting fields use the sequence or
 company defaults.
 
-Use `edit_sequence_graph` with the latest `graphRevision` from `get_sequence` to restructure an existing sequence atomically. It can move a node before or after another node, reuse the normalized `sequence.edges` array for explicit reconnection or multi-node reordering, delete a node, or deep-copy a node. A/B test duplication creates independent test, variant, email, and localization records with reset statistics. Moving a node before the shared node below a branch reconnects every converging branch path through that node. Stale revisions, invalid branch lanes, cycles, unreachable nodes, and unsafe deletion of a node with active recipients are rejected. Active sequences also require `confirmStructuralChange: true`.
+Use `edit_sequence_graph` with the latest `graphRevision` from `get_sequence` to restructure an existing sequence atomically. It can move a node before or after another node, reuse the normalized `sequence.edges` array for explicit reconnection or multi-node reordering, delete a node, or deep-copy a node. A/B test duplication creates independent test, variant, email, and localization records with reset statistics. Moving a node before the shared node below a branch reconnects every converging branch path through that node. Deleting a node immediately moves parked recipients to its unique surviving successor, or completes them when no successor remains; inspect `sequence.migratedRecipientCount` and `sequence.completedRecipientCount` in the result. Deletion is refused when parked recipients would have multiple surviving continuations. Stale revisions, invalid branch lanes, cycles, and unreachable nodes are also rejected. Active sequences require `confirmStructuralChange: true`.
 
 Run `cancel_sequence_enrollments` with `dryRun: true` before applying bulk cancellation.
 

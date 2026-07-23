@@ -3998,6 +3998,21 @@ describe("create_sequence tool", () => {
 });
 
 describe("update_sequence tool", () => {
+  it("publishes recipient-impact counts for sequence graph mutations", () => {
+    for (const toolName of ["update_sequence", "edit_sequence_graph"]) {
+      const tool = tools.find((candidate) => candidate.name === toolName);
+      const sequenceSchema = tool?.outputSchema?.properties?.["sequence"] as
+        | { properties?: Record<string, unknown> }
+        | undefined;
+      expect(sequenceSchema?.properties).toHaveProperty(
+        "migratedRecipientCount"
+      );
+      expect(sequenceSchema?.properties).toHaveProperty(
+        "completedRecipientCount"
+      );
+    }
+  });
+
   beforeEach(() => {
     mockApiRequest.mockClear();
   });
