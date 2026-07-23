@@ -127,7 +127,7 @@ export const campaignToolDefinitions: Tool[] = [
   {
     name: "get_email_send",
     description:
-      "Get an email delivery by emailSendId, including queued and test sends, delivery status, provider failure reason, stored HTML, copied-recipient identity and primary email send ID, and the ClickHouse event timeline. Queue jobs are internal execution details and are not exposed.",
+      "Get an email delivery by emailSendId, including queued and test sends, delivery status, provider failure reason, stored HTML, effective Reply-To, copied-recipient identity and primary email send ID, and the ClickHouse event timeline. `type` is the legacy source category; use `emailType` on the send and `deliveryPolicy` on events for the actual marketing or transactional policy when known. Queue jobs are internal execution details and are not exposed.",
     inputSchema: {
       type: "object",
       properties: {
@@ -452,6 +452,27 @@ export const campaignToolDefinitions: Tool[] = [
         },
       },
       required: ["campaignId", "to"],
+    },
+  },
+  {
+    name: "unschedule_campaign",
+    description:
+      "Return a scheduled campaign to an editable draft. Removes its pending send and recurrence without permanently cancelling it, so it can be edited and scheduled again.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        campaignId: {
+          type: "string",
+          description: "Scheduled campaign ID to return to draft.",
+        },
+      },
+      required: ["campaignId"],
+      additionalProperties: false,
     },
   },
   {

@@ -76,6 +76,11 @@ export const productToolDefinitions: Tool[] = [
                 type: "boolean",
                 description: "Whether the product is in stock.",
               },
+              providerCreatedAt: {
+                type: ["string", "null"],
+                description:
+                  "ISO 8601 creation time from the source catalog. Omit to preserve the stored value; pass null to clear it. Used for newest-product ranking.",
+              },
             },
             required: ["productId", "title"],
           },

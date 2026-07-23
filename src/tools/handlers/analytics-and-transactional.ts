@@ -178,6 +178,10 @@ export async function handleAnalyticsAndTransactionalTools(
         args.emailType === undefined
           ? undefined
           : requiredString("send_email", args, "emailType");
+      const replyTo =
+        args.replyTo === undefined
+          ? undefined
+          : requiredString("send_email", args, "replyTo");
 
       if (
         emailType !== undefined &&
@@ -216,6 +220,7 @@ export async function handleAnalyticsAndTransactionalTools(
           variables: args.variables,
           subscriberExternalId: args.subscriberExternalId,
           emailType,
+          replyTo,
         }).filter(([, value]) => value !== undefined)
       );
 
@@ -263,6 +268,9 @@ export async function handleAnalyticsAndTransactionalTools(
     case "get_campaign_stats": {
       const companyId = args.companyId as string | undefined;
       const params = new URLSearchParams();
+      if (typeof args.period === "string") params.set("period", args.period);
+      if (typeof args.start === "string") params.set("start", args.start);
+      if (typeof args.end === "string") params.set("end", args.end);
       if (args.includeMachineEngagement === true) {
         params.set("includeMachineEngagement", "true");
       }

@@ -186,7 +186,7 @@ export const transactionalToolDefinitions: Tool[] = [
   {
     name: "send_email",
     description:
-      "Queue one email using either a saved transactional email API slug (`templateId`) or direct `subject` and `html` content. The default delivery policy is transactional. When the recipient matches a subscriber, saved first and last names fill omitted name variables; explicit variables take precedence. Set `emailType` to `marketing` to add subscriber suppression, a marketing footer, and RFC 8058 one-click unsubscribe. Returns a durable emailSendId; pass it to get_email_send for delivery status and failure details.",
+      "Queue one email using either a saved transactional email API slug (`templateId`) or direct `subject` and `html` content. The default delivery policy is transactional. When the recipient matches a subscriber, saved first and last names fill omitted name variables; explicit variables take precedence. Set `emailType` to `marketing` to add subscriber suppression, a marketing footer, and RFC 8058 one-click unsubscribe. Company Reply-To defaults are inherited when no override is provided, and `{{viewInBrowserUrl}}` is replaced with a hosted copy URL. Returns a durable emailSendId and the accepted emailType; pass the ID to get_email_send for delivery status and failure details.",
     inputSchema: {
       type: "object",
       properties: {
@@ -207,7 +207,7 @@ export const transactionalToolDefinitions: Tool[] = [
         html: {
           type: "string",
           description:
-            "Direct-send HTML body. Required with `subject` when `templateId` is omitted; the MCP server maps this to the transactional API `body` field.",
+            "Direct-send HTML body. Required with `subject` when `templateId` is omitted; the MCP server maps this to the transactional API `body` field. Use `{{viewInBrowserUrl}}` for a hosted copy link generated at send time.",
         },
         templateId: {
           type: "string",
@@ -228,6 +228,11 @@ export const transactionalToolDefinitions: Tool[] = [
           type: "string",
           description:
             "Delivery policy: `transactional` (default) or `marketing`. Marketing mode supports exactly one recipient and automatically applies subscriber suppression, the standard unsubscribe footer, and RFC 8058 headers.",
+        },
+        replyTo: {
+          type: "string",
+          description:
+            "Optional Reply-To address, formatted as `email@example.com` or `Name <email@example.com>`. When omitted, the saved template or company default is used.",
         },
       },
       required: ["to"],
