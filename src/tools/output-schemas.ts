@@ -516,6 +516,9 @@ export const outputPropertiesByToolName: Record<
     campaign: resourceOutputProperty("campaign"),
     scheduledAt: stringOutputProperty("Scheduled send timestamp."),
   },
+  unschedule_campaign: {
+    campaign: resourceOutputProperty("draft campaign"),
+  },
   send_test_email: {
     emailSendId: stringOutputProperty("Durable test email delivery ID."),
     recipientEmail: stringOutputProperty("Test email recipient."),
@@ -728,7 +731,12 @@ export const outputPropertiesByToolName: Record<
     transactional: resourceOutputProperty("transactional email"),
   },
   send_email: {
-    emailSendId: stringOutputProperty("Durable transactional delivery ID."),
+    emailSendId: stringOutputProperty("Durable email delivery ID."),
+    emailType: {
+      type: "string",
+      enum: ["marketing", "transactional"],
+      description: "Delivery policy accepted for the queued email.",
+    },
     transactional: resourceOutputProperty("transactional email"),
   },
   get_stats: {
@@ -754,6 +762,9 @@ export const outputPropertiesByToolName: Record<
       description: `Poll and NPS summaries. Each subscriber counts once per campaign poll block using their latest answer to that block; NPS entries include score, average, and promoter/passive/detractor counts. To list the exact historical respondents behind a count, use the summary blockId and the get_campaign_stats campaignId with create_segment. ${pollRespondentFilterHint} A summary's attributeKey identifies the subscriber attribute that stores their current/latest response and may be overwritten by a later poll that reuses the key.`,
       items: objectOutputProperty("One poll or NPS results summary."),
     },
+    recommendations: objectOutputProperty(
+      "Product recommendation funnel: impressions, recipients, clicks, clickers, orders, legacy revenueCents, currency-safe revenueByCurrency totals, and topProducts (per-product impressions/clicks). Orders count when a subscriber buys a recommended product within 7 days of clicking it. Present only when the campaign rendered product recommendation blocks."
+    ),
   },
   get_transactional_stats: {
     transactional: resourceOutputProperty("transactional email"),
@@ -792,6 +803,9 @@ export const outputPropertiesByToolName: Record<
       required: ["count", "byReason"],
       additionalProperties: false,
     },
+    recommendations: objectOutputProperty(
+      "Product recommendation funnel aggregated across the sequence's email nodes: impressions, recipients, clicks, clickers, orders, legacy revenueCents, currency-safe revenueByCurrency totals, and topProducts. Present only when the sequence rendered product recommendation blocks."
+    ),
   },
   list_campaign_events: {
     events: resourceListOutputProperty("campaign email event"),

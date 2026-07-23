@@ -1275,6 +1275,96 @@ describe("A/B test tools", () => {
     );
   });
 
+  it("documents and returns sequence recommendation metrics", async () => {
+    const sequenceTool = tools.find(
+      (candidate) => candidate.name === "get_sequence_stats"
+    );
+    const outputProperties = sequenceTool?.outputSchema?.properties as
+      | Record<string, unknown>
+      | undefined;
+    const recommendations = {
+      impressions: 8,
+      recipients: 2,
+      clicks: 1,
+      clickers: 1,
+      orders: 1,
+      revenueCents: 4500,
+      revenueByCurrency: [{ currency: "USD", revenueCents: 4500 }],
+      topProducts: [],
+    };
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      stats: { sent: 2 },
+      recommendations,
+    });
+
+    const result = await handleToolCall("get_sequence_stats", {
+      companyId: "company_123",
+      sequenceId: "seq_123",
+    });
+
+    expect(sequenceTool?.description).toContain(
+      "product recommendation funnel"
+    );
+    expect(outputProperties).toHaveProperty("recommendations");
+    expect(result.structuredContent?.["recommendations"]).toEqual(
+      recommendations
+    );
+  });
+
+  it("documents campaign recommendations and forwards scoped date filters", async () => {
+    const campaignTool = tools.find(
+      (candidate) => candidate.name === "get_campaign_stats"
+    );
+    const sequenceTool = tools.find(
+      (candidate) => candidate.name === "get_sequence_stats"
+    );
+    const campaignInputProperties = campaignTool?.inputSchema.properties;
+    const sequenceInputProperties = sequenceTool?.inputSchema.properties;
+    const campaignPeriod = campaignInputProperties?.["period"] as
+      | { description?: string }
+      | undefined;
+    const sequencePeriod = sequenceInputProperties?.["period"] as
+      | { description?: string }
+      | undefined;
+    mockApiRequest.mockResolvedValue({ success: true, stats: { sent: 1 } });
+
+    await handleToolCall("get_campaign_stats", {
+      companyId: "company_123",
+      campaignId: "camp_123",
+      period: "30d",
+    });
+    await handleToolCall("get_sequence_stats", {
+      companyId: "company_123",
+      sequenceId: "seq_123",
+      start: "2026-07-01T00:00:00Z",
+      end: "2026-07-08T00:00:00Z",
+    });
+
+    expect(campaignTool?.description).toContain(
+      "product recommendation funnel"
+    );
+    expect(campaignInputProperties).toHaveProperty("period");
+    expect(campaignPeriod?.description).toContain("1h, 24h, 7d, 30d, or 90d");
+    expect(sequencePeriod?.description).toContain("1h, 24h, 7d, 30d, or 90d");
+    expect(sequenceInputProperties).toHaveProperty("start");
+    expect(sequenceInputProperties).toHaveProperty("end");
+    expect(mockApiRequest).toHaveBeenNthCalledWith(
+      1,
+      "GET",
+      "/api/v1/metrics/campaigns/camp_123?period=30d",
+      undefined,
+      "company_123"
+    );
+    expect(mockApiRequest).toHaveBeenNthCalledWith(
+      2,
+      "GET",
+      "/api/v1/metrics/sequences/seq_123?start=2026-07-01T00%3A00%3A00Z&end=2026-07-08T00%3A00%3A00Z",
+      undefined,
+      "company_123"
+    );
+  });
+
   it("passes machine engagement flags through analytics tools", async () => {
     mockApiRequest.mockResolvedValue({
       success: true,
@@ -1647,9 +1737,12 @@ describe("transactional email tools", () => {
     expect(inputSchema?.properties).toHaveProperty("html");
     expect(inputSchema?.properties).toHaveProperty("templateId");
     expect(inputSchema?.properties).toHaveProperty("emailType");
+    expect(inputSchema?.properties).toHaveProperty("replyTo");
+    expect(sendEmailTool?.outputSchema?.properties).toHaveProperty("emailType");
     expect(sendEmailTool?.description).toContain(
       "saved first and last names fill omitted name variables"
     );
+    expect(sendEmailTool?.description).toContain("{{viewInBrowserUrl}}");
     expect(properties?.["variables"]?.description).toContain(
       "explicit values, including blanks, take precedence"
     );
@@ -1671,6 +1764,7 @@ describe("transactional email tools", () => {
       html: "<p>Connected.</p>",
       variables: { firstName: "Paul" },
       subscriberExternalId: "subscriber_123",
+      replyTo: "Support <support@example.com>",
     });
 
     expect(mockApiRequest).toHaveBeenCalledWith(
@@ -1682,6 +1776,7 @@ describe("transactional email tools", () => {
         body: "<p>Connected.</p>",
         variables: { firstName: "Paul" },
         subscriberExternalId: "subscriber_123",
+        replyTo: "Support <support@example.com>",
       },
       "company_123"
     );
@@ -6350,7 +6445,12 @@ describe("product tools", () => {
     await handleToolCall("upsert_products", {
       companyId: "company_123",
       products: [
-        { productId: "my-ebook", title: "The Ebook", priceCents: 1900 },
+        {
+          productId: "my-ebook",
+          title: "The Ebook",
+          priceCents: 1900,
+          providerCreatedAt: "2025-04-03T12:30:00Z",
+        },
       ],
     });
 
@@ -6359,11 +6459,32 @@ describe("product tools", () => {
       "/api/v1/products",
       {
         products: [
-          { productId: "my-ebook", title: "The Ebook", priceCents: 1900 },
+          {
+            productId: "my-ebook",
+            title: "The Ebook",
+            priceCents: 1900,
+            providerCreatedAt: "2025-04-03T12:30:00Z",
+          },
         ],
       },
       "company_123"
     );
+  });
+
+  it("publishes nullable provider creation time for product upserts", () => {
+    const tool = tools.find(
+      (candidate) => candidate.name === "upsert_products"
+    );
+    const products = tool?.inputSchema.properties?.["products"] as
+      | {
+          items?: { properties?: Record<string, { type?: unknown }> };
+        }
+      | undefined;
+
+    expect(products?.items?.properties?.["providerCreatedAt"]?.type).toEqual([
+      "string",
+      "null",
+    ]);
   });
 
   it("rejects upsert_products without a products array", async () => {
@@ -6609,6 +6730,7 @@ describe("campaign lifecycle tools", () => {
     const toolNames = tools.map((tool) => tool.name);
 
     expect(toolNames).toContain("cancel_campaign");
+    expect(toolNames).toContain("unschedule_campaign");
     expect(toolNames).toContain("pause_campaign");
     expect(toolNames).toContain("resume_campaign");
     expect(toolNames).toContain("delete_campaign");
@@ -6633,6 +6755,40 @@ describe("campaign lifecycle tools", () => {
       undefined,
       "comp_123"
     );
+  });
+
+  it("calls the campaign unschedule API", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      campaign: { id: "camp_123", name: "Launch", status: "draft" },
+    });
+
+    const result = await handleToolCall("unschedule_campaign", {
+      companyId: "comp_123",
+      campaignId: "camp_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/campaigns/camp_123/unschedule",
+      undefined,
+      "comp_123"
+    );
+    expect(result.structuredContent?.["campaign"]).toMatchObject({
+      id: "camp_123",
+      status: "draft",
+    });
+  });
+
+  it("requires campaignId when unscheduling a campaign", async () => {
+    const result = await handleToolCall("unschedule_campaign", {});
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`campaignId` is required when calling `unschedule_campaign`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
   it("requires campaignId when cancelling a campaign", async () => {

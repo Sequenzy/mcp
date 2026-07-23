@@ -70,7 +70,7 @@ export const analyticsToolDefinitions: Tool[] = [
   {
     name: "get_campaign_stats",
     description:
-      "Get detailed statistics for a campaign, including replies and reply rate, attributed conversions, revenue (revenueCents), a per-link click breakdown in the top-level clickedLinks array, and any Poll or NPS survey summaries in the top-level polls array",
+      "Get detailed statistics for a campaign, including replies and reply rate, attributed conversions, revenue (revenueCents), product recommendation funnel metrics, a per-link click breakdown in the top-level clickedLinks array, and any Poll or NPS survey summaries in the top-level polls array",
     inputSchema: {
       type: "object",
       properties: {
@@ -83,6 +83,20 @@ export const analyticsToolDefinitions: Tool[] = [
           type: "string",
           description: "Campaign ID",
         },
+        period: {
+          type: "string",
+          description: "Time period: 1h, 24h, 7d, 30d, or 90d",
+        },
+        start: {
+          type: "string",
+          description:
+            "Custom range start as an ISO 8601 timestamp; provide end too",
+        },
+        end: {
+          type: "string",
+          description:
+            "Custom range end as an ISO 8601 timestamp; provide start too",
+        },
         includeMachineEngagement: includeMachineEngagementToolProperty,
       },
       required: ["campaignId"],
@@ -91,7 +105,7 @@ export const analyticsToolDefinitions: Tool[] = [
   {
     name: "get_sequence_stats",
     description:
-      "Get statistics for a sequence, including aggregate and per-step replies and reply rates, attributed conversions and revenue (revenueCents), per-step failed subscribers and failure reasons, plus enrollmentSkipped counts for trigger matches where the contact could not be enrolled (unsubscribed/bounced). Pass period or start/end to use one explicit window for every metric; without them, enrollmentSkipped defaults to the last 30 days.",
+      "Get statistics for a sequence, including aggregate and per-step replies and reply rates, attributed conversions and revenue (revenueCents), product recommendation funnel metrics, per-step failed subscribers and failure reasons, plus enrollmentSkipped counts for trigger matches where the contact could not be enrolled (unsubscribed/bounced). Pass period or start/end to use one explicit window for every metric; without them, enrollmentSkipped defaults to the last 30 days.",
     inputSchema: {
       type: "object",
       properties: {

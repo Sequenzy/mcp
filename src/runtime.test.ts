@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
-import { apiUploadRequest, setSelectedCompanyId } from "./runtime";
+import { McpApiError } from "./error-output";
+import { apiRequest, apiUploadRequest, setSelectedCompanyId } from "./runtime";
 
 const originalApiKey = process.env["SEQUENZY_API_KEY"];
 const originalApiUrl = process.env["SEQUENZY_API_URL"];
@@ -103,5 +104,42 @@ describe("apiUploadRequest", () => {
       "configured Sequenzy API"
     );
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("preserves structured unschedule conflict recovery guidance", async () => {
+    globalThis.fetch = mock(async () =>
+      Response.json(
+        {
+          success: false,
+          code: "CAMPAIGN_UNSCHEDULE_CONFLICT",
+          error: "Campaign can no longer be unscheduled",
+          title: "Campaign can no longer be unscheduled",
+          description: "Delivery has already started.",
+          resolution: "Call get_campaign to refresh status.",
+          docsUrl:
+            "https://docs.sequenzy.com/api-reference/campaigns/unschedule",
+          details: { campaignId: "campaign-1" },
+        },
+        { status: 409 }
+      )
+    ) as unknown as typeof fetch;
+
+    let caught: unknown;
+    try {
+      await apiRequest("POST", "/api/v1/campaigns/campaign-1/unschedule");
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(McpApiError);
+    expect(caught).toMatchObject({
+      statusCode: 409,
+      code: "CAMPAIGN_UNSCHEDULE_CONFLICT",
+      context: {
+        title: "Campaign can no longer be unscheduled",
+        description: "Delivery has already started.",
+        howToFix: "Call get_campaign to refresh status.",
+      },
+    });
   });
 });

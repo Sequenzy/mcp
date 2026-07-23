@@ -119,6 +119,7 @@ export const MUTATING_TOOL_NAMES = new Set([
   "schedule_campaign",
   "send_test_email",
   "send_test_sms",
+  "unschedule_campaign",
   "cancel_campaign",
   "pause_campaign",
   "resume_campaign",
