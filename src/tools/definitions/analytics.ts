@@ -9,7 +9,7 @@ export const analyticsToolDefinitions: Tool[] = [
   {
     name: "get_stats",
     description:
-      "Get overview statistics for a time period, including reply count and reply rate",
+      "Get overview statistics for a time period, including reply count and reply rate. Set emailType to transactional for Send API and transactional SMTP open/click rates, including both direct and saved-template sends. When no emailType filter is used and a background-computed snapshot is available, the response also includes a top-level commerceForecast with predicted AOV, 12-month customer value, 90-day revenue, confidence, and data-eligibility reasons.",
     inputSchema: {
       type: "object",
       properties: {
@@ -22,8 +22,49 @@ export const analyticsToolDefinitions: Tool[] = [
           type: "string",
           description: "Time period: 7d, 30d, or 90d (default: 7d)",
         },
+        emailType: {
+          type: "string",
+          description:
+            "Optional structural email type filter: campaign, transactional, or sequence. Use transactional for Send API and transactional SMTP traffic.",
+        },
         includeMachineEngagement: includeMachineEngagementToolProperty,
       },
+    },
+  },
+  {
+    name: "get_transactional_stats",
+    description:
+      "Get aggregate sends, deliveries, bounces, opens, clicks, and rates for one saved transactional email selected by ID or slug. Results are all-time by default; pass period or start/end for a window. For direct-content Send API messages, use get_stats with emailType transactional and list_email_sends/get_email_send for delivery-level detail.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        idOrSlug: {
+          type: "string",
+          description: "Saved transactional email ID or API slug.",
+        },
+        period: {
+          type: "string",
+          description:
+            "Optional sliding window: 1h, 24h, 7d, 30d, or 90d. Ignored when start and end are provided.",
+        },
+        start: {
+          type: "string",
+          description:
+            "Optional ISO 8601 custom range start. Must be provided with end.",
+        },
+        end: {
+          type: "string",
+          description:
+            "Optional ISO 8601 custom range end. Must be provided with start; maximum range is 90 days.",
+        },
+        includeMachineEngagement: includeMachineEngagementToolProperty,
+      },
+      required: ["idOrSlug"],
     },
   },
   {
@@ -50,7 +91,7 @@ export const analyticsToolDefinitions: Tool[] = [
   {
     name: "get_sequence_stats",
     description:
-      "Get statistics for a sequence, including aggregate and per-step replies and reply rates, attributed conversions and revenue (revenueCents), plus per-step failed subscribers and failure reasons",
+      "Get statistics for a sequence, including aggregate and per-step replies and reply rates, attributed conversions and revenue (revenueCents), per-step failed subscribers and failure reasons, plus enrollmentSkipped counts for trigger matches where the contact could not be enrolled (unsubscribed/bounced). Pass period or start/end to use one explicit window for every metric; without them, enrollmentSkipped defaults to the last 30 days.",
     inputSchema: {
       type: "object",
       properties: {
@@ -62,6 +103,21 @@ export const analyticsToolDefinitions: Tool[] = [
         sequenceId: {
           type: "string",
           description: "Sequence ID",
+        },
+        period: {
+          type: "string",
+          description:
+            "Optional sliding window: 1h, 24h, 7d, 30d, or 90d. Ignored when start and end are provided.",
+        },
+        start: {
+          type: "string",
+          description:
+            "Optional ISO 8601 custom range start. Must be provided with end.",
+        },
+        end: {
+          type: "string",
+          description:
+            "Optional ISO 8601 custom range end. Must be provided with start; maximum range is 90 days.",
         },
         includeMachineEngagement: includeMachineEngagementToolProperty,
       },

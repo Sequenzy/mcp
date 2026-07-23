@@ -15,6 +15,56 @@ import {
 } from "../internal.js";
 
 const MAX_DEFAULT_SEQUENCE_NAME_LENGTH = 80;
+const MAX_SEQUENCE_TEST_RECIPIENTS = 10;
+
+function normalizeSequenceTestRecipients(args: Record<string, unknown>) {
+  if (!Array.isArray(args.recipients)) {
+    throw new Error(
+      "`recipients` must be an array when calling `send_sequence_test_email`."
+    );
+  }
+
+  if (args.recipients.length > MAX_SEQUENCE_TEST_RECIPIENTS) {
+    throw new Error(
+      `\`recipients\` must include no more than ${MAX_SEQUENCE_TEST_RECIPIENTS} email addresses when calling \`send_sequence_test_email\`.`
+    );
+  }
+
+  const invalidRecipientValue = args.recipients.find(
+    (recipient) =>
+      typeof recipient !== "string" || recipient.trim().length === 0
+  );
+  if (invalidRecipientValue !== undefined) {
+    throw new Error(
+      "Every `recipients` item must be a non-empty email address when calling `send_sequence_test_email`."
+    );
+  }
+
+  const recipients = Array.from(
+    new Set(
+      args.recipients.map((recipient) =>
+        typeof recipient === "string" ? recipient.trim().toLowerCase() : ""
+      )
+    )
+  ).filter(Boolean);
+
+  if (recipients.length === 0) {
+    throw new Error(
+      "`recipients` must include at least one email address when calling `send_sequence_test_email`."
+    );
+  }
+
+  const invalidRecipient = recipients.find(
+    (recipient) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)
+  );
+  if (invalidRecipient) {
+    throw new Error(
+      `Invalid test recipient email address: \`${invalidRecipient}\`.`
+    );
+  }
+
+  return recipients;
+}
 
 function defaultSequenceName(goal: string): string {
   const normalizedGoal = goal.trim().replace(/\s+/g, " ");
@@ -88,6 +138,20 @@ export async function handleSequenceTools(
         "GET",
         `/api/v1/sequences/${args.sequenceId}`,
         undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "send_sequence_test_email": {
+      const companyId = args.companyId as string | undefined;
+      const sequenceId = requiredString(name, args, "sequenceId");
+      const nodeId = requiredString(name, args, "nodeId");
+      const recipients = normalizeSequenceTestRecipients(args);
+      result = await apiRequest(
+        "POST",
+        `/api/v1/sequences/${encodeURIComponent(sequenceId)}/nodes/${encodeURIComponent(nodeId)}/test`,
+        { recipients },
         companyId
       );
       break;

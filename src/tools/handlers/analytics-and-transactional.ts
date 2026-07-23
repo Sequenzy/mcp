@@ -6,6 +6,8 @@ import {
   fetchDetailedSubscriberByIdentifier,
   requiredString,
   buildEmailEventListParams,
+  optionalString,
+  optionalAllowedString,
 } from "../internal.js";
 
 export async function handleAnalyticsAndTransactionalTools(
@@ -17,9 +19,37 @@ export async function handleAnalyticsAndTransactionalTools(
   switch (name) {
     case "list_transactional_emails": {
       const companyId = args.companyId as string | undefined;
+      const params = new URLSearchParams();
+      const search = optionalString(args, "search");
+      const status = optionalAllowedString(
+        "list_transactional_emails",
+        args,
+        "status",
+        ["all", "active", "disabled"]
+      );
+      const sort = optionalAllowedString(
+        "list_transactional_emails",
+        args,
+        "sort",
+        ["date", "sends", "opens", "open-rate", "clicks", "ctr"]
+      );
+      const order = optionalAllowedString(
+        "list_transactional_emails",
+        args,
+        "order",
+        ["asc", "desc"]
+      );
+      if (search) params.set("search", search);
+      if (status) params.set("status", status);
+      if (sort) params.set("sort", sort);
+      if (order) params.set("order", order);
+      if (args.includeMachineEngagement === true) {
+        params.set("includeMachineEngagement", "true");
+      }
+      const query = params.toString();
       result = await apiRequest(
         "GET",
-        "/api/v1/transactional",
+        `/api/v1/transactional${query ? `?${query}` : ""}`,
         undefined,
         companyId
       );
@@ -203,6 +233,21 @@ export async function handleAnalyticsAndTransactionalTools(
       const companyId = args.companyId as string | undefined;
       const period = args.period ?? "7d";
       const params = new URLSearchParams({ period: String(period) });
+      const emailType =
+        args.emailType === undefined
+          ? undefined
+          : requiredString("get_stats", args, "emailType");
+      if (
+        emailType !== undefined &&
+        !["campaign", "transactional", "sequence"].includes(emailType)
+      ) {
+        throw new Error(
+          "`emailType` must be `campaign`, `transactional`, or `sequence` when calling `get_stats`."
+        );
+      }
+      if (emailType) {
+        params.set("emailType", emailType);
+      }
       if (args.includeMachineEngagement === true) {
         params.set("includeMachineEngagement", "true");
       }
@@ -231,9 +276,40 @@ export async function handleAnalyticsAndTransactionalTools(
       break;
     }
 
+    case "get_transactional_stats": {
+      const companyId = args.companyId as string | undefined;
+      const idOrSlug = requiredString(
+        "get_transactional_stats",
+        args,
+        "idOrSlug"
+      );
+      const params = new URLSearchParams();
+      for (const key of ["period", "start", "end"] as const) {
+        if (typeof args[key] === "string" && args[key].trim()) {
+          params.set(key, args[key].trim());
+        }
+      }
+      if (args.includeMachineEngagement === true) {
+        params.set("includeMachineEngagement", "true");
+      }
+      const query = params.toString();
+      result = await apiRequest(
+        "GET",
+        `/api/v1/metrics/transactional/${encodeURIComponent(idOrSlug)}${query ? `?${query}` : ""}`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
     case "get_sequence_stats": {
       const companyId = args.companyId as string | undefined;
       const params = new URLSearchParams();
+      for (const key of ["period", "start", "end"] as const) {
+        if (typeof args[key] === "string" && args[key].trim()) {
+          params.set(key, args[key].trim());
+        }
+      }
       if (args.includeMachineEngagement === true) {
         params.set("includeMachineEngagement", "true");
       }

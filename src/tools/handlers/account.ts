@@ -212,12 +212,15 @@ export async function handleAccountTools(
       if (args.browseAbandonment !== undefined) {
         payload["browseAbandonment"] = args.browseAbandonment;
       }
+      if (args.cartAbandonment !== undefined) {
+        payload["cartAbandonment"] = args.cartAbandonment;
+      }
       if (args.priceDrop !== undefined) {
         payload["priceDrop"] = args.priceDrop;
       }
       if (Object.keys(payload).length === 0) {
         throw new Error(
-          "Provide `browseAbandonment` and/or `priceDrop` when calling `update_shopify_automation_settings`."
+          "Provide `browseAbandonment`, `cartAbandonment`, and/or `priceDrop` when calling `update_shopify_automation_settings`."
         );
       }
       result = await apiRequest(

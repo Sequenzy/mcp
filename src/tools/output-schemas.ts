@@ -193,6 +193,9 @@ export const outputPropertiesByToolName: Record<
     browseAbandonment: objectOutputProperty(
       "Effective browse-abandonment settings (defaults applied)."
     ),
+    cartAbandonment: objectOutputProperty(
+      "Effective cart-abandonment settings (defaults applied)."
+    ),
     priceDrop: objectOutputProperty(
       "Effective price-drop settings (defaults applied)."
     ),
@@ -201,6 +204,9 @@ export const outputPropertiesByToolName: Record<
   update_shopify_automation_settings: {
     browseAbandonment: objectOutputProperty(
       "Effective browse-abandonment settings after the update."
+    ),
+    cartAbandonment: objectOutputProperty(
+      "Effective cart-abandonment settings after the update."
     ),
     priceDrop: objectOutputProperty(
       "Effective price-drop settings after the update."
@@ -469,8 +475,17 @@ export const outputPropertiesByToolName: Record<
     campaign: resourceOutputProperty("campaign"),
   },
   get_email_send: {
-    emailSend: resourceOutputProperty("email send"),
+    emailSend: resourceOutputProperty(
+      "email send, including copied-recipient identity and primary email send ID when applicable"
+    ),
     events: resourceListOutputProperty("email delivery event"),
+  },
+  list_email_sends: {
+    emailSends: resourceListOutputProperty("email send"),
+    pagination: resourceOutputProperty("email send pagination"),
+    retentionDays: numberOutputProperty(
+      "Number of days sent-email rows remain queryable in this collection."
+    ),
   },
   get_recipient_suppression: {
     suppression: resourceOutputProperty("recipient suppression status"),
@@ -579,6 +594,13 @@ export const outputPropertiesByToolName: Record<
   },
   get_sequence: {
     sequence: resourceOutputProperty("sequence"),
+  },
+  send_sequence_test_email: {
+    sequenceId: stringOutputProperty("Sequence ID."),
+    nodeId: stringOutputProperty("Tested sequence email-step node ID."),
+    results: arrayOutputProperty(
+      "Per-recipient test-send results containing recipientEmail, durable emailSendId, and legacy jobId."
+    ),
   },
   create_sequence: {
     sequence: resourceOutputProperty("sequence"),
@@ -692,7 +714,9 @@ export const outputPropertiesByToolName: Record<
     sequenceId: stringOutputProperty("Deleted sequence ID."),
   },
   list_transactional_emails: {
-    transactional: resourceListOutputProperty("transactional email"),
+    transactional: resourceListOutputProperty(
+      "transactional email with subject, all-time delivery metrics, and dashboard URL"
+    ),
   },
   get_transactional_email: {
     transactional: resourceOutputProperty("transactional email"),
@@ -709,6 +733,12 @@ export const outputPropertiesByToolName: Record<
   },
   get_stats: {
     stats: resourceOutputProperty("account or company statistics"),
+    emailType: stringOutputProperty(
+      "Applied structural email type filter when one was requested."
+    ),
+    commerceForecast: resourceOutputProperty(
+      "Optional background-computed commerce AOV, 12-month customer value, and 90-day revenue forecast. Omitted when no snapshot is available; insufficient_data is returned only after eligibility was evaluated successfully."
+    ),
   },
   get_campaign_stats: {
     campaign: resourceOutputProperty("campaign"),
@@ -725,9 +755,43 @@ export const outputPropertiesByToolName: Record<
       items: objectOutputProperty("One poll or NPS results summary."),
     },
   },
+  get_transactional_stats: {
+    transactional: resourceOutputProperty("transactional email"),
+    stats: resourceOutputProperty("transactional email statistics"),
+    complaints: resourceOutputProperty(
+      "complaint count and rate for the selected transactional email"
+    ),
+    clickedLinks: resourceListOutputProperty(
+      "clicked link with click count and percentage share"
+    ),
+    bounceBreakdown: resourceOutputProperty(
+      "permanent, transient, and undetermined bounce counts plus subtype details"
+    ),
+    engagementBreakdown: resourceOutputProperty(
+      "human and machine open and click counts"
+    ),
+  },
   get_sequence_stats: {
     sequence: resourceOutputProperty("sequence"),
     stats: resourceOutputProperty("sequence statistics"),
+    enrollmentSkipped: {
+      type: "object",
+      description:
+        "Trigger matches where an unsubscribed or bounced contact could not be enrolled, including the total count and counts grouped by reason. Uses the requested period or start/end range; without an explicit range, this field defaults to the last 30 days.",
+      properties: {
+        count: numberOutputProperty("Total skipped sequence enrollments."),
+        byReason: {
+          type: "object",
+          description:
+            "Skipped enrollment counts keyed by reason, such as unsubscribed or bounced.",
+          additionalProperties: numberOutputProperty(
+            "Skipped enrollment count for this reason."
+          ),
+        },
+      },
+      required: ["count", "byReason"],
+      additionalProperties: false,
+    },
   },
   list_campaign_events: {
     events: resourceListOutputProperty("campaign email event"),
