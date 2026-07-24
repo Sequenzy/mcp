@@ -245,7 +245,7 @@ This server currently exposes 164 MCP tools.
 | `revoke_api_key`                     | Permanently revoke an exact company API key by ID after checking it with `list_api_keys`.                                     |
 | `delete_api_key`                     | Compatibility alias for `revoke_api_key`.                                                                                     |
 | `list_websites`                      | List sending domains with stored aggregate, SPF, DKIM, and MAIL FROM status.                                                  |
-| `add_sending_domain`                 | Add a sending domain and return its SPF, DKIM, MAIL FROM, and inbound DNS setup records.                                      |
+| `add_sending_domain`                 | Add a sending domain and return its cohort-specific DNS setup records.                                                        |
 | `add_website`                        | Compatibility alias for `add_sending_domain`.                                                                                 |
 | `check_website`                      | Read a sending domain's stored SPF, DKIM, MAIL FROM, and aggregate verification details.                                      |
 | `verify_sending_domain`              | Run a fresh sending-domain DNS/provider verification and return current status and diagnostics.                               |
@@ -253,8 +253,11 @@ This server currently exposes 164 MCP tools.
 
 For a new sending domain, call `add_sending_domain`, publish the DNS records in
 the returned `website.dnsRecords`, wait for DNS propagation, and then call
-`verify_sending_domain`. If verification is attempted before creation, the
-error points back to `add_sending_domain` with the requested domain.
+`verify_sending_domain`. Publish every returned record instead of assuming a
+fixed provider or record count: unified domains include required DMARC, while
+legacy domains can return Amazon SES MAIL FROM and inbound-reply records. If
+verification is attempted before creation, the error points back to
+`add_sending_domain` with the requested domain.
 
 New companies start with no sync rules. The inherited preset remains available
 for SaaS/ecommerce companies by passing `null` to `update_sync_rules`; services

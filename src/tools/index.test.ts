@@ -949,6 +949,14 @@ describe("sending domain tools", () => {
       (candidate) => candidate.name === "add_sending_domain"
     );
     expect(tool?.inputSchema.required).toEqual(["domain"]);
+    expect(tool?.description).toContain(
+      "every cohort-specific DNS record returned"
+    );
+    expect(tool?.description).toContain("DMARC when present");
+    const websiteOutput = tool?.outputSchema?.properties?.["website"] as
+      | { description?: string }
+      | undefined;
+    expect(websiteOutput?.description).toContain("every returned record");
     expect(tool?.annotations).toMatchObject({
       readOnlyHint: false,
       destructiveHint: false,

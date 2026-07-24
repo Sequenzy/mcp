@@ -249,12 +249,12 @@ export const outputPropertiesByToolName: Record<
   },
   add_website: {
     website: resourceOutputProperty(
-      "Sending domain with the SPF, DKIM, MAIL FROM, and inbound DNS records required for setup."
+      "Sending domain with its cohort-specific DNS records. Publish every returned record, including DMARC when present."
     ),
   },
   add_sending_domain: {
     website: resourceOutputProperty(
-      "Sending domain with the SPF, DKIM, MAIL FROM, and inbound DNS records required for setup."
+      "Sending domain with its cohort-specific DNS records. Publish every returned record, including DMARC when present."
     ),
   },
   check_website: {
