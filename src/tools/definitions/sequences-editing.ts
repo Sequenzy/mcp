@@ -19,7 +19,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
   {
     name: "update_sequence",
     description:
-      "Update an existing sequence. To target a specific existing step, use IDs returned by get_sequence. The emails/steps arrays edit email steps, smsSteps edits SMS steps, and subscriberUpdateSteps replaces the config of action_update_attributes steps. To insert new linear steps, use insertSteps with an afterNodeId from get_sequence; omit afterNodeId only to append to an unambiguous linear tail. For active sequences, structural changes such as insertSteps or branch require confirmStructuralChange:true after the user confirms the live-flow impact.",
+      "Update an existing sequence. To target a specific existing step, use IDs returned by get_sequence. The emails/steps arrays edit email steps, smsSteps edits SMS steps, and subscriberUpdateSteps replaces the config of action_update_attributes steps. To insert new linear steps, use insertSteps with an afterNodeId from get_sequence; omit afterNodeId only to append to an unambiguous linear tail. Deleting a step immediately moves parked recipients to its unique surviving successor, or completes them when no successor remains; inspect migratedRecipientCount and completedRecipientCount in the returned sequence. For active sequences, structural changes such as insertSteps or branch require confirmStructuralChange:true after the user confirms the live-flow impact.",
     inputSchema: {
       type: "object",
       properties: {
@@ -634,7 +634,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
   {
     name: "edit_sequence_graph",
     description:
-      "Restructure an existing sequence graph using node IDs, edges, and graphRevision from get_sequence. move_node repositions one non-split step; duplicate_node creates an independent copy; delete_node safely splices a node; replace_edges replaces the complete topology. Always call get_sequence immediately before this tool and pass its graphRevision. Active sequences require confirmStructuralChange:true after the user confirms live-flow impact.",
+      "Restructure an existing sequence graph using node IDs, edges, and graphRevision from get_sequence. move_node repositions one non-split step; duplicate_node creates an independent copy; delete_node safely splices a node and immediately moves parked recipients to its unique surviving successor (or completes them when none remains); replace_edges replaces the complete topology. The returned sequence reports migratedRecipientCount and completedRecipientCount. Always call get_sequence immediately before this tool and pass its graphRevision. Active sequences require confirmStructuralChange:true after the user confirms live-flow impact.",
     inputSchema: {
       type: "object",
       properties: {

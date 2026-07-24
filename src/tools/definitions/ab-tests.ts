@@ -172,6 +172,63 @@ export const abTestToolDefinitions: Tool[] = [
     },
   },
   {
+    name: "update_ab_test",
+    description:
+      "Update A/B test settings. Campaign tests use testPercentage, testDurationMinutes, and winnerCriteria. Sequence tests use testType, winnerThreshold, and winnerCriteria; changing live or already-used sequence settings requires confirmLiveChange. Provide at least one setting.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        abTestId: {
+          type: "string",
+          description: "A/B test ID",
+        },
+        name: {
+          type: "string",
+          description: "Optional A/B test name.",
+        },
+        testPercentage: {
+          type: "number",
+          description:
+            "Campaign-only percentage of the audience used for the test phase, from 5 to 50.",
+        },
+        testDurationMinutes: {
+          type: "number",
+          description:
+            "Campaign-only test duration in minutes, from 15 to 1440.",
+        },
+        winnerCriteria: {
+          type: "string",
+          enum: ["open_rate", "click_rate"],
+          description:
+            "Winner selection criteria. Applies to both campaign and sequence tests.",
+        },
+        testType: {
+          type: "string",
+          enum: ["subject", "content"],
+          description:
+            "Sequence-only variant strategy. When winnerCriteria is omitted, subject defaults to open_rate and content defaults to click_rate.",
+        },
+        winnerThreshold: {
+          type: "number",
+          description:
+            "Sequence-only number of recipients before selecting a winner, from 10 to 1000.",
+        },
+        confirmLiveChange: {
+          type: "boolean",
+          description:
+            "Required as true when sequence settings affect an active test or a test with recorded activity.",
+        },
+      },
+      required: ["abTestId"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "create_ab_test",
     description:
       "Create a campaign A/B test or convert a sequence email node into a typed A/B test node. Provide exactly one of campaignId or automationNodeId. Control variant A is created automatically from the current email. Campaign tests may add variants later; automationNodeId conversions require at least one variants[] entry to compete with control variant A.",
@@ -205,23 +262,24 @@ export const abTestToolDefinitions: Tool[] = [
         testPercentage: {
           type: "number",
           description:
-            "Percentage of the audience used for the test phase, from 5 to 50. Defaults to 20.",
+            "Campaign-only percentage of the audience used for the test phase, from 5 to 50. Defaults to 20. Sequence tests use winnerThreshold instead.",
         },
         testDurationMinutes: {
           type: "number",
           description:
-            "Test phase duration in minutes before the winner is selected, from 15 to 1440. Defaults to 240.",
+            "Campaign-only test phase duration in minutes, from 15 to 1440. Defaults to 240. Sequence tests select after winnerThreshold recipients instead.",
         },
         winnerCriteria: {
           type: "string",
           enum: ["open_rate", "click_rate"],
-          description: "Winner selection criteria. Defaults to open_rate.",
+          description:
+            "Winner selection criteria. Campaign tests default to open_rate. For sequence tests, an explicit value overrides the testType default.",
         },
         testType: {
           type: "string",
           enum: ["subject", "content"],
           description:
-            "Sequence A/B test type. Subject tests use open_rate; content tests use click_rate. Defaults to content.",
+            "Sequence A/B test variant strategy. Subject defaults to open_rate and content defaults to click_rate unless winnerCriteria is explicit. Defaults to content.",
         },
         winnerThreshold: {
           type: "number",

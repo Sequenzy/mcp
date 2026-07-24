@@ -393,6 +393,101 @@ export async function handleCampaignTools(
       break;
     }
 
+    case "update_ab_test": {
+      const companyId = args.companyId as string | undefined;
+      const abTestId = requiredString("update_ab_test", args, "abTestId");
+      const allowedAbTestSettingsKeys = new Set([
+        "companyId",
+        "abTestId",
+        "name",
+        "testPercentage",
+        "testDurationMinutes",
+        "winnerCriteria",
+        "testType",
+        "winnerThreshold",
+        "confirmLiveChange",
+      ]);
+      const unsupportedAbTestSettingsKeys = Object.keys(args).filter(
+        (key) => !allowedAbTestSettingsKeys.has(key)
+      );
+      if (unsupportedAbTestSettingsKeys.length > 0) {
+        throw new Error(
+          `\`update_ab_test\` received unsupported field${unsupportedAbTestSettingsKeys.length === 1 ? "" : "s"}: ${unsupportedAbTestSettingsKeys.map((key) => `\`${key}\``).join(", ")}.`
+        );
+      }
+      if (
+        args.confirmLiveChange !== undefined &&
+        typeof args.confirmLiveChange !== "boolean"
+      ) {
+        throw new Error(
+          "`confirmLiveChange` must be a boolean when calling `update_ab_test`."
+        );
+      }
+
+      const name = optionalString(args, "name");
+      const testPercentage = optionalIntegerInRange(
+        "update_ab_test",
+        args,
+        "testPercentage",
+        5,
+        50
+      );
+      const testDurationMinutes = optionalIntegerInRange(
+        "update_ab_test",
+        args,
+        "testDurationMinutes",
+        15,
+        1440
+      );
+      const winnerCriteria = optionalAllowedString(
+        "update_ab_test",
+        args,
+        "winnerCriteria",
+        ["open_rate", "click_rate"]
+      );
+      const testType = optionalAllowedString(
+        "update_ab_test",
+        args,
+        "testType",
+        ["subject", "content"]
+      );
+      const winnerThreshold = optionalIntegerInRange(
+        "update_ab_test",
+        args,
+        "winnerThreshold",
+        10,
+        1000
+      );
+      if (
+        name === undefined &&
+        testPercentage === undefined &&
+        testDurationMinutes === undefined &&
+        winnerCriteria === undefined &&
+        testType === undefined &&
+        winnerThreshold === undefined
+      ) {
+        throw new Error(
+          "Provide at least one of `name`, `testPercentage`, `testDurationMinutes`, `winnerCriteria`, `testType`, or `winnerThreshold` when calling `update_ab_test`."
+        );
+      }
+
+      result = await apiRequest(
+        "PATCH",
+        `/api/v1/ab-tests/${encodeURIComponent(abTestId)}`,
+        {
+          ...(name !== undefined && { name }),
+          ...(testPercentage !== undefined && { testPercentage }),
+          ...(testDurationMinutes !== undefined && { testDurationMinutes }),
+          ...(winnerCriteria !== undefined && { winnerCriteria }),
+          ...(testType !== undefined && { testType }),
+          ...(winnerThreshold !== undefined && { winnerThreshold }),
+          ...(args.confirmLiveChange === true && { confirmLiveChange: true }),
+        },
+        companyId
+      );
+      break;
+    }
+
     case "create_ab_test": {
       const companyId = args.companyId as string | undefined;
       const campaignId = optionalString(args, "campaignId");
