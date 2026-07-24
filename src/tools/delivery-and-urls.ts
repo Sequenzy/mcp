@@ -297,6 +297,7 @@ export const dashboardUrlToolNames = new Set([
   "get_ab_test",
   "get_ab_test_stats",
   "update_ab_test_variant",
+  "update_ab_test",
   "list_templates",
   "get_template",
   "create_template",

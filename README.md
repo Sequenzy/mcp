@@ -224,7 +224,7 @@ build a list as well as create it. Imports that apply `listIds` also need
 
 ## Tools
 
-This server currently exposes 161 MCP tools.
+This server currently exposes 166 MCP tools.
 
 ### Account, Companies, Setup
 
@@ -450,16 +450,19 @@ even when automatic on-save localization is disabled.
 | Tool                     | Description                                                    |
 | ------------------------ | -------------------------------------------------------------- |
 | `list_ab_tests`          | List A/B tests and variants, optionally scoped by sequence.    |
-| `get_ab_test`            | Get variants, content, and localization status.                |
+| `get_ab_test`            | Get effective settings, variants, and localization status.     |
 | `get_ab_test_stats`      | Get aggregate and per-variant stats.                           |
 | `restart_ab_test`        | Restart a stopped or completed A/B test.                       |
+| `update_ab_test`         | Update campaign or sequence winner-selection settings.         |
 | `update_ab_test_variant` | Update a draft variant subject, preview text, HTML, or blocks. |
 | `create_ab_test`         | Create a campaign or sequence A/B test.                        |
 | `add_ab_test_variant`    | Add a variant to an existing A/B test.                         |
 | `delete_ab_test_variant` | Delete a draft A/B test variant.                               |
 | `delete_ab_test`         | Delete an A/B test.                                            |
 
-Use `get_ab_test` to discover variant IDs before editing. Variant updates accept either `html` or `blocks`, not both. `create_ab_test` accepts exactly one of `campaignId` or `automationNodeId`; the latter requires one to four extra variants and converts a sequence email node into `action_ab_test` with typed `testType` and `winnerThreshold` settings. Pass `confirmLiveChange: true` when converting a node in an active sequence. Together with control A, an A/B test supports at most five variants. Sequence variants receive independent email templates and can be edited, added, or removed while the test is a draft; when the parent sequence is active, `update_ab_test_variant`, `add_ab_test_variant`, and `delete_ab_test_variant` also require `confirmLiveChange: true` because they immediately change the live rotation.
+Use `get_ab_test` to copy the effective `settings` object and discover variant IDs before editing. Campaign settings use `testPercentage`, `testDurationMinutes`, and `winnerCriteria`; sequence settings use `testType`, `winnerThreshold`, and `winnerCriteria`. The legacy sequence values `testPercentage: 100` and `testDurationMinutes: 0` are compatibility sentinels, not runtime settings. `update_ab_test` changes the appropriate settings model and requires `confirmLiveChange: true` when sequence settings affect an active or already-used test. Variant updates accept either `html` or `blocks`, not both.
+
+`create_ab_test` accepts exactly one of `campaignId` or `automationNodeId`; the latter requires one to four extra variants and converts a sequence email node into `action_ab_test`. An explicit sequence `winnerCriteria` overrides the `testType` default, so content variants can still be judged by opens. Pass `confirmLiveChange: true` when converting a node in an active sequence. Together with control A, an A/B test supports at most five variants. Sequence variants receive independent email templates and can be edited, added, or removed while the test is a draft; when the parent sequence is active, `update_ab_test_variant`, `add_ab_test_variant`, and `delete_ab_test_variant` also require `confirmLiveChange: true` because they immediately change the live rotation.
 
 ### Campaigns
 
@@ -616,7 +619,7 @@ Landing page content uses Sequenzy's editor-compatible JSON schema with `version
 | `update_sequence_node`                   | Type-aware patch of one existing sequence node.                                              |
 | `update_sequence_nodes`                  | Atomically patch multiple existing sequence nodes.                                           |
 | `insert_sequence_step`                   | Insert any typed dashboard step, including outbound webhooks, waits, and wired branches.     |
-| `edit_sequence_graph`                    | Move, reconnect, delete, or duplicate existing graph nodes, including A/B test steps.        |
+| `edit_sequence_graph`                    | Move, reconnect, delete, or duplicate graph nodes; reports recipients moved or completed.    |
 | `enable_sequence`                        | Activate a sequence.                                                                         |
 | `disable_sequence`                       | Freeze a sequence, blocking new enrollments and holding current recipients.                  |
 | `duplicate_sequence`                     | Create an independent draft copy of the graph, emails, and sequence A/B tests.               |
@@ -761,7 +764,7 @@ nearest sequence email. After a branch merge, only identity fields shared by
 every incoming path are inherited; conflicting fields use the sequence or
 company defaults.
 
-Use `edit_sequence_graph` with the latest `graphRevision` from `get_sequence` to restructure an existing sequence atomically. It can move a node before or after another node, reuse the normalized `sequence.edges` array for explicit reconnection or multi-node reordering, delete a node, or deep-copy a node. A/B test duplication creates independent test, variant, email, and localization records with reset statistics. Moving a node before the shared node below a branch reconnects every converging branch path through that node. Stale revisions, invalid branch lanes, cycles, unreachable nodes, and unsafe deletion of a node with active recipients are rejected. Active sequences also require `confirmStructuralChange: true`.
+Use `edit_sequence_graph` with the latest `graphRevision` from `get_sequence` to restructure an existing sequence atomically. It can move a node before or after another node, reuse the normalized `sequence.edges` array for explicit reconnection or multi-node reordering, delete a node, or deep-copy a node. A/B test duplication creates independent test, variant, email, and localization records with reset statistics. Moving a node before the shared node below a branch reconnects every converging branch path through that node. Deleting a node immediately moves parked recipients to its unique surviving successor, or completes them when no successor remains; inspect `sequence.migratedRecipientCount` and `sequence.completedRecipientCount` in the result. Deletion is refused when parked recipients would have multiple surviving continuations. Stale revisions, invalid branch lanes, cycles, and unreachable nodes are also rejected. Active sequences require `confirmStructuralChange: true`.
 
 Run `cancel_sequence_enrollments` with `dryRun: true` before applying bulk cancellation.
 
@@ -812,17 +815,22 @@ variables automatically. Explicit values, including blanks, take precedence.
 
 ### Analytics
 
-| Tool                      | Description                                                                          |
-| ------------------------- | ------------------------------------------------------------------------------------ |
-| `get_stats`               | Get overview stats for `7d`, `30d`, or `90d`; filter by structural email type.       |
-| `get_transactional_stats` | Get all-time or time-scoped metrics for one saved transactional email by ID or slug. |
-| `get_campaign_stats`      | Get campaign performance, reply metrics, and Poll/NPS summaries.                     |
-| `get_sequence_stats`      | Get aggregate and per-step sequence performance, including reply metrics.            |
-| `list_campaign_events`    | List paginated raw email events for a campaign.                                      |
-| `list_sequence_events`    | List paginated raw email events for a sequence.                                      |
-| `get_subscriber_activity` | Get subscriber email stats, activity, and enrollments.                               |
+| Tool                      | Description                                                                                                 |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `get_stats`               | Get overview stats for `7d`, `30d`, or `90d`; filter by structural email type.                              |
+| `get_transactional_stats` | Get all-time or time-scoped metrics for one saved transactional email by ID or slug.                        |
+| `get_campaign_stats`      | Get campaign performance, reply metrics, and Poll/NPS summaries.                                            |
+| `get_sequence_stats`      | Get aggregate and per-step sequence performance plus live active/waiting enrollment counts by current node. |
+| `list_campaign_events`    | List paginated raw email events for a campaign.                                                             |
+| `list_sequence_events`    | List paginated raw email events for a sequence.                                                             |
+| `get_subscriber_activity` | Get subscriber email stats, activity, and enrollments.                                                      |
 
 Analytics tools exclude detected bot, scanner, link-preview, and tracked asset opens/clicks by default. Pass `includeMachineEngagement: true` to `get_stats`, `get_campaign_stats`, `get_sequence_stats`, `get_ab_test_stats`, `get_subscriber`, or `get_subscriber_activity` when you need raw engagement diagnostics; included open/click activity rows expose `machine`, `engagementQuality`, and `classificationReasons` fields where the API returns event-level activity.
+
+`get_sequence_stats.enrollmentCounts` is a live point-in-time snapshot of
+active and waiting enrollment runs grouped by current node. It counts
+enrollment tokens rather than necessarily distinct subscribers, and it is not
+limited by historical `period`, `start`, or `end` filters.
 
 Pass `emailType: "transactional"` to `get_stats` for Send API and
 transactional SMTP delivery, open, click, and reply rates. This includes direct

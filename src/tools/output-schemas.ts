@@ -95,6 +95,18 @@ export function resourceListOutputProperty(
   );
 }
 
+const sequenceMutationOutputProperty: OutputSchemaProperty = {
+  ...resourceOutputProperty("sequence"),
+  properties: {
+    migratedRecipientCount: numberOutputProperty(
+      "Recipients moved immediately from deleted steps to their surviving successor."
+    ),
+    completedRecipientCount: numberOutputProperty(
+      "Recipients completed because a deleted step had no surviving successor."
+    ),
+  },
+};
+
 export const dashboardUrlOutputProperties: OutputSchemaProperties = {
   appUrls: objectOutputProperty(
     "Dashboard URLs for relevant Sequenzy resources."
@@ -454,6 +466,9 @@ export const outputPropertiesByToolName: Record<
     abTest: resourceOutputProperty("A/B test"),
     variant: resourceOutputProperty("A/B test variant"),
   },
+  update_ab_test: {
+    abTest: resourceOutputProperty("A/B test"),
+  },
   create_ab_test: {
     abTest: resourceOutputProperty("A/B test"),
   },
@@ -633,7 +648,7 @@ export const outputPropertiesByToolName: Record<
     },
   },
   update_sequence: {
-    sequence: resourceOutputProperty("sequence"),
+    sequence: sequenceMutationOutputProperty,
   },
   update_sequence_node: {
     sequence: resourceOutputProperty("sequence"),
@@ -642,7 +657,7 @@ export const outputPropertiesByToolName: Record<
     sequence: resourceOutputProperty("sequence"),
   },
   edit_sequence_graph: {
-    sequence: resourceOutputProperty("sequence"),
+    sequence: sequenceMutationOutputProperty,
   },
   insert_sequence_step: {
     sequence: resourceOutputProperty("sequence"),
@@ -798,6 +813,58 @@ export const outputPropertiesByToolName: Record<
   get_sequence_stats: {
     sequence: resourceOutputProperty("sequence"),
     stats: resourceOutputProperty("sequence statistics"),
+    enrollmentCounts: {
+      type: "object",
+      description:
+        "Live enrollment-token counts for this sequence. Includes only active and waiting enrollments and is always a current snapshot, independent of historical period/start/end filters.",
+      properties: {
+        active: numberOutputProperty("Active enrollment count."),
+        waiting: numberOutputProperty("Waiting enrollment count."),
+        total: numberOutputProperty(
+          "Total active plus waiting enrollment count."
+        ),
+        byCurrentNode: {
+          type: "array",
+          description:
+            "Live active and waiting enrollment counts grouped by the token's current sequence node.",
+          items: {
+            type: "object",
+            description: "Enrollment counts for one current sequence node.",
+            properties: {
+              currentNodeId: stringOutputProperty("Current sequence node ID."),
+              currentNodeType: stringOutputProperty(
+                "Current sequence node type. Omitted when the node no longer exists in the graph."
+              ),
+              currentNodeLabel: stringOutputProperty(
+                "Current sequence node label or email subject when available."
+              ),
+              currentNodeMissing: booleanOutputProperty(
+                "Whether the current node no longer exists in the sequence graph."
+              ),
+              active: numberOutputProperty(
+                "Active enrollment count at this node."
+              ),
+              waiting: numberOutputProperty(
+                "Waiting enrollment count at this node."
+              ),
+              total: numberOutputProperty(
+                "Total active plus waiting enrollment count at this node."
+              ),
+            },
+            required: [
+              "currentNodeId",
+              "currentNodeMissing",
+              "active",
+              "waiting",
+              "total",
+            ],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["active", "waiting", "total", "byCurrentNode"],
+      additionalProperties: false,
+    },
     enrollmentSkipped: {
       type: "object",
       description:

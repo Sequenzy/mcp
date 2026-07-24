@@ -1065,6 +1065,9 @@ describe("A/B test tools", () => {
     const updateVariantTool = tools.find(
       (tool) => tool.name === "update_ab_test_variant"
     );
+    const updateSettingsTool = tools.find(
+      (tool) => tool.name === "update_ab_test"
+    );
     const inputSchema = updateVariantTool?.inputSchema as
       | {
           required?: string[];
@@ -1077,6 +1080,7 @@ describe("A/B test tools", () => {
     expect(toolNames).toContain("get_ab_test");
     expect(toolNames).toContain("get_ab_test_stats");
     expect(toolNames).toContain("restart_ab_test");
+    expect(toolNames).toContain("update_ab_test");
     expect(toolNames).toContain("update_ab_test_variant");
     expect(inputSchema?.required).toEqual(["abTestId", "variantId"]);
     expect(inputSchema?.additionalProperties).toBe(false);
@@ -1085,6 +1089,11 @@ describe("A/B test tools", () => {
     expect(inputSchema?.properties).toHaveProperty("html");
     expect(inputSchema?.properties).toHaveProperty("blocks");
     expect(inputSchema?.properties).toHaveProperty("confirmLiveChange");
+    expect(updateSettingsTool?.inputSchema).toMatchObject({
+      type: "object",
+      required: ["abTestId"],
+      additionalProperties: false,
+    });
   });
 
   it("passes sequence filters through to the A/B test list API", async () => {
@@ -1272,6 +1281,76 @@ describe("A/B test tools", () => {
     expect(enrollmentSkippedSchema?.required).toEqual(["count", "byReason"]);
     expect(result.structuredContent?.["enrollmentSkipped"]).toEqual(
       enrollmentSkipped
+    );
+  });
+
+  it("documents and returns live sequence enrollment counts by current node", async () => {
+    const sequenceTool = tools.find(
+      (candidate) => candidate.name === "get_sequence_stats"
+    );
+    const enrollmentCountsSchema = sequenceTool?.outputSchema?.properties?.[
+      "enrollmentCounts"
+    ] as
+      | {
+          description?: string;
+          properties?: Record<string, unknown>;
+          required?: string[];
+        }
+      | undefined;
+    const enrollmentCounts = {
+      active: 1,
+      waiting: 2,
+      total: 3,
+      byCurrentNode: [
+        {
+          currentNodeId: "delay-1",
+          currentNodeType: "logic_delay",
+          currentNodeLabel: "Wait three days",
+          currentNodeMissing: false,
+          active: 0,
+          waiting: 2,
+          total: 2,
+        },
+      ],
+    };
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      stats: { sent: 0 },
+      enrollmentCounts,
+    });
+
+    const result = await handleToolCall("get_sequence_stats", {
+      companyId: "company_123",
+      sequenceId: "seq_123",
+    });
+
+    expect(sequenceTool?.description).toContain(
+      "live snapshot of active and waiting enrollments grouped by current node"
+    );
+    expect(sequenceTool?.description).toContain(
+      "not limited by period or start/end"
+    );
+    expect(enrollmentCountsSchema?.description).toContain(
+      "independent of historical period/start/end filters"
+    );
+    expect(enrollmentCountsSchema?.properties).toHaveProperty("active");
+    expect(enrollmentCountsSchema?.properties).toHaveProperty("waiting");
+    expect(enrollmentCountsSchema?.properties).toHaveProperty("total");
+    expect(enrollmentCountsSchema?.properties).toHaveProperty("byCurrentNode");
+    expect(enrollmentCountsSchema?.required).toEqual([
+      "active",
+      "waiting",
+      "total",
+      "byCurrentNode",
+    ]);
+    expect(result.structuredContent?.["enrollmentCounts"]).toEqual(
+      enrollmentCounts
+    );
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/metrics/sequences/seq_123",
+      undefined,
+      "company_123"
     );
   });
 
@@ -3928,6 +4007,21 @@ describe("create_sequence tool", () => {
 });
 
 describe("update_sequence tool", () => {
+  it("publishes recipient-impact counts for sequence graph mutations", () => {
+    for (const toolName of ["update_sequence", "edit_sequence_graph"]) {
+      const tool = tools.find((candidate) => candidate.name === toolName);
+      const sequenceSchema = tool?.outputSchema?.properties?.["sequence"] as
+        | { properties?: Record<string, unknown> }
+        | undefined;
+      expect(sequenceSchema?.properties).toHaveProperty(
+        "migratedRecipientCount"
+      );
+      expect(sequenceSchema?.properties).toHaveProperty(
+        "completedRecipientCount"
+      );
+    }
+  });
+
   beforeEach(() => {
     mockApiRequest.mockClear();
   });
@@ -6930,6 +7024,7 @@ describe("A/B test lifecycle tools", () => {
     const toolNames = tools.map((tool) => tool.name);
 
     expect(toolNames).toContain("create_ab_test");
+    expect(toolNames).toContain("update_ab_test");
     expect(toolNames).toContain("add_ab_test_variant");
     expect(toolNames).toContain("delete_ab_test_variant");
     expect(toolNames).toContain("delete_ab_test");
@@ -6978,6 +7073,9 @@ describe("A/B test lifecycle tools", () => {
       automationNodeId: "node_123",
       confirmLiveChange: true,
       testType: "content",
+      winnerCriteria: "open_rate",
+      testPercentage: 50,
+      testDurationMinutes: 15,
       winnerThreshold: 150,
       variants: [{ subject: "Variant B subject" }],
     });
@@ -6990,11 +7088,64 @@ describe("A/B test lifecycle tools", () => {
         automationNodeId: "node_123",
         confirmLiveChange: true,
         testType: "content",
+        winnerCriteria: "open_rate",
+        testPercentage: 50,
+        testDurationMinutes: 15,
         winnerThreshold: 150,
         variants: [{ subject: "Variant B subject" }],
       },
       "comp_123"
     );
+  });
+
+  it("updates sequence A/B test settings", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      abTest: {
+        id: "ab_123",
+        kind: "sequence",
+        settings: {
+          testType: "content",
+          winnerCriteria: "open_rate",
+          winnerThreshold: 150,
+        },
+      },
+    });
+
+    const result = await handleToolCall("update_ab_test", {
+      companyId: "comp_123",
+      abTestId: "ab_123",
+      testType: "content",
+      winnerCriteria: "open_rate",
+      winnerThreshold: 150,
+      confirmLiveChange: true,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/ab-tests/ab_123",
+      {
+        testType: "content",
+        winnerCriteria: "open_rate",
+        winnerThreshold: 150,
+        confirmLiveChange: true,
+      },
+      "comp_123"
+    );
+  });
+
+  it("rejects update_ab_test calls without a setting", async () => {
+    const result = await handleToolCall("update_ab_test", {
+      abTestId: "ab_123",
+      confirmLiveChange: true,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Provide at least one of `name`, `testPercentage`, `testDurationMinutes`, `winnerCriteria`, `testType`, or `winnerThreshold`"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
   it("requires exactly one A/B test owner before hitting the API", async () => {

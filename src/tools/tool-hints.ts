@@ -112,6 +112,7 @@ export const MUTATING_TOOL_NAMES = new Set([
   "delete_template",
   "restart_ab_test",
   "update_ab_test_variant",
+  "update_ab_test",
   "create_ab_test",
   "add_ab_test_variant",
   "delete_ab_test_variant",
