@@ -8,8 +8,21 @@ export type SequenzyToolCallResult = CallToolResult & {
   content: Array<{ type: "text"; text: string }>;
   structuredContent?: Record<string, unknown>;
 };
+export type OutputSchemaJsonType =
+  | "object"
+  | "array"
+  | "string"
+  | "number"
+  | "integer"
+  | "boolean"
+  | "null";
+
 export type OutputSchemaProperty = {
-  type?: "object" | "array" | "string" | "number" | "integer" | "boolean";
+  // A type array is the JSON Schema way to spell "nullable". MCP clients
+  // validate structuredContent against this schema (the TypeScript SDK compiles
+  // it with ajv), so any field the API can return as null must say so here or
+  // the whole tool call is rejected.
+  type?: OutputSchemaJsonType | OutputSchemaJsonType[];
   description?: string;
   properties?: Record<string, OutputSchemaProperty>;
   items?: OutputSchemaProperty;
@@ -61,6 +74,30 @@ export function stringOutputProperty(
   };
 }
 
+export function nullableObjectOutputProperty(
+  description: string
+): OutputSchemaProperty {
+  return {
+    type: ["object", "null"],
+    description,
+    additionalProperties: true,
+  };
+}
+
+/**
+ * For string fields that are genuinely absent rather than empty. MCP clients
+ * validate `structuredContent` against this schema and reject a plain
+ * `type: "string"` property that arrives as `null`.
+ */
+export function nullableStringOutputProperty(
+  description: string
+): OutputSchemaProperty {
+  return {
+    type: ["string", "null"],
+    description,
+  };
+}
+
 export function numberOutputProperty(
   description: string
 ): OutputSchemaProperty {
@@ -95,8 +132,42 @@ export function resourceListOutputProperty(
   );
 }
 
+const EMAIL_FUNNEL_STATS_HINT =
+  "`opened` and `clicked` are unique counts deduplicated by email send (one recipient opening five times counts once), not total open events. Every count is attributed to the sends made inside the requested window, including engagement that arrives after the window ends, so `opened <= delivered <= sent` always holds. Rates use `rateDenominator` (`delivered`, or `sent` when no delivery events were recorded, reported as `rateDenominatorBasis`); `deliveryRate` and `bounceRate` divide by `sent`.";
+
+const SEQUENCE_RUN_STATE_HINT =
+  "Run state: branch on effectiveStatus (draft, live, enrollment_paused, paused, or archived) rather than on status, which reads `active` even when new enrollments are paused. acceptsNewEnrollments and processesExistingEnrollments answer the two questions behind it, and effectiveStatusSummary is a plain-language sentence. The legacy triggerConfig.active flag is not read by the runtime; it is reported as a mirror of acceptsNewEnrollments.";
+
+export const sequenceOutputProperty: OutputSchemaProperty =
+  objectOutputProperty(
+    `The sequence record returned by Sequenzy. ${SEQUENCE_RUN_STATE_HINT}`
+  );
+
+export const sequenceListOutputProperty: OutputSchemaProperty =
+  arrayOutputProperty(
+    `List of sequence records returned by Sequenzy. ${SEQUENCE_RUN_STATE_HINT}`
+  );
+
+export const sequenceRunStateOutputProperties: OutputSchemaProperties = {
+  effectiveStatus: {
+    type: "string",
+    enum: ["draft", "live", "enrollment_paused", "paused", "archived"],
+    description:
+      "Resolved run state. The one field to branch on: `status` still reads `active` while new enrollments are paused.",
+  },
+  acceptsNewEnrollments: booleanOutputProperty(
+    "Whether new subscribers can enter the sequence right now."
+  ),
+  processesExistingEnrollments: booleanOutputProperty(
+    "Whether subscribers already inside the sequence keep advancing and receiving steps."
+  ),
+  effectiveStatusSummary: stringOutputProperty(
+    "One plain-language sentence describing the run state, safe to show a user verbatim."
+  ),
+};
+
 const sequenceMutationOutputProperty: OutputSchemaProperty = {
-  ...resourceOutputProperty("sequence"),
+  ...sequenceOutputProperty,
   properties: {
     migratedRecipientCount: numberOutputProperty(
       "Recipients moved immediately from deleted steps to their surviving successor."
@@ -247,6 +318,37 @@ export const outputPropertiesByToolName: Record<
   list_websites: {
     websites: resourceListOutputProperty("sender website"),
   },
+  list_integrations: {
+    integrations: resourceListOutputProperty(
+      "connected integration, including provider, provider account ID, active and sync status, last sync time, last sync error, and allowlisted non-secret details. Credentials are never included"
+    ),
+  },
+  list_sender_profiles: {
+    senderProfiles: resourceListOutputProperty(
+      "sender (From) profile, including the sending domain behind it, its verification status, and whether the address can currently send"
+    ),
+    replyProfiles: resourceListOutputProperty("reply-to profile"),
+    defaultSenderProfileId: nullableStringOutputProperty(
+      "Company default sender profile ID. Null when no default is set."
+    ),
+    defaultReplyProfileId: nullableStringOutputProperty(
+      "Company default reply-to profile ID. Null when no default is set."
+    ),
+  },
+  get_tracking_settings: {
+    tracking: objectOutputProperty(
+      "Open, click, and unsubscribe tracking flags plus the default attribution window in hours."
+    ),
+    autoUtm: objectOutputProperty(
+      "Automatic UTM tagging state and its configured parameters."
+    ),
+    trackingDomain: nullableObjectOutputProperty(
+      "Dedicated click-tracking domain with verification and SSL status. Null when click links use the shared Sequenzy tracking domain."
+    ),
+    replyTracking: objectOutputProperty(
+      "Inbound reply tracking configuration."
+    ),
+  },
   add_website: {
     website: resourceOutputProperty(
       "Sending domain with its cohort-specific DNS records. Publish every returned record, including DMARC when present."
@@ -310,6 +412,62 @@ export const outputPropertiesByToolName: Record<
   delete_subscriber_note: {
     id: stringOutputProperty("Deleted subscriber note ID."),
     deleted: booleanOutputProperty("Whether the subscriber note was deleted."),
+  },
+  trigger_subscriber_event: {
+    subscriber: resourceOutputProperty("subscriber"),
+    event: resourceOutputProperty(
+      "recorded event with its name and whether the event definition was created"
+    ),
+    sideEffectFailures: {
+      type: "array",
+      description:
+        "Sync-rule or automation side effects that failed. The event itself is still recorded.",
+      items: stringOutputProperty("One failed side effect."),
+    },
+  },
+  trigger_subscriber_events: {
+    subscriber: resourceOutputProperty("subscriber"),
+    events: resourceListOutputProperty("recorded event"),
+  },
+  bulk_add_subscriber_tags: {
+    tags: {
+      type: "array",
+      description: "Normalized tag names applied to every matched subscriber.",
+      items: stringOutputProperty("One tag name."),
+    },
+    requested: numberOutputProperty("Identifiers supplied in the request."),
+    matched: numberOutputProperty("Existing subscribers resolved."),
+    updated: numberOutputProperty("Subscribers whose tags actually changed."),
+    unchanged: numberOutputProperty(
+      "Subscribers that already carried every tag."
+    ),
+    failed: numberOutputProperty("Subscribers whose update failed."),
+    notFound: objectOutputProperty(
+      "Identifiers that did not resolve, grouped as emails, externalIds, and subscriberIds. These subscribers were NOT created."
+    ),
+    failures: resourceListOutputProperty("per-subscriber failure (up to 50)"),
+    triggeredAutomations: booleanOutputProperty(
+      "Whether tag_added sequences were allowed to enroll these contacts."
+    ),
+  },
+  bulk_remove_subscriber_tags: {
+    tags: {
+      type: "array",
+      description:
+        "Normalized tag names removed from every matched subscriber.",
+      items: stringOutputProperty("One tag name."),
+    },
+    requested: numberOutputProperty("Identifiers supplied in the request."),
+    matched: numberOutputProperty("Existing subscribers resolved."),
+    updated: numberOutputProperty("Subscribers whose tags actually changed."),
+    unchanged: numberOutputProperty(
+      "Subscribers that did not carry any of the tags."
+    ),
+    failed: numberOutputProperty("Subscribers whose update failed."),
+    notFound: objectOutputProperty(
+      "Identifiers that did not resolve, grouped as emails, externalIds, and subscriberIds."
+    ),
+    failures: resourceListOutputProperty("per-subscriber failure (up to 50)"),
   },
   search_subscribers: {
     subscribers: resourceListOutputProperty("subscriber"),
@@ -489,6 +647,20 @@ export const outputPropertiesByToolName: Record<
   get_campaign: {
     campaign: resourceOutputProperty("campaign"),
   },
+  get_campaign_audience: {
+    campaignId: stringOutputProperty("Campaign the audience was resolved for."),
+    campaignName: stringOutputProperty("Campaign name."),
+    status: stringOutputProperty("Campaign status."),
+    audience: objectOutputProperty(
+      "Resolved targeting: `type`, a plain-language `summary`, `isUnset` (true when scheduling would fall back to every active subscriber), resolved `lists` and `segments` with names and a `missing` flag, `filters`, `include`/`exclude` rules, and individual subscriber adjustments."
+    ),
+    recipientCount: numberOutputProperty(
+      "Number of subscribers matching the effective targeting right now."
+    ),
+    targetLists: nullableObjectOutputProperty(
+      "Raw stored targeting exactly as persisted on the campaign. Null when targeting has never been set."
+    ),
+  },
   get_email_send: {
     emailSend: resourceOutputProperty(
       "email send, including copied-recipient identity and primary email send ID when applicable"
@@ -608,10 +780,10 @@ export const outputPropertiesByToolName: Record<
     domain: stringOutputProperty("Landing page domain."),
   },
   list_sequences: {
-    sequences: resourceListOutputProperty("sequence"),
+    sequences: sequenceListOutputProperty,
   },
   get_sequence: {
-    sequence: resourceOutputProperty("sequence"),
+    sequence: sequenceOutputProperty,
   },
   send_sequence_test_email: {
     sequenceId: stringOutputProperty("Sequence ID."),
@@ -621,7 +793,7 @@ export const outputPropertiesByToolName: Record<
     ),
   },
   create_sequence: {
-    sequence: resourceOutputProperty("sequence"),
+    sequence: sequenceOutputProperty,
     eventTrackingCode: stringOutputProperty(
       "Ready-to-adapt code for sending a custom trigger event, including any matching-field property."
     ),
@@ -667,22 +839,34 @@ export const outputPropertiesByToolName: Record<
       "Created path node IDs keyed by branch ID, plus else. Directly wired paths have empty arrays."
     ),
   },
+  // enable/disable answer with the sequence's new state inline rather than a
+  // nested record, the same shape as the enrollment pause/resume tools.
   enable_sequence: {
-    sequence: resourceOutputProperty("sequence"),
+    sequenceId: stringOutputProperty("Sequence ID."),
+    status: stringOutputProperty("Stored lifecycle status after the change."),
+    enrollmentPaused: booleanOutputProperty(
+      "Whether new sequence enrollments are paused."
+    ),
+    ...sequenceRunStateOutputProperties,
   },
   disable_sequence: {
-    sequence: resourceOutputProperty("sequence"),
+    sequenceId: stringOutputProperty("Sequence ID."),
+    status: stringOutputProperty("Stored lifecycle status after the change."),
+    enrollmentPaused: booleanOutputProperty(
+      "Whether new sequence enrollments are paused."
+    ),
+    ...sequenceRunStateOutputProperties,
   },
   duplicate_sequence: {
-    sequence: resourceOutputProperty("sequence"),
+    sequence: sequenceOutputProperty,
     nodes: resourceListOutputProperty("sequence node"),
     edges: resourceListOutputProperty("sequence edge"),
   },
   archive_sequence: {
-    sequence: resourceOutputProperty("sequence"),
+    sequence: sequenceOutputProperty,
   },
   unarchive_sequence: {
-    sequence: resourceOutputProperty("sequence"),
+    sequence: sequenceOutputProperty,
   },
   list_sequence_goals: {
     goals: resourceListOutputProperty("sequence goal"),
@@ -710,12 +894,14 @@ export const outputPropertiesByToolName: Record<
     enrollmentPaused: booleanOutputProperty(
       "Whether new sequence enrollments are paused."
     ),
+    ...sequenceRunStateOutputProperties,
   },
   resume_sequence_enrollments: {
     sequenceId: stringOutputProperty("Sequence ID."),
     enrollmentPaused: booleanOutputProperty(
       "Whether new sequence enrollments are paused."
     ),
+    ...sequenceRunStateOutputProperties,
   },
   enroll_subscribers_in_sequence: {
     sequence: resourceOutputProperty("sequence"),
@@ -724,9 +910,26 @@ export const outputPropertiesByToolName: Record<
     skipped: numberOutputProperty("Number of subscribers skipped."),
   },
   cancel_sequence_enrollments: {
-    sequence: resourceOutputProperty("sequence"),
-    cancelled: numberOutputProperty("Number of enrollments cancelled."),
-    skipped: numberOutputProperty("Number of enrollments skipped."),
+    sequenceId: stringOutputProperty("Sequence ID."),
+    dryRun: booleanOutputProperty(
+      "Whether this call only reported matches instead of cancelling them."
+    ),
+    target: objectOutputProperty(
+      "Resolved cancellation target: mode all, subscriber, subscribers (with notFoundSubscriberIds), or field."
+    ),
+    matchedCount: numberOutputProperty(
+      "Active/waiting enrollments matching the target when the request started."
+    ),
+    cancelledCount: numberOutputProperty("Enrollments cancelled by this call."),
+    remainingCount: numberOutputProperty(
+      "Enrollments still matching after this call. Repeat the same request while this is above zero."
+    ),
+    enrollments: resourceListOutputProperty(
+      "sequence enrollment sample (up to 50)"
+    ),
+    hasMore: booleanOutputProperty(
+      "Whether more enrollments matched than the returned sample."
+    ),
   },
   delete_sequence: {
     sequenceId: stringOutputProperty("Deleted sequence ID."),
@@ -755,7 +958,9 @@ export const outputPropertiesByToolName: Record<
     transactional: resourceOutputProperty("transactional email"),
   },
   get_stats: {
-    stats: resourceOutputProperty("account or company statistics"),
+    stats: objectOutputProperty(
+      `Account-wide delivery funnel for the requested window. ${EMAIL_FUNNEL_STATS_HINT}`
+    ),
     emailType: stringOutputProperty(
       "Applied structural email type filter when one was requested."
     ),
@@ -765,7 +970,9 @@ export const outputPropertiesByToolName: Record<
   },
   get_campaign_stats: {
     campaign: resourceOutputProperty("campaign"),
-    stats: resourceOutputProperty("campaign statistics"),
+    stats: objectOutputProperty(
+      `Delivery funnel for this campaign. ${EMAIL_FUNNEL_STATS_HINT}`
+    ),
     clickedLinks: {
       type: "array",
       description:
@@ -783,7 +990,9 @@ export const outputPropertiesByToolName: Record<
   },
   get_transactional_stats: {
     transactional: resourceOutputProperty("transactional email"),
-    stats: resourceOutputProperty("transactional email statistics"),
+    stats: objectOutputProperty(
+      `Delivery funnel for this transactional email. ${EMAIL_FUNNEL_STATS_HINT}`
+    ),
     complaints: resourceOutputProperty(
       "complaint count and rate for the selected transactional email"
     ),
@@ -798,8 +1007,10 @@ export const outputPropertiesByToolName: Record<
     ),
   },
   get_sequence_stats: {
-    sequence: resourceOutputProperty("sequence"),
-    stats: resourceOutputProperty("sequence statistics"),
+    sequence: sequenceOutputProperty,
+    stats: objectOutputProperty(
+      `Delivery funnel across every email step in this sequence. ${EMAIL_FUNNEL_STATS_HINT}`
+    ),
     enrollmentCounts: {
       type: "object",
       description:
@@ -980,6 +1191,25 @@ export const outputPropertiesByToolName: Record<
     ),
   },
   submit_feedback: {},
+  render_email: {
+    html: stringOutputProperty(
+      "Email-safe HTML document, rendered exactly as it would be sent."
+    ),
+    subject: stringOutputProperty("Subject line with merge tags resolved."),
+    previewText: nullableStringOutputProperty(
+      "Inbox preview text with merge tags resolved, or null when unset."
+    ),
+    locale: stringOutputProperty("Localization locale the render resolved to."),
+    personalized: booleanOutputProperty(
+      "Whether a real contact was supplied. False means a sample contact was used and merge tags resolved to empty values."
+    ),
+    trackingApplied: booleanOutputProperty(
+      "Whether auto-UTM link decoration was applied."
+    ),
+    entity: objectOutputProperty(
+      "Which entity was rendered: type, id, and variantId."
+    ),
+  },
 };
 
 export function getToolOutputSchema(toolName: string): ToolOutputSchema {

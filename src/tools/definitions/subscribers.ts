@@ -372,6 +372,187 @@ export const subscriberToolDefinitions: Tool[] = [
     },
   },
   {
+    name: "trigger_subscriber_event",
+    description:
+      "Emit a custom event for one subscriber, exactly as an integration or the public API would. This is the supported way to exercise event triggers, matching-field idempotency, branch conditions, and stop conditions end to end without waiting for real traffic. The event is recorded, sync rules apply, and matching event_received sequences enroll. Creates the subscriber if they do not exist. Use trigger_subscriber_events for several events on the same contact.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        email: {
+          type: "string",
+          description:
+            "Subscriber email address. Provide email or externalId to identify the subscriber.",
+        },
+        externalId: {
+          type: "string",
+          description:
+            "Customer-owned subscriber ID. Provide email or externalId to identify the subscriber.",
+        },
+        event: {
+          type: "string",
+          description:
+            "Event name, such as saas.purchase or invoice.paid. The event definition is created if it does not exist.",
+        },
+        properties: {
+          type: "object",
+          description:
+            "Event properties. Include the sequence's matching field (for example order.id or invoice.id) when testing idempotency or cancellation by field value.",
+          additionalProperties: true,
+        },
+        firstName: {
+          type: "string",
+          description: "First name applied to the subscriber profile.",
+        },
+        lastName: {
+          type: "string",
+          description: "Last name applied to the subscriber profile.",
+        },
+        attributes: {
+          type: "object",
+          description: "Custom attributes to set on the subscriber.",
+          additionalProperties: true,
+        },
+      },
+      required: ["event"],
+    },
+  },
+  {
+    name: "trigger_subscriber_events",
+    description:
+      "Emit several custom events for one subscriber in order. Events are processed independently and sequentially, so a partial failure can still leave earlier events recorded.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        email: {
+          type: "string",
+          description:
+            "Subscriber email address. Provide email or externalId to identify the subscriber.",
+        },
+        externalId: {
+          type: "string",
+          description:
+            "Customer-owned subscriber ID. Provide email or externalId to identify the subscriber.",
+        },
+        events: {
+          type: "array",
+          minItems: 1,
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string", description: "Event name" },
+              properties: {
+                type: "object",
+                description: "Event properties",
+                additionalProperties: true,
+              },
+            },
+            required: ["name"],
+            additionalProperties: false,
+          },
+          description: "Events to trigger, in order, for this subscriber.",
+        },
+        firstName: { type: "string" },
+        lastName: { type: "string" },
+        attributes: {
+          type: "object",
+          description: "Custom attributes to set on the subscriber.",
+          additionalProperties: true,
+        },
+      },
+      required: ["events"],
+    },
+  },
+  {
+    name: "bulk_add_subscriber_tags",
+    description:
+      "Add tags to up to 500 existing subscribers in one call, identified by emails, externalIds, or subscriberIds. Built for reconciling historical or derived tags: subscribers that do not exist are reported in notFound instead of being created, and tag automations do NOT run unless triggerAutomations is true. Use add_subscriber or update_subscriber for single-contact changes.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        tags: {
+          type: "array",
+          minItems: 1,
+          items: { type: "string" },
+          description: "Tag names to add to every matched subscriber.",
+        },
+        emails: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Subscriber emails to tag. Combine with externalIds/subscriberIds as needed; at least one identifier list is required.",
+        },
+        externalIds: {
+          type: "array",
+          items: { type: "string" },
+          description: "Customer-owned subscriber IDs to tag.",
+        },
+        subscriberIds: {
+          type: "array",
+          items: { type: "string" },
+          description: "Sequenzy subscriber IDs to tag.",
+        },
+        triggerAutomations: {
+          type: "boolean",
+          description:
+            "Whether tag_added sequences may enroll these contacts. Defaults to false, which is what backfills want. Requires the automations:trigger scope.",
+        },
+      },
+      required: ["tags"],
+    },
+  },
+  {
+    name: "bulk_remove_subscriber_tags",
+    description:
+      "Remove tags from up to 500 existing subscribers in one call, identified by emails, externalIds, or subscriberIds. Subscribers that do not exist are reported in notFound. Use this to roll back or reconcile a derived-tag backfill.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        tags: {
+          type: "array",
+          minItems: 1,
+          items: { type: "string" },
+          description: "Tag names to remove from every matched subscriber.",
+        },
+        emails: {
+          type: "array",
+          items: { type: "string" },
+          description: "Subscriber emails to untag.",
+        },
+        externalIds: {
+          type: "array",
+          items: { type: "string" },
+          description: "Customer-owned subscriber IDs to untag.",
+        },
+        subscriberIds: {
+          type: "array",
+          items: { type: "string" },
+          description: "Sequenzy subscriber IDs to untag.",
+        },
+      },
+      required: ["tags"],
+    },
+  },
+  {
     name: "search_subscribers",
     description:
       "Search subscribers by free-text query, tags, list, or segment. If you omit limit, the tool fetches all pages and returns every match.",

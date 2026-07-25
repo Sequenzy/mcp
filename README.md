@@ -6,11 +6,12 @@ Connect Sequenzy to Claude Desktop, Claude Code, Codex, Cursor, Windsurf, VS Cod
 
 ## What You Can Do
 
-- Manage subscribers, tags, lists, and dynamic segments.
+- Manage subscribers, tags, lists, and dynamic segments, including bulk tag reconciliation and synthetic event testing.
 - Sync segments to Meta custom audiences for Facebook and Instagram retargeting.
 - Manage products and attach digital delivery files for purchase automations.
 - Upload hosted email images with alt text and reusable responsive crop settings.
-- Draft, update, schedule, and inspect campaigns, including From, Reply-To, CC, and BCC identities.
+- Draft, update, schedule, and inspect campaigns, including resolved audience previews and From, Reply-To, CC, and BCC identities.
+- Render campaigns, sequence steps, and templates to their exact email-safe HTML without sending.
 - Add one-click Poll and NPS survey blocks to emails and inspect campaign response summaries.
 - Create and edit email sequences, including event-triggered and segment-entry automations, sending identity overrides, existing graph restructuring, and direct step test sends to internal reviewers.
 - Cancel, pause, resume, duplicate, or delete campaigns and enroll contacts into sequences.
@@ -21,7 +22,7 @@ Connect Sequenzy to Claude Desktop, Claude Code, Codex, Cursor, Windsurf, VS Cod
 - Connect and verify custom domains for published landing pages.
 - Manage team invitations, inbox conversations, and outbound webhook endpoints.
 - Generate email copy, subject lines, and multi-step sequences.
-- Inspect analytics, subscriber activity, deliverability health, and dashboard URLs.
+- Inspect analytics, subscriber activity, deliverability health, integrations, sending identities, tracking settings, and dashboard URLs.
 - Inspect and clean up exact-recipient bounce suppression without exposing the shared SES suppression list.
 - Configure company product info, account-wide sending identity defaults, sender domains, and integration examples for common frameworks.
 
@@ -224,7 +225,7 @@ build a list as well as create it. Imports that apply `listIds` also need
 
 ## Tools
 
-This server currently exposes 164 MCP tools.
+This server currently exposes 173 MCP tools.
 
 ### Account, Companies, Setup
 
@@ -249,6 +250,9 @@ This server currently exposes 164 MCP tools.
 | `add_website`                        | Compatibility alias for `add_sending_domain`.                                                                                 |
 | `check_website`                      | Read a sending domain's stored SPF, DKIM, MAIL FROM, and aggregate verification details.                                      |
 | `verify_sending_domain`              | Run a fresh sending-domain DNS/provider verification and return current status and diagnostics.                               |
+| `list_integrations`                  | List connected integrations with connection and sync health, without returning credentials.                                   |
+| `list_sender_profiles`               | List sender and reply-to profiles, account defaults, and sending-domain verification status.                                  |
+| `get_tracking_settings`              | Read open, click, unsubscribe, attribution, UTM, click-domain, and reply-tracking settings.                                   |
 | `get_integration_guide`              | Get framework-specific integration examples.                                                                                  |
 
 For a new sending domain, call `add_sending_domain`, publish the DNS records in
@@ -273,15 +277,19 @@ abandonment or price-drop settings. Timing values must be positive;
 
 ### Subscribers
 
-| Tool                       | Description                                                                                                     |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `add_subscriber`           | Add one subscriber; status is creation-only, so use `update_subscriber` for an existing contact.                |
-| `create_subscriber_import` | Queue up to 5,000 full CRM records with names, IDs, phones, statuses, tags, lists, and typed custom attributes. |
-| `get_subscriber_import`    | Read progress, row outcome counts, and failure summaries for a queued import.                                   |
-| `update_subscriber`        | Update profile fields, attributes, tags, or global status; `unsubscribed` safely suppresses marketing.          |
-| `remove_subscriber`        | Unsubscribe while preserving suppression history, or permanently delete only with `hardDelete: true`.           |
-| `get_subscriber`           | Fetch subscriber details by email or external ID.                                                               |
-| `search_subscribers`       | Search by query, tags, list, status, segment, or pagination.                                                    |
+| Tool                          | Description                                                                                                     |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `add_subscriber`              | Add one subscriber; status is creation-only, so use `update_subscriber` for an existing contact.                |
+| `create_subscriber_import`    | Queue up to 5,000 full CRM records with names, IDs, phones, statuses, tags, lists, and typed custom attributes. |
+| `get_subscriber_import`       | Read progress, row outcome counts, and failure summaries for a queued import.                                   |
+| `update_subscriber`           | Update profile fields, attributes, tags, or global status; `unsubscribed` safely suppresses marketing.          |
+| `remove_subscriber`           | Unsubscribe while preserving suppression history, or permanently delete only with `hardDelete: true`.           |
+| `get_subscriber`              | Fetch subscriber details by email or external ID.                                                               |
+| `search_subscribers`          | Search by query, tags, list, status, segment, or pagination.                                                    |
+| `trigger_subscriber_event`    | Emit one custom event exactly as an integration would, applying sync rules and matching sequence triggers.      |
+| `trigger_subscriber_events`   | Emit several ordered custom events for one subscriber.                                                          |
+| `bulk_add_subscriber_tags`    | Add tags to up to 500 existing subscribers without creating unknown contacts.                                   |
+| `bulk_remove_subscriber_tags` | Remove tags from up to 500 existing subscribers without creating unknown contacts.                              |
 
 Use `create_subscriber_import` for CRM onboarding instead of looping over
 `add_subscriber`. One call accepts 5,000 full records and returns an asynchronous
@@ -469,24 +477,26 @@ Use `get_ab_test` to copy the effective `settings` object and discover variant I
 
 ### Campaigns
 
-| Tool                             | Description                                                                               |
-| -------------------------------- | ----------------------------------------------------------------------------------------- |
-| `list_campaigns`                 | List campaigns by status, including reviewer feedback for rejected campaigns.             |
-| `get_campaign`                   | Get details, stats, and reviewer feedback for a rejected campaign.                        |
-| `list_email_sends`               | Search and filter recent delivery history; every row includes its dashboard URL.          |
-| `get_email_send`                 | Inspect a queued, test, sent, suppressed, or failed delivery by durable email-send ID.    |
-| `get_recipient_suppression`      | Check local and regional SES suppression for one exact recipient.                         |
-| `remove_recipient_suppression`   | Remove stale bounce suppression for a company-associated recipient.                       |
-| `create_campaign`                | Create a campaign with content, data, and optional From/Reply-To identity overrides.      |
-| `update_campaign`                | Update a draft campaign, including content, data, From, Reply-To, CC, and BCC.            |
-| `schedule_campaign`              | Schedule a draft or reschedule an existing scheduled campaign.                            |
-| `send_test_email`                | Send a test email to one address.                                                         |
-| `cancel_campaign`                | Cancel a scheduled or sending campaign.                                                   |
-| `pause_campaign`                 | Pause a sending campaign.                                                                 |
-| `resume_campaign`                | Resume a paused campaign, optionally spreading delivery over time.                        |
-| `delete_campaign`                | Delete a campaign.                                                                        |
-| `duplicate_campaign`             | Duplicate a campaign into a new draft.                                                    |
-| `resend_campaign_to_non_openers` | Create a draft resend for the original audience members who did not open a sent campaign. |
+| Tool                             | Description                                                                                      |
+| -------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `list_campaigns`                 | List campaigns by status, including reviewer feedback for rejected campaigns.                    |
+| `get_campaign`                   | Get details, stats, and reviewer feedback for a rejected campaign.                               |
+| `get_campaign_audience`          | Resolve saved targeting, missing references, a plain-language summary, and live recipient count. |
+| `list_email_sends`               | Search and filter recent delivery history; every row includes its dashboard URL.                 |
+| `get_email_send`                 | Inspect a queued, test, sent, suppressed, or failed delivery by durable email-send ID.           |
+| `get_recipient_suppression`      | Check local and regional SES suppression for one exact recipient.                                |
+| `remove_recipient_suppression`   | Remove stale bounce suppression for a company-associated recipient.                              |
+| `create_campaign`                | Create a campaign with content, data, and optional From/Reply-To identity overrides.             |
+| `update_campaign`                | Update a draft campaign, including content, data, From, Reply-To, CC, and BCC.                   |
+| `schedule_campaign`              | Schedule a draft or reschedule an existing scheduled campaign.                                   |
+| `send_test_email`                | Send a test email to one address.                                                                |
+| `render_email`                   | Render a campaign, sequence email step, or template to exact email-safe HTML without sending.    |
+| `cancel_campaign`                | Cancel a scheduled or sending campaign.                                                          |
+| `pause_campaign`                 | Pause a sending campaign.                                                                        |
+| `resume_campaign`                | Resume a paused campaign, optionally spreading delivery over time.                               |
+| `delete_campaign`                | Delete a campaign.                                                                               |
+| `duplicate_campaign`             | Duplicate a campaign into a new draft.                                                           |
+| `resend_campaign_to_non_openers` | Create a draft resend for the original audience members who did not open a sent campaign.        |
 
 Prompt-created campaigns are generated and persisted in one API request and
 remain drafts. Use `templateId`, `blocks`, or `html` only when copying or

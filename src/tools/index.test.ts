@@ -1,3 +1,4 @@
+import { AjvJsonSchemaValidator } from "@modelcontextprotocol/sdk/validation/ajv";
 import { beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
 
 type ApiRequestMock = (
@@ -480,6 +481,204 @@ describe("API key lifecycle tools", () => {
       );
     }
   );
+});
+
+describe("read-only audit tools", () => {
+  beforeEach(() => {
+    mockApiRequest.mockReset();
+  });
+
+  it("lists active integrations without leaking credentials", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      integrations: [
+        {
+          id: "int_1",
+          provider: "shopify",
+          providerAccountId: "acme.myshopify.com",
+          isActive: true,
+          syncStatus: "idle",
+          details: { shopName: "Acme" },
+        },
+      ],
+    });
+
+    const result = await handleToolCall("list_integrations", {
+      companyId: "company_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/integrations",
+      undefined,
+      "company_123"
+    );
+    expect(result.structuredContent?.["integrations"]).toEqual([
+      expect.objectContaining({ provider: "shopify" }),
+    ]);
+  });
+
+  it("passes includeInactive through as a query parameter", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true, integrations: [] });
+
+    await handleToolCall("list_integrations", {
+      companyId: "company_123",
+      includeInactive: true,
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/integrations?includeInactive=true",
+      undefined,
+      "company_123"
+    );
+  });
+
+  it("lists sender and reply profiles", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      senderProfiles: [{ id: "sp_1", email: "hi@acme.com", canSend: true }],
+      replyProfiles: [],
+      defaultSenderProfileId: "sp_1",
+      defaultReplyProfileId: null,
+    });
+
+    const result = await handleToolCall("list_sender_profiles", {
+      companyId: "company_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/sender-profiles",
+      undefined,
+      "company_123"
+    );
+    expect(result.structuredContent?.["defaultSenderProfileId"]).toBe("sp_1");
+  });
+
+  it("gets tracking settings", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      tracking: { openTrackingEnabled: true, clickTrackingEnabled: false },
+      autoUtm: { enabled: false, settings: {} },
+      trackingDomain: null,
+      replyTracking: { inboundEmailEnabled: false },
+    });
+
+    const result = await handleToolCall("get_tracking_settings", {
+      companyId: "company_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/tracking-settings",
+      undefined,
+      "company_123"
+    );
+    expect(result.structuredContent?.["trackingDomain"]).toBeNull();
+  });
+
+  it("resolves a campaign audience with a recipient count", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      campaignId: "camp_1",
+      campaignName: "Launch",
+      status: "scheduled",
+      audience: {
+        type: "lists",
+        summary: "Subscribers on lists Newsletter. 42 recipient(s) match.",
+        isUnset: false,
+        lists: [{ id: "list_1", name: "Newsletter", missing: false }],
+      },
+      recipientCount: 42,
+    });
+
+    const result = await handleToolCall("get_campaign_audience", {
+      companyId: "company_123",
+      campaignId: "camp_1",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/campaigns/camp_1/audience",
+      undefined,
+      "company_123"
+    );
+    expect(result.structuredContent?.["recipientCount"]).toBe(42);
+  });
+});
+
+describe("nullable structured output", () => {
+  // MCP clients reject a tool call whose structuredContent fails its
+  // outputSchema. The TypeScript SDK compiles the schema with ajv, so validate
+  // through the SDK's own validator rather than re-deriving the rules here.
+  const validator = new AjvJsonSchemaValidator();
+
+  function validateStructuredContent(
+    toolName: string,
+    structuredContent: Record<string, unknown>
+  ) {
+    const tool = tools.find((candidate) => candidate.name === toolName);
+    if (!tool?.outputSchema) {
+      throw new Error(`Tool ${toolName} has no output schema`);
+    }
+    return validator.getValidator(tool.outputSchema)(structuredContent);
+  }
+
+  it("accepts a company with no dedicated tracking domain", () => {
+    // The common case: most companies use the shared Sequenzy tracking domain.
+    const result = validateStructuredContent("get_tracking_settings", {
+      success: true,
+      tracking: { openTrackingEnabled: true, clickTrackingEnabled: true },
+      autoUtm: { enabled: false, settings: {} },
+      trackingDomain: null,
+      replyTracking: { inboundEmailEnabled: false },
+    });
+
+    expect(result.errorMessage).toBeUndefined();
+    expect(result.valid).toBe(true);
+  });
+
+  it("accepts an account with no default sender or reply profile", () => {
+    const result = validateStructuredContent("list_sender_profiles", {
+      success: true,
+      senderProfiles: [],
+      replyProfiles: [],
+      defaultSenderProfileId: null,
+      defaultReplyProfileId: null,
+    });
+
+    expect(result.errorMessage).toBeUndefined();
+    expect(result.valid).toBe(true);
+  });
+
+  it("accepts a campaign whose targeting has never been set", () => {
+    const result = validateStructuredContent("get_campaign_audience", {
+      success: true,
+      campaignId: "camp_1",
+      campaignName: "Launch",
+      status: "draft",
+      audience: { type: "unset", isUnset: true },
+      recipientCount: 1284,
+      targetLists: null,
+    });
+
+    expect(result.errorMessage).toBeUndefined();
+    expect(result.valid).toBe(true);
+  });
+
+  it("still rejects a wrongly typed value in a nullable field", () => {
+    const result = validateStructuredContent("get_tracking_settings", {
+      success: true,
+      trackingDomain: "links.acme.com",
+    });
+
+    expect(result.valid).toBe(false);
+  });
 });
 
 describe("update_template tool validation", () => {
@@ -2324,7 +2523,49 @@ describe("update_campaign tool validation", () => {
     expect(inputSchema?.properties).toHaveProperty("bccEmails");
     expect(inputSchema?.properties).toHaveProperty("campaignData");
     expect(inputSchema?.properties).toHaveProperty("computedLists");
+    expect(inputSchema?.properties).toHaveProperty("targetLists");
+    expect(inputSchema?.properties).toHaveProperty("segmentId");
     expect(inputSchema?.properties).toHaveProperty("labels");
+  });
+
+  it("forwards an update_campaign audience change to the API", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      campaign: {
+        id: "camp_123",
+        targetLists: { type: "lists", listIds: ["list_123"] },
+      },
+    });
+
+    const result = await handleToolCall("update_campaign", {
+      companyId: "comp_123",
+      campaignId: "camp_123",
+      targetLists: { type: "lists", listIds: ["list_123"] },
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/campaigns/camp_123",
+      expect.objectContaining({
+        targetLists: { type: "lists", listIds: ["list_123"] },
+      }),
+      "comp_123"
+    );
+  });
+
+  it("rejects update_campaign calls that combine segmentId and targetLists", async () => {
+    const result = await handleToolCall("update_campaign", {
+      campaignId: "camp_123",
+      segmentId: "seg_123",
+      targetLists: { type: "all" },
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Provide either `segmentId` or `targetLists` when calling `update_campaign`, not both."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
   it("publishes schedule_campaign with a plain object schema", () => {
@@ -4160,6 +4401,56 @@ describe("update_sequence tool", () => {
     expect(stopCondition?.properties?.type?.enum).toContain("entered_segment");
     expect(stopCondition?.properties?.type?.enum).toContain("field_changed");
     expect(stopCondition?.properties?.value?.type).toEqual(["string", "null"]);
+  });
+
+  it("documents the config fields each path node type expects", () => {
+    const updateSequence = tools.find(
+      (tool) => tool.name === "update_sequence"
+    );
+    const inputSchema = updateSequence?.inputSchema as
+      | {
+          properties?: Record<
+            string,
+            {
+              properties?: {
+                steps?: {
+                  items?: {
+                    properties?: {
+                      config?: {
+                        description?: string;
+                        properties?: Record<string, unknown>;
+                      };
+                    };
+                  };
+                };
+              };
+            }
+          >;
+        }
+      | undefined;
+    const stepConfig =
+      inputSchema?.properties?.["insertSteps"]?.properties?.steps?.items
+        ?.properties?.config;
+
+    for (const field of [
+      "tagId",
+      "tagName",
+      "listId",
+      "eventName",
+      "timeoutDays",
+      "timeoutAction",
+      "conditionType",
+      "url",
+      "customAttributeUpdates",
+    ]) {
+      expect(stepConfig?.properties).toHaveProperty(field);
+    }
+    expect(stepConfig?.description).toContain(
+      "action_add_tag and action_remove_tag need tagId or tagName"
+    );
+    expect(stepConfig?.description).toContain(
+      "action_add_to_list and action_remove_from_list need listId"
+    );
   });
 
   it("forwards an atomic inbound-webhook trigger replacement", async () => {
@@ -6033,7 +6324,9 @@ describe("cancel_sequence_enrollments tool", () => {
     expect(inputSchema?.required).toEqual(["sequenceId"]);
     expect(inputSchema?.anyOf).toBeUndefined();
     expect(inputSchema?.additionalProperties).toBe(false);
+    expect(inputSchema?.properties).toHaveProperty("cancelAll");
     expect(inputSchema?.properties).toHaveProperty("subscriberId");
+    expect(inputSchema?.properties).toHaveProperty("subscriberIds");
     expect(inputSchema?.properties).toHaveProperty("fieldPath");
     expect(inputSchema?.properties).toHaveProperty("fieldValues");
     expect(inputSchema?.properties).toHaveProperty("dryRun");
@@ -6072,12 +6365,70 @@ describe("cancel_sequence_enrollments tool", () => {
     );
   });
 
+  it("passes cancelAll through to the API", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      sequenceId: "seq_123",
+      dryRun: false,
+      matchedCount: 3522,
+      cancelledCount: 1000,
+      remainingCount: 2522,
+    });
+
+    const result = await handleToolCall("cancel_sequence_enrollments", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      cancelAll: true,
+      dryRun: false,
+      reason: "Lifecycle cutover",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/sequences/seq_123/enrollments/cancel",
+      { cancelAll: true, dryRun: false, reason: "Lifecycle cutover" },
+      "comp_123"
+    );
+  });
+
+  it("trims and forwards a subscriberIds batch to the API", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true });
+
+    await handleToolCall("cancel_sequence_enrollments", {
+      sequenceId: "seq_123",
+      subscriberIds: [" sub_1 ", "sub_2", "sub_1"],
+      dryRun: false,
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/sequences/seq_123/enrollments/cancel",
+      { subscriberIds: ["sub_1", "sub_2", "sub_1"], dryRun: false },
+      undefined
+    );
+  });
+
   it("rejects mixed subscriber and field-value targets before hitting the API", async () => {
     const result = await handleToolCall("cancel_sequence_enrollments", {
       companyId: "comp_123",
       sequenceId: "seq_123",
       subscriberId: "sub_123",
       fieldValues: ["ord_1"],
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Provide exactly one target when calling `cancel_sequence_enrollments`"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects combining cancelAll with another target", async () => {
+    const result = await handleToolCall("cancel_sequence_enrollments", {
+      sequenceId: "seq_123",
+      cancelAll: true,
+      subscriberIds: ["sub_1"],
     });
 
     expect(result.isError).toBe(true);

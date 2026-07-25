@@ -716,6 +716,56 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
     },
   },
   {
+    name: "list_integrations",
+    description:
+      "List connected integrations (Stripe, Shopify, Supabase, Clerk, WooCommerce, ad platforms, and so on) with connection status, sync state, last sync time, and last sync error. Read-only: credentials, access tokens, and webhook secrets are never returned. Use this to audit which external systems feed this account and whether their syncs are healthy.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        includeInactive: {
+          type: "boolean",
+          description:
+            "Include disconnected/inactive integrations. Defaults to false (active only).",
+        },
+      },
+    },
+  },
+  {
+    name: "list_sender_profiles",
+    description:
+      "List sender (From) profiles and reply-to profiles for the company, including which are the account defaults and whether each sender address sits on a verified sending domain. Use this to audit sending identity before scheduling, or to pick a valid senderProfileId/replyProfileId for create_campaign or update_campaign.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+      },
+    },
+  },
+  {
+    name: "get_tracking_settings",
+    description:
+      "Get the company's email tracking configuration: open/click/unsubscribe tracking flags, default attribution window, automatic UTM tagging, the dedicated click-tracking domain and its verification status, and inbound reply-tracking settings. Use this to audit measurement readiness and to explain why opens or clicks may not be recorded.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+      },
+    },
+  },
+  {
     name: "get_integration_guide",
     description: `Get code examples for integrating Sequenzy into your project.
 

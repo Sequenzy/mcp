@@ -11,6 +11,73 @@ import {
   requiredString,
 } from "../internal.js";
 
+function requireStringArray(
+  toolName: string,
+  args: Record<string, unknown>,
+  key: string
+): string[] | undefined {
+  const value = args[key];
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!Array.isArray(value)) {
+    throw new Error(
+      `\`${key}\` must be an array of strings when calling \`${toolName}\`.`
+    );
+  }
+
+  const normalized = value
+    .filter((entry): entry is string => typeof entry === "string")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+
+  if (normalized.length !== value.length) {
+    throw new Error(
+      `\`${key}\` must contain only non-empty strings when calling \`${toolName}\`.`
+    );
+  }
+
+  return normalized;
+}
+
+export function buildBulkSubscriberTagBody(
+  toolName: string,
+  args: Record<string, unknown>
+): Record<string, unknown> {
+  const tags = requireStringArray(toolName, args, "tags");
+  if (tags === undefined || tags.length === 0) {
+    throw new Error(
+      `\`tags\` must contain at least one tag when calling \`${toolName}\`.`
+    );
+  }
+
+  const emails = requireStringArray(toolName, args, "emails");
+  const externalIds = requireStringArray(toolName, args, "externalIds");
+  const subscriberIds = requireStringArray(toolName, args, "subscriberIds");
+
+  if (
+    (emails?.length ?? 0) +
+      (externalIds?.length ?? 0) +
+      (subscriberIds?.length ?? 0) ===
+    0
+  ) {
+    throw new Error(
+      `Provide \`emails\`, \`externalIds\`, or \`subscriberIds\` when calling \`${toolName}\`.`
+    );
+  }
+
+  return {
+    tags,
+    ...(emails?.length ? { emails } : {}),
+    ...(externalIds?.length ? { externalIds } : {}),
+    ...(subscriberIds?.length ? { subscriberIds } : {}),
+    ...(toolName === "bulk_add_subscriber_tags" &&
+    typeof args.triggerAutomations === "boolean"
+      ? { triggerAutomations: args.triggerAutomations }
+      : {}),
+  };
+}
+
 export async function handleSubscriberTools(
   name: string,
   args: Record<string, unknown>
@@ -302,6 +369,93 @@ export async function handleSubscriberTools(
         "DELETE",
         `/api/v1/subscribers/notes/${encodeURIComponent(noteId)}`,
         undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "trigger_subscriber_event": {
+      const companyId = args.companyId as string | undefined;
+      const identifier = requireSubscriberIdentifier(
+        "trigger_subscriber_event",
+        args
+      );
+      const event = requiredString("trigger_subscriber_event", args, "event");
+      if (args.properties !== undefined && !isRecord(args.properties)) {
+        throw new Error(
+          "`properties` must be an object when calling `trigger_subscriber_event`."
+        );
+      }
+
+      result = await apiRequest(
+        "POST",
+        "/api/v1/subscribers/events",
+        {
+          ...identifier,
+          event,
+          ...(args.properties !== undefined && { properties: args.properties }),
+          ...(args.firstName !== undefined && { firstName: args.firstName }),
+          ...(args.lastName !== undefined && { lastName: args.lastName }),
+          ...(args.attributes !== undefined && {
+            customAttributes: args.attributes,
+          }),
+        },
+        companyId
+      );
+      break;
+    }
+
+    case "trigger_subscriber_events": {
+      const companyId = args.companyId as string | undefined;
+      const identifier = requireSubscriberIdentifier(
+        "trigger_subscriber_events",
+        args
+      );
+      if (!Array.isArray(args.events) || args.events.length === 0) {
+        throw new Error(
+          "`events` must be a non-empty array when calling `trigger_subscriber_events`."
+        );
+      }
+      for (let index = 0; index < args.events.length; index += 1) {
+        const event = args.events[index];
+        if (
+          !isRecord(event) ||
+          typeof event.name !== "string" ||
+          event.name.trim() === ""
+        ) {
+          throw new Error(
+            `Event ${index} must include a non-empty \`name\` string.`
+          );
+        }
+      }
+
+      result = await apiRequest(
+        "POST",
+        "/api/v1/subscribers/events/bulk",
+        {
+          ...identifier,
+          events: args.events,
+          ...(args.firstName !== undefined && { firstName: args.firstName }),
+          ...(args.lastName !== undefined && { lastName: args.lastName }),
+          ...(args.attributes !== undefined && {
+            customAttributes: args.attributes,
+          }),
+        },
+        companyId
+      );
+      break;
+    }
+
+    case "bulk_add_subscriber_tags":
+    case "bulk_remove_subscriber_tags": {
+      const companyId = args.companyId as string | undefined;
+      const body = buildBulkSubscriberTagBody(name, args);
+      result = await apiRequest(
+        "POST",
+        `/api/v1/subscribers/bulk/tags/${
+          name === "bulk_add_subscriber_tags" ? "add" : "remove"
+        }`,
+        body,
         companyId
       );
       break;

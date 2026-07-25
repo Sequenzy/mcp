@@ -706,6 +706,17 @@ export async function handleCampaignTools(
       break;
     }
 
+    case "get_campaign_audience": {
+      const companyId = args.companyId as string | undefined;
+      result = await apiRequest(
+        "GET",
+        `/api/v1/campaigns/${encodeURIComponent(String(args.campaignId))}/audience`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
     case "get_email_send": {
       const companyId = args.companyId as string | undefined;
       result = await apiRequest(
@@ -877,6 +888,8 @@ export async function handleCampaignTools(
         "bccEmails",
         "campaignData",
         "computedLists",
+        "targetLists",
+        "segmentId",
         "labels",
       ]);
       const unsupportedCampaignUpdateKeys = Object.keys(args).filter(
@@ -885,7 +898,7 @@ export async function handleCampaignTools(
 
       if (unsupportedCampaignUpdateKeys.length > 0) {
         throw new Error(
-          `\`update_campaign\` accepts only content, sending identity, campaign data, computed list, and label update fields. Unsupported field${unsupportedCampaignUpdateKeys.length === 1 ? "" : "s"}: ${unsupportedCampaignUpdateKeys.map((key) => `\`${key}\``).join(", ")}.`
+          `\`update_campaign\` accepts only content, sending identity, campaign data, computed list, audience, and label update fields. Unsupported field${unsupportedCampaignUpdateKeys.length === 1 ? "" : "s"}: ${unsupportedCampaignUpdateKeys.map((key) => `\`${key}\``).join(", ")}.`
         );
       }
 
@@ -912,6 +925,11 @@ export async function handleCampaignTools(
           "`replyToName` requires `replyTo` when calling `update_campaign`."
         );
       }
+      if (args.segmentId !== undefined && args.targetLists !== undefined) {
+        throw new Error(
+          "Provide either `segmentId` or `targetLists` when calling `update_campaign`, not both."
+        );
+      }
 
       if (
         args.name === undefined &&
@@ -927,10 +945,12 @@ export async function handleCampaignTools(
         args.bccEmails === undefined &&
         args.campaignData === undefined &&
         args.computedLists === undefined &&
+        args.targetLists === undefined &&
+        args.segmentId === undefined &&
         args.labels === undefined
       ) {
         throw new Error(
-          "Provide at least one campaign content, sending identity, campaign data, computed list, or label field when calling `update_campaign`."
+          "Provide at least one campaign content, sending identity, campaign data, computed list, audience, or label field when calling `update_campaign`."
         );
       }
 
