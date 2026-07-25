@@ -706,6 +706,17 @@ export async function handleCampaignTools(
       break;
     }
 
+    case "get_campaign_audience": {
+      const companyId = args.companyId as string | undefined;
+      result = await apiRequest(
+        "GET",
+        `/api/v1/campaigns/${encodeURIComponent(String(args.campaignId))}/audience`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
     case "get_email_send": {
       const companyId = args.companyId as string | undefined;
       result = await apiRequest(

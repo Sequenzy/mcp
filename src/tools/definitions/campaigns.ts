@@ -33,7 +33,27 @@ export const campaignToolDefinitions: Tool[] = [
   {
     name: "get_campaign",
     description:
-      "Get campaign details and stats, including rejectionComment reviewer feedback for rejected campaigns",
+      "Get campaign details and stats, including rejectionComment reviewer feedback for rejected campaigns. `targetLists` holds the raw audience targeting (IDs only); call get_campaign_audience for resolved list/segment names and a recipient count. Note that `computedLists` is email personalization (product lists rendered inside the email), not audience targeting.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        campaignId: {
+          type: "string",
+          description: "Campaign ID",
+        },
+      },
+      required: ["campaignId"],
+    },
+  },
+  {
+    name: "get_campaign_audience",
+    description:
+      "Resolve exactly who a campaign will reach. Returns the targeting kind, resolved list and segment names (flagging references that no longer exist), filter conditions, individual include/exclude adjustments, a plain-language summary, and a live recipient count. Critically, it reports whether targeting is unset - an unset campaign falls back to every active subscriber when scheduled. Use this to verify a scheduled campaign's audience before it sends.",
     inputSchema: {
       type: "object",
       properties: {

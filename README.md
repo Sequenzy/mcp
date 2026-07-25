@@ -224,7 +224,7 @@ build a list as well as create it. Imports that apply `listIds` also need
 
 ## Tools
 
-This server currently exposes 164 MCP tools.
+This server currently exposes 173 MCP tools.
 
 ### Account, Companies, Setup
 
@@ -249,6 +249,9 @@ This server currently exposes 164 MCP tools.
 | `add_website`                        | Compatibility alias for `add_sending_domain`.                                                                                 |
 | `check_website`                      | Read a sending domain's stored SPF, DKIM, MAIL FROM, and aggregate verification details.                                      |
 | `verify_sending_domain`              | Run a fresh sending-domain DNS/provider verification and return current status and diagnostics.                               |
+| `list_integrations`                  | List connected integrations with connection and sync health, without exposing credentials.                                    |
+| `list_sender_profiles`               | List sender and reply-to profiles, account defaults, and sending-domain verification state.                                   |
+| `get_tracking_settings`              | Read open, click, unsubscribe, attribution, UTM, click-domain, and reply-tracking settings.                                   |
 | `get_integration_guide`              | Get framework-specific integration examples.                                                                                  |
 
 For a new sending domain, call `add_sending_domain`, publish the DNS records in
@@ -431,6 +434,11 @@ Audiences are add-only: subscribers who later leave the segment stay in the Meta
 | `set_template_localization`   | Create or replace a caller-supplied localized variant.                 |
 | `sync_template_localizations` | Queue AI translation for selected or all enabled non-primary locales.  |
 | `delete_template`             | Delete a template.                                                     |
+
+Use `render_email` to render a campaign, sequence email step, or template to
+the exact email-safe HTML that would be sent. It supports optional subscriber
+personalization, locale and A/B variant selection, and send-style UTM
+decoration without creating an email send.
 
 For net-new content requested in natural language, pass `prompt` so Sequenzy
 generates branded native blocks server-side. Use `blocks` only for finished

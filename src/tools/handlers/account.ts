@@ -316,6 +316,44 @@ export async function handleAccountTools(
       break;
     }
 
+    case "list_integrations": {
+      const companyId = args.companyId as string | undefined;
+      const params = new URLSearchParams();
+      if (args.includeInactive === true) {
+        params.set("includeInactive", "true");
+      }
+      const queryString = params.toString();
+      result = await apiRequest(
+        "GET",
+        `/api/v1/integrations${queryString ? `?${queryString}` : ""}`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "list_sender_profiles": {
+      const companyId = args.companyId as string | undefined;
+      result = await apiRequest(
+        "GET",
+        "/api/v1/sender-profiles",
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "get_tracking_settings": {
+      const companyId = args.companyId as string | undefined;
+      result = await apiRequest(
+        "GET",
+        "/api/v1/tracking-settings",
+        undefined,
+        companyId
+      );
+      break;
+    }
+
     case "get_integration_guide":
       result = await apiRequest("POST", "/api/v1/integration-guide", args);
       break;

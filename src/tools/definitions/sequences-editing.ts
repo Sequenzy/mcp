@@ -1170,7 +1170,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
   {
     name: "cancel_sequence_enrollments",
     description:
-      "Cancel active/waiting enrollments in one sequence. Provide sequenceId and exactly one target: subscriberId for one subscriber, or fieldValues to match stored entry event properties. For fieldValues, fieldPath is optional when the sequence has enrollmentFieldPath configured; otherwise provide a dot path such as order.id.",
+      "Cancel active/waiting enrollments in one sequence. Provide sequenceId and exactly one target: cancelAll to drain every active/waiting enrollment (use this to fully stop a live sequence instead of only freezing enrollment), subscriberIds for a specific batch, subscriberId for one subscriber, or fieldValues to match stored entry event properties. Every bulk target defaults to dryRun, so pass dryRun false to actually cancel. Bulk cancellation is capped per call: while the response reports remainingCount above zero, call again with the same arguments until it reaches zero.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1183,10 +1183,21 @@ export const sequenceEditingToolDefinitions: Tool[] = [
           type: "string",
           description: "Sequence ID whose enrollments should be cancelled.",
         },
+        cancelAll: {
+          type: "boolean",
+          description:
+            "Cancel every active/waiting enrollment in the sequence, regardless of how contacts entered it. Use this when segment-triggered enrollments expose no shared entry field value. Defaults to dryRun; pass dryRun false to apply.",
+        },
         subscriberId: {
           type: "string",
           description:
-            "Subscriber ID to cancel in this sequence. Provide subscriberId or fieldValues, not both.",
+            "Subscriber ID to cancel in this sequence. Provide exactly one target.",
+        },
+        subscriberIds: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Up to 500 subscriber IDs to cancel in this sequence. IDs that do not resolve come back in target.notFoundSubscriberIds. Provide exactly one target.",
         },
         fieldPath: {
           type: "string",
@@ -1197,12 +1208,12 @@ export const sequenceEditingToolDefinitions: Tool[] = [
           type: "array",
           items: { type: "string" },
           description:
-            "Entry field values to match. Cancels all active/waiting enrollments in the sequence whose entry field value is in this list. Provide fieldValues or subscriberId, not both.",
+            "Entry field values to match. Cancels all active/waiting enrollments in the sequence whose entry field value is in this list. Provide exactly one target.",
         },
         dryRun: {
           type: "boolean",
           description:
-            "When true, returns matching enrollments without cancelling them. Field-value cancellation defaults to dryRun on the API unless explicitly false.",
+            "When true, returns matching enrollments without cancelling them. cancelAll, subscriberIds, and fieldValues default to dryRun unless explicitly false; a single subscriberId cancels immediately.",
         },
         reason: {
           type: "string",
