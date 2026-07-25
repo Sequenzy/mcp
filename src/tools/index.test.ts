@@ -1635,9 +1635,28 @@ describe("A/B test tools", () => {
 
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain(
-      "`eventTypes` item 2 must be one of send, delivery, bounce, complaint, open, click, unsubscribe, delivery_delay"
+      "`eventTypes` item 2 must be one of send, delivery, bounce, complaint, open, click, unsubscribe, delivery_delay, transport_failure"
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("accepts transport_failure event types (API/MCP parity)", async () => {
+    // Regression: the REST API accepted transport_failure while this mirrored
+    // validator rejected it, so MCP calls failed before reaching the API.
+    mockApiRequest.mockResolvedValueOnce({ success: true, events: [] });
+
+    const result = await handleToolCall("list_campaign_events", {
+      campaignId: "camp_123",
+      eventTypes: ["transport_failure"],
+    });
+
+    expect(result.isError).not.toBe(true);
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/metrics/campaigns/camp_123/events?eventTypes=transport_failure",
+      undefined,
+      undefined
+    );
   });
 
   it("calls the A/B restart API with control and generation options", async () => {
@@ -2316,7 +2335,49 @@ describe("update_campaign tool validation", () => {
     expect(inputSchema?.properties).toHaveProperty("bccEmails");
     expect(inputSchema?.properties).toHaveProperty("campaignData");
     expect(inputSchema?.properties).toHaveProperty("computedLists");
+    expect(inputSchema?.properties).toHaveProperty("targetLists");
+    expect(inputSchema?.properties).toHaveProperty("segmentId");
     expect(inputSchema?.properties).toHaveProperty("labels");
+  });
+
+  it("forwards an update_campaign audience change to the API", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      campaign: {
+        id: "camp_123",
+        targetLists: { type: "lists", listIds: ["list_123"] },
+      },
+    });
+
+    const result = await handleToolCall("update_campaign", {
+      companyId: "comp_123",
+      campaignId: "camp_123",
+      targetLists: { type: "lists", listIds: ["list_123"] },
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/campaigns/camp_123",
+      expect.objectContaining({
+        targetLists: { type: "lists", listIds: ["list_123"] },
+      }),
+      "comp_123"
+    );
+  });
+
+  it("rejects update_campaign calls that combine segmentId and targetLists", async () => {
+    const result = await handleToolCall("update_campaign", {
+      campaignId: "camp_123",
+      segmentId: "seg_123",
+      targetLists: { type: "all" },
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Provide either `segmentId` or `targetLists` when calling `update_campaign`, not both."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
   it("publishes schedule_campaign with a plain object schema", () => {
@@ -4152,6 +4213,56 @@ describe("update_sequence tool", () => {
     expect(stopCondition?.properties?.type?.enum).toContain("entered_segment");
     expect(stopCondition?.properties?.type?.enum).toContain("field_changed");
     expect(stopCondition?.properties?.value?.type).toEqual(["string", "null"]);
+  });
+
+  it("documents the config fields each path node type expects", () => {
+    const updateSequence = tools.find(
+      (tool) => tool.name === "update_sequence"
+    );
+    const inputSchema = updateSequence?.inputSchema as
+      | {
+          properties?: Record<
+            string,
+            {
+              properties?: {
+                steps?: {
+                  items?: {
+                    properties?: {
+                      config?: {
+                        description?: string;
+                        properties?: Record<string, unknown>;
+                      };
+                    };
+                  };
+                };
+              };
+            }
+          >;
+        }
+      | undefined;
+    const stepConfig =
+      inputSchema?.properties?.["insertSteps"]?.properties?.steps?.items
+        ?.properties?.config;
+
+    for (const field of [
+      "tagId",
+      "tagName",
+      "listId",
+      "eventName",
+      "timeoutDays",
+      "timeoutAction",
+      "conditionType",
+      "url",
+      "customAttributeUpdates",
+    ]) {
+      expect(stepConfig?.properties).toHaveProperty(field);
+    }
+    expect(stepConfig?.description).toContain(
+      "action_add_tag and action_remove_tag need tagId or tagName"
+    );
+    expect(stepConfig?.description).toContain(
+      "action_add_to_list and action_remove_from_list need listId"
+    );
   });
 
   it("forwards an atomic inbound-webhook trigger replacement", async () => {

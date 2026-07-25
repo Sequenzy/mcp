@@ -811,7 +811,7 @@ variables automatically. Explicit values, including blanks, take precedence.
 | `get_transactional_stats` | Get all-time or time-scoped metrics for one saved transactional email by ID or slug.                        |
 | `get_campaign_stats`      | Get campaign performance, reply metrics, and Poll/NPS summaries.                                            |
 | `get_sequence_stats`      | Get aggregate and per-step sequence performance plus live active/waiting enrollment counts by current node. |
-| `list_campaign_events`    | List paginated raw email events for a campaign.                                                             |
+| `list_campaign_events`    | List paginated raw email events for a campaign, including terminal transport failures.                      |
 | `list_sequence_events`    | List paginated raw email events for a sequence.                                                             |
 | `get_subscriber_activity` | Get subscriber email stats, activity, and enrollments.                                                      |
 

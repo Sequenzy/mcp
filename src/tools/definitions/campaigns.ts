@@ -217,7 +217,14 @@ export const campaignToolDefinitions: Tool[] = [
         },
         segmentId: {
           type: "string",
-          description: "Target segment ID",
+          description:
+            "Shorthand for targeting one saved segment. Equivalent to targetLists {type:'segment', segmentId}. Mutually exclusive with `targetLists`.",
+        },
+        targetLists: {
+          type: "object",
+          description:
+            "Campaign audience, saved on the draft. Omit to leave targeting unset and set it later with `update_campaign` or `schedule_campaign`. Examples: {type:'all'}, {type:'lists', listIds:['list_123']}, {type:'segment', segmentId:'seg_123'}, {type:'filtered', filters:[...], filterJoinOperator:'and'}, or {type:'rules', include:[{type:'lists', listIds:['list_123']}], exclude:[{type:'segments', segmentIds:['seg_123']}]}. Use this to send straight to a list without creating a segment first. Mutually exclusive with `segmentId`.",
+          additionalProperties: true,
         },
         fromEmail: {
           type: "string",
@@ -370,6 +377,17 @@ export const campaignToolDefinitions: Tool[] = [
             type: "object",
           },
         },
+        targetLists: {
+          type: ["object", "null"],
+          description:
+            "Replace the draft's saved audience, using the same shapes as `create_campaign`. Send null to clear it and choose the audience in `schedule_campaign` instead; omit to leave it unchanged. Mutually exclusive with `segmentId`.",
+          additionalProperties: true,
+        },
+        segmentId: {
+          type: "string",
+          description:
+            "Shorthand for retargeting the draft at one saved segment. Equivalent to targetLists {type:'segment', segmentId}. Mutually exclusive with `targetLists`.",
+        },
         labels: {
           type: "array",
           description:
@@ -386,7 +404,7 @@ export const campaignToolDefinitions: Tool[] = [
   {
     name: "schedule_campaign",
     description:
-      "Schedule a draft or already scheduled campaign. Returns dashboard edit and preview URLs.",
+      "Schedule a draft or already scheduled campaign, as a one-off send or on a repeating weekly/monthly cadence via `recurringInterval`. Use `recurringInterval` for newsletters that go out on a fixed schedule instead of creating one campaign per issue. Returns dashboard edit and preview URLs.",
     inputSchema: {
       type: "object",
       properties: {

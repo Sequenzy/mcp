@@ -1,5 +1,6 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 
+import { emailEventTypesList } from "../descriptions.js";
 import { includeMachineEngagementToolProperty } from "../internal.js";
 
 export const analyticsToolDefinitions: Tool[] = [
@@ -156,13 +157,11 @@ export const analyticsToolDefinitions: Tool[] = [
         },
         eventType: {
           type: "string",
-          description:
-            "Optional single event type. Supported values: send, delivery, bounce, complaint, open, click, unsubscribe, delivery_delay. Defaults to delivery.",
+          description: `Optional single event type. Supported values: ${emailEventTypesList}. Defaults to delivery.`,
         },
         eventTypes: {
           type: "array",
-          description:
-            "Optional event types to include. Supported values: send, delivery, bounce, complaint, open, click, unsubscribe, delivery_delay. Defaults to delivery.",
+          description: `Optional event types to include. Supported values: ${emailEventTypesList}. Defaults to delivery.`,
           items: { type: "string" },
         },
         period: {
@@ -211,13 +210,11 @@ export const analyticsToolDefinitions: Tool[] = [
         },
         eventType: {
           type: "string",
-          description:
-            "Optional single event type. Supported values: send, delivery, bounce, complaint, open, click, unsubscribe, delivery_delay. Defaults to delivery.",
+          description: `Optional single event type. Supported values: ${emailEventTypesList}. Defaults to delivery.`,
         },
         eventTypes: {
           type: "array",
-          description:
-            "Optional event types to include. Supported values: send, delivery, bounce, complaint, open, click, unsubscribe, delivery_delay. Defaults to delivery.",
+          description: `Optional event types to include. Supported values: ${emailEventTypesList}. Defaults to delivery.`,
           items: { type: "string" },
         },
         period: {
