@@ -828,6 +828,11 @@ variables automatically. Explicit values, including blanks, take precedence.
 | `list_sequence_events`    | List paginated raw email events for a sequence.                                                             |
 | `get_subscriber_activity` | Get subscriber email stats, activity, and enrollments.                                                      |
 
+Campaign and sequence event filters accept `transport_failure` alongside
+delivery, bounce, complaint, engagement, unsubscribe, and delay events.
+Transport failures describe MTA infrastructure or egress-path exhaustion; they
+do not classify a valid recipient address as bounced.
+
 Analytics tools exclude detected bot, scanner, link-preview, and tracked asset opens/clicks by default. Pass `includeMachineEngagement: true` to `get_stats`, `get_campaign_stats`, `get_sequence_stats`, `get_ab_test_stats`, `get_subscriber`, or `get_subscriber_activity` when you need raw engagement diagnostics; included open/click activity rows expose `machine`, `engagementQuality`, and `classificationReasons` fields where the API returns event-level activity.
 
 `get_sequence_stats.enrollmentCounts` is a live point-in-time snapshot of
@@ -896,6 +901,9 @@ Per-list consent changes are available as opt-in outbound events:
 identify the subscriber and list, report `action` as `added` or `removed`, and
 include the change `source` (for example `preferences_page`, `dashboard`,
 `api`, or `automation`).
+
+Use the `email.failed` event for terminal delivery failures such as exhausted
+MTA transport paths. Recipient bounces continue to use `email.bounced`.
 
 ### AI Generation
 

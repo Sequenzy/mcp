@@ -1842,9 +1842,28 @@ describe("A/B test tools", () => {
 
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain(
-      "`eventTypes` item 2 must be one of send, delivery, bounce, complaint, open, click, unsubscribe, delivery_delay"
+      "`eventTypes` item 2 must be one of send, delivery, bounce, complaint, open, click, unsubscribe, delivery_delay, transport_failure"
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("accepts transport_failure event types (API/MCP parity)", async () => {
+    // Regression: the REST API accepted transport_failure while this mirrored
+    // validator rejected it, so MCP calls failed before reaching the API.
+    mockApiRequest.mockResolvedValueOnce({ success: true, events: [] });
+
+    const result = await handleToolCall("list_campaign_events", {
+      campaignId: "camp_123",
+      eventTypes: ["transport_failure"],
+    });
+
+    expect(result.isError).not.toBe(true);
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/metrics/campaigns/camp_123/events?eventTypes=transport_failure",
+      undefined,
+      undefined
+    );
   });
 
   it("calls the A/B restart API with control and generation options", async () => {

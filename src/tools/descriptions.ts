@@ -42,6 +42,10 @@ export const includeMachineEngagementToolProperty = {
     "If true, include machine-classified bot/scanner opens and clicks. Defaults to false, so metrics and activity are human-only.",
 };
 
+// Mirrors EMAIL_EVENT_TYPES in @emailer/shared (this package is a standalone
+// client and cannot import it). Keep the two in sync: a value missing here is
+// rejected by MCP validation before it ever reaches the API, breaking
+// API/CLI/MCP parity.
 export const emailEventTypes = [
   "send",
   "delivery",
@@ -51,7 +55,11 @@ export const emailEventTypes = [
   "click",
   "unsubscribe",
   "delivery_delay",
+  "transport_failure",
 ] as const;
+
+/** Shared "Supported values" fragment so tool descriptions cannot drift. */
+export const emailEventTypesList = emailEventTypes.join(", ");
 
 export const sequenceSendingWindowSchema = {
   type: "object",
@@ -261,6 +269,7 @@ export const OUTBOUND_WEBHOOK_EVENT_TYPES = [
   "email.delivered",
   "email.delivery_delayed",
   "email.bounced",
+  "email.failed",
   "email.complained",
   "email.opened",
   "email.clicked",
