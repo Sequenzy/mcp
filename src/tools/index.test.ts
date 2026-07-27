@@ -1030,6 +1030,55 @@ describe("update_company tool validation", () => {
     expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
+  it("forwards a standalone fromName or replyToName rename", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true, company: {} });
+    const senderResult = await handleToolCall("update_company", {
+      companyId: "company_123",
+      fromName: "Optiflow",
+    });
+
+    expect(senderResult.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/companies/company_123",
+      { fromName: "Optiflow" }
+    );
+
+    mockApiRequest.mockResolvedValueOnce({ success: true, company: {} });
+    const replyResult = await handleToolCall("update_company", {
+      companyId: "company_123",
+      replyToName: "Optiflow Support",
+    });
+
+    expect(replyResult.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "PATCH",
+      "/api/v1/companies/company_123",
+      { replyToName: "Optiflow Support" }
+    );
+  });
+
+  it("forwards explicit sender and reply profile selectors", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true, company: {} });
+    const result = await handleToolCall("update_company", {
+      companyId: "company_123",
+      senderProfileId: "sender_abc123",
+      fromName: "Optiflow News",
+      replyProfileId: "reply_abc123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "PATCH",
+      "/api/v1/companies/company_123",
+      {
+        senderProfileId: "sender_abc123",
+        fromName: "Optiflow News",
+        replyProfileId: "reply_abc123",
+      }
+    );
+  });
+
   it("forwards partial and null emailTheme updates", async () => {
     mockApiRequest.mockResolvedValueOnce({ success: true, company: {} });
     const partialResult = await handleToolCall("update_company", {

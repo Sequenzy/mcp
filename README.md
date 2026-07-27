@@ -236,7 +236,7 @@ This server currently exposes 173 MCP tools.
 | `get_app_urls`                       | Build dashboard URLs for campaigns, landing pages, sequences, emails, settings, domains, and sent email details.              |
 | `create_company`                     | Create a new company or brand.                                                                                                |
 | `get_company`                        | Read company details, product info, brand context, localization, reply-tracking settings, and current From/Reply-To defaults. |
-| `update_company`                     | Edit product info, brand context, the default email theme, reply-tracking settings, and account-wide From/Reply-To defaults.  |
+| `update_company`                     | Edit product info, brand context, email theme, reply tracking, and account-wide From/Reply-To profile defaults or names.      |
 | `get_sync_rules`                     | Read the company's event-to-tag rules and whether it uses the inherited platform preset.                                      |
 | `update_sync_rules`                  | Replace all sync rules; pass `[]` to disable them or `null` to opt into the SaaS/ecommerce platform preset.                   |
 | `get_shopify_automation_settings`    | Read browse-abandonment, cart-abandonment, and price-drop settings for the connected Shopify store.                           |
@@ -539,6 +539,10 @@ defaults. `fromEmail` must use a configured, verified sending domain; `replyTo`
 may be any valid mailbox. `create_campaign`, `update_campaign`,
 `create_sequence`, and `update_sequence` accept the same direct-address fields
 for resource-specific overrides and create the backing profile when needed.
+Send `fromName` or `replyToName` alone to rename the existing default profile
+without changing its address. When an address has multiple display names, use
+`senderProfileId` or `replyProfileId` from `list_sender_profiles` to select the
+exact profile to make default and rename.
 
 `update_company` also manages the company's default email theme through
 `emailTheme` (`presetId`, `colors`, `typography`, `layout`). Theme updates are

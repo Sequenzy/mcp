@@ -183,8 +183,10 @@ export const COMPANY_UPDATE_FIELDS = [
   "fontFamily",
   "emailTheme",
   "emailDirection",
+  "senderProfileId",
   "fromEmail",
   "fromName",
+  "replyProfileId",
   "replyTo",
   "replyToName",
   "replyTrackingEnabled",
@@ -258,8 +260,10 @@ export function buildUpdateCompanyBody(
     "language",
     "fontFamily",
     "emailDirection",
+    "senderProfileId",
     "fromEmail",
     "fromName",
+    "replyProfileId",
     "replyTo",
     "replyToName",
     "replyTrackingDomainMode",
@@ -327,16 +331,10 @@ export function buildUpdateCompanyBody(
       );
     }
   }
-  if (args.fromName !== undefined && args.fromEmail === undefined) {
-    throw new Error(
-      "`fromName` requires `fromEmail` when calling `update_company`."
-    );
-  }
-  if (args.replyToName !== undefined && args.replyTo === undefined) {
-    throw new Error(
-      "`replyToName` requires `replyTo` when calling `update_company`."
-    );
-  }
+  // `fromName`/`replyToName` are valid on their own: without an address or a
+  // profile ID they rename the company's existing default profile. The server
+  // rejects the case where no such profile exists yet, and the case where an
+  // address carries several display names and the target is ambiguous.
 
   return body;
 }

@@ -126,7 +126,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "update_company",
     description:
-      "Edit company product info, brand context, the default email theme, reply-tracking settings, and account-wide sending identity defaults. fromEmail must use a verified sending domain; replyTo may be any valid mailbox. Missing sender/reply profiles are created automatically. Provide at least one editable field.",
+      "Edit company product info, brand context, the default email theme, reply-tracking settings, and account-wide sending identity defaults. fromEmail must use a verified sending domain; replyTo may be any valid mailbox. Missing sender/reply profiles are created automatically. Send fromName/replyToName on their own to rename the display name of the existing default profile without changing its address, or pair them with senderProfileId/replyProfileId (from list_sender_profiles) to rename a specific profile. Provide at least one editable field.",
     inputSchema: {
       type: "object",
       properties: {
@@ -289,6 +289,11 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
           type: "string",
           description: "Default email text direction: ltr or rtl.",
         },
+        senderProfileId: {
+          type: "string",
+          description:
+            "Make this existing sender profile the account-wide default, and the one fromName renames. Get IDs from list_sender_profiles. Mutually exclusive with fromEmail.",
+        },
         fromEmail: {
           type: "string",
           description:
@@ -297,7 +302,12 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
         fromName: {
           type: "string",
           description:
-            "Display name for a newly created default From profile. Requires fromEmail.",
+            "Display name of the default From profile. Sent alone it renames the current default profile; with senderProfileId it renames that profile; with fromEmail it names the profile for that address. If the address already has several display names, pass senderProfileId to say which one to rename.",
+        },
+        replyProfileId: {
+          type: "string",
+          description:
+            "Make this existing reply profile the account-wide default, and the one replyToName renames. Get IDs from list_sender_profiles. Mutually exclusive with replyTo.",
         },
         replyTo: {
           type: "string",
@@ -307,7 +317,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
         replyToName: {
           type: "string",
           description:
-            "Display name for a newly created default Reply-To profile. Requires replyTo.",
+            "Display name of the default Reply-To profile. Sent alone it renames the current default profile; with replyProfileId it renames that profile; with replyTo it names the profile for that address.",
         },
         replyTrackingEnabled: {
           type: "boolean",
