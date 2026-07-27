@@ -2092,6 +2092,22 @@ describe("transactional email tools", () => {
     expect(inputSchema?.properties).toHaveProperty("templateId");
     expect(inputSchema?.properties).toHaveProperty("emailType");
     expect(inputSchema?.properties).toHaveProperty("replyTo");
+    expect(inputSchema?.properties).toHaveProperty("trackingSettings");
+    const trackingSettingsSchema = properties?.["trackingSettings"] as
+      | {
+          description?: string;
+          properties?: Record<string, { description?: string }>;
+        }
+      | undefined;
+    expect(trackingSettingsSchema?.description).toContain(
+      "cannot enable tracking the account has disabled"
+    );
+    expect(
+      trackingSettingsSchema?.properties?.["clickTracking"]?.description
+    ).toContain("skip click-link rewriting for this send only");
+    expect(
+      trackingSettingsSchema?.properties?.["openTracking"]?.description
+    ).toContain("skip the open-tracking pixel for this send only");
     expect(sendEmailTool?.outputSchema?.properties).toHaveProperty("emailType");
     expect(sendEmailTool?.description).toContain(
       "saved first and last names fill omitted name variables"
@@ -2179,6 +2195,65 @@ describe("transactional email tools", () => {
         to: "user@example.com",
         slug: "trial-reminder",
         emailType: "marketing",
+      },
+      undefined
+    );
+  });
+
+  it("forwards send_email trackingSettings opt-outs to the API body", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      emailSendId: "send_track_123",
+    });
+
+    await handleToolCall("send_email", {
+      to: "user@example.com",
+      templateId: "order-confirmation",
+      trackingSettings: { clickTracking: false, openTracking: false },
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/transactional/send",
+      {
+        to: "user@example.com",
+        slug: "order-confirmation",
+        trackingSettings: { clickTracking: false, openTracking: false },
+      },
+      undefined
+    );
+  });
+
+  it("rejects non-boolean send_email trackingSettings fields", async () => {
+    const result = await handleToolCall("send_email", {
+      to: "user@example.com",
+      templateId: "order-confirmation",
+      trackingSettings: { clickTracking: "no" },
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`trackingSettings.clickTracking` must be a boolean"
+    );
+  });
+
+  it("omits send_email tracking flags when not provided", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      emailSendId: "send_no_track_123",
+    });
+
+    await handleToolCall("send_email", {
+      to: "user@example.com",
+      templateId: "order-confirmation",
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/transactional/send",
+      {
+        to: "user@example.com",
+        slug: "order-confirmation",
       },
       undefined
     );

@@ -819,6 +819,10 @@ its API slug through the compatibility-named `templateId` field instead.
 `{ "event": { "items": [...] } }`. When the recipient matches a stored
 subscriber by external ID or email, saved first and last names fill omitted name
 variables automatically. Explicit values, including blanks, take precedence.
+Use `trackingSettings.clickTracking: false` or
+`trackingSettings.openTracking: false` to disable link rewriting or the open
+pixel for one send. These per-send options only opt out; they cannot enable
+tracking that the account has disabled.
 
 ### Analytics
 
