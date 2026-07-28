@@ -76,6 +76,74 @@ export const sequenceBasicToolDefinitions: Tool[] = [
     },
   },
   {
+    name: "list_sequence_enrollments",
+    description:
+      "List the individual contacts currently enrolled in a sequence, with the node each one is sitting on. Use this when get_sequence_stats gives you enrollmentCounts and you need the actual subscribers behind a number, such as everyone waiting at one step. Filter by currentNodeId (take the ID from get_sequence_stats enrollmentCounts.byCurrentNode or get_sequence nodes), status, subscriberId, or email, and page with limit/offset to export the full list.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        sequenceId: {
+          type: "string",
+          description: "Sequence ID whose enrollments should be listed.",
+        },
+        currentNodeId: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Only return enrollments currently sitting on these sequence node IDs.",
+        },
+        status: {
+          type: "array",
+          items: {
+            type: "string",
+            enum: ["active", "waiting", "completed", "failed", "cancelled"],
+          },
+          description:
+            "Enrollment statuses to include. Defaults to active and waiting, which is every contact still moving through the sequence.",
+        },
+        subscriberId: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Only return enrollments for these subscriber IDs. Useful for checking where specific contacts stand.",
+        },
+        email: {
+          type: "string",
+          description:
+            "Only return enrollments for this exact email address (case-insensitive).",
+        },
+        sort: {
+          type: "string",
+          enum: [
+            "enrolled_at_desc",
+            "enrolled_at_asc",
+            "wait_until_asc",
+            "wait_until_desc",
+          ],
+          description:
+            "Result order. Defaults to enrolled_at_desc (most recently enrolled first). Use wait_until_asc to see who resumes next.",
+        },
+        limit: {
+          type: "number",
+          description:
+            "Enrollments per page, 1-500. Defaults to 50. Use the maximum when exporting.",
+        },
+        offset: {
+          type: "number",
+          description:
+            "Number of enrollments to skip. Page until pagination.hasMore is false.",
+        },
+      },
+      required: ["sequenceId"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "send_sequence_test_email",
     description:
       "Queue a real test send for one saved email step in a sequence. Call get_sequence first and pass the target email step's nodeId. Accepts 1-10 reviewer email addresses and returns one durable emailSendId per recipient for get_email_send delivery inspection. The sequence is not enabled and no subscribers are enrolled.",

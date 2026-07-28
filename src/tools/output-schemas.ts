@@ -643,6 +643,9 @@ export const outputPropertiesByToolName: Record<
   },
   list_campaigns: {
     campaigns: resourceListOutputProperty("campaign"),
+    pagination: objectOutputProperty(
+      "Campaign page window: `limit`, `offset`, `count` returned in this page, `total` matching the filters, and `hasMore`. Keep calling with an advanced `offset` while `hasMore` is true to enumerate every campaign."
+    ),
   },
   get_campaign: {
     campaign: resourceOutputProperty("campaign"),
@@ -762,6 +765,9 @@ export const outputPropertiesByToolName: Record<
   update_landing_page: {
     landingPage: resourceOutputProperty("landing page"),
   },
+  duplicate_landing_page: {
+    landingPage: resourceOutputProperty("landing page"),
+  },
   delete_landing_page: {
     landingPageId: stringOutputProperty("Deleted landing page ID."),
   },
@@ -781,9 +787,89 @@ export const outputPropertiesByToolName: Record<
   },
   list_sequences: {
     sequences: sequenceListOutputProperty,
+    pagination: objectOutputProperty(
+      "Sequence page window: `limit` (null when limit and offset were both omitted and every sequence was returned), `offset`, `count` returned in this page, `total` matching the filters, and `hasMore`."
+    ),
   },
   get_sequence: {
     sequence: sequenceOutputProperty,
+  },
+  list_sequence_enrollments: {
+    sequenceId: stringOutputProperty(
+      "Sequence ID these enrollments belong to."
+    ),
+    sequenceName: stringOutputProperty("Sequence name."),
+    statuses: {
+      type: "array",
+      description:
+        "Enrollment statuses included in this response. Defaults to active and waiting.",
+      items: { type: "string", description: "Enrollment status." },
+    },
+    enrollments: {
+      type: "array",
+      description:
+        "Contact-level enrollments matching the filters, one row per enrollment token.",
+      items: {
+        type: "object",
+        description: "One subscriber's enrollment in this sequence.",
+        properties: {
+          enrollmentId: stringOutputProperty(
+            "Enrollment token ID. Stable identifier for this one run through the sequence."
+          ),
+          sequenceId: stringOutputProperty("Sequence ID."),
+          subscriberId: stringOutputProperty("Subscriber ID."),
+          email: stringOutputProperty(
+            "Subscriber email address. Falls back to the address captured at enrollment when the subscriber record no longer exists."
+          ),
+          firstName: stringOutputProperty(
+            "Subscriber first name, or null when unset."
+          ),
+          lastName: stringOutputProperty(
+            "Subscriber last name, or null when unset."
+          ),
+          subscriberStatus: stringOutputProperty(
+            "Subscriber status (active, unsubscribed, bounced), or null when the subscriber record no longer exists."
+          ),
+          status: stringOutputProperty(
+            "Enrollment status: active, waiting, completed, failed, or cancelled."
+          ),
+          currentNodeId: stringOutputProperty(
+            "Sequence node this enrollment is currently sitting on."
+          ),
+          currentNodeType: stringOutputProperty(
+            "Current sequence node type. Omitted when the node no longer exists in the graph."
+          ),
+          currentNodeLabel: stringOutputProperty(
+            "Current sequence node label or email subject when available."
+          ),
+          currentNodeMissing: booleanOutputProperty(
+            "Whether the current node no longer exists in the sequence graph."
+          ),
+          enrollmentKey: stringOutputProperty(
+            "Key that distinguishes concurrent enrollments of the same subscriber in this sequence."
+          ),
+          enrollmentStartedAt: stringOutputProperty(
+            "ISO 8601 timestamp when this enrollment entered the sequence."
+          ),
+          waitUntil: stringOutputProperty(
+            "ISO 8601 timestamp this enrollment is scheduled to resume, or null when nothing is scheduled."
+          ),
+          lastUpdatedAt: stringOutputProperty(
+            "ISO 8601 timestamp of the last change to this enrollment. For a waiting enrollment this is when it arrived at its current node; the platform does not separately track node entry time."
+          ),
+        },
+        required: [
+          "enrollmentId",
+          "sequenceId",
+          "subscriberId",
+          "status",
+          "currentNodeId",
+          "currentNodeMissing",
+          "enrollmentStartedAt",
+        ],
+      },
+    },
+    pagination: objectOutputProperty("Pagination metadata."),
   },
   send_sequence_test_email: {
     sequenceId: stringOutputProperty("Sequence ID."),

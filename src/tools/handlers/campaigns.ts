@@ -686,6 +686,11 @@ export async function handleCampaignTools(
       if (args.status) campaignParams.set("status", String(args.status));
       const label = optionalString(args, "label");
       if (label) campaignParams.set("label", label);
+      for (const field of ["limit", "offset"] as const) {
+        if (args[field] !== undefined) {
+          campaignParams.set(field, String(args[field]));
+        }
+      }
       result = await apiRequest(
         "GET",
         `/api/v1/campaigns?${campaignParams}`,

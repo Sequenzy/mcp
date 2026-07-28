@@ -225,7 +225,7 @@ build a list as well as create it. Imports that apply `listIds` also need
 
 ## Tools
 
-This server currently exposes 173 MCP tools.
+This server currently exposes 175 MCP tools.
 
 ### Account, Companies, Setup
 
@@ -479,10 +479,10 @@ Use `get_ab_test` to copy the effective `settings` object and discover variant I
 
 | Tool                             | Description                                                                                      |
 | -------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `list_campaigns`                 | List campaigns by status, including reviewer feedback for rejected campaigns.                    |
+| `list_campaigns`                 | List paginated campaigns by status or label, including reviewer feedback for rejected campaigns. |
 | `get_campaign`                   | Get details, stats, and reviewer feedback for a rejected campaign.                               |
 | `get_campaign_audience`          | Resolve saved targeting, missing references, a plain-language summary, and live recipient count. |
-| `list_email_sends`               | Search and filter recent delivery history; every row includes its dashboard URL.                 |
+| `list_email_sends`               | Search delivery history with related resource IDs, timestamps, and a dashboard URL for each row. |
 | `get_email_send`                 | Inspect a queued, test, sent, suppressed, or failed delivery by durable email-send ID.           |
 | `get_recipient_suppression`      | Check local and regional SES suppression for one exact recipient.                                |
 | `remove_recipient_suppression`   | Remove stale bounce suppression for a company-associated recipient.                              |
@@ -608,11 +608,17 @@ entitlement server-side, so callers should use the returned snippet unchanged.
 | `update_landing_page`                 | Edit a landing page name, slug, or full editor-compatible content.    |
 | `publish_landing_page`                | Publish a landing page, optionally saving edits first.                |
 | `unpublish_landing_page`              | Return a landing page to draft status, optionally saving edits first. |
+| `duplicate_landing_page`              | Duplicate a landing page into a new draft with a unique slug.         |
 | `delete_landing_page`                 | Delete an unpublished landing page.                                   |
 | `connect_landing_page_domain`         | Connect a custom landing page domain and return DNS setup details.    |
 | `update_landing_page_domain_settings` | Replace or verify landing page custom domain settings.                |
 
-Landing page content uses Sequenzy's editor-compatible JSON schema with `version`, `template`, `seo`, `theme`, and `blocks`. Custom landing page domains require a CNAME record pointing to `pages.sequenzydns.com`; call `update_landing_page_domain_settings` with `verify: true` after DNS changes propagate.
+Landing page content uses Sequenzy's editor-compatible JSON schema with
+`version`, `template`, `seo`, `theme`, and `blocks`. SEO settings include
+`faviconUrl` and `hideFromSearchEngines`; hidden pages publish a `noindex`
+directive. Custom landing page domains require a CNAME record pointing to
+`pages.sequenzydns.com`; call `update_landing_page_domain_settings` with
+`verify: true` after DNS changes propagate.
 
 ### Sequences
 
@@ -620,6 +626,7 @@ Landing page content uses Sequenzy's editor-compatible JSON schema with `version
 | ---------------------------------------- | -------------------------------------------------------------------------------------------- |
 | `list_sequences`                         | List sequences with dashboard status, search, label, limit, and offset filters.              |
 | `get_sequence`                           | Get sequence details, including nodes, edges, linked emails, blocks, and per-email format.   |
+| `list_sequence_enrollments`              | List contact enrollments by node, status, subscriber, or email with pagination.              |
 | `send_sequence_test_email`               | Send one saved email step to 1-10 reviewers and return a durable delivery ID for each.       |
 | `create_sequence`                        | Create a blank dashboard draft or an AI-generated/explicit-step sequence.                    |
 | `update_sequence`                        | Update identity, settings, enrollment, existing steps, branch logic, or insert linear steps. |

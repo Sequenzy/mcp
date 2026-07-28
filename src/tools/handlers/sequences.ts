@@ -143,6 +143,37 @@ export async function handleSequenceTools(
       break;
     }
 
+    case "list_sequence_enrollments": {
+      const companyId = args.companyId as string | undefined;
+      const sequenceId = requiredString(name, args, "sequenceId");
+      const query = new URLSearchParams();
+      // The API reads these as comma-separated lists, so an agent can pass one
+      // node ID or several without switching argument shape.
+      for (const field of [
+        "currentNodeId",
+        "status",
+        "subscriberId",
+      ] as const) {
+        const value = args[field];
+        if (Array.isArray(value)) {
+          if (value.length > 0) query.set(field, value.join(","));
+        } else if (value !== undefined) {
+          query.set(field, String(value));
+        }
+      }
+      for (const field of ["email", "sort", "limit", "offset"] as const) {
+        if (args[field] !== undefined) query.set(field, String(args[field]));
+      }
+      const suffix = query.size > 0 ? `?${query.toString()}` : "";
+      result = await apiRequest(
+        "GET",
+        `/api/v1/sequences/${encodeURIComponent(sequenceId)}/enrollments${suffix}`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
     case "send_sequence_test_email": {
       const companyId = args.companyId as string | undefined;
       const sequenceId = requiredString(name, args, "sequenceId");

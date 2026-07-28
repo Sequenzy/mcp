@@ -3243,6 +3243,72 @@ describe("label list filters", () => {
     );
   });
 
+  it("passes campaign pagination as query parameters", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      campaigns: [],
+      pagination: {
+        limit: 100,
+        offset: 200,
+        count: 0,
+        total: 200,
+        hasMore: false,
+      },
+    });
+
+    const result = await handleToolCall("list_campaigns", {
+      companyId: "comp_123",
+      limit: 100,
+      offset: 200,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/campaigns?limit=100&offset=200",
+      undefined,
+      "comp_123"
+    );
+  });
+
+  it("exposes limit and offset inputs plus pagination output on list_campaigns", () => {
+    const tool = tools.find((entry) => entry.name === "list_campaigns");
+    const inputProperties = tool?.inputSchema.properties as
+      | Record<string, unknown>
+      | undefined;
+
+    expect(inputProperties).toHaveProperty("limit");
+    expect(inputProperties).toHaveProperty("offset");
+    expect(tool?.outputSchema?.properties).toHaveProperty("pagination");
+  });
+
+  it("returns the pagination window from campaign list results", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      campaigns: [],
+      pagination: {
+        limit: 50,
+        offset: 0,
+        count: 50,
+        total: 125,
+        hasMore: true,
+      },
+    });
+
+    const result = await handleToolCall("list_campaigns", {
+      companyId: "comp_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.structuredContent?.["pagination"]).toEqual({
+      limit: 50,
+      offset: 0,
+      count: 50,
+      total: 125,
+      hasMore: true,
+    });
+  });
+
   it("returns rejection feedback from campaign list results", async () => {
     mockApiRequest.mockResolvedValueOnce({
       success: true,
@@ -3444,6 +3510,7 @@ describe("landing page tools", () => {
     expect(toolNames).toContain("get_landing_page");
     expect(toolNames).toContain("create_landing_page");
     expect(toolNames).toContain("update_landing_page");
+    expect(toolNames).toContain("duplicate_landing_page");
     expect(toolNames).toContain("delete_landing_page");
     expect(toolNames).toContain("publish_landing_page");
     expect(toolNames).toContain("unpublish_landing_page");
@@ -3555,6 +3622,44 @@ describe("landing page tools", () => {
       "POST",
       "/api/v1/landing-pages/lp_123/unpublish",
       { slug: "draft-page" },
+      "comp_123"
+    );
+  });
+
+  it("routes duplicate_landing_page", async () => {
+    mockApiRequest
+      .mockResolvedValueOnce({
+        success: true,
+        landingPage: { id: "lp_456", companyId: "comp_123" },
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        landingPage: { id: "lp_789", companyId: "comp_123" },
+      });
+
+    await handleToolCall("duplicate_landing_page", {
+      companyId: "comp_123",
+      landingPageId: "lp_123",
+    });
+    await handleToolCall("duplicate_landing_page", {
+      companyId: "comp_123",
+      landingPageId: "lp_123",
+      name: "Spring Sale v2",
+      slug: "spring-sale-v2",
+    });
+
+    expect(mockApiRequest).toHaveBeenNthCalledWith(
+      1,
+      "POST",
+      "/api/v1/landing-pages/lp_123/duplicate",
+      {},
+      "comp_123"
+    );
+    expect(mockApiRequest).toHaveBeenNthCalledWith(
+      2,
+      "POST",
+      "/api/v1/landing-pages/lp_123/duplicate",
+      { name: "Spring Sale v2", slug: "spring-sale-v2" },
       "comp_123"
     );
   });
@@ -6446,6 +6551,90 @@ describe("sequence enrollment pause tools", () => {
   });
 });
 
+describe("list_sequence_enrollments tool", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("is published as a read-only tool requiring sequenceId", () => {
+    const tool = tools.find(
+      (candidate) => candidate.name === "list_sequence_enrollments"
+    );
+    const inputSchema = tool?.inputSchema as
+      | {
+          type?: string;
+          required?: string[];
+          properties?: Record<string, unknown>;
+        }
+      | undefined;
+
+    expect(inputSchema?.type).toBe("object");
+    expect(inputSchema?.required).toEqual(["sequenceId"]);
+    expect(inputSchema?.properties).toHaveProperty("currentNodeId");
+    expect(inputSchema?.properties).toHaveProperty("status");
+    expect(inputSchema?.properties).toHaveProperty("limit");
+    expect(inputSchema?.properties).toHaveProperty("offset");
+    expect(tool?.annotations?.readOnlyHint).toBe(true);
+  });
+
+  it("lists enrollments without filters", async () => {
+    mockApiRequest.mockResolvedValue({
+      success: true,
+      sequenceId: "seq_123",
+      enrollments: [],
+      pagination: { limit: 50, offset: 0, count: 0, total: 0, hasMore: false },
+    });
+
+    const result = await handleToolCall("list_sequence_enrollments", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/sequences/seq_123/enrollments",
+      undefined,
+      "comp_123"
+    );
+  });
+
+  it("collapses array filters into comma-separated query values", async () => {
+    mockApiRequest.mockResolvedValue({
+      success: true,
+      sequenceId: "seq_123",
+      enrollments: [],
+      pagination: { limit: 500, offset: 0, count: 0, total: 0, hasMore: false },
+    });
+
+    await handleToolCall("list_sequence_enrollments", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      currentNodeId: ["node_wave_1", "node_wave_2"],
+      status: ["waiting"],
+      subscriberId: ["sub_1"],
+      email: "one@example.com",
+      sort: "wait_until_asc",
+      limit: 500,
+      offset: 100,
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/sequences/seq_123/enrollments?currentNodeId=node_wave_1%2Cnode_wave_2&status=waiting&subscriberId=sub_1&email=one%40example.com&sort=wait_until_asc&limit=500&offset=100",
+      undefined,
+      "comp_123"
+    );
+  });
+
+  it("requires sequenceId before calling the API", async () => {
+    const result = await handleToolCall("list_sequence_enrollments", {});
+
+    expect(result.isError).toBe(true);
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+});
+
 describe("cancel_sequence_enrollments tool", () => {
   beforeEach(() => {
     mockApiRequest.mockClear();
@@ -6824,6 +7013,37 @@ describe("create_segment tool", () => {
   it("rejects unsupported non-tag operators before hitting the API", async () => {
     const result = await handleToolCall("create_segment", {
       companyId: "comp_123",
+      name: "Missing emails",
+      filters: [
+        {
+          field: "email",
+          operator: "is_empty",
+          value: "",
+        },
+      ],
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.type).toBe("text");
+    expect(result.content[0]?.text).toContain(
+      'Operator "is_empty" is not supported for email filters'
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("passes exact email operators through to the API", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      segment: {
+        id: "seg_exact_emails",
+        name: "Exact emails",
+        filters: [],
+        filterJoinOperator: "and",
+      },
+    });
+
+    const result = await handleToolCall("create_segment", {
+      companyId: "comp_123",
       name: "Exact emails",
       filters: [
         {
@@ -6834,12 +7054,21 @@ describe("create_segment tool", () => {
       ],
     });
 
-    expect(result.isError).toBe(true);
-    expect(result.content[0]?.type).toBe("text");
-    expect(result.content[0]?.text).toContain(
-      'Operator "is" is not supported for email filters'
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/segments",
+      expect.objectContaining({
+        filters: [
+          expect.objectContaining({
+            field: "email",
+            operator: "is",
+            value: "alice@example.com",
+          }),
+        ],
+      }),
+      "comp_123"
     );
-    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
   it("rejects invalid segment value formats before hitting the API", async () => {

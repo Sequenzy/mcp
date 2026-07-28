@@ -8,7 +8,8 @@ export const campaignToolDefinitions: Tool[] = [
   // ============================================================================
   {
     name: "list_campaigns",
-    description: "List all campaigns",
+    description:
+      "List campaigns. Results are paginated: the default page size is 50 and limit is capped at 100. Always read the returned `pagination` object (`limit`, `offset`, `count`, `total`, `hasMore`) and keep paging with `offset` while `hasMore` is true - a single call does not necessarily return every campaign.",
     inputSchema: {
       type: "object",
       properties: {
@@ -26,6 +27,14 @@ export const campaignToolDefinitions: Tool[] = [
           type: "string",
           description:
             "Optional label name filter. Only campaigns assigned this label are returned.",
+        },
+        limit: {
+          type: "number",
+          description: "Page size from 1 to 100. Defaults to 50.",
+        },
+        offset: {
+          type: "number",
+          description: "Zero-based result offset. Defaults to 0.",
         },
       },
     },
@@ -73,7 +82,7 @@ export const campaignToolDefinitions: Tool[] = [
   {
     name: "list_email_sends",
     description:
-      "List and filter the recent sent-email delivery history shown in the dashboard. Search subject/title or recipient, filter by delivery status, email type, bounce type, or source ID, then pass a returned emailSendId to get_email_send for exact open/click timestamps and the complete event timeline. Delivery rows are retained for 14 days.",
+      "List and filter the recent sent-email delivery history shown in the dashboard. Search subject/title or recipient, filter by delivery status, email type, bounce type, or source ID, then pass a returned emailSendId to get_email_send for exact open/click timestamps and the complete event timeline. Each row carries recipientEmail, subscriberId, automationNodeId, abTestVariantId, and sent/delivered/opened/clicked timestamps, so rows join into a recipient-level delivery matrix without re-reading the raw event stream. Delivery rows are retained for 14 days.",
     inputSchema: {
       type: "object",
       properties: {

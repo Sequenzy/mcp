@@ -108,6 +108,20 @@ export async function handleLandingPageTools(
       break;
     }
 
+    case "duplicate_landing_page": {
+      const companyId = args.companyId as string | undefined;
+      result = await apiRequest(
+        "POST",
+        `/api/v1/landing-pages/${args.landingPageId}/duplicate`,
+        {
+          ...(args.name !== undefined && { name: args.name }),
+          ...(args.slug !== undefined && { slug: args.slug }),
+        },
+        companyId
+      );
+      break;
+    }
+
     case "delete_landing_page": {
       const companyId = args.companyId as string | undefined;
       result = await apiRequest(
