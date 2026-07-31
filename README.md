@@ -476,7 +476,7 @@ Use `get_ab_test` to copy the effective `settings` object and discover variant I
 | `remove_recipient_suppression`   | Remove stale bounce suppression for a company-associated recipient.                       |
 | `create_campaign`                | Create a campaign with content, data, and optional From/Reply-To identity overrides.      |
 | `update_campaign`                | Update a draft campaign, including content, data, From, Reply-To, CC, and BCC.            |
-| `schedule_campaign`              | Schedule a draft or reschedule a scheduled campaign after validating its subject, content blocks, and audience include rules. |
+| `schedule_campaign`              | Schedule or reschedule a one-off or recurring campaign after validating its subject, content blocks, and audience include rules. |
 | `send_test_email`                | Send a test email to one address.                                                         |
 | `cancel_campaign`                | Cancel a scheduled or sending campaign.                                                   |
 | `pause_campaign`                 | Pause a sending campaign.                                                                 |
