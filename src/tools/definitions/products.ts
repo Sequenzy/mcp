@@ -178,7 +178,7 @@ export const productToolDefinitions: Tool[] = [
   {
     name: "sync_products",
     description:
-      "Queue a sync of the Stripe product catalog into the products list. Requires an active Stripe integration.",
+      "Queue a sync of the Stripe product catalog into the products list. Requires an active Stripe integration with bulk sync enabled. Pass integrationId when more than one Stripe account is connected; otherwise the most recently connected enabled account is used.",
     inputSchema: {
       type: "object",
       properties: {
@@ -186,6 +186,11 @@ export const productToolDefinitions: Tool[] = [
           type: "string",
           description:
             "Company ID. If not provided, uses the currently selected company.",
+        },
+        integrationId: {
+          type: "string",
+          description:
+            "Stripe integration ID from list_integrations. Recommended when multiple Stripe accounts are connected.",
         },
       },
     },

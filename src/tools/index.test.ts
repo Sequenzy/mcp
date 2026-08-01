@@ -7751,6 +7751,22 @@ describe("product tools", () => {
     );
   });
 
+  it("selects a Stripe integration for product sync", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true, jobId: "job_123" });
+
+    await handleToolCall("sync_products", {
+      companyId: "company_123",
+      integrationId: "int/selected",
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/products/sync?integrationId=int%2Fselected",
+      undefined,
+      "company_123"
+    );
+  });
+
   it("rejects attach_product_file with both url and filePath", async () => {
     const result = await handleToolCall("attach_product_file", {
       productId: "prod_123",

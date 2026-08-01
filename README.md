@@ -307,7 +307,7 @@ reported as an error.
 | `delete_product`      | Delete a product previously pushed through the Commerce API.                          |
 | `attach_product_file` | Attach a hosted or locally uploaded delivery file to a product.                       |
 | `remove_product_file` | Remove an attached product delivery file.                                             |
-| `sync_products`       | Queue a Stripe product catalog sync.                                                  |
+| `sync_products`       | Queue a Stripe product catalog sync, optionally selecting an integration by ID.       |
 
 After a product delivery file is attached, matching purchase events include `download.url` and `download.name`, so purchase-triggered emails can use merge tags like `{{event.download.url}}`.
 

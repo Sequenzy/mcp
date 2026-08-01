@@ -143,9 +143,14 @@ export async function handleProductTools(
 
     case "sync_products": {
       const companyId = args.companyId as string | undefined;
+      const params = new URLSearchParams();
+      if (typeof args.integrationId === "string" && args.integrationId) {
+        params.set("integrationId", args.integrationId);
+      }
+      const queryString = params.toString();
       result = await apiRequest(
         "POST",
-        "/api/v1/products/sync",
+        `/api/v1/products/sync${queryString ? `?${queryString}` : ""}`,
         undefined,
         companyId
       );
