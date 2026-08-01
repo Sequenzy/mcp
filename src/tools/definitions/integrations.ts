@@ -91,7 +91,7 @@ export const integrationToolDefinitions: Tool[] = [
   {
     name: "set_integration_sync_enabled",
     description:
-      "Turn an integration's bulk imports and backfills on or off. Disabling blocks queued and manual full-data syncs but keeps the connection, credentials, and live webhook delivery active. It does not disconnect the integration. Idempotent: setting the current state succeeds with `changed: false`.",
+      "Turn a supported payment integration's future bulk imports and backfills on or off. Check get_integration.availableActions first; providers without enable_sync or disable_sync are dashboard-managed. Disabling keeps the connection, credentials, and live webhook delivery active, and requires any in-flight sync to finish first. It does not disconnect the integration. Idempotent: setting the current state succeeds with `changed: false`.",
     inputSchema: {
       type: "object",
       properties: {

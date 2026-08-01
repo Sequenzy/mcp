@@ -1,4 +1,5 @@
 import { apiRequest } from "../../runtime.js";
+import { requiredString } from "../internal.js";
 
 /**
  * Integration inspection and management tools.
@@ -15,7 +16,11 @@ export async function handleIntegrationTools(
 
   switch (name) {
     case "get_integration": {
-      const integrationId = args.integrationId as string;
+      const integrationId = requiredString(
+        "get_integration",
+        args,
+        "integrationId"
+      );
       result = await apiRequest(
         "GET",
         `/api/v1/integrations/${encodeURIComponent(integrationId)}`,
@@ -68,18 +73,31 @@ export async function handleIntegrationTools(
     }
 
     case "set_integration_sync_enabled": {
-      const integrationId = args.integrationId as string;
+      const integrationId = requiredString(
+        "set_integration_sync_enabled",
+        args,
+        "integrationId"
+      );
+      if (typeof args.syncEnabled !== "boolean") {
+        throw new Error(
+          "`syncEnabled` must be a boolean when calling `set_integration_sync_enabled`."
+        );
+      }
       result = await apiRequest(
         "PATCH",
         `/api/v1/integrations/${encodeURIComponent(integrationId)}`,
-        { syncEnabled: args.syncEnabled === true },
+        { syncEnabled: args.syncEnabled },
         companyId
       );
       break;
     }
 
     case "sync_integration": {
-      const integrationId = args.integrationId as string;
+      const integrationId = requiredString(
+        "sync_integration",
+        args,
+        "integrationId"
+      );
       result = await apiRequest(
         "POST",
         `/api/v1/integrations/${encodeURIComponent(integrationId)}/sync`,

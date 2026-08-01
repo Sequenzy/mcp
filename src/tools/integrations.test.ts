@@ -180,19 +180,16 @@ describe("integration tool routing", () => {
     );
   });
 
-  it("coerces a missing syncEnabled to false rather than omitting it", async () => {
-    // The API rejects a PATCH with no syncEnabled, so the handler must always
-    // send a boolean instead of forwarding undefined.
-    await handleToolCall("set_integration_sync_enabled", {
+  it("rejects a missing syncEnabled instead of disabling sync", async () => {
+    const result = await handleToolCall("set_integration_sync_enabled", {
       integrationId: "int_123",
     });
 
-    expect(mockApiRequest).toHaveBeenCalledWith(
-      "PATCH",
-      "/api/v1/integrations/int_123",
-      { syncEnabled: false },
-      undefined
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`syncEnabled` must be a boolean when calling `set_integration_sync_enabled`."
     );
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
   it("posts to the sync endpoint", async () => {
