@@ -224,7 +224,7 @@ build a list as well as create it. Imports that apply `listIds` also need
 
 ## Tools
 
-This server currently exposes 164 MCP tools.
+This server currently exposes 182 MCP tools.
 
 ### Account, Companies, Setup
 
@@ -250,6 +250,12 @@ This server currently exposes 164 MCP tools.
 | `check_website`                      | Read a sending domain's stored SPF, DKIM, MAIL FROM, and aggregate verification details.                                      |
 | `verify_sending_domain`              | Run a fresh sending-domain DNS/provider verification and return current status and diagnostics.                               |
 | `get_integration_guide`              | Get framework-specific integration examples.                                                                                  |
+| `get_integration`                    | Inspect one connected integration, its event wiring, recent activity, and recommendations.                                    |
+| `list_integration_capabilities`      | Compare provider capabilities whether or not they are connected.                                                              |
+| `list_integration_activity`          | Read the retained integration-specific webhook and sync activity log.                                                         |
+| `set_integration_sync_enabled`       | Enable or disable bulk imports and backfills while leaving live webhooks connected.                                           |
+| `sync_integration`                   | Queue a manual payment-provider customer and revenue backfill.                                                                |
+| `render_email`                       | Render email blocks or HTML into final email-safe HTML without sending.                                                       |
 
 For a new sending domain, call `add_sending_domain`, publish the DNS records in
 the returned `website.dnsRecords`, wait for DNS propagation, and then call

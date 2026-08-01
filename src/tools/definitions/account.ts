@@ -126,7 +126,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "update_company",
     description:
-      "Edit company product info, brand context, the default email theme, reply-tracking settings, and account-wide sending identity defaults. fromEmail must use a verified sending domain; replyTo may be any valid mailbox. Missing sender/reply profiles are created automatically. Provide at least one editable field.",
+      "Edit company product info, brand context, the default email theme, reply-tracking settings, and account-wide sending identity defaults. fromEmail must use a verified sending domain; replyTo may be any valid mailbox. Missing sender/reply profiles are created automatically. Send fromName/replyToName on their own to rename the display name of the existing default profile without changing its address, or pair them with senderProfileId/replyProfileId (from list_sender_profiles) to rename a specific profile. Provide at least one editable field. Profile, branding, and AI-context fields need the company_profile:manage scope; the sending identity and reply-tracking fields additionally need companies:manage.",
     inputSchema: {
       type: "object",
       properties: {
@@ -289,6 +289,11 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
           type: "string",
           description: "Default email text direction: ltr or rtl.",
         },
+        senderProfileId: {
+          type: "string",
+          description:
+            "Make this existing sender profile the account-wide default, and the one fromName renames. Get IDs from list_sender_profiles. Mutually exclusive with fromEmail.",
+        },
         fromEmail: {
           type: "string",
           description:
@@ -297,7 +302,12 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
         fromName: {
           type: "string",
           description:
-            "Display name for a newly created default From profile. Requires fromEmail.",
+            "Display name of the default From profile. Sent alone it renames the current default profile; with senderProfileId it renames that profile; with fromEmail it names the profile for that address. If the address already has several display names, pass senderProfileId to say which one to rename.",
+        },
+        replyProfileId: {
+          type: "string",
+          description:
+            "Make this existing reply profile the account-wide default, and the one replyToName renames. Get IDs from list_sender_profiles. Mutually exclusive with replyTo.",
         },
         replyTo: {
           type: "string",
@@ -307,7 +317,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
         replyToName: {
           type: "string",
           description:
-            "Display name for a newly created default Reply-To profile. Requires replyTo.",
+            "Display name of the default Reply-To profile. Sent alone it renames the current default profile; with replyProfileId it renames that profile; with replyTo it names the profile for that address.",
         },
         replyTrackingEnabled: {
           type: "boolean",
@@ -713,6 +723,113 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
         },
       },
       required: ["domain"],
+    },
+  },
+  {
+    name: "list_integrations",
+    description:
+      "List connected integrations (Stripe, Shopify, Supabase, Clerk, WooCommerce, ad platforms, and so on) with connection status, sync state, last sync time, and last sync error. Read-only: credentials, access tokens, and webhook secrets are never returned. Use this to audit which external systems feed this account and whether their syncs are healthy.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        includeInactive: {
+          type: "boolean",
+          description:
+            "Include disconnected/inactive integrations. Defaults to false (active only).",
+        },
+      },
+    },
+  },
+  {
+    name: "list_sender_profiles",
+    description:
+      "List sender (From) profiles and reply-to profiles for the company, including which are the account defaults and whether each sender address sits on a verified sending domain. Use this to audit sending identity before scheduling, or to pick a valid senderProfileId/replyProfileId for create_campaign or update_campaign.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+      },
+    },
+  },
+  {
+    name: "get_tracking_settings",
+    description:
+      "Get the company's email tracking configuration: open/click/unsubscribe tracking flags, default attribution window, automatic UTM tagging, the dedicated click-tracking domain and its verification status, and inbound reply-tracking settings. Use this to audit measurement readiness and to explain why opens or clicks may not be recorded.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+      },
+    },
+  },
+  {
+    name: "update_tracking_settings",
+    description:
+      "Update the company's account-wide email tracking defaults: open, click, and unsubscribe tracking, opt-in strict bot filtering, the default attribution window, and automatic UTM tagging. Applies to every campaign, sequence, and transactional email sent afterwards; already-sent emails keep the links they were rendered with. Provide at least one field. Reply tracking (inbound email, reply domain mode, reply forwarding) is on update_company, and the dedicated click-tracking domain is configured in the dashboard.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        openTrackingEnabled: {
+          type: "boolean",
+          description:
+            "Whether to embed the open-tracking pixel. Turning this off also stops open rates from being recorded.",
+        },
+        clickTrackingEnabled: {
+          type: "boolean",
+          description:
+            "Whether to rewrite links through the click-tracking redirect. Turning this off stops click rates and click-based automation triggers.",
+        },
+        strictBotFilteringEnabled: {
+          type: "boolean",
+          description:
+            "Opt in to aggressive bot detection: strict user-agent patterns, datacenter-IP classification, and cross-send IP sweeps. Off by default because it can also discard real engagement, lowering reported open and click rates. Enable it when the audience sits behind email-security appliances that inflate engagement.",
+        },
+        unsubscribeTrackingEnabled: {
+          type: "boolean",
+          description:
+            "Whether unsubscribe links are attributed to the email that produced them. Unsubscribe links keep working either way.",
+        },
+        defaultAttributionWindowHours: {
+          type: "number",
+          description:
+            "Default revenue attribution window in hours (1-720). Used by goals and revenue reporting when no per-goal window is set.",
+        },
+        autoUtmEnabled: {
+          type: "boolean",
+          description:
+            "Whether to append UTM parameters to outgoing links automatically. Enabling this with no stored parameters seeds the platform defaults.",
+        },
+        autoUtmSettings: {
+          type: ["object", "null"],
+          description:
+            "UTM templates to merge over the stored ones: source, medium, campaign, content, term. Values support placeholders such as {{email.subject}} and {{link.text}}. Pass null for a single parameter to stop emitting it, or null for the whole object to reset every parameter to the defaults.",
+          properties: {
+            source: { type: ["string", "null"] },
+            medium: { type: ["string", "null"] },
+            campaign: { type: ["string", "null"] },
+            content: { type: ["string", "null"] },
+            term: { type: ["string", "null"] },
+          },
+        },
+      },
     },
   },
   {

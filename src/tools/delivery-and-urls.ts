@@ -277,6 +277,7 @@ export const dashboardUrlToolNames = new Set([
   "update_landing_page",
   "publish_landing_page",
   "unpublish_landing_page",
+  "duplicate_landing_page",
   "delete_landing_page",
   "list_sequences",
   "get_sequence",

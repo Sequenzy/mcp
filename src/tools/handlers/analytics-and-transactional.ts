@@ -159,6 +159,23 @@ export async function handleAnalyticsAndTransactionalTools(
       break;
     }
 
+    case "delete_transactional_email": {
+      const companyId = args.companyId as string | undefined;
+      const idOrSlug = requiredString(
+        "delete_transactional_email",
+        args,
+        "idOrSlug"
+      );
+
+      result = await apiRequest(
+        "DELETE",
+        `/api/v1/transactional/${encodeURIComponent(idOrSlug)}`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
     case "send_email": {
       const companyId = args.companyId as string | undefined;
       const to = requiredString("send_email", args, "to");
@@ -211,6 +228,33 @@ export async function handleAnalyticsAndTransactionalTools(
         );
       }
 
+      let trackingSettings:
+        | { clickTracking?: boolean; openTracking?: boolean }
+        | undefined;
+      if (args.trackingSettings !== undefined) {
+        if (
+          typeof args.trackingSettings !== "object" ||
+          args.trackingSettings === null ||
+          Array.isArray(args.trackingSettings)
+        ) {
+          throw new Error(
+            "`trackingSettings` must be an object with optional boolean `clickTracking` and `openTracking` fields when calling `send_email`."
+          );
+        }
+        const rawTracking = args.trackingSettings as Record<string, unknown>;
+        trackingSettings = {};
+        for (const field of ["clickTracking", "openTracking"] as const) {
+          const value = rawTracking[field];
+          if (value === undefined) continue;
+          if (typeof value !== "boolean") {
+            throw new Error(
+              `\`trackingSettings.${field}\` must be a boolean when calling \`send_email\`.`
+            );
+          }
+          trackingSettings[field] = value;
+        }
+      }
+
       const sendBody = Object.fromEntries(
         Object.entries({
           to,
@@ -221,6 +265,7 @@ export async function handleAnalyticsAndTransactionalTools(
           subscriberExternalId: args.subscriberExternalId,
           emailType,
           replyTo,
+          trackingSettings,
         }).filter(([, value]) => value !== undefined)
       );
 

@@ -7,7 +7,7 @@ export const productToolDefinitions: Tool[] = [
   {
     name: "list_products",
     description:
-      "List synced products (Stripe, Shopify, WooCommerce) including any attached digital delivery file. Useful before attaching a file or building a purchase sequence for a specific product.",
+      "List synced products (Stripe, Shopify, WooCommerce) including any attached digital delivery file. Useful before attaching a file or building a purchase sequence for a specific product. Returns one page: check pagination.total and pagination.hasMore, and page with offset to read the whole catalog.",
     inputSchema: {
       type: "object",
       properties: {
@@ -24,6 +24,16 @@ export const productToolDefinitions: Tool[] = [
         search: {
           type: "string",
           description: "Filter products by title.",
+        },
+        limit: {
+          type: "number",
+          description:
+            "Maximum products to return (1-100). Defaults to 50. Compare pagination.total against the products returned to detect truncation.",
+        },
+        offset: {
+          type: "number",
+          description:
+            "Number of products to skip. Defaults to 0. Use with limit to page through catalogs larger than 100.",
         },
       },
     },

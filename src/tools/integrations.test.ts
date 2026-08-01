@@ -1,0 +1,208 @@
+import { beforeEach, describe, expect, it, mock } from "bun:test";
+
+type ApiRequestMock = (
+  method: string,
+  path: string,
+  body?: unknown,
+  companyIdOverride?: string
+) => Promise<unknown>;
+
+const mockApiRequest = mock<ApiRequestMock>(async () => ({ success: true }));
+
+await mock.module("../runtime.js", () => ({
+  areLocalFileUploadsEnabled: () => false,
+  apiRequest: mockApiRequest,
+  apiUploadRequest: async () => undefined,
+  getSelectedCompanyId: () => null,
+  setSelectedCompanyId: () => undefined,
+}));
+
+const { handleToolCall, tools } = await import("./index.js");
+
+const INTEGRATION_TOOL_NAMES = [
+  "get_integration",
+  "list_integration_capabilities",
+  "list_integration_activity",
+  "set_integration_sync_enabled",
+  "sync_integration",
+];
+
+describe("integration tool definitions", () => {
+  it("registers every integration tool", () => {
+    const names = new Set(tools.map((tool) => tool.name));
+    for (const name of INTEGRATION_TOOL_NAMES) {
+      expect({ name, registered: names.has(name) }).toEqual({
+        name,
+        registered: true,
+      });
+    }
+  });
+
+  it("classifies read and write hints correctly", () => {
+    const byName = new Map(tools.map((tool) => [tool.name, tool]));
+
+    for (const name of [
+      "get_integration",
+      "list_integration_capabilities",
+      "list_integration_activity",
+    ]) {
+      expect({
+        name,
+        readOnly: byName.get(name)?.annotations?.readOnlyHint,
+      }).toEqual({ name, readOnly: true });
+    }
+
+    expect(
+      byName.get("set_integration_sync_enabled")?.annotations?.readOnlyHint
+    ).toBe(false);
+    // Pausing bulk imports changes account behavior, so clients should confirm.
+    expect(
+      byName.get("set_integration_sync_enabled")?.annotations?.destructiveHint
+    ).toBe(true);
+    expect(byName.get("sync_integration")?.annotations?.openWorldHint).toBe(
+      true
+    );
+  });
+
+  it("requires the arguments each tool cannot work without", () => {
+    const byName = new Map(tools.map((tool) => [tool.name, tool]));
+
+    expect(byName.get("get_integration")?.inputSchema.required).toEqual([
+      "integrationId",
+    ]);
+    expect(
+      byName.get("set_integration_sync_enabled")?.inputSchema.required
+    ).toEqual(["integrationId", "syncEnabled"]);
+    expect(byName.get("sync_integration")?.inputSchema.required).toEqual([
+      "integrationId",
+    ]);
+    // The catalog must be callable with no arguments - it is the discovery
+    // tool used before anything is connected.
+    expect(
+      byName.get("list_integration_capabilities")?.inputSchema.required
+    ).toBeUndefined();
+  });
+});
+
+describe("integration tool routing", () => {
+  beforeEach(() => {
+    mockApiRequest.mockReset();
+    mockApiRequest.mockImplementation(async () => ({ success: true }));
+  });
+
+  it("fetches integration detail by id", async () => {
+    await handleToolCall("get_integration", { integrationId: "int_123" });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/integrations/int_123",
+      undefined,
+      undefined
+    );
+  });
+
+  it("url-encodes the integration id", async () => {
+    await handleToolCall("get_integration", { integrationId: "int/123" });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/integrations/int%2F123",
+      undefined,
+      undefined
+    );
+  });
+
+  it("passes the company override through", async () => {
+    await handleToolCall("get_integration", {
+      integrationId: "int_123",
+      companyId: "comp_1",
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/integrations/int_123",
+      undefined,
+      "comp_1"
+    );
+  });
+
+  it("requests the catalog with no filters by default", async () => {
+    await handleToolCall("list_integration_capabilities", {});
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/integrations/catalog",
+      undefined,
+      undefined
+    );
+  });
+
+  it("applies catalog filters", async () => {
+    await handleToolCall("list_integration_capabilities", {
+      provider: "stripe",
+      category: "payments",
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/integrations/catalog?provider=stripe&category=payments",
+      undefined,
+      undefined
+    );
+  });
+
+  it("applies activity filters", async () => {
+    await handleToolCall("list_integration_activity", {
+      integrationId: "int_123",
+      status: "failed",
+      limit: 50,
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/integrations/activity?integrationId=int_123&status=failed&limit=50",
+      undefined,
+      undefined
+    );
+  });
+
+  it("sends the sync toggle as a PATCH body", async () => {
+    await handleToolCall("set_integration_sync_enabled", {
+      integrationId: "int_123",
+      syncEnabled: false,
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/integrations/int_123",
+      { syncEnabled: false },
+      undefined
+    );
+  });
+
+  it("coerces a missing syncEnabled to false rather than omitting it", async () => {
+    // The API rejects a PATCH with no syncEnabled, so the handler must always
+    // send a boolean instead of forwarding undefined.
+    await handleToolCall("set_integration_sync_enabled", {
+      integrationId: "int_123",
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/integrations/int_123",
+      { syncEnabled: false },
+      undefined
+    );
+  });
+
+  it("posts to the sync endpoint", async () => {
+    await handleToolCall("sync_integration", { integrationId: "int_123" });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/integrations/int_123/sync",
+      undefined,
+      undefined
+    );
+  });
+});
