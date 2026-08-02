@@ -572,11 +572,12 @@ attribute and fires `poll.answered` for automations and outbound webhooks.
 
 ### Saved Forms
 
-| Tool             | Description                                                                                               |
-| ---------------- | --------------------------------------------------------------------------------------------------------- |
-| `list_forms`     | List saved forms with their server-managed audience settings and public action URLs.                      |
-| `create_form`    | Create and publish a saved form scoped to one or more lists, with optional tags and success behavior.     |
-| `get_form_embed` | Return the public action URL, hosted JavaScript, minimal native form, and fetch example for a saved form. |
+| Tool             | Description                                                                                                             |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `list_forms`     | List saved forms with their server-managed audience settings, content blocks, and public action URLs.                  |
+| `create_form`    | Create and publish a saved form scoped to one or more lists, with optional tags, theme, and success behavior.          |
+| `update_form`    | Partially update a saved form's audience, copy, theme, success behavior, or complete content block array.              |
+| `get_form_embed` | Return the public action URL, hosted JavaScript, minimal native form, and fetch example for a saved form.               |
 
 For Astro, Hugo, Jekyll, Cloudflare Pages, Netlify, GitHub Pages, or any other
 static site, call `list_forms`, use `create_form` if a suitable form does not
@@ -586,6 +587,11 @@ server-side, so the deployed browser code never contains a Sequenzy API key.
 Generated native and standalone markup includes "Powered by Sequenzy" for free
 workspaces; paid workspaces receive unbranded markup. The API resolves that
 entitlement server-side, so callers should use the returned snippet unchanged.
+When updating a form, omitted fields remain unchanged and theme fields merge
+into the current theme. Pass an empty `tagIds` array to clear tags or an empty
+`redirectUrl` to restore confirmation-message behavior. The `blocks` field is
+a complete replacement, so read the current content with `list_forms` first
+and retain exactly one email field and one submit button.
 
 ### Landing Pages
 

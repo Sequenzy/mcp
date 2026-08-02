@@ -3715,6 +3715,70 @@ describe("saved form tools", () => {
     expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
+  it("passes create_form theme overrides through to the API", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      form: { id: "form_123" },
+    });
+
+    const result = await handleToolCall("create_form", {
+      name: "Branded form",
+      listIds: ["list_123"],
+      theme: { accentColor: "#0f766e" },
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/forms",
+      {
+        name: "Branded form",
+        listIds: ["list_123"],
+        theme: { accentColor: "#0f766e" },
+      },
+      undefined
+    );
+  });
+
+  it("routes update_form edits to the form's PATCH endpoint", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      form: { id: "form/123", name: "Renamed" },
+    });
+
+    const result = await handleToolCall("update_form", {
+      companyId: "comp_123",
+      formId: "form/123",
+      name: "Renamed",
+      theme: { accentColor: "#0f766e" },
+      blocks: [{ id: "form-heading", kind: "heading", content: "Hi" }],
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/forms/form%2F123",
+      {
+        name: "Renamed",
+        theme: { accentColor: "#0f766e" },
+        blocks: [{ id: "form-heading", kind: "heading", content: "Hi" }],
+      },
+      "comp_123"
+    );
+  });
+
+  it("rejects update_form calls that change nothing", async () => {
+    const result = await handleToolCall("update_form", {
+      formId: "form_123",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Provide at least one field to change"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
   it("URL-encodes get_form_embed IDs and preserves secret-free snippets", async () => {
     mockApiRequest.mockResolvedValueOnce({
       success: true,

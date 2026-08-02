@@ -145,6 +145,7 @@ export const MUTATING_TOOL_NAMES = new Set([
   "duplicate_campaign",
   "resend_campaign_to_non_openers",
   "create_form",
+  "update_form",
   "create_landing_page",
   "update_landing_page",
   "duplicate_landing_page",

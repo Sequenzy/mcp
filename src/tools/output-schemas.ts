@@ -835,6 +835,12 @@ export const outputPropertiesByToolName: Record<
       "Public action URL plus JavaScript, native form, and fetch snippets."
     ),
   },
+  update_form: {
+    form: resourceOutputProperty("saved form"),
+    embed: objectOutputProperty(
+      "Public action URL plus JavaScript, native form, and fetch snippets (published forms only)."
+    ),
+  },
   get_form_embed: {
     form: resourceOutputProperty("saved form"),
     embed: objectOutputProperty(
