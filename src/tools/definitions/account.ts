@@ -193,7 +193,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
         emailLengthPreference: {
           type: "string",
           description:
-            "Email length preference: concise, balanced, or detailed.",
+            "Email length preference: concise, balanced, or detailed. New workspaces default to concise.",
         },
         socialLinks: {
           type: "object",
@@ -761,6 +761,38 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
     },
   },
   {
+    name: "update_sender_profile",
+    description:
+      "Rename one sender (From) or reply-to profile in place, without changing which profile is the account default. Use this to standardize a display name across the several identities a mailbox may carry, e.g. renaming 'Viraj from SnapCount' to 'SnapCount'. Get IDs from list_sender_profiles. Only the display name changes: the address, its sending domain, and the account-wide default From/Reply-To selection are untouched, and existing campaigns and sequences pinned to this profile pick up the new name. To change which profile is the default instead, use update_company with senderProfileId/replyProfileId. A company cannot have two sender identities with the same name on one address, so a colliding rename is rejected and reports the ID already using that name. Requires the companies:manage scope.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        profileId: {
+          type: "string",
+          description:
+            "ID of the profile to rename, from list_sender_profiles. Sender profile IDs come from senderProfiles, reply-to IDs from replyProfiles.",
+        },
+        name: {
+          type: "string",
+          description:
+            "New display name, e.g. 'SnapCount'. Trimmed; must be non-empty and 255 characters or fewer.",
+        },
+        type: {
+          type: "string",
+          enum: ["sender", "reply"],
+          description:
+            "Which list profileId came from. Defaults to sender. Pass reply to rename a reply-to profile.",
+        },
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+      },
+      required: ["profileId", "name"],
+    },
+  },
+  {
     name: "get_tracking_settings",
     description:
       "Get the company's email tracking configuration: open/click/unsubscribe tracking flags, default attribution window, automatic UTM tagging, the dedicated click-tracking domain and its verification status, and inbound reply-tracking settings. Use this to audit measurement readiness and to explain why opens or clicks may not be recorded.",
@@ -830,6 +862,59 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
           },
         },
       },
+    },
+  },
+  {
+    name: "get_notification_preferences",
+    description:
+      "Get the account notification settings for the API key's own user in this company: whether Sequenzy emails them when a new subscriber joins and when a campaign finishes sending, and whether each arrives per-occurrence or as a daily summary. Returns the supported modes and platform defaults alongside the current values. These are per-person settings - this never reads a teammate's preferences.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+      },
+    },
+  },
+  {
+    name: "update_notification_preferences",
+    description:
+      "Change which account notifications Sequenzy emails the API key's own user for this company. Requires the companies:manage scope. Useful before a bulk import or a large migration, when per-signup notifications would otherwise flood the inbox. Modes are 'off', 'instant' (one email per occurrence), and 'daily' (one summary per day); 'daily' is only valid for new_subscriber, because a campaign finishes once. New-subscriber notifications already fall back to a daily summary automatically on high-volume days, and imports never trigger them at all.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        notificationPreferences: {
+          type: "array",
+          description:
+            "Preferences to set. Events not listed keep their current value.",
+          items: {
+            type: "object",
+            properties: {
+              event: {
+                type: "string",
+                enum: ["new_subscriber", "campaign_completed"],
+                description: "Which notification to configure.",
+              },
+              mode: {
+                type: "string",
+                enum: ["off", "instant", "daily"],
+                description:
+                  "How to receive it. 'daily' is not supported for campaign_completed.",
+              },
+            },
+            required: ["event", "mode"],
+          },
+        },
+      },
+      required: ["notificationPreferences"],
     },
   },
   {

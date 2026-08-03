@@ -344,6 +344,25 @@ export async function handleAccountTools(
       break;
     }
 
+    case "update_sender_profile": {
+      const companyId = args.companyId as string | undefined;
+      const profileId = args.profileId as string;
+      // The two profile kinds live in separate tables with independent IDs, so
+      // the caller says which list the ID came from rather than us guessing
+      // from an ID prefix - profile IDs are plain cuids by default.
+      const path =
+        args.type === "reply"
+          ? `/api/v1/reply-profiles/${encodeURIComponent(profileId)}`
+          : `/api/v1/sender-profiles/${encodeURIComponent(profileId)}`;
+      result = await apiRequest(
+        "PATCH",
+        path,
+        { name: args.name as string },
+        companyId
+      );
+      break;
+    }
+
     case "get_tracking_settings": {
       const companyId = args.companyId as string | undefined;
       result = await apiRequest(
@@ -362,6 +381,28 @@ export async function handleAccountTools(
         "PATCH",
         "/api/v1/tracking-settings",
         body,
+        companyId
+      );
+      break;
+    }
+
+    case "get_notification_preferences": {
+      const companyId = args.companyId as string | undefined;
+      result = await apiRequest(
+        "GET",
+        "/api/v1/notification-preferences",
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "update_notification_preferences": {
+      const companyId = args.companyId as string | undefined;
+      result = await apiRequest(
+        "PATCH",
+        "/api/v1/notification-preferences",
+        { notificationPreferences: args.notificationPreferences },
         companyId
       );
       break;

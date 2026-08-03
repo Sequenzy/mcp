@@ -23,7 +23,7 @@ Connect Sequenzy to Claude Desktop, Claude Code, Codex, Cursor, Windsurf, VS Cod
 - Generate email copy, subject lines, and multi-step sequences.
 - Inspect analytics, subscriber activity, deliverability health, and dashboard URLs.
 - Inspect and clean up exact-recipient bounce suppression without exposing the shared SES suppression list.
-- Configure company product info, account-wide sending identity defaults, sender domains, and integration examples for common frameworks.
+- Configure company product info, account-wide sending identity defaults, rename individual sender and reply-to profiles, manage sender domains, and inspect integration examples for common frameworks.
 
 Every published MCP tool includes explicit `readOnlyHint`, `destructiveHint`, and `openWorldHint` annotations so compatible clients can display accurate tool-use affordances. Tools also publish `outputSchema` definitions and return `structuredContent`, giving clients and models machine-readable result shapes for follow-up calls.
 
@@ -224,7 +224,7 @@ build a list as well as create it. Imports that apply `listIds` also need
 
 ## Tools
 
-This server currently exposes 182 MCP tools.
+This server currently exposes 186 MCP tools.
 
 ### Account, Companies, Setup
 
@@ -255,6 +255,10 @@ This server currently exposes 182 MCP tools.
 | `list_integration_activity`          | Read the retained integration-specific webhook and sync activity log.                                                         |
 | `set_integration_sync_enabled`       | Enable or disable bulk imports and backfills while leaving live webhooks connected.                                           |
 | `sync_integration`                   | Queue a manual payment-provider customer and revenue backfill.                                                                |
+| `list_sender_profiles`               | List sender and reply-to profiles, defaults, and sending-domain readiness.                                                    |
+| `update_sender_profile`              | Rename one sender or reply-to profile without changing the account defaults.                                                  |
+| `get_notification_preferences`       | Read the current user's per-company account notification settings and supported modes.                                       |
+| `update_notification_preferences`    | Update the current user's account notification delivery modes without affecting teammates.                                   |
 | `render_email`                       | Render email blocks or HTML into final email-safe HTML without sending.                                                       |
 
 For a new sending domain, call `add_sending_domain`, publish the DNS records in
@@ -265,6 +269,12 @@ error points back to `add_sending_domain` with the requested domain.
 New companies start with no sync rules. The inherited preset remains available
 for SaaS/ecommerce companies by passing `null` to `update_sync_rules`; services
 and consulting companies should normally keep `[]` or define explicit rules.
+
+Use `list_sender_profiles` to find the profile ID, then call
+`update_sender_profile` to change only its display name. Pass `type: "reply"`
+for a reply-to profile; sender is the default. The address, sending domain, and
+account-wide default From/Reply-To selections remain unchanged. Renaming
+requires the `companies:manage` scope.
 
 Shopify cart abandonment is enabled by default. It fires
 `ecommerce.cart_abandoned` after one hour of cart inactivity, with a 24-hour

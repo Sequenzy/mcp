@@ -161,6 +161,99 @@ describe("account tools", () => {
       { type: "number", exclusiveMinimum: 0, maximum: 95 }
     );
   });
+
+  it("reads per-user notification preferences for the selected company", async () => {
+    const response = {
+      success: true,
+      notificationPreferences: [
+        { event: "new_subscriber", mode: "daily" },
+        { event: "campaign_completed", mode: "instant" },
+      ],
+      supportedModes: {
+        new_subscriber: ["off", "instant", "daily"],
+        campaign_completed: ["off", "instant"],
+      },
+      defaults: {
+        new_subscriber: "instant",
+        campaign_completed: "instant",
+      },
+    };
+    mockApiRequest.mockResolvedValueOnce(response);
+
+    const result = await handleToolCall("get_notification_preferences", {
+      companyId: "company_123",
+    });
+    const tool = tools.find(
+      (candidate) => candidate.name === "get_notification_preferences"
+    );
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/notification-preferences",
+      undefined,
+      "company_123"
+    );
+    expect(result.isError).toBeUndefined();
+    expect(result.structuredContent?.["notificationPreferences"]).toEqual(
+      response.notificationPreferences
+    );
+    expect(tool?.annotations?.readOnlyHint).toBe(true);
+  });
+
+  it("updates notification preferences with a mutation-safe schema", async () => {
+    const notificationPreferences = [{ event: "new_subscriber", mode: "off" }];
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      notificationPreferences,
+      supportedModes: {
+        new_subscriber: ["off", "instant", "daily"],
+        campaign_completed: ["off", "instant"],
+      },
+      defaults: {
+        new_subscriber: "instant",
+        campaign_completed: "instant",
+      },
+    });
+
+    const result = await handleToolCall("update_notification_preferences", {
+      companyId: "company_123",
+      notificationPreferences,
+    });
+    const tool = tools.find(
+      (candidate) => candidate.name === "update_notification_preferences"
+    );
+    const preferencesSchema = tool?.inputSchema.properties?.[
+      "notificationPreferences"
+    ] as
+      | {
+          items?: {
+            properties?: Record<string, { enum?: string[] }>;
+            required?: string[];
+          };
+        }
+      | undefined;
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/notification-preferences",
+      { notificationPreferences },
+      "company_123"
+    );
+    expect(result.isError).toBeUndefined();
+    expect(tool?.inputSchema.required).toContain("notificationPreferences");
+    expect(preferencesSchema?.items?.required).toEqual(["event", "mode"]);
+    expect(preferencesSchema?.items?.properties?.["event"]?.enum).toEqual([
+      "new_subscriber",
+      "campaign_completed",
+    ]);
+    expect(preferencesSchema?.items?.properties?.["mode"]?.enum).toEqual([
+      "off",
+      "instant",
+      "daily",
+    ]);
+    expect(tool?.annotations?.readOnlyHint).toBe(false);
+    expect(tool?.annotations?.destructiveHint).toBe(false);
+  });
 });
 
 describe("API key permission errors", () => {
@@ -604,6 +697,64 @@ describe("read-only audit tools", () => {
       "company_123"
     );
     expect(result.structuredContent?.["defaultSenderProfileId"]).toBe("sp_1");
+  });
+
+  it("renames a sender profile", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      senderProfile: {
+        id: "sp_1",
+        name: "SnapCount",
+        email: "hi@snapcount.app",
+        isDefault: true,
+      },
+      renamed: true,
+    });
+
+    const result = await handleToolCall("update_sender_profile", {
+      profileId: "sp_1",
+      name: "SnapCount",
+      companyId: "company_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/sender-profiles/sp_1",
+      { name: "SnapCount" },
+      "company_123"
+    );
+    expect(result.structuredContent?.["renamed"]).toBe(true);
+  });
+
+  // Profile IDs are opaque cuids with no type prefix, so the caller says which
+  // list the ID came from rather than the handler guessing.
+  it("routes update_sender_profile to the reply route when type is reply", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      replyProfile: {
+        id: "rp_1",
+        name: "SnapCount",
+        email: "support@snapcount.app",
+        isDefault: false,
+      },
+      renamed: true,
+    });
+
+    const result = await handleToolCall("update_sender_profile", {
+      profileId: "rp_1",
+      name: "SnapCount",
+      type: "reply",
+      companyId: "company_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/reply-profiles/rp_1",
+      { name: "SnapCount" },
+      "company_123"
+    );
   });
 
   it("gets tracking settings", async () => {

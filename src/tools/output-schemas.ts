@@ -405,6 +405,39 @@ export const outputPropertiesByToolName: Record<
       "Company default reply-to profile ID. Null when no default is set."
     ),
   },
+  update_sender_profile: {
+    senderProfile: resourceOutputProperty(
+      "renamed sender (From) profile, present when type was sender"
+    ),
+    replyProfile: resourceOutputProperty(
+      "renamed reply-to profile, present when type was reply"
+    ),
+    renamed: booleanOutputProperty(
+      "False when the profile already carried that name, so nothing changed."
+    ),
+  },
+  get_notification_preferences: {
+    notificationPreferences: arrayOutputProperty(
+      "One entry per notification event with its current mode: off, instant, or daily. Every event is always present; an event the user has never configured reports the platform default."
+    ),
+    supportedModes: objectOutputProperty(
+      "Modes each event accepts, keyed by event. campaign_completed does not accept daily."
+    ),
+    defaults: objectOutputProperty(
+      "Mode each event uses when the user has never configured it."
+    ),
+  },
+  update_notification_preferences: {
+    notificationPreferences: arrayOutputProperty(
+      "Every notification event with its mode after the update, not only the events that were changed."
+    ),
+    supportedModes: objectOutputProperty(
+      "Modes each event accepts, keyed by event. campaign_completed does not accept daily."
+    ),
+    defaults: objectOutputProperty(
+      "Mode each event uses when the user has never configured it."
+    ),
+  },
   get_tracking_settings: {
     tracking: objectOutputProperty(
       "Open, click, and unsubscribe tracking flags, the opt-in strictBotFilteringEnabled bot-detection flag, plus the default attribution window in hours."
