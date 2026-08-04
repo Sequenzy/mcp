@@ -255,7 +255,7 @@ This server currently exposes 186 MCP tools.
 | `list_integration_activity`          | Read the retained integration-specific webhook and sync activity log.                                                         |
 | `set_integration_sync_enabled`       | Enable or disable bulk imports and backfills while leaving live webhooks connected.                                           |
 | `sync_integration`                   | Queue a manual payment-provider customer and revenue backfill.                                                                |
-| `get_integration_pixel`              | Read Shopify's live storefront pixel state and the events that are dark while it is unhealthy.                                |
+| `get_integration_pixel`              | Read Shopify's live pixel/configuration state and distinguish confirmed dark events from an unknown read.                    |
 | `activate_integration_pixel`         | Install or repoint Shopify's storefront pixel; idempotent when it is already current.                                          |
 | `list_sender_profiles`               | List sender and reply-to profiles, defaults, and sending-domain readiness.                                                    |
 | `update_sender_profile`              | Rename one sender or reply-to profile without changing the account defaults.                                                  |

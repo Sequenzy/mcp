@@ -349,7 +349,7 @@ export const outputPropertiesByToolName: Record<
       "Webhook and sync activity over the last 24 hours: totals by status, stalled count, last activity time, and recent failures."
     ),
     pixel: nullableObjectOutputProperty(
-      "Shopify only: live storefront pixel state (installed, endpoint, endpointCurrent, healthy, dependentEvents). Null for providers without a pixel. An unhealthy pixel means every dependentEvent is dark and any sequence triggered by one can never fire."
+      "Shopify only: live storefront pixel state (installed, endpoint, endpointCurrent, configurationCurrent, healthy, error, dependentEvents). Null for providers without a pixel. When error is null and healthy is false, every dependentEvent is confirmed dark; an error means Shopify could not confirm the state."
     ),
     recommendations: arrayOutputProperty(
       "Prioritized problems and suggestions, each with a code, severity (error, warning, info), message, and a concrete action."
@@ -411,12 +411,12 @@ export const outputPropertiesByToolName: Record<
     provider: stringOutputProperty("Always `shopify`."),
     shopDomain: stringOutputProperty("Store the pixel was read from."),
     pixel: objectOutputProperty(
-      "Live pixel state: installed, id, endpoint it posts to, endpointCurrent (false means it reports to a stale endpoint and its events are dropped), healthy, and error when Shopify could not confirm."
+      "Live pixel state: installed, id, endpoint it posts to, endpointCurrent (including the supported compatibility route), configurationCurrent (endpoint plus signed connection settings), healthy, and error when Shopify could not confirm."
     ),
     dependentEvents: {
       type: "array",
       description:
-        "Event names that cannot arrive while the pixel is not healthy. Sequences triggered by these will never fire.",
+        "Event names that depend on this pixel. They are confirmed unable to arrive only when pixel.error is null and pixel.healthy is false.",
       items: stringOutputProperty("Pixel-dependent event name."),
     },
     message: messageOutputProperty,
