@@ -198,6 +198,48 @@ export const integrationToolDefinitions: Tool[] = [
     },
   },
   {
+    name: "get_integration_pixel",
+    description:
+      "Check whether a Shopify store's storefront tracking pixel is installed and reporting to this account. Read live from Shopify on every call, because a merchant can remove the pixel without Sequenzy hearing about it. ALWAYS check this before promising that browse abandonment, cart recovery, product views, collection views, or storefront search will work: without a live pixel those events never arrive, the sequences built on them never fire, and nothing anywhere reports an error. Returns `pixel.healthy`, the endpoint the installed pixel posts to, and `dependentEvents` - the exact event names that cannot arrive while it is down. Fix it with activate_integration_pixel. Shopify only; other providers return a clear error.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        integrationId: {
+          type: "string",
+          description:
+            "Shopify integration ID from list_integrations or get_integration.",
+        },
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+      },
+      required: ["integrationId"],
+    },
+  },
+  {
+    name: "activate_integration_pixel",
+    description:
+      "Install the Shopify storefront tracking pixel on the connected store, or repoint an existing one at this account. This is what turns on product views, cart activity, and browse abandonment - the data every browse-abandonment and cart-recovery sequence depends on. Idempotent: an already-live pixel returns `changed: false`. Events start flowing on the next storefront visit and nothing is backfilled for the period the pixel was off, so run it before, not after, building the sequence. If the store granted an older permission set, this fails with a message naming the reconnect step rather than silently doing nothing. Shopify only.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        integrationId: {
+          type: "string",
+          description:
+            "Shopify integration ID from list_integrations or get_integration.",
+        },
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+      },
+      required: ["integrationId"],
+    },
+  },
+  {
     name: "sync_integration",
     description:
       "Queue a manual re-sync of customers and revenue for a payment provider integration (Stripe, Polar, Paddle, Dodo, Creem, Chargebee, Whop). Returns immediately - poll get_integration to watch `syncStatus` and `lastSyncAt`. Fails with a conflict if a sync is already running, and with a clear error naming the dashboard for providers whose backfill is not API-triggerable (Shopify products, Supabase users, PostHog history, Affonso affiliates). Check `availableActions` on get_integration to see whether this is supported before calling.",

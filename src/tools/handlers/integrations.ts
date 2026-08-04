@@ -122,6 +122,36 @@ export async function handleIntegrationTools(
       break;
     }
 
+    case "get_integration_pixel": {
+      const integrationId = requiredString(
+        "get_integration_pixel",
+        args,
+        "integrationId"
+      );
+      result = await apiRequest(
+        "GET",
+        `/api/v1/integrations/${encodeURIComponent(integrationId)}/pixel`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "activate_integration_pixel": {
+      const integrationId = requiredString(
+        "activate_integration_pixel",
+        args,
+        "integrationId"
+      );
+      result = await apiRequest(
+        "POST",
+        `/api/v1/integrations/${encodeURIComponent(integrationId)}/pixel`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
     case "sync_integration": {
       const integrationId = requiredString(
         "sync_integration",

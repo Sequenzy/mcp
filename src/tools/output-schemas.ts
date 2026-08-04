@@ -348,6 +348,9 @@ export const outputPropertiesByToolName: Record<
     activity: objectOutputProperty(
       "Webhook and sync activity over the last 24 hours: totals by status, stalled count, last activity time, and recent failures."
     ),
+    pixel: nullableObjectOutputProperty(
+      "Shopify only: live storefront pixel state (installed, endpoint, endpointCurrent, healthy, dependentEvents). Null for providers without a pixel. An unhealthy pixel means every dependentEvent is dark and any sequence triggered by one can never fire."
+    ),
     recommendations: arrayOutputProperty(
       "Prioritized problems and suggestions, each with a code, severity (error, warning, info), message, and a concrete action."
     ),
@@ -401,6 +404,40 @@ export const outputPropertiesByToolName: Record<
     changed: booleanOutputProperty(
       "False when the integration was already in the requested state."
     ),
+    message: messageOutputProperty,
+  },
+  get_integration_pixel: {
+    integrationId: stringOutputProperty("The Shopify integration inspected."),
+    provider: stringOutputProperty("Always `shopify`."),
+    shopDomain: stringOutputProperty("Store the pixel was read from."),
+    pixel: objectOutputProperty(
+      "Live pixel state: installed, id, endpoint it posts to, endpointCurrent (false means it reports to a stale endpoint and its events are dropped), healthy, and error when Shopify could not confirm."
+    ),
+    dependentEvents: {
+      type: "array",
+      description:
+        "Event names that cannot arrive while the pixel is not healthy. Sequences triggered by these will never fire.",
+      items: stringOutputProperty("Pixel-dependent event name."),
+    },
+    message: messageOutputProperty,
+  },
+  activate_integration_pixel: {
+    integrationId: stringOutputProperty("The Shopify integration updated."),
+    provider: stringOutputProperty("Always `shopify`."),
+    shopDomain: stringOutputProperty("Store the pixel was installed on."),
+    pixel: objectOutputProperty("Pixel state after activation."),
+    changed: booleanOutputProperty(
+      "False when the pixel was already installed and reporting to this account."
+    ),
+    created: booleanOutputProperty("True when a new pixel was installed."),
+    updated: booleanOutputProperty(
+      "True when an existing pixel was repointed at this account."
+    ),
+    dependentEvents: {
+      type: "array",
+      description: "Event names this pixel enables.",
+      items: stringOutputProperty("Pixel-dependent event name."),
+    },
     message: messageOutputProperty,
   },
   sync_integration: {

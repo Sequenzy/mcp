@@ -15,6 +15,7 @@ export const READ_ONLY_TOOL_NAMES = new Set([
   "list_websites",
   "list_integrations",
   "get_integration",
+  "get_integration_pixel",
   "list_integration_capabilities",
   "list_integration_activity",
   "list_sender_profiles",
@@ -87,6 +88,8 @@ export const MUTATING_TOOL_NAMES = new Set([
   "connect_integration",
   "set_integration_sync_enabled",
   "sync_integration",
+  // Writes a web pixel to the merchant's Shopify store.
+  "activate_integration_pixel",
   "create_api_key",
   "revoke_api_key",
   "delete_api_key",
@@ -215,6 +218,10 @@ export const OPEN_WORLD_TOOL_NAMES = new Set([
   "connect_integration",
   // Reaches the payment provider's API through a background sync job.
   "sync_integration",
+  // Both talk to the Shopify Admin API in the request: the read cannot be
+  // served from our own state, and the write changes the merchant's store.
+  "get_integration_pixel",
+  "activate_integration_pixel",
   "enable_sequence",
   "unarchive_sequence",
   "resume_sequence_enrollments",

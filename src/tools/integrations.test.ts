@@ -26,6 +26,8 @@ const INTEGRATION_TOOL_NAMES = [
   "list_integration_activity",
   "set_integration_sync_enabled",
   "sync_integration",
+  "get_integration_pixel",
+  "activate_integration_pixel",
 ];
 
 describe("integration tool definitions", () => {
@@ -46,6 +48,7 @@ describe("integration tool definitions", () => {
       "get_integration",
       "list_integration_capabilities",
       "list_integration_activity",
+      "get_integration_pixel",
     ]) {
       expect({
         name,
@@ -63,6 +66,21 @@ describe("integration tool definitions", () => {
     expect(byName.get("sync_integration")?.annotations?.openWorldHint).toBe(
       true
     );
+    // Both pixel tools call the Shopify Admin API in-request, so neither can
+    // be answered from our own state.
+    expect(
+      byName.get("get_integration_pixel")?.annotations?.openWorldHint
+    ).toBe(true);
+    expect(
+      byName.get("activate_integration_pixel")?.annotations?.openWorldHint
+    ).toBe(true);
+    expect(
+      byName.get("activate_integration_pixel")?.annotations?.readOnlyHint
+    ).toBe(false);
+    // Installing a pixel only adds tracking; nothing existing is removed.
+    expect(
+      byName.get("activate_integration_pixel")?.annotations?.destructiveHint
+    ).toBe(false);
   });
 
   it("requires the arguments each tool cannot work without", () => {
@@ -184,6 +202,31 @@ describe("integration tool routing", () => {
       "/api/v1/integrations/int_123",
       { syncEnabled: false },
       undefined
+    );
+  });
+
+  it("reads pixel state without writing", async () => {
+    await handleToolCall("get_integration_pixel", { integrationId: "int_123" });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/integrations/int_123/pixel",
+      undefined,
+      undefined
+    );
+  });
+
+  it("activates the pixel with a POST to the same path", async () => {
+    await handleToolCall("activate_integration_pixel", {
+      integrationId: "int_123",
+      companyId: "comp_1",
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/integrations/int_123/pixel",
+      undefined,
+      "comp_1"
     );
   });
 

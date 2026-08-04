@@ -255,6 +255,8 @@ This server currently exposes 186 MCP tools.
 | `list_integration_activity`          | Read the retained integration-specific webhook and sync activity log.                                                         |
 | `set_integration_sync_enabled`       | Enable or disable bulk imports and backfills while leaving live webhooks connected.                                           |
 | `sync_integration`                   | Queue a manual payment-provider customer and revenue backfill.                                                                |
+| `get_integration_pixel`              | Read Shopify's live storefront pixel state and the events that are dark while it is unhealthy.                                |
+| `activate_integration_pixel`         | Install or repoint Shopify's storefront pixel; idempotent when it is already current.                                          |
 | `list_sender_profiles`               | List sender and reply-to profiles, defaults, and sending-domain readiness.                                                    |
 | `update_sender_profile`              | Rename one sender or reply-to profile without changing the account defaults.                                                  |
 | `get_notification_preferences`       | Read the current user's per-company account notification settings and supported modes.                                       |
@@ -265,6 +267,14 @@ For a new sending domain, call `add_sending_domain`, publish the DNS records in
 the returned `website.dnsRecords`, wait for DNS propagation, and then call
 `verify_sending_domain`. If verification is attempted before creation, the
 error points back to `add_sending_domain` with the requested domain.
+
+For Shopify, call `get_integration_pixel` before relying on product views,
+cart activity, or browse-abandonment triggers. The result is read live from
+Shopify because merchants can remove the pixel independently. If
+`pixel.healthy` is false, `dependentEvents` names the triggers that cannot
+arrive; call `activate_integration_pixel` to install or repoint the pixel.
+Activation is idempotent, and events begin on the next storefront visit rather
+than being backfilled.
 
 New companies start with no sync rules. The inherited preset remains available
 for SaaS/ecommerce companies by passing `null` to `update_sync_rules`; services
