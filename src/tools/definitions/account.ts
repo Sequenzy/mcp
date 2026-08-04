@@ -648,7 +648,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "add_sending_domain",
     description:
-      "Add and configure a sending domain. Returns the SPF, DKIM, MAIL FROM, and inbound DNS records to publish before calling verify_sending_domain.",
+      "Add and configure a sending domain. Publish every cohort-specific DNS record returned, including DMARC when present, before calling verify_sending_domain.",
     inputSchema: {
       type: "object",
       properties: {
