@@ -3,6 +3,7 @@ import {
   isRecord,
   normalizeSubscriberTag,
   fetchAllSubscribers,
+  getSubscriberIdentifier,
   requireSubscriberIdentifier,
   getSubscriberDetailPath,
   getSubscriberNotesPath,
@@ -10,6 +11,73 @@ import {
   optionalAllowedString,
   requiredString,
 } from "../internal.js";
+
+function requireStringArray(
+  toolName: string,
+  args: Record<string, unknown>,
+  key: string
+): string[] | undefined {
+  const value = args[key];
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!Array.isArray(value)) {
+    throw new Error(
+      `\`${key}\` must be an array of strings when calling \`${toolName}\`.`
+    );
+  }
+
+  const normalized = value
+    .filter((entry): entry is string => typeof entry === "string")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+
+  if (normalized.length !== value.length) {
+    throw new Error(
+      `\`${key}\` must contain only non-empty strings when calling \`${toolName}\`.`
+    );
+  }
+
+  return normalized;
+}
+
+export function buildBulkSubscriberTagBody(
+  toolName: string,
+  args: Record<string, unknown>
+): Record<string, unknown> {
+  const tags = requireStringArray(toolName, args, "tags");
+  if (tags === undefined || tags.length === 0) {
+    throw new Error(
+      `\`tags\` must contain at least one tag when calling \`${toolName}\`.`
+    );
+  }
+
+  const emails = requireStringArray(toolName, args, "emails");
+  const externalIds = requireStringArray(toolName, args, "externalIds");
+  const subscriberIds = requireStringArray(toolName, args, "subscriberIds");
+
+  if (
+    (emails?.length ?? 0) +
+      (externalIds?.length ?? 0) +
+      (subscriberIds?.length ?? 0) ===
+    0
+  ) {
+    throw new Error(
+      `Provide \`emails\`, \`externalIds\`, or \`subscriberIds\` when calling \`${toolName}\`.`
+    );
+  }
+
+  return {
+    tags,
+    ...(emails?.length ? { emails } : {}),
+    ...(externalIds?.length ? { externalIds } : {}),
+    ...(subscriberIds?.length ? { subscriberIds } : {}),
+    ...(toolName === "bulk_add_subscriber_tags" &&
+    typeof args.triggerAutomations === "boolean"
+      ? { triggerAutomations: args.triggerAutomations }
+      : {}),
+  };
+}
 
 export async function handleSubscriberTools(
   name: string,
@@ -20,7 +88,15 @@ export async function handleSubscriberTools(
   switch (name) {
     case "add_subscriber": {
       const companyId = args.companyId as string | undefined;
-      const identifier = requireSubscriberIdentifier("add_subscriber", args);
+      const phone =
+        typeof args.phone === "string" && args.phone.trim() !== ""
+          ? args.phone.trim()
+          : undefined;
+      // A phone alone is a valid identity: it creates or matches a
+      // phone-only (SMS) contact.
+      const identifier = phone
+        ? getSubscriberIdentifier(args)
+        : requireSubscriberIdentifier("add_subscriber", args);
       const status = optionalAllowedString("add_subscriber", args, "status", [
         "active",
         "unsubscribed",
@@ -37,6 +113,14 @@ export async function handleSubscriberTools(
         "/api/v1/subscribers",
         {
           ...identifier,
+          ...(phone !== undefined && { phone }),
+          ...(typeof args.phoneCountry === "string" &&
+            args.phoneCountry.trim() !== "" && {
+              phoneCountry: args.phoneCountry.trim(),
+            }),
+          ...(typeof args.smsConsent === "boolean" && {
+            smsConsent: args.smsConsent,
+          }),
           ...(args.firstName !== undefined && { firstName: args.firstName }),
           ...(args.lastName !== undefined && { lastName: args.lastName }),
           customAttributes: args.attributes,
@@ -44,6 +128,7 @@ export async function handleSubscriberTools(
           lists: args.listIds,
           ...(status !== undefined && { status }),
           ...(optInMode !== undefined && { optInMode }),
+          ...(args.createdAt !== undefined && { createdAt: args.createdAt }),
         },
         companyId
       );
@@ -76,13 +161,17 @@ export async function handleSubscriberTools(
       }
       for (let index = 0; index < args.subscribers.length; index += 1) {
         const subscriber = args.subscribers[index];
-        if (
-          !isRecord(subscriber) ||
-          typeof subscriber.email !== "string" ||
-          subscriber.email.trim() === ""
-        ) {
+        const hasEmail =
+          isRecord(subscriber) &&
+          typeof subscriber.email === "string" &&
+          subscriber.email.trim() !== "";
+        const hasPhone =
+          isRecord(subscriber) &&
+          typeof subscriber.phone === "string" &&
+          subscriber.phone.trim() !== "";
+        if (!hasEmail && !hasPhone) {
           throw new Error(
-            `Subscriber record ${index} must include a non-empty email string.`
+            `Subscriber record ${index} must include an email or a phone number.`
           );
         }
       }
@@ -195,6 +284,18 @@ export async function handleSubscriberTools(
       if (args.lastName !== undefined) {
         body.lastName = args.lastName;
       }
+      // Phone and phoneCountry are native profile fields. They are forwarded
+      // verbatim (including "" to clear the phone) so the API stays the single
+      // place that validates and normalizes numbers.
+      if (typeof args.phone === "string" || args.phone === null) {
+        body.phone = args.phone;
+      }
+      if (typeof args.phoneCountry === "string") {
+        body.phoneCountry = args.phoneCountry;
+      }
+      if (typeof args.smsConsent === "boolean") {
+        body.smsConsent = args.smsConsent;
+      }
       if (status !== undefined) {
         body.status = status;
       }
@@ -302,6 +403,100 @@ export async function handleSubscriberTools(
         "DELETE",
         `/api/v1/subscribers/notes/${encodeURIComponent(noteId)}`,
         undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "trigger_subscriber_event": {
+      const companyId = args.companyId as string | undefined;
+      const identifier = requireSubscriberIdentifier(
+        "trigger_subscriber_event",
+        args
+      );
+      const event = requiredString("trigger_subscriber_event", args, "event");
+      if (args.properties !== undefined && !isRecord(args.properties)) {
+        throw new Error(
+          "`properties` must be an object when calling `trigger_subscriber_event`."
+        );
+      }
+
+      result = await apiRequest(
+        "POST",
+        "/api/v1/subscribers/events",
+        {
+          ...identifier,
+          event,
+          ...(args.properties !== undefined && { properties: args.properties }),
+          ...(args.firstName !== undefined && { firstName: args.firstName }),
+          ...(args.lastName !== undefined && { lastName: args.lastName }),
+          ...(args.attributes !== undefined && {
+            customAttributes: args.attributes,
+          }),
+          ...(args.occurredAt !== undefined && { occurredAt: args.occurredAt }),
+          ...(args.eventId !== undefined && { eventId: args.eventId }),
+        },
+        companyId
+      );
+      break;
+    }
+
+    case "trigger_subscriber_events": {
+      const companyId = args.companyId as string | undefined;
+      const identifier = requireSubscriberIdentifier(
+        "trigger_subscriber_events",
+        args
+      );
+      if (!Array.isArray(args.events) || args.events.length === 0) {
+        throw new Error(
+          "`events` must be a non-empty array when calling `trigger_subscriber_events`."
+        );
+      }
+      if (args.events.length > 500) {
+        throw new Error(
+          "`trigger_subscriber_events` accepts at most 500 events per call. Split a larger history import into several calls."
+        );
+      }
+      for (let index = 0; index < args.events.length; index += 1) {
+        const event = args.events[index];
+        if (
+          !isRecord(event) ||
+          typeof event.name !== "string" ||
+          event.name.trim() === ""
+        ) {
+          throw new Error(
+            `Event ${index} must include a non-empty \`name\` string.`
+          );
+        }
+      }
+
+      result = await apiRequest(
+        "POST",
+        "/api/v1/subscribers/events/bulk",
+        {
+          ...identifier,
+          events: args.events,
+          ...(args.firstName !== undefined && { firstName: args.firstName }),
+          ...(args.lastName !== undefined && { lastName: args.lastName }),
+          ...(args.attributes !== undefined && {
+            customAttributes: args.attributes,
+          }),
+        },
+        companyId
+      );
+      break;
+    }
+
+    case "bulk_add_subscriber_tags":
+    case "bulk_remove_subscriber_tags": {
+      const companyId = args.companyId as string | undefined;
+      const body = buildBulkSubscriberTagBody(name, args);
+      result = await apiRequest(
+        "POST",
+        `/api/v1/subscribers/bulk/tags/${
+          name === "bulk_add_subscriber_tags" ? "add" : "remove"
+        }`,
+        body,
         companyId
       );
       break;

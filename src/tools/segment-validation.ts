@@ -6,7 +6,7 @@ export const segmentOperatorsByField = {
   phone: ["is_not_empty", "is_empty"],
   smsStatus: ["is", "is_not"],
   tag: ["contains", "not_contains", "is_empty", "is_not_empty"],
-  email: ["contains", "not_contains"],
+  email: ["contains", "not_contains", "is", "is_not"],
   emailProvider: ["is", "is_not", "is_empty", "is_not_empty"],
   added: ["less_than", "more_than"],
   firstName: ["contains", "not_contains", "is_empty", "is_not_empty"],
@@ -44,6 +44,7 @@ export const segmentOperatorsByField = {
   stripeCurrentProduct: ["is", "is_not", "gte", "lte", "gt", "lt"],
   stripeTrialProduct: ["is", "is_not", "gte", "lte", "gt", "lt"],
   commerceProduct: ["is", "is_not", "at_least", "less_than_count"],
+  commerceCollection: ["is", "is_not", "at_least", "less_than_count"],
 } as const satisfies Record<string, readonly string[]>;
 
 export const segmentFilterOperatorHelp = Object.entries(segmentOperatorsByField)
@@ -85,8 +86,9 @@ export const segmentFilterItemSchema = {
         "stripeCurrentProduct",
         "stripeTrialProduct",
         "commerceProduct",
+        "commerceCollection",
       ],
-      description: `Filter field. Use \`phone\` with is_not_empty/is_empty to check whether a subscriber has a phone number, and \`smsStatus\` (is/is_not one of \`subscribed\`, \`unsubscribed\`, \`not_subscribed\`) for SMS marketing consent. Use \`event\` for custom subscriber events, \`segment\` for saved segment membership, \`stripeProduct\`/\`stripeCurrentProduct\`/\`stripeTrialProduct\` for Stripe product-based segments, and \`commerceProduct\` for products purchased through commerce orders - the value is \`provider:productId\` (provider one of \`shopify\`, \`woocommerce\`, \`api\`; product ids are provider-scoped), optionally with an order-count threshold (\`provider:productId:count\`) for at_least/less_than_count; a bare product id matches the id on any provider. Engagement fields (\`emailSent\`, \`emailDelivered\`, \`emailOpened\`, \`emailClicked\`, \`emailBounced\`, \`emailComplained\`) accept a time range as the value, a specific campaign via \`campaign:<campaign_id>\`, or \`count:timeRange\` (e.g. \`10:30d\`, \`10:all\`) with at_least/less_than_count to segment by number of opens/clicks. ${pollRespondentFilterHint}`,
+      description: `Filter field. Use \`email\` with is/is_not for exact, case-insensitive address matching (allowlists and exclusions) and with contains/not_contains for domain or substring matching. Use \`phone\` with is_not_empty/is_empty to check whether a subscriber has a phone number, and \`smsStatus\` (is/is_not one of \`subscribed\`, \`unsubscribed\`, \`not_subscribed\`) for SMS marketing consent. Use \`event\` for custom subscriber events, \`segment\` for saved segment membership, \`stripeProduct\`/\`stripeCurrentProduct\`/\`stripeTrialProduct\` for Stripe product-based segments, and \`commerceProduct\` for products purchased through commerce orders - the value is \`provider:productId\` (provider one of \`shopify\`, \`woocommerce\`, \`api\`; product ids are provider-scoped), optionally with an order-count threshold (\`provider:productId:count\`) for at_least/less_than_count; a bare product id matches the id on any provider. Use \`commerceCollection\` to segment on anyone who bought ANY product in a store collection - the value is the collection id or handle (e.g. \`skincare\`), optionally provider-prefixed and/or with an order-count threshold (\`shopify:skincare:2\`); collection membership is resolved from the synced catalog as it stands now, and only Shopify collections and WooCommerce categories are synced. Engagement fields (\`emailSent\`, \`emailDelivered\`, \`emailOpened\`, \`emailClicked\`, \`emailBounced\`, \`emailComplained\`) accept a time range as the value, a specific campaign via \`campaign:<campaign_id>\`, or \`count:timeRange\` (e.g. \`10:30d\`, \`10:all\`) with at_least/less_than_count to segment by number of opens/clicks. ${pollRespondentFilterHint}`,
     },
     operator: {
       type: "string",
@@ -460,6 +462,49 @@ export function getSegmentCommerceProductValueValidationError(
     : 'Purchased Product threshold filters must use "provider:productId:count" with a count of at least 1.';
 }
 
+/**
+ * Collections use the same "[provider:]key[:count]" shape as products, so the
+ * only difference is the wording of the error.
+ */
+export function getSegmentCommerceCollectionValueValidationError(
+  operator: string,
+  value: string
+): string | null {
+  let remainder = value.trim();
+  const providerColonIndex = remainder.indexOf(":");
+  if (
+    providerColonIndex !== -1 &&
+    COMMERCE_PRODUCT_PROVIDERS.has(
+      remainder.substring(0, providerColonIndex).trim()
+    )
+  ) {
+    remainder = remainder.substring(providerColonIndex + 1).trim();
+  }
+
+  if (!remainder) {
+    return 'Purchased Collection filters must include a collection, like "shopify:summer-sale".';
+  }
+
+  if (operator !== "at_least" && operator !== "less_than_count") {
+    return null;
+  }
+
+  const colonIndex = remainder.lastIndexOf(":");
+  if (colonIndex === -1) {
+    return null;
+  }
+
+  const collectionKey = remainder.substring(0, colonIndex).trim();
+  const threshold = Number.parseInt(
+    remainder.substring(colonIndex + 1).trim(),
+    10
+  );
+
+  return collectionKey && Number.isInteger(threshold) && threshold >= 1
+    ? null
+    : 'Purchased Collection threshold filters must use "provider:collection:count" with a count of at least 1.';
+}
+
 export function getSegmentPollResponseValueValidationError(
   value: string
 ): string | null {
@@ -592,6 +637,14 @@ export function getSegmentFilterValidationError(
     );
     if (commerceValueError) {
       return commerceValueError;
+    }
+  }
+
+  if (field === "commerceCollection" && typeof value === "string") {
+    const collectionValueError =
+      getSegmentCommerceCollectionValueValidationError(operator, value);
+    if (collectionValueError) {
+      return collectionValueError;
     }
   }
 

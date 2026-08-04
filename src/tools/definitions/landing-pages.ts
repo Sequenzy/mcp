@@ -115,6 +115,37 @@ export const landingPageToolDefinitions: Tool[] = [
     },
   },
   {
+    name: "duplicate_landing_page",
+    description:
+      "Duplicate a landing page. The copy is created as a draft with its own slug and stats, so the original keeps its published URL.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        landingPageId: {
+          type: "string",
+          description: "Landing page ID to duplicate.",
+        },
+        name: {
+          type: "string",
+          description:
+            "Optional name for the copy. Defaults to the original name with a (copy) suffix.",
+        },
+        slug: {
+          type: "string",
+          description:
+            "Optional slug for the copy. It will be normalized and made unique within the company.",
+        },
+      },
+      required: ["landingPageId"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "delete_landing_page",
     description: "Delete a landing page",
     inputSchema: {

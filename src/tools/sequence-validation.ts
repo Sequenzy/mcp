@@ -492,9 +492,9 @@ export function buildInsertSequenceStepBody(
       };
     } else if (stepType === "webhook") {
       const method = optionalString(args, "method") ?? "POST";
-      if (method !== "POST" && method !== "GET") {
+      if (!["POST", "GET", "PUT", "PATCH", "DELETE"].includes(method)) {
         throw new Error(
-          "`method` must be `POST` or `GET` when inserting a webhook step."
+          "`method` must be one of POST, GET, PUT, PATCH, or DELETE when inserting a webhook step."
         );
       }
       if (
@@ -508,6 +508,28 @@ export function buildInsertSequenceStepBody(
           "`headers` must be an object with string values when inserting a webhook step."
         );
       }
+      const onError = optionalString(args, "onError");
+      if (onError && !["continue", "exit", "fail"].includes(onError)) {
+        throw new Error(
+          "`onError` must be `continue`, `exit`, or `fail` when inserting a webhook step."
+        );
+      }
+      // optionalString drops anything that is not a string, so a caller that
+      // passes an object for `body` (or a number for `resultKey`) would
+      // otherwise get a step created without it and no error. The API rejects
+      // a provided-but-invalid webhook field loudly; match that here.
+      if (args.body !== undefined && typeof args.body !== "string") {
+        throw new Error(
+          "`body` must be a JSON string when inserting a webhook step."
+        );
+      }
+      if (args.resultKey !== undefined && typeof args.resultKey !== "string") {
+        throw new Error(
+          "`resultKey` must be a string when inserting a webhook step."
+        );
+      }
+      const body = optionalString(args, "body");
+      const resultKey = optionalString(args, "resultKey");
       step = {
         type: "webhook",
         nodeType: "action_webhook",
@@ -516,6 +538,9 @@ export function buildInsertSequenceStepBody(
           url: requiredString("insert_sequence_step", args, "url"),
           method,
           ...(args.headers !== undefined ? { headers: args.headers } : {}),
+          ...(body ? { body } : {}),
+          ...(resultKey ? { resultKey } : {}),
+          ...(onError ? { onError } : {}),
         },
       };
     } else if (stepType === "condition") {
@@ -739,41 +764,60 @@ export function buildInsertSequenceStepBody(
   };
 }
 
+function normalizeCancelStringArray(
+  args: Record<string, unknown>,
+  key: "fieldValues" | "subscriberIds"
+): string[] {
+  const raw = args[key];
+  if (raw === undefined) {
+    return [];
+  }
+
+  if (!Array.isArray(raw)) {
+    throw new Error(
+      `\`${key}\` must be an array when calling \`cancel_sequence_enrollments\`.`
+    );
+  }
+
+  const normalized = raw
+    .map((value) => (typeof value === "string" ? value.trim() : ""))
+    .filter((value) => value.length > 0);
+
+  if (
+    raw.some((value) => typeof value !== "string") ||
+    normalized.length === 0
+  ) {
+    throw new Error(
+      `\`${key}\` must contain at least one non-empty string when calling \`cancel_sequence_enrollments\`.`
+    );
+  }
+
+  return normalized;
+}
+
 export function buildCancelSequenceEnrollmentBody(
   args: Record<string, unknown>
 ): Record<string, unknown> {
   const subscriberId = optionalString(args, "subscriberId");
-  const fieldValuesValue = args.fieldValues;
-  const fieldValues =
-    fieldValuesValue === undefined
-      ? undefined
-      : Array.isArray(fieldValuesValue)
-        ? fieldValuesValue
-        : undefined;
+  const subscriberIds = normalizeCancelStringArray(args, "subscriberIds");
+  const fieldValues = normalizeCancelStringArray(args, "fieldValues");
 
-  if (fieldValuesValue !== undefined && fieldValues === undefined) {
+  if (args.cancelAll !== undefined && typeof args.cancelAll !== "boolean") {
     throw new Error(
-      "`fieldValues` must be an array when calling `cancel_sequence_enrollments`."
+      "`cancelAll` must be a boolean when calling `cancel_sequence_enrollments`."
     );
   }
+  const cancelAll = args.cancelAll === true;
 
-  const normalizedFieldValues =
-    fieldValues
-      ?.map((value) => (typeof value === "string" ? value.trim() : ""))
-      .filter((value) => value.length > 0) ?? [];
+  const targetCount =
+    (subscriberId !== undefined ? 1 : 0) +
+    (subscriberIds.length > 0 ? 1 : 0) +
+    (fieldValues.length > 0 ? 1 : 0) +
+    (cancelAll ? 1 : 0);
 
-  if (
-    fieldValues?.some((value) => typeof value !== "string") ||
-    (fieldValues !== undefined && normalizedFieldValues.length === 0)
-  ) {
+  if (targetCount !== 1) {
     throw new Error(
-      "`fieldValues` must contain at least one non-empty string when calling `cancel_sequence_enrollments`."
-    );
-  }
-
-  if ((subscriberId !== undefined) === normalizedFieldValues.length > 0) {
-    throw new Error(
-      "Provide exactly one target when calling `cancel_sequence_enrollments`: `subscriberId` or `fieldValues`."
+      "Provide exactly one target when calling `cancel_sequence_enrollments`: `cancelAll`, `subscriberId`, `subscriberIds`, or `fieldValues`."
     );
   }
 
@@ -781,11 +825,11 @@ export function buildCancelSequenceEnrollmentBody(
   const reason = optionalString(args, "reason");
 
   return {
+    ...(cancelAll && { cancelAll: true }),
     ...(subscriberId !== undefined && { subscriberId }),
+    ...(subscriberIds.length > 0 && { subscriberIds }),
     ...(fieldPath !== undefined && { fieldPath }),
-    ...(normalizedFieldValues.length > 0 && {
-      fieldValues: normalizedFieldValues,
-    }),
+    ...(fieldValues.length > 0 && { fieldValues }),
     ...(typeof args.dryRun === "boolean" && { dryRun: args.dryRun }),
     ...(reason !== undefined && { reason }),
   };

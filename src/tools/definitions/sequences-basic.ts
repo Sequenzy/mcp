@@ -1,6 +1,7 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 
 import {
+  discountMergeTagsHint,
   rawHtmlContentWarning,
   sequenceEmailBlocksDescription,
   sequenceSendingWindowSchema,
@@ -16,7 +17,8 @@ export const sequenceBasicToolDefinitions: Tool[] = [
   // ============================================================================
   {
     name: "list_sequences",
-    description: "List all email sequences (automations)",
+    description:
+      "List all email sequences (automations). Read effectiveStatus (draft, live, enrollment_paused, paused, archived) to know whether a sequence is running: status alone reads `active` even when new enrollments are paused, and the legacy triggerConfig.active flag is not used by the runtime.",
     inputSchema: {
       type: "object",
       properties: {
@@ -56,7 +58,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
   {
     name: "get_sequence",
     description:
-      "Get sequence details, editable step content, and graph topology. Each sequence.nodes item includes id, nodeType, current config, updatedAt, and updateHints with its editable/managed fields and ready-to-return expectedUpdatedAt token for update_sequence_node/update_sequence_nodes. The response also includes sequence.edges and graphRevision for safe edit_sequence_graph calls, plus sequence.emails with each email step's nodeId, linked emailId, subject, previewText, emailPreset (the per-email Style > Format for native blocks, including emails with supported custom HTML blocks; null when the entire email is standalone raw HTML), and blocks.",
+      "Get sequence details, editable step content, and graph topology. Read effectiveStatus (draft, live, enrollment_paused, paused, archived) to know whether a sequence is running: status alone reads `active` even when new enrollments are paused, and the legacy triggerConfig.active flag is not used by the runtime. Each sequence.nodes item includes id, nodeType, current config, updatedAt, and updateHints with its editable/managed fields and ready-to-return expectedUpdatedAt token for update_sequence_node/update_sequence_nodes. The response also includes sequence.edges and graphRevision for safe edit_sequence_graph calls, plus sequence.emails with each email step's nodeId, linked emailId, subject, previewText, emailPreset (the per-email Style > Format for native blocks, including emails with supported custom HTML blocks; null when the entire email is standalone raw HTML), and blocks.",
     inputSchema: {
       type: "object",
       properties: {
@@ -68,6 +70,74 @@ export const sequenceBasicToolDefinitions: Tool[] = [
         sequenceId: {
           type: "string",
           description: "Sequence ID",
+        },
+      },
+      required: ["sequenceId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "list_sequence_enrollments",
+    description:
+      "List the individual contacts currently enrolled in a sequence, with the node each one is sitting on. Use this when get_sequence_stats gives you enrollmentCounts and you need the actual subscribers behind a number, such as everyone waiting at one step. Filter by currentNodeId (take the ID from get_sequence_stats enrollmentCounts.byCurrentNode or get_sequence nodes), status, subscriberId, or email, and page with limit/offset to export the full list.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        sequenceId: {
+          type: "string",
+          description: "Sequence ID whose enrollments should be listed.",
+        },
+        currentNodeId: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Only return enrollments currently sitting on these sequence node IDs.",
+        },
+        status: {
+          type: "array",
+          items: {
+            type: "string",
+            enum: ["active", "waiting", "completed", "failed", "cancelled"],
+          },
+          description:
+            "Enrollment statuses to include. Defaults to active and waiting, which is every contact still moving through the sequence.",
+        },
+        subscriberId: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Only return enrollments for these subscriber IDs. Useful for checking where specific contacts stand.",
+        },
+        email: {
+          type: "string",
+          description:
+            "Only return enrollments for this exact email address (case-insensitive).",
+        },
+        sort: {
+          type: "string",
+          enum: [
+            "enrolled_at_desc",
+            "enrolled_at_asc",
+            "wait_until_asc",
+            "wait_until_desc",
+          ],
+          description:
+            "Result order. Defaults to enrolled_at_desc (most recently enrolled first). Use wait_until_asc to see who resumes next.",
+        },
+        limit: {
+          type: "number",
+          description:
+            "Enrollments per page, 1-500. Defaults to 50. Use the maximum when exporting.",
+        },
+        offset: {
+          type: "number",
+          description:
+            "Number of enrollments to skip. Page until pagination.hasMore is false.",
         },
       },
       required: ["sequenceId"],
@@ -111,7 +181,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
   {
     name: "create_sequence",
     description:
-      "Create and persist a disabled draft email sequence, follow-up series, drip campaign, nurture flow, or automation workflow. For natural-language content, provide goal and emailCount. Use explicit steps for finished caller-supplied content, exact workflows, or migrations. Configure trigger plus its relevant field, such as listId, tagName, segmentId, or eventName. Supports email and SMS steps, delays and date waits, actions that dynamically create a provider discount/code, subscriber updates, event filters, enrollment rules, sending windows, and stop conditions. The saved draft appears in list_sequences. Never call enable_sequence unless the user explicitly asks to activate it.",
+      "Create and persist a disabled draft email sequence, follow-up series, drip campaign, nurture flow, or automation workflow. For natural-language content, provide goal and emailCount. Use explicit steps for finished caller-supplied content, exact workflows, or migrations. Configure trigger plus its relevant field, such as listId, tagName, segmentId, or eventName. Supports email and SMS steps, delays and date waits, actions that dynamically create a provider discount/code (later emails print it with {{discount.code}}), subscriber updates, event filters, enrollment rules, sending windows, and stop conditions. The saved draft appears in list_sequences. Never call enable_sequence unless the user explicitly asks to activate it.",
     inputSchema: {
       type: "object",
       properties: {
@@ -128,12 +198,12 @@ export const sequenceBasicToolDefinitions: Tool[] = [
         fromName: {
           type: "string",
           description:
-            "Display name for a newly created sender profile. Requires fromEmail.",
+            "Display name for a newly created sender profile. Requires fromEmail; omit it when using senderProfileId, which already carries its own display name.",
         },
         senderProfileId: {
           type: "string",
           description:
-            "Existing sender profile ID. Mutually exclusive with fromEmail.",
+            "Existing sender profile ID (see list_sender_profiles). It already supplies both the From address and display name, so send it on its own and omit fromEmail and fromName.",
         },
         replyTo: {
           type: "string",
@@ -143,12 +213,12 @@ export const sequenceBasicToolDefinitions: Tool[] = [
         replyToName: {
           type: "string",
           description:
-            "Display name for a newly created reply profile. Requires replyTo.",
+            "Display name for a newly created reply profile. Requires replyTo; omit it when using replyProfileId, which already carries its own display name.",
         },
         replyProfileId: {
           type: "string",
           description:
-            "Existing reply profile ID. Mutually exclusive with replyTo.",
+            "Existing reply profile ID (see list_sender_profiles). It already supplies both the Reply-To address and display name, so send it on its own and omit replyTo and replyToName.",
         },
         name: {
           type: "string",
@@ -345,7 +415,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
           type: "string",
           enum: ["unlimited", "one_time", "matching_field"],
           description:
-            "Sequence re-entry mode. Use 'matching_field' only for event_received triggers when duplicate active runs should be blocked per event field value.",
+            "Sequence re-entry mode. Defaults to 'unlimited', which re-enrolls a subscriber every time the trigger fires again - for a tag_added drip that means re-applying the tag sends the whole series a second time, so set 'one_time' unless repeat runs are wanted. Exception: ecommerce.back_in_stock and ecommerce.replenishment_due triggers default to 'matching_field' so each product is notified separately; leave those alone unless the user asks otherwise. Use 'matching_field' only for event_received triggers when duplicate active runs should be blocked per event field value. Changeable later with update_sequence.",
         },
         enrollmentFieldPath: {
           type: "string",
@@ -356,7 +426,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
         stopCondition: {
           type: "object",
           description:
-            "Optional explicit auto-stop condition. Use { type: 'has_tag', value: 'customer' } to end the sequence when a subscriber gets a tag, { type: 'does_not_have_tag', value: 'trial' } when a tag is removed, { type: 'entered_segment', value: 'segment_123' } when they enter a segment, { type: 'field_changed', value: 'plan' } when a subscriber field changes, { type: 'removed_from_list', value: 'list_123' } when they leave a list, { type: 'event_received', value: 'onboarding.completed' } when an event is tracked, or { type: 'none', value: null } for no auto-stop.",
+            "Optional explicit auto-stop condition, re-evaluated before every step including the first one. Use { type: 'has_tag', value: 'customer' } to end the sequence when a subscriber gets a tag, { type: 'entered_segment', value: 'segment_123' } when they enter a segment, { type: 'added_to_list', value: 'list_123' } when they join a list, { type: 'field_changed', value: 'plan' } when a subscriber field changes, { type: 'event_received', value: 'onboarding.completed' } when an event is tracked, or { type: 'none', value: null } for no auto-stop. The negative forms are audience guards rather than lifecycle stops: { type: 'does_not_have_tag', value: 'allowlist' } and { type: 'removed_from_list', value: 'list_123' } cancel the run before any step sends unless the subscriber carries that tag or list membership. That is how you restrict a live event or segment trigger to a chosen set of contacts without editing the graph, for example for a first pass on a production trigger or a phased rollout. Guarded-out contacts still enroll and are then cancelled at the trigger node, so they appear as cancellations there rather than in the active or waiting enrollment counts. Clearing the guard does not retry them: nothing re-enrolls them, so they only receive the sequence if the trigger fires for them again, which one-shot triggers never do, and on the one_time enrollment mode a repeated trigger is ignored too because enrollment is blocked by the existence of any earlier run rather than by its outcome. Guard a duplicate sequence and leave the real one ungated, or enroll the missed contacts afterwards with enroll_subscribers_in_sequence, which skips the one_time check.",
           properties: {
             type: {
               type: "string",
@@ -370,12 +440,13 @@ export const sequenceBasicToolDefinitions: Tool[] = [
                 "field_changed",
                 "event_received",
               ],
-              description: "Stop condition type.",
+              description:
+                "Stop condition type. has_tag, added_to_list, entered_segment, field_changed, and event_received stop the run once the thing happens. does_not_have_tag and removed_from_list stop the run whenever the subscriber lacks that tag or list membership, so they act as a required-tag or required-list allowlist for everyone the trigger enrolls.",
             },
             value: {
               type: ["string", "null"],
               description:
-                "Tag name, list ID, segment ID, field path, or event name for the stop condition. Use null or omit for type 'none'.",
+                "Tag name, list ID, segment ID, field path, or event name for the stop condition. For the does_not_have_tag and removed_from_list guards this is the tag or list a subscriber must have to keep receiving the sequence. Use null or omit for type 'none'.",
             },
             matchConfig: {
               type: ["object", "null"],
@@ -502,8 +573,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
               },
               discount: {
                 type: "object",
-                description:
-                  "Discount configuration for create_discount steps. Prefer this nested shape for new integrations; legacy top-level discount fields are still accepted.",
+                description: `Discount configuration for create_discount steps. Prefer this nested shape for new integrations; legacy top-level discount fields are still accepted.${discountMergeTagsHint}`,
                 properties: {
                   label: {
                     type: "string",

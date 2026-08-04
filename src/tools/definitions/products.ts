@@ -7,7 +7,7 @@ export const productToolDefinitions: Tool[] = [
   {
     name: "list_products",
     description:
-      "List synced products (Stripe, Shopify, WooCommerce) including any attached digital delivery file. Useful before attaching a file or building a purchase sequence for a specific product.",
+      "List synced products (Stripe, Shopify, WooCommerce) including any attached digital delivery file. Useful before attaching a file or building a purchase sequence for a specific product. Returns one page: check pagination.total and pagination.hasMore, and page with offset to read the whole catalog.",
     inputSchema: {
       type: "object",
       properties: {
@@ -24,6 +24,16 @@ export const productToolDefinitions: Tool[] = [
         search: {
           type: "string",
           description: "Filter products by title.",
+        },
+        limit: {
+          type: "number",
+          description:
+            "Maximum products to return (1-100). Defaults to 50. Compare pagination.total against the products returned to detect truncation.",
+        },
+        offset: {
+          type: "number",
+          description:
+            "Number of products to skip. Defaults to 0. Use with limit to page through catalogs larger than 100.",
         },
       },
     },
@@ -168,7 +178,7 @@ export const productToolDefinitions: Tool[] = [
   {
     name: "sync_products",
     description:
-      "Queue a sync of the Stripe product catalog into the products list. Requires an active Stripe integration.",
+      "Queue a sync of the Stripe product catalog into the products list. Requires an active Stripe integration with bulk sync enabled. Pass integrationId when more than one Stripe account is connected; otherwise the most recently connected enabled account is used.",
     inputSchema: {
       type: "object",
       properties: {
@@ -176,6 +186,11 @@ export const productToolDefinitions: Tool[] = [
           type: "string",
           description:
             "Company ID. If not provided, uses the currently selected company.",
+        },
+        integrationId: {
+          type: "string",
+          description:
+            "Stripe integration ID from list_integrations. Recommended when multiple Stripe accounts are connected.",
         },
       },
     },

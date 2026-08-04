@@ -9,7 +9,7 @@ export const templateToolDefinitions: Tool[] = [
   {
     name: "list_templates",
     description:
-      "List all email templates, including per-locale localization sync status",
+      "List the company's 50 most recently created email bodies, including per-locale localization sync status. Results include standalone templates plus recent bodies behind campaigns and transactional emails. To retrieve a specific campaign body even when it is not among these 50 results, pass the campaign's emailId to get_template. Bodies are kept when their campaign or transactional email is deleted.",
     inputSchema: {
       type: "object",
       properties: {

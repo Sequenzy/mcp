@@ -8,7 +8,8 @@ export const campaignToolDefinitions: Tool[] = [
   // ============================================================================
   {
     name: "list_campaigns",
-    description: "List all campaigns",
+    description:
+      "List campaigns. Results are paginated: the default page size is 50 and limit is capped at 100. Always read the returned `pagination` object (`limit`, `offset`, `count`, `total`, `hasMore`) and keep paging with `offset` while `hasMore` is true - a single call does not necessarily return every campaign.",
     inputSchema: {
       type: "object",
       properties: {
@@ -27,13 +28,41 @@ export const campaignToolDefinitions: Tool[] = [
           description:
             "Optional label name filter. Only campaigns assigned this label are returned.",
         },
+        limit: {
+          type: "number",
+          description: "Page size from 1 to 100. Defaults to 50.",
+        },
+        offset: {
+          type: "number",
+          description: "Zero-based result offset. Defaults to 0.",
+        },
       },
     },
   },
   {
     name: "get_campaign",
     description:
-      "Get campaign details and stats, including rejectionComment reviewer feedback for rejected campaigns",
+      "Get campaign details and stats, including rejectionComment reviewer feedback for rejected campaigns. `emailId` is the campaign's linked email body - the same record returned by the templates tools - and can be passed as templateId to create_campaign to reuse the design; it is null for SMS campaigns. `targetLists` holds the raw audience targeting (IDs only); call get_campaign_audience for resolved list/segment names and a recipient count. Note that `computedLists` is email personalization (product lists rendered inside the email), not audience targeting.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        campaignId: {
+          type: "string",
+          description: "Campaign ID",
+        },
+      },
+      required: ["campaignId"],
+    },
+  },
+  {
+    name: "get_campaign_audience",
+    description:
+      "Resolve exactly who a campaign will reach. Returns the targeting kind, resolved list and segment names (flagging references that no longer exist), filter conditions, individual include/exclude adjustments, a plain-language summary, and a live recipient count. Critically, it reports whether targeting is unset - an unset campaign falls back to every active subscriber when scheduled. Use this to verify a scheduled campaign's audience before it sends.",
     inputSchema: {
       type: "object",
       properties: {
@@ -53,7 +82,7 @@ export const campaignToolDefinitions: Tool[] = [
   {
     name: "list_email_sends",
     description:
-      "List and filter the recent sent-email delivery history shown in the dashboard. Search subject/title or recipient, filter by delivery status, email type, bounce type, or source ID, then pass a returned emailSendId to get_email_send for exact open/click timestamps and the complete event timeline. Delivery rows are retained for 14 days.",
+      "List and filter the recent sent-email delivery history shown in the dashboard. Search subject/title or recipient, filter by delivery status, email type, bounce type, or source ID, then pass a returned emailSendId to get_email_send for exact open/click timestamps and the complete event timeline. Each row carries recipientEmail, subscriberId, automationNodeId, abTestVariantId, and sent/delivered/opened/clicked timestamps, so rows join into a recipient-level delivery matrix without re-reading the raw event stream. Delivery rows are retained for 14 days.",
     inputSchema: {
       type: "object",
       properties: {
@@ -217,7 +246,14 @@ export const campaignToolDefinitions: Tool[] = [
         },
         segmentId: {
           type: "string",
-          description: "Target segment ID",
+          description:
+            "Shorthand for targeting one saved segment. Equivalent to targetLists {type:'segment', segmentId}. Mutually exclusive with `targetLists`.",
+        },
+        targetLists: {
+          type: "object",
+          description:
+            "Campaign audience, saved on the draft. Omit to leave targeting unset and set it later with `update_campaign` or `schedule_campaign`. Examples: {type:'all'}, {type:'lists', listIds:['list_123']}, {type:'segment', segmentId:'seg_123'}, {type:'filtered', filters:[...], filterJoinOperator:'and'}, or {type:'rules', include:[{type:'lists', listIds:['list_123']}], exclude:[{type:'segments', segmentIds:['seg_123']}]}. Use this to send straight to a list without creating a segment first. Mutually exclusive with `segmentId`.",
+          additionalProperties: true,
         },
         fromEmail: {
           type: "string",
@@ -227,12 +263,12 @@ export const campaignToolDefinitions: Tool[] = [
         fromName: {
           type: "string",
           description:
-            "Display name for a newly created sender profile. Requires fromEmail.",
+            "Display name for a newly created sender profile. Requires fromEmail; omit it when using senderProfileId, which already carries its own display name.",
         },
         senderProfileId: {
           type: "string",
           description:
-            "Existing sender profile ID. Mutually exclusive with fromEmail.",
+            "Existing sender profile ID (see list_sender_profiles). It already supplies both the From address and display name, so send it on its own and omit fromEmail and fromName.",
         },
         replyTo: {
           type: "string",
@@ -242,12 +278,12 @@ export const campaignToolDefinitions: Tool[] = [
         replyToName: {
           type: "string",
           description:
-            "Display name for a newly created reply profile. Requires replyTo.",
+            "Display name for a newly created reply profile. Requires replyTo; omit it when using replyProfileId, which already carries its own display name.",
         },
         replyProfileId: {
           type: "string",
           description:
-            "Existing reply profile ID. Mutually exclusive with replyTo.",
+            "Existing reply profile ID (see list_sender_profiles). It already supplies both the Reply-To address and display name, so send it on its own and omit replyTo and replyToName.",
         },
         campaignData: {
           type: "object",
@@ -321,12 +357,12 @@ export const campaignToolDefinitions: Tool[] = [
         replyProfileId: {
           type: "string",
           description:
-            "Set reply-to using a reply profile ID for this company.",
+            "Set reply-to using a reply profile ID for this company (see list_sender_profiles). It already supplies both the Reply-To address and display name, so send it on its own and omit replyTo and replyToName.",
         },
         replyToName: {
           type: "string",
           description:
-            "Display name for a newly created reply profile. Requires replyTo.",
+            "Display name for a newly created reply profile. Requires replyTo; omit it when using replyProfileId, which already carries its own display name.",
         },
         fromEmail: {
           type: "string",
@@ -336,12 +372,12 @@ export const campaignToolDefinitions: Tool[] = [
         fromName: {
           type: "string",
           description:
-            "Display name for a newly created sender profile. Requires fromEmail.",
+            "Display name for a newly created sender profile. Requires fromEmail; omit it when using senderProfileId, which already carries its own display name.",
         },
         senderProfileId: {
           type: "string",
           description:
-            "Set an existing sender profile. Mutually exclusive with fromEmail.",
+            "Set an existing sender profile (see list_sender_profiles). It already supplies both the From address and display name, so send it on its own and omit fromEmail and fromName.",
         },
         ccEmails: {
           type: ["array", "null"],
@@ -369,6 +405,17 @@ export const campaignToolDefinitions: Tool[] = [
           items: {
             type: "object",
           },
+        },
+        targetLists: {
+          type: ["object", "null"],
+          description:
+            "Replace the draft's saved audience, using the same shapes as `create_campaign`. Send null to clear it and choose the audience in `schedule_campaign` instead; omit to leave it unchanged. Mutually exclusive with `segmentId`.",
+          additionalProperties: true,
+        },
+        segmentId: {
+          type: "string",
+          description:
+            "Shorthand for retargeting the draft at one saved segment. Equivalent to targetLists {type:'segment', segmentId}. Mutually exclusive with `targetLists`.",
         },
         labels: {
           type: "array",

@@ -48,6 +48,7 @@ export async function handleSavedFormTools(
         "redirectUrl",
         "showFirstName",
         "showLastName",
+        "theme",
       ]) {
         if (args[key] !== undefined) {
           body[key] = args[key];
@@ -58,6 +59,51 @@ export async function handleSavedFormTools(
       }
 
       result = await apiRequest("POST", "/api/v1/forms", body, companyId);
+      break;
+    }
+
+    case "update_form": {
+      const companyId = args.companyId as string | undefined;
+      const formId = requiredString("update_form", args, "formId");
+      const duplicateStrategy = optionalAllowedString(
+        "update_form",
+        args,
+        "duplicateStrategy",
+        ["skip", "merge", "overwrite"]
+      );
+      const body: Record<string, unknown> = {};
+
+      for (const key of [
+        "name",
+        "listIds",
+        "tagIds",
+        "buttonText",
+        "headline",
+        "description",
+        "successMessage",
+        "redirectUrl",
+        "theme",
+        "blocks",
+      ]) {
+        if (args[key] !== undefined) {
+          body[key] = args[key];
+        }
+      }
+      if (duplicateStrategy !== undefined) {
+        body["duplicateStrategy"] = duplicateStrategy;
+      }
+      if (Object.keys(body).length === 0) {
+        throw new Error(
+          "Provide at least one field to change when calling `update_form`."
+        );
+      }
+
+      result = await apiRequest(
+        "PATCH",
+        `/api/v1/forms/${encodeURIComponent(formId)}`,
+        body,
+        companyId
+      );
       break;
     }
 
