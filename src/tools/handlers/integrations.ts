@@ -15,6 +15,36 @@ export async function handleIntegrationTools(
   let result: unknown;
 
   switch (name) {
+    case "connect_integration": {
+      const provider = requiredString("connect_integration", args, "provider");
+      const webhookSecret = requiredString(
+        "connect_integration",
+        args,
+        "webhookSecret"
+      );
+      result = await apiRequest(
+        "POST",
+        "/api/v1/integrations/connect",
+        {
+          provider,
+          webhookSecret,
+          ...(typeof args.apiKey === "string" && args.apiKey
+            ? { apiKey: args.apiKey }
+            : {}),
+          ...(typeof args.providerAccountId === "string" &&
+          args.providerAccountId
+            ? { providerAccountId: args.providerAccountId }
+            : {}),
+          ...(args.settings !== undefined ? { settings: args.settings } : {}),
+          ...(args.historyImport !== undefined
+            ? { historyImport: args.historyImport }
+            : {}),
+        },
+        companyId
+      );
+      break;
+    }
+
     case "get_integration": {
       const integrationId = requiredString(
         "get_integration",

@@ -71,7 +71,12 @@ export const subscriberToolDefinitions: Tool[] = [
         phone: {
           type: "string",
           description:
-            "Phone number in E.164 or US national format. With no email, creates or matches a phone-only (SMS) contact.",
+            "Phone number in E.164 or national format, stored as a native profile field. With no email, creates or matches a phone-only (SMS) contact.",
+        },
+        phoneCountry: {
+          type: "string",
+          description:
+            "ISO 3166-1 alpha-2 country used to read a national-format phone number, such as IT or US. Defaults to US. Only send it together with phone; the stored country always comes from the parsed number.",
         },
         smsConsent: {
           type: "boolean",
@@ -209,7 +214,7 @@ export const subscriberToolDefinitions: Tool[] = [
   {
     name: "update_subscriber",
     description:
-      "Update an existing subscriber's profile, status, attributes, or tags. Setting status to unsubscribed suppresses the contact from all marketing, deactivates list memberships, and cancels active sequence enrollments while preserving the record and suppression history.",
+      "Update an existing subscriber's profile, phone, status, attributes, or tags. Names and phones are native profile fields - set them here rather than as custom attributes. Setting status to unsubscribed suppresses the contact from all marketing, deactivates list memberships, and cancels active sequence enrollments while preserving the record and suppression history.",
     inputSchema: {
       type: "object",
       properties: {
@@ -237,6 +242,21 @@ export const subscriberToolDefinitions: Tool[] = [
           type: "string",
           description:
             "New last name, stored as a native profile field. Pass an empty string to clear it.",
+        },
+        phone: {
+          type: "string",
+          description:
+            "New phone number in E.164 or national format, stored as a native profile field. Pass an empty string to clear it, which is rejected for a phone-only (SMS) contact that has no email. Changing the number resets SMS consent unless smsConsent is sent in the same call.",
+        },
+        phoneCountry: {
+          type: "string",
+          description:
+            "ISO 3166-1 alpha-2 country used to read a national-format phone number, such as IT or US. Defaults to US. Only send it together with phone; the stored country always comes from the parsed number.",
+        },
+        smsConsent: {
+          type: "boolean",
+          description:
+            "Set true only when express written SMS marketing consent was verified for this phone number; false unsubscribes them from SMS. Omitting this leaves consent unchanged unless phone changes, which resets consent because it belonged to the old number. Consent is never inferred from phone presence.",
         },
         status: {
           type: "string",
@@ -445,7 +465,7 @@ export const subscriberToolDefinitions: Tool[] = [
         occurredAt: {
           type: "string",
           description:
-            "When the event actually happened (ISO 8601). Omit for live events. If this is more than an hour in the past the event is recorded as history: it is stored with its real timestamp and counts for segments and the timeline, but no sequences enroll, no sync rules apply, no waiting steps resume, and no webhooks fire. Use this when backfilling from another platform - never to fake a live event, since the side effects you are testing will not run.",
+            "When the event actually happened (ISO 8601). Omit for live events. If this is more than an hour in the past the event is recorded as history: it is stored with its real timestamp and counts for segments and the timeline, but no sequences enroll, no sync rules apply, no waiting steps resume, and no webhooks fire. A historical event also moves the contact's signup date back to when it occurred (never later), so imported contacts do not read as added today. Use this when backfilling from another platform - never to fake a live event, since the side effects you are testing will not run.",
         },
         eventId: {
           type: "string",
@@ -494,7 +514,7 @@ export const subscriberToolDefinitions: Tool[] = [
               occurredAt: {
                 type: "string",
                 description:
-                  "When the event actually happened (ISO 8601). When every event in the batch is more than an hour old the batch is imported as history in one idempotent write, with no sequences, sync rules, waiting steps or webhooks.",
+                  "When the event actually happened (ISO 8601). When every event in the batch is more than an hour old the batch is imported as history in one idempotent write, with no sequences, sync rules, waiting steps or webhooks; the contact's signup date also moves back to the earliest event in the batch (never later).",
               },
               eventId: {
                 type: "string",

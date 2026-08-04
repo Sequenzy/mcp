@@ -20,6 +20,7 @@ await mock.module("../runtime.js", () => ({
 const { handleToolCall, tools } = await import("./index.js");
 
 const INTEGRATION_TOOL_NAMES = [
+  "connect_integration",
   "get_integration",
   "list_integration_capabilities",
   "list_integration_activity",
@@ -75,6 +76,12 @@ describe("integration tool definitions", () => {
     ).toEqual(["integrationId", "syncEnabled"]);
     expect(byName.get("sync_integration")?.inputSchema.required).toEqual([
       "integrationId",
+    ]);
+    // Every connectable provider needs a webhook secret; everything else is
+    // provider-specific and validated server-side.
+    expect(byName.get("connect_integration")?.inputSchema.required).toEqual([
+      "provider",
+      "webhookSecret",
     ]);
     // The catalog must be callable with no arguments - it is the discovery
     // tool used before anything is connected.
@@ -189,6 +196,53 @@ describe("integration tool routing", () => {
     expect(result.content[0]?.text).toContain(
       "`syncEnabled` must be a boolean when calling `set_integration_sync_enabled`."
     );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("posts a connect with only the provided fields", async () => {
+    await handleToolCall("connect_integration", {
+      provider: "paddle",
+      apiKey: "pdl_key",
+      webhookSecret: "pdl_whsec",
+      providerAccountId: "seller-1",
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/integrations/connect",
+      {
+        provider: "paddle",
+        webhookSecret: "pdl_whsec",
+        apiKey: "pdl_key",
+        providerAccountId: "seller-1",
+      },
+      undefined
+    );
+  });
+
+  it("passes the PostHog history import through on connect", async () => {
+    await handleToolCall("connect_integration", {
+      provider: "posthog",
+      webhookSecret: "ph_whsec",
+      historyImport: { region: "us", projectId: "123", personalApiKey: "phx" },
+    });
+
+    const body = mockApiRequest.mock.calls[0]?.[2] as {
+      historyImport?: unknown;
+    };
+    expect(body.historyImport).toEqual({
+      region: "us",
+      projectId: "123",
+      personalApiKey: "phx",
+    });
+  });
+
+  it("rejects a connect without a webhook secret before calling the API", async () => {
+    const result = await handleToolCall("connect_integration", {
+      provider: "clerk",
+    });
+
+    expect(result.isError).toBe(true);
     expect(mockApiRequest).not.toHaveBeenCalled();
   });
 

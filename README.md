@@ -291,7 +291,7 @@ abandonment or price-drop settings. Timing values must be positive;
 | `add_subscriber`           | Add one subscriber; status is creation-only, so use `update_subscriber` for an existing contact.                |
 | `create_subscriber_import` | Queue up to 5,000 full CRM records with names, IDs, phones, statuses, tags, lists, and typed custom attributes. |
 | `get_subscriber_import`    | Read progress, row outcome counts, and failure summaries for a queued import.                                   |
-| `update_subscriber`        | Update profile fields, attributes, tags, or global status; `unsubscribed` safely suppresses marketing.          |
+| `update_subscriber`        | Update native profile and phone fields, SMS consent, attributes, tags, or global status.                         |
 | `remove_subscriber`        | Unsubscribe while preserving suppression history, or permanently delete only with `hardDelete: true`.           |
 | `get_subscriber`           | Fetch subscriber details by email or external ID.                                                               |
 | `search_subscribers`       | Search by query, tags, list, status, segment, or pagination.                                                    |
@@ -307,6 +307,11 @@ For compliance suppression, call `update_subscriber` with
 not retry `add_subscriber` with a different status: status on that tool applies
 only when the contact is first created, and a mismatched skipped result is
 reported as an error.
+
+`update_subscriber.phone` writes the native phone field shown on the contact,
+not a custom attribute. Pass `smsConsent: true` only after verifying express
+written consent, or `false` to opt the contact out. Changing the phone without
+`smsConsent` resets SMS consent because consent belongs to the old number.
 
 ### Products & Digital Delivery
 

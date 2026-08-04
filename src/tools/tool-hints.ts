@@ -84,6 +84,7 @@ export const MUTATING_TOOL_NAMES = new Set([
   "update_tracking_settings",
   "update_sync_rules",
   "update_shopify_automation_settings",
+  "connect_integration",
   "set_integration_sync_enabled",
   "sync_integration",
   "create_api_key",
@@ -210,6 +211,8 @@ export const OPEN_WORLD_TOOL_NAMES = new Set([
   "add_sending_domain",
   "add_website",
   "verify_sending_domain",
+  // Validates credentials against the provider's API and queues backfills.
+  "connect_integration",
   // Reaches the payment provider's API through a background sync job.
   "sync_integration",
   "enable_sequence",

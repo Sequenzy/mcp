@@ -283,6 +283,51 @@ describe("subscriber MCP tools", () => {
     });
   });
 
+  it("updates the native phone field on update_subscriber", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true });
+
+    await handleToolCall("update_subscriber", {
+      companyId: "comp_123",
+      email: "detail@example.com",
+      phone: "351 234 5678",
+      phoneCountry: "it",
+      smsConsent: true,
+    });
+
+    expect(mockApiRequest.mock.calls).toHaveLength(1);
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/subscribers/detail%40example.com",
+      { phone: "351 234 5678", phoneCountry: "it", smsConsent: true },
+      "comp_123"
+    );
+  });
+
+  it("forwards an empty phone on update_subscriber so the API can clear it", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true });
+
+    await handleToolCall("update_subscriber", {
+      email: "detail@example.com",
+      phone: "",
+    });
+
+    expect(mockApiRequest.mock.calls[0]?.[2]).toEqual({ phone: "" });
+  });
+
+  it("passes phoneCountry through add_subscriber", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true });
+
+    await handleToolCall("add_subscriber", {
+      email: "new@example.com",
+      phone: "351 234 5678",
+      phoneCountry: "IT",
+    });
+
+    const body = mockApiRequest.mock.calls[0]?.[2] as Record<string, unknown>;
+    expect(body["phone"]).toBe("351 234 5678");
+    expect(body["phoneCountry"]).toBe("IT");
+  });
+
   it("updates subscriber status without requiring a profile read", async () => {
     mockApiRequest.mockResolvedValueOnce({
       success: true,

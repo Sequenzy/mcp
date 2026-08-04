@@ -373,6 +373,27 @@ export const outputPropertiesByToolName: Record<
     },
     note: noteOutputProperty,
   },
+  connect_integration: {
+    integration: {
+      type: "object",
+      description:
+        "The connected integration: id, provider, name, providerAccountId, sync state, and safe (non-credential) details.",
+    },
+    webhookUrl: stringOutputProperty(
+      "URL to configure in the provider's webhook settings with the same secret. Always relay this to the user - delivery does not start until it is configured."
+    ),
+    revenueSyncQueued: booleanOutputProperty(
+      "Payment providers only: whether the initial revenue backfill was queued."
+    ),
+    backfillQueued: booleanOutputProperty(
+      "Affonso only: whether the affiliate backfill was queued."
+    ),
+    history: {
+      type: "object",
+      description:
+        "PostHog only: outcome of the optional history import request ({ requested, queued, error }). The webhook connection succeeds even if queueing the import failed.",
+    },
+  },
   set_integration_sync_enabled: {
     integrationId: stringOutputProperty("The integration that was updated."),
     provider: stringOutputProperty("Provider of the updated integration."),

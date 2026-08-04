@@ -114,6 +114,10 @@ export async function handleSubscriberTools(
         {
           ...identifier,
           ...(phone !== undefined && { phone }),
+          ...(typeof args.phoneCountry === "string" &&
+            args.phoneCountry.trim() !== "" && {
+              phoneCountry: args.phoneCountry.trim(),
+            }),
           ...(typeof args.smsConsent === "boolean" && {
             smsConsent: args.smsConsent,
           }),
@@ -279,6 +283,18 @@ export async function handleSubscriberTools(
       }
       if (args.lastName !== undefined) {
         body.lastName = args.lastName;
+      }
+      // Phone and phoneCountry are native profile fields. They are forwarded
+      // verbatim (including "" to clear the phone) so the API stays the single
+      // place that validates and normalizes numbers.
+      if (typeof args.phone === "string" || args.phone === null) {
+        body.phone = args.phone;
+      }
+      if (typeof args.phoneCountry === "string") {
+        body.phoneCountry = args.phoneCountry;
+      }
+      if (typeof args.smsConsent === "boolean") {
+        body.smsConsent = args.smsConsent;
       }
       if (status !== undefined) {
         body.status = status;
