@@ -81,8 +81,91 @@ export const savedFormToolDefinitions: Tool[] = [
           type: "boolean",
           description: "Whether the generated form also collects last name.",
         },
+        theme: {
+          type: "object",
+          description:
+            "Optional visual theme overrides so the form matches the brand instead of the default accent. Any subset of: accentColor, backgroundColor, textColor, mutedTextColor, cardColor, borderColor (all #rrggbb), borderRadius (0-32), headingFontFamily, bodyFontFamily, density (compact | balanced | spacious).",
+          additionalProperties: true,
+        },
       },
       required: ["name", "listIds"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "update_form",
+    description:
+      "Update a saved signup form: rename it, retarget its audience, edit its copy, restyle its theme, or replace its content blocks (for example to remove unwanted blocks that render publicly). Read the current content via list_forms first when editing blocks.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        formId: {
+          type: "string",
+          description: "Saved form ID returned by list_forms or create_form.",
+        },
+        name: {
+          type: "string",
+          description: "New internal saved-form name.",
+        },
+        listIds: {
+          type: "array",
+          description:
+            "Replacement list targeting. Every public submission will be added to these lists.",
+          items: { type: "string" },
+        },
+        tagIds: {
+          type: "array",
+          description:
+            "Replacement tag IDs applied by the saved form. Pass an empty array to clear tags.",
+          items: { type: "string" },
+        },
+        duplicateStrategy: {
+          type: "string",
+          enum: ["skip", "merge", "overwrite"],
+          description: "How to handle an existing subscriber.",
+        },
+        headline: {
+          type: "string",
+          description:
+            "New text for the form's first heading block. Fails if the form has no heading block; edit blocks instead.",
+        },
+        description: {
+          type: "string",
+          description:
+            "New text for the form's first paragraph block. Fails if the form has no paragraph block; edit blocks instead.",
+        },
+        buttonText: {
+          type: "string",
+          description: "New submit button label.",
+        },
+        successMessage: {
+          type: "string",
+          description: "New confirmation message on the success screen.",
+        },
+        redirectUrl: {
+          type: "string",
+          description:
+            "HTTP or HTTPS URL for successful submissions. Pass an empty string to switch back to the confirmation message.",
+        },
+        theme: {
+          type: "object",
+          description:
+            "Visual theme overrides merged into the current theme. Any subset of: accentColor, backgroundColor, textColor, mutedTextColor, cardColor, borderColor (all #rrggbb), borderRadius (0-32), headingFontFamily, bodyFontFamily, density (compact | balanced | spacious).",
+          additionalProperties: true,
+        },
+        blocks: {
+          type: "array",
+          description:
+            "Full replacement for the form's content blocks. Fetch the current blocks from list_forms, modify them, and send the complete array - the form must keep exactly one email field and one submit button.",
+          items: { type: "object", additionalProperties: true },
+        },
+      },
+      required: ["formId"],
       additionalProperties: false,
     },
   },

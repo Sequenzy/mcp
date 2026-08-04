@@ -1,5 +1,6 @@
 import { apiRequest } from "../../runtime.js";
 import {
+  optionalIntegerInRange,
   optionalString,
   requiredString,
   uploadLocalDeliveryFile,
@@ -20,6 +21,28 @@ export async function handleProductTools(
       }
       if (typeof args.search === "string" && args.search.trim()) {
         params.set("search", args.search.trim());
+      }
+      // Validated rather than silently dropped: quietly ignoring a bad `limit`
+      // hands back the default 50-item page and looks like a small catalog.
+      const limit = optionalIntegerInRange(
+        "list_products",
+        args,
+        "limit",
+        1,
+        100
+      );
+      if (limit !== undefined) {
+        params.set("limit", String(limit));
+      }
+      const offset = optionalIntegerInRange(
+        "list_products",
+        args,
+        "offset",
+        0,
+        Number.MAX_SAFE_INTEGER
+      );
+      if (offset !== undefined) {
+        params.set("offset", String(offset));
       }
       const query = params.size > 0 ? `?${params.toString()}` : "";
       result = await apiRequest(
@@ -120,9 +143,14 @@ export async function handleProductTools(
 
     case "sync_products": {
       const companyId = args.companyId as string | undefined;
+      const params = new URLSearchParams();
+      if (typeof args.integrationId === "string" && args.integrationId) {
+        params.set("integrationId", args.integrationId);
+      }
+      const queryString = params.toString();
       result = await apiRequest(
         "POST",
-        "/api/v1/products/sync",
+        `/api/v1/products/sync${queryString ? `?${queryString}` : ""}`,
         undefined,
         companyId
       );

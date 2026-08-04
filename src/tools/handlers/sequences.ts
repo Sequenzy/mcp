@@ -12,6 +12,7 @@ import {
   validateCreateSequenceGoalArgs,
   validateUpdateSequenceGoalArgs,
   validateLabelsArg,
+  validateSendingIdentityArgs,
 } from "../internal.js";
 
 const MAX_DEFAULT_SEQUENCE_NAME_LENGTH = 80;
@@ -143,6 +144,37 @@ export async function handleSequenceTools(
       break;
     }
 
+    case "list_sequence_enrollments": {
+      const companyId = args.companyId as string | undefined;
+      const sequenceId = requiredString(name, args, "sequenceId");
+      const query = new URLSearchParams();
+      // The API reads these as comma-separated lists, so an agent can pass one
+      // node ID or several without switching argument shape.
+      for (const field of [
+        "currentNodeId",
+        "status",
+        "subscriberId",
+      ] as const) {
+        const value = args[field];
+        if (Array.isArray(value)) {
+          if (value.length > 0) query.set(field, value.join(","));
+        } else if (value !== undefined) {
+          query.set(field, String(value));
+        }
+      }
+      for (const field of ["email", "sort", "limit", "offset"] as const) {
+        if (args[field] !== undefined) query.set(field, String(args[field]));
+      }
+      const suffix = query.size > 0 ? `?${query.toString()}` : "";
+      result = await apiRequest(
+        "GET",
+        `/api/v1/sequences/${encodeURIComponent(sequenceId)}/enrollments${suffix}`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
     case "send_sequence_test_email": {
       const companyId = args.companyId as string | undefined;
       const sequenceId = requiredString(name, args, "sequenceId");
@@ -160,26 +192,7 @@ export async function handleSequenceTools(
     case "create_sequence": {
       const companyId = args.companyId as string | undefined;
       validateLabelsArg("create_sequence", args);
-      if (args.fromEmail !== undefined && args.senderProfileId !== undefined) {
-        throw new Error(
-          "Provide either `fromEmail` or `senderProfileId` when calling `create_sequence`, not both."
-        );
-      }
-      if (args.replyTo !== undefined && args.replyProfileId !== undefined) {
-        throw new Error(
-          "Provide either `replyTo` or `replyProfileId` when calling `create_sequence`, not both."
-        );
-      }
-      if (args.fromName !== undefined && args.fromEmail === undefined) {
-        throw new Error(
-          "`fromName` requires `fromEmail` when calling `create_sequence`."
-        );
-      }
-      if (args.replyToName !== undefined && args.replyTo === undefined) {
-        throw new Error(
-          "`replyToName` requires `replyTo` when calling `create_sequence`."
-        );
-      }
+      validateSendingIdentityArgs("create_sequence", args);
       const hasExplicitSteps = Array.isArray(args.steps);
       const createsBlankDraft =
         args.goal === undefined && args.steps === undefined;

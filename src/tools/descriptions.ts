@@ -1,7 +1,7 @@
 import { coreEmailBlockExamples } from "./email-block-examples.generated.js";
 
 export const blockConditionsHint =
-  ' Any block accepts a `conditions` array so it only renders for matching recipients. To branch on a value passed in transactional `variables` or an automation `event` payload, use { "id": "c1", "field": "variable", "operator": "is", "value": "plan:pro" }; "attribute" uses the same "name:value" form, while "email"/"firstName"/"lastName" use a plain comparison value. Live subscriber fields are "status", "tag", "list", "segment", "event", "emailProvider", "phone", "smsStatus", "added", "stripeProduct", "stripeCurrentProduct", "stripeTrialProduct", "commerceProduct", "emailSent", "emailDelivered", "emailOpened", "emailClicked", "emailBounced", and "emailComplained". They use the same field-specific values and operators as segment filters, for example { "id": "c2", "field": "segment", "operator": "is", "value": "seg_123" }, { "id": "c3", "field": "tag", "operator": "contains", "value": "vip" }, or { "id": "c4", "field": "event", "operator": "at_least", "value": "purchase:3:30d" }. Supported operators across fields are is, is_not, contains, not_contains, gt, gte, lt, lte, less_than, more_than, at_least, less_than_count, is_empty, is_not_empty, is_temporary_bounce, and is_permanent_bounce; each field accepts only its segment-filter operators. Recipients without a stored subscriber match use the OTHERWISE branch or hide a conditionally displayed block. For if/else, use a { type: "conditional-group", conditions: [...], ifBranch: { children: [...] }, elseBranch: { children: [...] } } block.';
+  ' Any block accepts a `conditions` array so it only renders for matching recipients. To branch on a value passed in transactional `variables` or an automation `event` payload, use { "id": "c1", "field": "variable", "operator": "is", "value": "plan:pro" }; "attribute" uses the same "name:value" form, while "email"/"firstName"/"lastName" use a plain comparison value. Live subscriber fields are "status", "tag", "list", "segment", "event", "emailProvider", "phone", "smsStatus", "added", "stripeProduct", "stripeCurrentProduct", "stripeTrialProduct", "commerceProduct", "commerceCollection", "emailSent", "emailDelivered", "emailOpened", "emailClicked", "emailBounced", and "emailComplained". They use the same field-specific values and operators as segment filters, for example { "id": "c2", "field": "segment", "operator": "is", "value": "seg_123" }, { "id": "c3", "field": "tag", "operator": "contains", "value": "vip" }, or { "id": "c4", "field": "event", "operator": "at_least", "value": "purchase:3:30d" }. Supported operators across fields are is, is_not, contains, not_contains, gt, gte, lt, lte, less_than, more_than, at_least, less_than_count, is_empty, is_not_empty, is_temporary_bounce, and is_permanent_bounce; each field accepts only its segment-filter operators. Recipients without a stored subscriber match use the OTHERWISE branch or hide a conditionally displayed block. For if/else, use a { type: "conditional-group", conditions: [...], ifBranch: { children: [...] }, elseBranch: { children: [...] } } block.';
 
 export const pollBlockHint =
   ' Polls and NPS surveys use a native poll block. For answer buttons use { "type": "poll", "variant": "options", "question": "What did you think?", "options": [{ "label": "Loved it", "value": "loved" }, { "label": "Not for me", "value": "not_for_me" }], "attributeKey": "email_feedback" }. For NPS use { "type": "poll", "variant": "nps", "question": "How likely are you to recommend us?", "options": [], "attributeKey": "nps_score", "npsLowLabel": "Not likely", "npsHighLabel": "Very likely" }. `attributeKey` stores the latest response for segmentation. Optional `appearance` picks the answer style: "soft" (default), "pill", "outline", "filled", "pop" (hard-shadow boxes), "brutal" (square uppercase slabs), "quiz" (A/B/C letter badges), or "minimal" (bare ruled rows). Optional `confirmationMessage` customizes the hosted thank-you page; set `redirectUrl` only when respondents should land on another page.';
@@ -12,20 +12,64 @@ export const imageBlockHint =
 export const rawHtmlContentWarning =
   "Raw HTML is stored as one opaque block. Sequenzy preserves that markup but does not add a company logo, branded native sections, or theme-driven block design. Use blocks for editor-native design, or a drafting prompt when you want Sequenzy to compose a new branded email.";
 
+/**
+ * The generated code has no discoverable name unless the schema states it, and
+ * a guessed tag renders empty rather than failing, so every surface that
+ * configures a create_discount step repeats this.
+ */
+export const discountMergeTagsHint =
+  ' The code is minted per subscriber at run time and reaches every later email in the same sequence as {{discount.code}}. Also available: {{discount.value}} (pre-formatted, e.g. "20% off" or "$10 off"), {{discount.percentOff}}, {{discount.amountOff}}, {{discount.currency}}, and {{date.discount.expiresAt}} (locale-formatted expiry). Present the code with a { "type": "discount-code", "code": "{{discount.code}}", "label": "Your discount code" } block, or inline {{discount.code}} in any text block. These tags resolve only in emails downstream of the discount step; render_email substitutes a clearly fake sample code so the email can be previewed before anyone is enrolled, and lists anything it could not resolve under unresolvedMergeTags.';
+
 export const pollRespondentFilterHint =
   'For exact historical Poll/NPS respondents, use field `pollResponse`, operator `is`, and a JSON value shaped like {"v":1,"campaignId":"camp_123","blockId":"poll_1","match":{"kind":"answer","value":"loved"}}. For NPS buckets, use match {"kind":"npsBucket","bucket":"promoters"}; bucket may be `promoters`, `passives`, or `detractors`.';
 
+export const buttonColorHint =
+  " `styles` applies to the block's own container, not to an inner rendered element. On a button block, `styles.backgroundColor` colors the band behind the button and `styles.textColor` does not reach the label - set the top-level `buttonColor` and `buttonTextColor` fields instead, or leave them unset to inherit the email theme's primary color.";
+
+/**
+ * Only append this to a tool whose route validates blocks through
+ * `parseEmailBlocksPayload` / `resolveApiEmailBlocksInput`. On a route that
+ * stores blocks as sent, nothing is discarded and nothing is reported, so
+ * promising `warnings` there would let an agent read their absence as
+ * confirmation.
+ *
+ * Sequence email steps used to be such a route. They now validate through
+ * `parseEmailBlocksPayload` on create, update, branch paths, and inserted
+ * steps, and report the same advisory `warnings`, so the sequence block
+ * descriptions carry this hint too.
+ */
+export const blockFieldWarningsHint =
+  " Unsupported fields are discarded and reported in the response `warnings` array rather than rejected.";
+
 export const emailBlocksDescription = `Sequenzy email blocks. Use this for editor-compatible content, including conditional and repeat blocks. For provider-migrated HTML from another email platform, prefer the \`html\` field instead; Sequenzy stores it as one raw HTML block to preserve the original design. Use \`styles\` for per-block background, background opacity, text color, padding, border radius, border width, and border color. Top-level style aliases such as \`backgroundColor\`, \`backgroundOpacity\`, \`borderColor\`, \`borderWidth\`, and \`borderRadius\` are also accepted and saved under \`styles\`. Repeat blocks use { type: 'repeat', source: 'items', itemAlias: 'item', children: [...] }.${
   blockConditionsHint
-}${pollBlockHint}${imageBlockHint}${coreEmailBlockExamples}`;
+}${buttonColorHint}${blockFieldWarningsHint}${pollBlockHint}${imageBlockHint}${coreEmailBlockExamples}`;
+
+/**
+ * Sequence email steps are the only blocks route that re-applies managed chrome
+ * on update, so an agent authoring a targeted content edit has to be able to
+ * read that contract before it sends one. Append this only to sequence step
+ * blocks fields - campaign, template, and transactional routes store blocks as
+ * sent.
+ */
+export const sequenceStepBlocksFormatHint =
+  " Replacing a step's blocks keeps that step's existing Style > Format rather than the company default: a step that already had a logo or footer gets them back even if you omit them, and every block added that way is listed in the response `warnings`. Pass `emailPreset` to change the format. A step whose stored content is a single raw HTML block has no format, so replacing it with another single raw HTML block is stored exactly as sent; replacing it with native blocks converts the step and does add a footer.";
+
+/**
+ * `sequenceNodeChangesSchema` describes a patch for every node type, and
+ * `action_sms` nodes accept a `blocks` field of their own. Scope the hint to
+ * action_email there so an agent patching SMS content does not read the logo
+ * and footer contract as applying to it.
+ */
+export const sequenceStepBlocksFormatHintForNodeChanges = ` For action_email:${sequenceStepBlocksFormatHint}`;
 
 export const replacementEmailBlocksDescription = `Replacement Sequenzy email blocks. Use \`styles\` for per-block background, background opacity, text color, padding, border radius, border width, and border color. Top-level style aliases such as \`backgroundColor\`, \`backgroundOpacity\`, \`borderColor\`, \`borderWidth\`, and \`borderRadius\` are also accepted and saved under \`styles\`.${
   blockConditionsHint
-}${pollBlockHint}${imageBlockHint}${coreEmailBlockExamples}`;
+}${buttonColorHint}${blockFieldWarningsHint}${pollBlockHint}${imageBlockHint}${coreEmailBlockExamples}`;
 
 export const sequenceEmailBlocksDescription = `Sequenzy email blocks. Provide blocks or html for email steps. For migrated provider HTML, prefer \`html\`; Sequenzy stores it as one raw HTML block and does not recreate it as native blocks. Use \`styles\` for per-block background, background opacity, text color, padding, border radius, border width, and border color. Top-level style aliases such as \`backgroundColor\`, \`backgroundOpacity\`, \`borderColor\`, \`borderWidth\`, and \`borderRadius\` are also accepted and saved under \`styles\`. Blocks can include repeat blocks over array variables such as items.${
   blockConditionsHint
-}${pollBlockHint}${imageBlockHint}${coreEmailBlockExamples}`;
+}${buttonColorHint}${blockFieldWarningsHint}${pollBlockHint}${imageBlockHint}${coreEmailBlockExamples}`;
 
 export const landingPageContentDescription =
   "Complete Sequenzy landing page content JSON. Use this when replacing the page structure. The content must be the editor-compatible landing page schema with version, template, seo, theme, and blocks. Landing pages must include exactly one footer block and at most one form block.";
@@ -42,6 +86,10 @@ export const includeMachineEngagementToolProperty = {
     "If true, include machine-classified bot/scanner opens and clicks. Defaults to false, so metrics and activity are human-only.",
 };
 
+// Mirrors EMAIL_EVENT_TYPES in @emailer/shared (this package is a standalone
+// client and cannot import it). Keep the two in sync: a value missing here is
+// rejected by MCP validation before it ever reaches the API, breaking
+// API/CLI/MCP parity.
 export const emailEventTypes = [
   "send",
   "delivery",
@@ -51,7 +99,11 @@ export const emailEventTypes = [
   "click",
   "unsubscribe",
   "delivery_delay",
+  "transport_failure",
 ] as const;
+
+/** Shared "Supported values" fragment so tool descriptions cannot drift. */
+export const emailEventTypesList = emailEventTypes.join(", ");
 
 export const sequenceSendingWindowSchema = {
   type: "object",
@@ -203,8 +255,7 @@ export const sequenceDelaySchema = {
 
 export const sequenceNodeChangesSchema = {
   type: "object",
-  description:
-    "Type-aware patch for the existing node. Start from get_sequence.sequence.nodes[].config. For logic_delay, set exactly one of delay ({ days, hours, minutes }), delayMs, or waitUntil; optional label is also accepted. For action_email, use name/label, subject, previewText, html/htmlContent or blocks, emailPreset, isTransactional, attachments ([{ filename, path }] URL-backed files fetched at send time; path may use {{event.*}} from the enrollment event; [] removes them), and sender/reply identity fields. For action_sms, use text, blocks, imageUrls, label, or ineligibleAction. Other node types accept their editable config keys. Managed IDs, nodeType conversion, and branch path IDs/count are not editable here; use edit_sequence_graph for topology. Webhook header patches are merged, and redacted values from get_sequence must be omitted or replaced with a real new value.",
+  description: `Type-aware patch for the existing node. Start from get_sequence.sequence.nodes[].config. For logic_delay, set exactly one of delay ({ days, hours, minutes }), delayMs, or waitUntil; optional label is also accepted. For action_email, use name/label, subject, previewText, html/htmlContent or blocks, emailPreset, isTransactional, attachments ([{ filename, path }] URL-backed files fetched at send time; path may use {{event.*}} from the enrollment event; [] removes them), and sender/reply identity fields. For action_sms, use text, blocks, imageUrls, label, or ineligibleAction. Other node types accept their editable config keys. Managed IDs, nodeType conversion, and branch path IDs/count are not editable here; use edit_sequence_graph for topology. Webhook header patches are merged, and redacted values from get_sequence must be omitted or replaced with a real new value.${sequenceStepBlocksFormatHintForNodeChanges}`,
   properties: {
     emailPreset: {
       type: "string",
@@ -261,6 +312,7 @@ export const OUTBOUND_WEBHOOK_EVENT_TYPES = [
   "email.delivered",
   "email.delivery_delayed",
   "email.bounced",
+  "email.failed",
   "email.complained",
   "email.opened",
   "email.clicked",
@@ -271,6 +323,7 @@ export const OUTBOUND_WEBHOOK_EVENT_TYPES = [
   "sms.failed",
   "sms.opted_out",
   "subscriber.invalid",
+  "subscriber.created",
   "subscriber.updated",
   "subscriber.unsubscribed",
   "subscriber.list_subscribed",

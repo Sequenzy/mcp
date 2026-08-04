@@ -183,8 +183,10 @@ export const COMPANY_UPDATE_FIELDS = [
   "fontFamily",
   "emailTheme",
   "emailDirection",
+  "senderProfileId",
   "fromEmail",
   "fromName",
+  "replyProfileId",
   "replyTo",
   "replyToName",
   "replyTrackingEnabled",
@@ -258,8 +260,10 @@ export function buildUpdateCompanyBody(
     "language",
     "fontFamily",
     "emailDirection",
+    "senderProfileId",
     "fromEmail",
     "fromName",
+    "replyProfileId",
     "replyTo",
     "replyToName",
     "replyTrackingDomainMode",
@@ -327,18 +331,210 @@ export function buildUpdateCompanyBody(
       );
     }
   }
-  if (args.fromName !== undefined && args.fromEmail === undefined) {
+  // `fromName`/`replyToName` are valid on their own: without an address or a
+  // profile ID they rename the company's existing default profile. The server
+  // rejects the case where no such profile exists yet, and the case where an
+  // address carries several display names and the target is ambiguous.
+
+  return body;
+}
+
+export const TRACKING_SETTINGS_UPDATE_FIELDS = [
+  "openTrackingEnabled",
+  "clickTrackingEnabled",
+  "strictBotFilteringEnabled",
+  "unsubscribeTrackingEnabled",
+  "defaultAttributionWindowHours",
+  "doubleOptInEnabled",
+  "autoUtmEnabled",
+  "autoUtmSettings",
+] as const;
+
+const AUTO_UTM_FIELDS = [
+  "source",
+  "medium",
+  "campaign",
+  "content",
+  "term",
+] as const;
+
+export function buildUpdateTrackingSettingsBody(
+  args: Record<string, unknown>
+): Record<string, unknown> {
+  const allowedKeys = new Set([
+    "companyId",
+    ...TRACKING_SETTINGS_UPDATE_FIELDS,
+  ]);
+  const unsupportedKeys = Object.keys(args).filter(
+    (key) => !allowedKeys.has(key)
+  );
+
+  if (unsupportedKeys.length > 0) {
     throw new Error(
-      "`fromName` requires `fromEmail` when calling `update_company`."
-    );
-  }
-  if (args.replyToName !== undefined && args.replyTo === undefined) {
-    throw new Error(
-      "`replyToName` requires `replyTo` when calling `update_company`."
+      `\`update_tracking_settings\` accepts only tracking settings. Unsupported field${unsupportedKeys.length === 1 ? "" : "s"}: ${unsupportedKeys.map((key) => `\`${key}\``).join(", ")}. Reply tracking is set with \`update_company\`.`
     );
   }
 
+  const body: Record<string, unknown> = {};
+  for (const key of TRACKING_SETTINGS_UPDATE_FIELDS) {
+    if (args[key] !== undefined) {
+      body[key] = args[key];
+    }
+  }
+
+  if (Object.keys(body).length === 0) {
+    throw new Error(
+      `Provide at least one of ${TRACKING_SETTINGS_UPDATE_FIELDS.map((key) => `\`${key}\``).join(", ")} when calling \`update_tracking_settings\`.`
+    );
+  }
+
+  for (const key of [
+    "openTrackingEnabled",
+    "clickTrackingEnabled",
+    "strictBotFilteringEnabled",
+    "unsubscribeTrackingEnabled",
+    "doubleOptInEnabled",
+    "autoUtmEnabled",
+  ] as const) {
+    if (args[key] !== undefined && typeof args[key] !== "boolean") {
+      throw new Error(
+        `\`${key}\` must be a boolean when calling \`update_tracking_settings\`.`
+      );
+    }
+  }
+
+  if (
+    args.defaultAttributionWindowHours !== undefined &&
+    (typeof args.defaultAttributionWindowHours !== "number" ||
+      !Number.isInteger(args.defaultAttributionWindowHours) ||
+      args.defaultAttributionWindowHours < 1 ||
+      args.defaultAttributionWindowHours > 720)
+  ) {
+    throw new Error(
+      "`defaultAttributionWindowHours` must be a whole number of hours between 1 and 720 when calling `update_tracking_settings`."
+    );
+  }
+
+  // autoUtmSettings is nullable: null resets every UTM parameter to the
+  // platform defaults, so it cannot use validateOptionalObjectArg.
+  if (
+    args.autoUtmSettings !== undefined &&
+    args.autoUtmSettings !== null &&
+    !isRecord(args.autoUtmSettings)
+  ) {
+    throw new Error(
+      "`autoUtmSettings` must be an object or null when calling `update_tracking_settings`."
+    );
+  }
+
+  if (isRecord(args.autoUtmSettings)) {
+    const settings = args.autoUtmSettings;
+    const unsupportedUtmKeys = Object.keys(settings).filter(
+      (key) => !(AUTO_UTM_FIELDS as readonly string[]).includes(key)
+    );
+    if (unsupportedUtmKeys.length > 0) {
+      throw new Error(
+        `\`autoUtmSettings\` accepts only ${AUTO_UTM_FIELDS.map((key) => `\`${key}\``).join(", ")}. Unsupported: ${unsupportedUtmKeys.map((key) => `\`${key}\``).join(", ")}.`
+      );
+    }
+    for (const key of AUTO_UTM_FIELDS) {
+      const value = settings[key];
+      if (value !== undefined && value !== null && typeof value !== "string") {
+        throw new Error(
+          `\`autoUtmSettings.${key}\` must be a string or null when calling \`update_tracking_settings\`.`
+        );
+      }
+    }
+  }
+
   return body;
+}
+
+type SendingIdentityPair = {
+  profileKey: string;
+  emailKey: string;
+  nameKey: string;
+  addressLabel: string;
+};
+
+const SENDER_IDENTITY_PAIR: SendingIdentityPair = {
+  profileKey: "senderProfileId",
+  emailKey: "fromEmail",
+  nameKey: "fromName",
+  addressLabel: "From",
+};
+
+const REPLY_IDENTITY_PAIR: SendingIdentityPair = {
+  profileKey: "replyProfileId",
+  emailKey: "replyTo",
+  nameKey: "replyToName",
+  addressLabel: "Reply-To",
+};
+
+/**
+ * A saved profile carries both the address and the display name, so pairing it
+ * with the address/name fields has no meaning. Callers used to learn that one
+ * rejection at a time - `senderProfileId` plus `fromName` asked for
+ * `fromEmail`, and supplying `fromEmail` then said not to send both - so every
+ * rejection here states the whole rule.
+ */
+function validateSendingIdentityPair(input: {
+  toolName: string;
+  args: Record<string, unknown>;
+  pair: SendingIdentityPair;
+  location?: string | undefined;
+  /** Preserves each call site's established field order in the message. */
+  profileFirst?: boolean | undefined;
+  /** Sequence steps keep the name as a per-step override, not profile data. */
+  nameIsOverride?: boolean | undefined;
+}): void {
+  const { profileKey, emailKey, nameKey, addressLabel } = input.pair;
+  const hasProfile = input.args[profileKey] !== undefined;
+  const hasEmail = input.args[emailKey] !== undefined;
+  const hasName = input.args[nameKey] !== undefined;
+  const callSuffix = input.location
+    ? `for ${input.location} when calling \`${input.toolName}\``
+    : `when calling \`${input.toolName}\``;
+  const profileRule = `\`${profileKey}\` already sets both the ${addressLabel} address and the display name, so send it without \`${emailKey}\`${
+    input.nameIsOverride ? "" : ` and \`${nameKey}\``
+  }.`;
+
+  if (hasProfile && hasEmail) {
+    const [first, second] = input.profileFirst
+      ? [profileKey, emailKey]
+      : [emailKey, profileKey];
+    throw new Error(
+      `Provide either \`${first}\` or \`${second}\` ${callSuffix}, not both. ${profileRule}`
+    );
+  }
+  if (hasProfile && hasName && !input.nameIsOverride) {
+    throw new Error(
+      `\`${nameKey}\` cannot be combined with \`${profileKey}\` ${callSuffix}. ${profileRule}`
+    );
+  }
+  if (hasName && !hasEmail && !input.nameIsOverride) {
+    throw new Error(
+      `\`${nameKey}\` requires \`${emailKey}\` ${callSuffix}. Send \`${nameKey}\` with the \`${emailKey}\` it names, or send \`${profileKey}\` on its own to use an existing profile's address and name.`
+    );
+  }
+}
+
+/**
+ * Validates the campaign/sequence-level sending identity fields, where the
+ * display name belongs to the sender or reply profile rather than the record.
+ */
+export function validateSendingIdentityArgs(
+  toolName: string,
+  args: Record<string, unknown>,
+  /** `replyFirst` keeps `update_campaign` reporting reply conflicts first. */
+  options?: { replyFirst?: boolean }
+): void {
+  const pairs = options?.replyFirst
+    ? [REPLY_IDENTITY_PAIR, SENDER_IDENTITY_PAIR]
+    : [SENDER_IDENTITY_PAIR, REPLY_IDENTITY_PAIR];
+  for (const pair of pairs) {
+    validateSendingIdentityPair({ toolName, args, pair });
+  }
 }
 
 export const sequenceEmailStepIdentityKeys = [
@@ -379,21 +575,24 @@ export function validateSequenceEmailStepIdentityArgs(
       );
     }
   }
-  if (step.senderProfileId !== undefined && step.fromEmail !== undefined) {
-    throw new Error(
-      `Provide either \`senderProfileId\` or \`fromEmail\` for ${location} when calling \`${toolName}\`, not both.`
-    );
-  }
-  if (step.replyProfileId !== undefined && step.replyTo !== undefined) {
-    throw new Error(
-      `Provide either \`replyProfileId\` or \`replyTo\` for ${location} when calling \`${toolName}\`, not both.`
-    );
-  }
-  if (step.replyToName !== undefined && step.replyTo === undefined) {
-    throw new Error(
-      `\`replyToName\` requires \`replyTo\` for ${location} when calling \`${toolName}\`.`
-    );
-  }
+  // A step-level `fromName` is a display-name override the send path applies on
+  // top of whichever profile the step resolves to, so it may stand alone or sit
+  // beside `senderProfileId`. `replyToName` has no such override.
+  validateSendingIdentityPair({
+    toolName,
+    args: step,
+    pair: SENDER_IDENTITY_PAIR,
+    location,
+    profileFirst: true,
+    nameIsOverride: true,
+  });
+  validateSendingIdentityPair({
+    toolName,
+    args: step,
+    pair: REPLY_IDENTITY_PAIR,
+    location,
+    profileFirst: true,
+  });
 }
 
 export function validateSequencePathStepIdentityArgs(
@@ -508,26 +707,7 @@ export function buildUpdateSequenceBody(
       "Provide `trigger` when replacing sequence trigger configuration with `update_sequence`."
     );
   }
-  if (args.fromEmail !== undefined && args.senderProfileId !== undefined) {
-    throw new Error(
-      "Provide either `fromEmail` or `senderProfileId` when calling `update_sequence`, not both."
-    );
-  }
-  if (args.replyTo !== undefined && args.replyProfileId !== undefined) {
-    throw new Error(
-      "Provide either `replyTo` or `replyProfileId` when calling `update_sequence`, not both."
-    );
-  }
-  if (args.fromName !== undefined && args.fromEmail === undefined) {
-    throw new Error(
-      "`fromName` requires `fromEmail` when calling `update_sequence`."
-    );
-  }
-  if (args.replyToName !== undefined && args.replyTo === undefined) {
-    throw new Error(
-      "`replyToName` requires `replyTo` when calling `update_sequence`."
-    );
-  }
+  validateSendingIdentityArgs("update_sequence", args);
   if (
     args.clearEnrollmentFieldPath === true &&
     args.enrollmentFieldPath !== undefined

@@ -1,6 +1,7 @@
 import { apiRequest } from "../../runtime.js";
 import {
   validateHtmlOrBlocksArgs,
+  validateSendingIdentityArgs,
   validateLabelsArg,
   validateCreateCampaignContentArgs,
   validateCreateTemplateContentArgs,
@@ -756,6 +757,11 @@ export async function handleCampaignTools(
       if (args.status) campaignParams.set("status", String(args.status));
       const label = optionalString(args, "label");
       if (label) campaignParams.set("label", label);
+      for (const field of ["limit", "offset"] as const) {
+        if (args[field] !== undefined) {
+          campaignParams.set(field, String(args[field]));
+        }
+      }
       result = await apiRequest(
         "GET",
         `/api/v1/campaigns?${campaignParams}`,
@@ -770,6 +776,17 @@ export async function handleCampaignTools(
       result = await apiRequest(
         "GET",
         `/api/v1/campaigns/${args.campaignId}`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "get_campaign_audience": {
+      const companyId = args.companyId as string | undefined;
+      result = await apiRequest(
+        "GET",
+        `/api/v1/campaigns/${encodeURIComponent(String(args.campaignId))}/audience`,
         undefined,
         companyId
       );
@@ -894,26 +911,7 @@ export async function handleCampaignTools(
     case "create_campaign": {
       const companyId = args.companyId as string | undefined;
       validateCreateCampaignContentArgs(args);
-      if (args.fromEmail !== undefined && args.senderProfileId !== undefined) {
-        throw new Error(
-          "Provide either `fromEmail` or `senderProfileId` when calling `create_campaign`, not both."
-        );
-      }
-      if (args.replyTo !== undefined && args.replyProfileId !== undefined) {
-        throw new Error(
-          "Provide either `replyTo` or `replyProfileId` when calling `create_campaign`, not both."
-        );
-      }
-      if (args.fromName !== undefined && args.fromEmail === undefined) {
-        throw new Error(
-          "`fromName` requires `fromEmail` when calling `create_campaign`."
-        );
-      }
-      if (args.replyToName !== undefined && args.replyTo === undefined) {
-        throw new Error(
-          "`replyToName` requires `replyTo` when calling `create_campaign`."
-        );
-      }
+      validateSendingIdentityArgs("create_campaign", args);
 
       const createBody = Object.fromEntries(
         Object.entries(args).filter(([key]) => key !== "companyId")
@@ -947,6 +945,8 @@ export async function handleCampaignTools(
         "bccEmails",
         "campaignData",
         "computedLists",
+        "targetLists",
+        "segmentId",
         "labels",
       ]);
       const unsupportedCampaignUpdateKeys = Object.keys(args).filter(
@@ -955,31 +955,19 @@ export async function handleCampaignTools(
 
       if (unsupportedCampaignUpdateKeys.length > 0) {
         throw new Error(
-          `\`update_campaign\` accepts only content, sending identity, campaign data, computed list, and label update fields. Unsupported field${unsupportedCampaignUpdateKeys.length === 1 ? "" : "s"}: ${unsupportedCampaignUpdateKeys.map((key) => `\`${key}\``).join(", ")}.`
+          `\`update_campaign\` accepts only content, sending identity, campaign data, computed list, audience, and label update fields. Unsupported field${unsupportedCampaignUpdateKeys.length === 1 ? "" : "s"}: ${unsupportedCampaignUpdateKeys.map((key) => `\`${key}\``).join(", ")}.`
         );
       }
 
       validateHtmlOrBlocksArgs("update_campaign", args);
       validateLabelsArg("update_campaign", args);
 
-      if (args.replyTo !== undefined && args.replyProfileId !== undefined) {
+      validateSendingIdentityArgs("update_campaign", args, {
+        replyFirst: true,
+      });
+      if (args.segmentId !== undefined && args.targetLists !== undefined) {
         throw new Error(
-          "Provide either `replyTo` or `replyProfileId` when calling `update_campaign`, not both."
-        );
-      }
-      if (args.fromEmail !== undefined && args.senderProfileId !== undefined) {
-        throw new Error(
-          "Provide either `fromEmail` or `senderProfileId` when calling `update_campaign`, not both."
-        );
-      }
-      if (args.fromName !== undefined && args.fromEmail === undefined) {
-        throw new Error(
-          "`fromName` requires `fromEmail` when calling `update_campaign`."
-        );
-      }
-      if (args.replyToName !== undefined && args.replyTo === undefined) {
-        throw new Error(
-          "`replyToName` requires `replyTo` when calling `update_campaign`."
+          "Provide either `segmentId` or `targetLists` when calling `update_campaign`, not both."
         );
       }
 
@@ -997,10 +985,12 @@ export async function handleCampaignTools(
         args.bccEmails === undefined &&
         args.campaignData === undefined &&
         args.computedLists === undefined &&
+        args.targetLists === undefined &&
+        args.segmentId === undefined &&
         args.labels === undefined
       ) {
         throw new Error(
-          "Provide at least one campaign content, sending identity, campaign data, computed list, or label field when calling `update_campaign`."
+          "Provide at least one campaign content, sending identity, campaign data, computed list, audience, or label field when calling `update_campaign`."
         );
       }
 

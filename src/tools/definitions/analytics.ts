@@ -1,5 +1,6 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 
+import { emailEventTypesList } from "../descriptions.js";
 import { includeMachineEngagementToolProperty } from "../internal.js";
 
 export const analyticsToolDefinitions: Tool[] = [
@@ -9,7 +10,7 @@ export const analyticsToolDefinitions: Tool[] = [
   {
     name: "get_stats",
     description:
-      "Get overview statistics for a time period, including reply count and reply rate. Set emailType to transactional for Send API and transactional SMTP open/click rates, including both direct and saved-template sends. When no emailType filter is used and a background-computed snapshot is available, the response also includes a top-level commerceForecast with predicted AOV, 12-month customer value, 90-day revenue, confidence, and data-eligibility reasons.",
+      "Get overview statistics for a time period, including reply count and reply rate. Counts form a funnel over the sends made inside the period: opened and clicked are unique per email send (not total open events) and include engagement that arrives after the period ends, so they never exceed sent. Rates divide by rateDenominator (delivered, falling back to sent), reported alongside rateDenominatorBasis. Set emailType to transactional for Send API and transactional SMTP open/click rates, including both direct and saved-template sends. When no emailType filter is used and a background-computed snapshot is available, the response also includes a top-level commerceForecast with predicted AOV, 12-month customer value, 90-day revenue, confidence, and data-eligibility reasons.",
     inputSchema: {
       type: "object",
       properties: {
@@ -156,13 +157,11 @@ export const analyticsToolDefinitions: Tool[] = [
         },
         eventType: {
           type: "string",
-          description:
-            "Optional single event type. Supported values: send, delivery, bounce, complaint, open, click, unsubscribe, delivery_delay. Defaults to delivery.",
+          description: `Optional single event type. Supported values: ${emailEventTypesList}. Defaults to delivery.`,
         },
         eventTypes: {
           type: "array",
-          description:
-            "Optional event types to include. Supported values: send, delivery, bounce, complaint, open, click, unsubscribe, delivery_delay. Defaults to delivery.",
+          description: `Optional event types to include. Supported values: ${emailEventTypesList}. Defaults to delivery.`,
           items: { type: "string" },
         },
         period: {
@@ -211,13 +210,11 @@ export const analyticsToolDefinitions: Tool[] = [
         },
         eventType: {
           type: "string",
-          description:
-            "Optional single event type. Supported values: send, delivery, bounce, complaint, open, click, unsubscribe, delivery_delay. Defaults to delivery.",
+          description: `Optional single event type. Supported values: ${emailEventTypesList}. Defaults to delivery.`,
         },
         eventTypes: {
           type: "array",
-          description:
-            "Optional event types to include. Supported values: send, delivery, bounce, complaint, open, click, unsubscribe, delivery_delay. Defaults to delivery.",
+          description: `Optional event types to include. Supported values: ${emailEventTypesList}. Defaults to delivery.`,
           items: { type: "string" },
         },
         period: {

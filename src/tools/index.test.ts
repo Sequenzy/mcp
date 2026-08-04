@@ -1,3 +1,4 @@
+import { AjvJsonSchemaValidator } from "@modelcontextprotocol/sdk/validation/ajv";
 import { beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
 
 type ApiRequestMock = (
@@ -159,6 +160,99 @@ describe("account tools", () => {
     expect(properties?.["priceDrop"]?.properties?.["minPercent"]).toMatchObject(
       { type: "number", exclusiveMinimum: 0, maximum: 95 }
     );
+  });
+
+  it("reads per-user notification preferences for the selected company", async () => {
+    const response = {
+      success: true,
+      notificationPreferences: [
+        { event: "new_subscriber", mode: "daily" },
+        { event: "campaign_completed", mode: "instant" },
+      ],
+      supportedModes: {
+        new_subscriber: ["off", "instant", "daily"],
+        campaign_completed: ["off", "instant"],
+      },
+      defaults: {
+        new_subscriber: "instant",
+        campaign_completed: "instant",
+      },
+    };
+    mockApiRequest.mockResolvedValueOnce(response);
+
+    const result = await handleToolCall("get_notification_preferences", {
+      companyId: "company_123",
+    });
+    const tool = tools.find(
+      (candidate) => candidate.name === "get_notification_preferences"
+    );
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/notification-preferences",
+      undefined,
+      "company_123"
+    );
+    expect(result.isError).toBeUndefined();
+    expect(result.structuredContent?.["notificationPreferences"]).toEqual(
+      response.notificationPreferences
+    );
+    expect(tool?.annotations?.readOnlyHint).toBe(true);
+  });
+
+  it("updates notification preferences with a mutation-safe schema", async () => {
+    const notificationPreferences = [{ event: "new_subscriber", mode: "off" }];
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      notificationPreferences,
+      supportedModes: {
+        new_subscriber: ["off", "instant", "daily"],
+        campaign_completed: ["off", "instant"],
+      },
+      defaults: {
+        new_subscriber: "instant",
+        campaign_completed: "instant",
+      },
+    });
+
+    const result = await handleToolCall("update_notification_preferences", {
+      companyId: "company_123",
+      notificationPreferences,
+    });
+    const tool = tools.find(
+      (candidate) => candidate.name === "update_notification_preferences"
+    );
+    const preferencesSchema = tool?.inputSchema.properties?.[
+      "notificationPreferences"
+    ] as
+      | {
+          items?: {
+            properties?: Record<string, { enum?: string[] }>;
+            required?: string[];
+          };
+        }
+      | undefined;
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/notification-preferences",
+      { notificationPreferences },
+      "company_123"
+    );
+    expect(result.isError).toBeUndefined();
+    expect(tool?.inputSchema.required).toContain("notificationPreferences");
+    expect(preferencesSchema?.items?.required).toEqual(["event", "mode"]);
+    expect(preferencesSchema?.items?.properties?.["event"]?.enum).toEqual([
+      "new_subscriber",
+      "campaign_completed",
+    ]);
+    expect(preferencesSchema?.items?.properties?.["mode"]?.enum).toEqual([
+      "off",
+      "instant",
+      "daily",
+    ]);
+    expect(tool?.annotations?.readOnlyHint).toBe(false);
+    expect(tool?.annotations?.destructiveHint).toBe(false);
   });
 });
 
@@ -369,6 +463,54 @@ describe("tool schema compatibility", () => {
 
     expect(conditionType?.enum).toContain("does_not_have_tag");
   });
+
+  it("publishes the same webhook step fields on insertSteps as insert_sequence_step", () => {
+    const updateSequenceTool = tools.find(
+      (tool) => tool.name === "update_sequence"
+    );
+    const inputSchema = updateSequenceTool?.inputSchema as
+      | Record<string, unknown>
+      | undefined;
+    const properties = inputSchema?.properties as
+      | Record<string, unknown>
+      | undefined;
+    const insertSteps = properties?.insertSteps as
+      | Record<string, unknown>
+      | undefined;
+    const insertStepsProperties = insertSteps?.properties as
+      | Record<string, unknown>
+      | undefined;
+    const steps = insertStepsProperties?.steps as
+      | Record<string, unknown>
+      | undefined;
+    const stepItem = steps?.items as Record<string, unknown> | undefined;
+    const stepProperties = stepItem?.properties as
+      | Record<string, unknown>
+      | undefined;
+    const config = stepProperties?.config as
+      | Record<string, unknown>
+      | undefined;
+    const configProperties = config?.properties as
+      | Record<string, Record<string, unknown>>
+      | undefined;
+
+    // A stale enum here makes agents reject methods the API accepts, and
+    // missing fields hide body/resultKey/onError from the insertSteps path.
+    expect(configProperties?.["method"]?.["enum"]).toEqual([
+      "POST",
+      "GET",
+      "PUT",
+      "PATCH",
+      "DELETE",
+    ]);
+    expect(configProperties?.["body"]?.["type"]).toBe("string");
+    expect(configProperties?.["resultKey"]?.["type"]).toBe("string");
+    expect(configProperties?.["onError"]?.["enum"]).toEqual([
+      "continue",
+      "exit",
+      "fail",
+    ]);
+  });
 });
 
 describe("create_api_key tool schema", () => {
@@ -480,6 +622,487 @@ describe("API key lifecycle tools", () => {
       );
     }
   );
+});
+
+describe("read-only audit tools", () => {
+  beforeEach(() => {
+    mockApiRequest.mockReset();
+  });
+
+  it("lists active integrations without leaking credentials", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      integrations: [
+        {
+          id: "int_1",
+          provider: "shopify",
+          providerAccountId: "acme.myshopify.com",
+          isActive: true,
+          syncStatus: "idle",
+          details: { shopName: "Acme" },
+        },
+      ],
+    });
+
+    const result = await handleToolCall("list_integrations", {
+      companyId: "company_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/integrations",
+      undefined,
+      "company_123"
+    );
+    expect(result.structuredContent?.["integrations"]).toEqual([
+      expect.objectContaining({ provider: "shopify" }),
+    ]);
+  });
+
+  it("passes includeInactive through as a query parameter", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true, integrations: [] });
+
+    await handleToolCall("list_integrations", {
+      companyId: "company_123",
+      includeInactive: true,
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/integrations?includeInactive=true",
+      undefined,
+      "company_123"
+    );
+  });
+
+  it("lists sender and reply profiles", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      senderProfiles: [{ id: "sp_1", email: "hi@acme.com", canSend: true }],
+      replyProfiles: [],
+      defaultSenderProfileId: "sp_1",
+      defaultReplyProfileId: null,
+    });
+
+    const result = await handleToolCall("list_sender_profiles", {
+      companyId: "company_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/sender-profiles",
+      undefined,
+      "company_123"
+    );
+    expect(result.structuredContent?.["defaultSenderProfileId"]).toBe("sp_1");
+  });
+
+  it("renames a sender profile", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      senderProfile: {
+        id: "sp_1",
+        name: "SnapCount",
+        email: "hi@snapcount.app",
+        isDefault: true,
+      },
+      renamed: true,
+    });
+
+    const result = await handleToolCall("update_sender_profile", {
+      profileId: "sp_1",
+      name: "SnapCount",
+      companyId: "company_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/sender-profiles/sp_1",
+      { name: "SnapCount" },
+      "company_123"
+    );
+    expect(result.structuredContent?.["renamed"]).toBe(true);
+  });
+
+  // Profile IDs are opaque cuids with no type prefix, so the caller says which
+  // list the ID came from rather than the handler guessing.
+  it("routes update_sender_profile to the reply route when type is reply", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      replyProfile: {
+        id: "rp_1",
+        name: "SnapCount",
+        email: "support@snapcount.app",
+        isDefault: false,
+      },
+      renamed: true,
+    });
+
+    const result = await handleToolCall("update_sender_profile", {
+      profileId: "rp_1",
+      name: "SnapCount",
+      type: "reply",
+      companyId: "company_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/reply-profiles/rp_1",
+      { name: "SnapCount" },
+      "company_123"
+    );
+  });
+
+  it("gets tracking settings", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      tracking: { openTrackingEnabled: true, clickTrackingEnabled: false },
+      autoUtm: { enabled: false, settings: {} },
+      trackingDomain: null,
+      replyTracking: { inboundEmailEnabled: false },
+    });
+
+    const result = await handleToolCall("get_tracking_settings", {
+      companyId: "company_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/tracking-settings",
+      undefined,
+      "company_123"
+    );
+    expect(result.structuredContent?.["trackingDomain"]).toBeNull();
+  });
+
+  it("updates tracking settings", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      message: "Updated tracking settings: openTrackingEnabled.",
+      tracking: { openTrackingEnabled: false, clickTrackingEnabled: false },
+      autoUtm: { enabled: false, settings: {} },
+      trackingDomain: null,
+      replyTracking: { inboundEmailEnabled: false },
+    });
+
+    const result = await handleToolCall("update_tracking_settings", {
+      companyId: "company_123",
+      openTrackingEnabled: false,
+      clickTrackingEnabled: false,
+      autoUtmSettings: { source: "newsletter", term: null },
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/tracking-settings",
+      {
+        openTrackingEnabled: false,
+        clickTrackingEnabled: false,
+        autoUtmSettings: { source: "newsletter", term: null },
+      },
+      "company_123"
+    );
+    expect(result.structuredContent?.["message"]).toBe(
+      "Updated tracking settings: openTrackingEnabled."
+    );
+  });
+
+  it("forwards doubleOptInEnabled and surfaces the consent block", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      message: "Updated tracking settings: doubleOptInEnabled.",
+      tracking: { openTrackingEnabled: true, clickTrackingEnabled: true },
+      consent: { doubleOptInEnabled: true, doubleOptInEmailId: "email_1" },
+      autoUtm: { enabled: false, settings: {} },
+      trackingDomain: null,
+      replyTracking: { inboundEmailEnabled: false },
+    });
+
+    const result = await handleToolCall("update_tracking_settings", {
+      companyId: "company_123",
+      doubleOptInEnabled: true,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/tracking-settings",
+      { doubleOptInEnabled: true },
+      "company_123"
+    );
+    expect(result.structuredContent?.["consent"]).toEqual({
+      doubleOptInEnabled: true,
+      doubleOptInEmailId: "email_1",
+    });
+  });
+
+  it("rejects a non-boolean doubleOptInEnabled", async () => {
+    const result = await handleToolCall("update_tracking_settings", {
+      companyId: "company_123",
+      doubleOptInEnabled: "on",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("`doubleOptInEnabled`");
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects tracking settings updates with no editable field", async () => {
+    const result = await handleToolCall("update_tracking_settings", {
+      companyId: "company_123",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("Provide at least one of");
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects reply-tracking fields on update_tracking_settings", async () => {
+    // Reply tracking is owned by update_company; silently dropping it here
+    // would read as a successful opt-out.
+    const result = await handleToolCall("update_tracking_settings", {
+      companyId: "company_123",
+      replyTrackingEnabled: false,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("`replyTrackingEnabled`");
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects an out-of-range attribution window", async () => {
+    const result = await handleToolCall("update_tracking_settings", {
+      companyId: "company_123",
+      defaultAttributionWindowHours: 5000,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("defaultAttributionWindowHours");
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("resolves a campaign audience with a recipient count", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      campaignId: "camp_1",
+      campaignName: "Launch",
+      status: "scheduled",
+      audience: {
+        type: "lists",
+        summary: "Subscribers on lists Newsletter. 42 recipient(s) match.",
+        isUnset: false,
+        lists: [{ id: "list_1", name: "Newsletter", missing: false }],
+      },
+      recipientCount: 42,
+    });
+
+    const result = await handleToolCall("get_campaign_audience", {
+      companyId: "company_123",
+      campaignId: "camp_1",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/campaigns/camp_1/audience",
+      undefined,
+      "company_123"
+    );
+    expect(result.structuredContent?.["recipientCount"]).toBe(42);
+  });
+});
+
+describe("nullable structured output", () => {
+  // MCP clients reject a tool call whose structuredContent fails its
+  // outputSchema. The TypeScript SDK compiles the schema with ajv, so validate
+  // through the SDK's own validator rather than re-deriving the rules here.
+  const validator = new AjvJsonSchemaValidator();
+
+  function validateStructuredContent(
+    toolName: string,
+    structuredContent: Record<string, unknown>
+  ) {
+    const tool = tools.find((candidate) => candidate.name === toolName);
+    if (!tool?.outputSchema) {
+      throw new Error(`Tool ${toolName} has no output schema`);
+    }
+    return validator.getValidator(tool.outputSchema)(structuredContent);
+  }
+
+  it("accepts a company with no dedicated tracking domain", () => {
+    // The common case: most companies use the shared Sequenzy tracking domain.
+    const result = validateStructuredContent("get_tracking_settings", {
+      success: true,
+      tracking: { openTrackingEnabled: true, clickTrackingEnabled: true },
+      autoUtm: { enabled: false, settings: {} },
+      trackingDomain: null,
+      replyTracking: { inboundEmailEnabled: false },
+    });
+
+    expect(result.errorMessage).toBeUndefined();
+    expect(result.valid).toBe(true);
+  });
+
+  it("accepts an account with no default sender or reply profile", () => {
+    const result = validateStructuredContent("list_sender_profiles", {
+      success: true,
+      senderProfiles: [],
+      replyProfiles: [],
+      defaultSenderProfileId: null,
+      defaultReplyProfileId: null,
+    });
+
+    expect(result.errorMessage).toBeUndefined();
+    expect(result.valid).toBe(true);
+  });
+
+  it("accepts a campaign whose targeting has never been set", () => {
+    const result = validateStructuredContent("get_campaign_audience", {
+      success: true,
+      campaignId: "camp_1",
+      campaignName: "Launch",
+      status: "draft",
+      audience: { type: "unset", isUnset: true },
+      recipientCount: 1284,
+      targetLists: null,
+    });
+
+    expect(result.errorMessage).toBeUndefined();
+    expect(result.valid).toBe(true);
+  });
+
+  // The default listing (active and waiting) sends `failedReason: null` on every
+  // row, and a contact with no stored name sends null for the name fields too.
+  // Declaring any of them as a plain string makes ajv reject the whole tool call,
+  // so the diagnostic field would break the listing it was added to.
+  it("accepts a waiting enrollment with no failure reason and no name", () => {
+    const result = validateStructuredContent("list_sequence_enrollments", {
+      success: true,
+      sequenceId: "seq_abc123",
+      sequenceName: "Onboarding",
+      statuses: ["active", "waiting"],
+      enrollments: [
+        {
+          enrollmentId: "tok_abc123",
+          sequenceId: "seq_abc123",
+          subscriberId: "sub_abc123",
+          email: null,
+          firstName: null,
+          lastName: null,
+          subscriberStatus: null,
+          status: "waiting",
+          currentNodeId: "node_wave_1",
+          currentNodeMissing: false,
+          enrollmentKey: "__default__",
+          enrollmentStartedAt: "2026-01-01T00:00:00.000Z",
+          waitUntil: null,
+          lastUpdatedAt: "2026-01-01T00:00:00.000Z",
+          failedReason: null,
+        },
+      ],
+      pagination: {
+        limit: 50,
+        offset: 0,
+        count: 1,
+        total: 1,
+        hasMore: false,
+      },
+    });
+
+    expect(result.errorMessage).toBeUndefined();
+    expect(result.valid).toBe(true);
+  });
+
+  it("accepts a failed enrollment carrying its reason", () => {
+    const result = validateStructuredContent("list_sequence_enrollments", {
+      success: true,
+      sequenceId: "seq_abc123",
+      sequenceName: "Onboarding",
+      statuses: ["failed"],
+      enrollments: [
+        {
+          enrollmentId: "tok_failed",
+          sequenceId: "seq_abc123",
+          subscriberId: "sub_abc123",
+          email: "customer@example.com",
+          firstName: "Wanda",
+          lastName: "Waiter",
+          subscriberStatus: "active",
+          status: "failed",
+          currentNodeId: "node_welcome",
+          currentNodeMissing: false,
+          enrollmentKey: "__default__",
+          enrollmentStartedAt: "2026-01-01T00:00:00.000Z",
+          waitUntil: null,
+          lastUpdatedAt: "2026-01-01T00:00:00.000Z",
+          failedReason:
+            "undefined is not an object (evaluating 'block.text.replace')",
+        },
+      ],
+      pagination: {
+        limit: 50,
+        offset: 0,
+        count: 1,
+        total: 1,
+        hasMore: false,
+      },
+    });
+
+    expect(result.errorMessage).toBeUndefined();
+    expect(result.valid).toBe(true);
+  });
+
+  it("still rejects a wrongly typed value in a nullable field", () => {
+    const result = validateStructuredContent("get_tracking_settings", {
+      success: true,
+      trackingDomain: "links.acme.com",
+    });
+
+    expect(result.valid).toBe(false);
+  });
+
+  // This package ships independently of the API, so between publishing it and
+  // deploying the API the listing still answers without `failedReason`. A schema
+  // that required the key would reject the whole tool call for that window.
+  it("accepts an enrollment from an API that does not send failedReason yet", () => {
+    const result = validateStructuredContent("list_sequence_enrollments", {
+      success: true,
+      sequenceId: "seq_abc123",
+      sequenceName: "Onboarding",
+      statuses: ["active", "waiting"],
+      enrollments: [
+        {
+          enrollmentId: "tok_abc123",
+          sequenceId: "seq_abc123",
+          subscriberId: "sub_abc123",
+          email: "customer@example.com",
+          status: "waiting",
+          currentNodeId: "node_wave_1",
+          currentNodeMissing: false,
+          enrollmentKey: "__default__",
+          enrollmentStartedAt: "2026-01-01T00:00:00.000Z",
+          waitUntil: null,
+          lastUpdatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      pagination: {
+        limit: 50,
+        offset: 0,
+        count: 1,
+        total: 1,
+        hasMore: false,
+      },
+    });
+
+    expect(result.errorMessage).toBeUndefined();
+    expect(result.valid).toBe(true);
+  });
 });
 
 describe("update_template tool validation", () => {
@@ -829,6 +1452,55 @@ describe("update_company tool validation", () => {
       "Provide at least one of `name`, `description`"
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("forwards a standalone fromName or replyToName rename", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true, company: {} });
+    const senderResult = await handleToolCall("update_company", {
+      companyId: "company_123",
+      fromName: "Optiflow",
+    });
+
+    expect(senderResult.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/companies/company_123",
+      { fromName: "Optiflow" }
+    );
+
+    mockApiRequest.mockResolvedValueOnce({ success: true, company: {} });
+    const replyResult = await handleToolCall("update_company", {
+      companyId: "company_123",
+      replyToName: "Optiflow Support",
+    });
+
+    expect(replyResult.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "PATCH",
+      "/api/v1/companies/company_123",
+      { replyToName: "Optiflow Support" }
+    );
+  });
+
+  it("forwards explicit sender and reply profile selectors", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true, company: {} });
+    const result = await handleToolCall("update_company", {
+      companyId: "company_123",
+      senderProfileId: "sender_abc123",
+      fromName: "Optiflow News",
+      replyProfileId: "reply_abc123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "PATCH",
+      "/api/v1/companies/company_123",
+      {
+        senderProfileId: "sender_abc123",
+        fromName: "Optiflow News",
+        replyProfileId: "reply_abc123",
+      }
+    );
   });
 
   it("forwards partial and null emailTheme updates", async () => {
@@ -1635,9 +2307,28 @@ describe("A/B test tools", () => {
 
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain(
-      "`eventTypes` item 2 must be one of send, delivery, bounce, complaint, open, click, unsubscribe, delivery_delay"
+      "`eventTypes` item 2 must be one of send, delivery, bounce, complaint, open, click, unsubscribe, delivery_delay, transport_failure"
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("accepts transport_failure event types (API/MCP parity)", async () => {
+    // Regression: the REST API accepted transport_failure while this mirrored
+    // validator rejected it, so MCP calls failed before reaching the API.
+    mockApiRequest.mockResolvedValueOnce({ success: true, events: [] });
+
+    const result = await handleToolCall("list_campaign_events", {
+      campaignId: "camp_123",
+      eventTypes: ["transport_failure"],
+    });
+
+    expect(result.isError).not.toBe(true);
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/metrics/campaigns/camp_123/events?eventTypes=transport_failure",
+      undefined,
+      undefined
+    );
   });
 
   it("calls the A/B restart API with control and generation options", async () => {
@@ -1817,6 +2508,22 @@ describe("transactional email tools", () => {
     expect(inputSchema?.properties).toHaveProperty("templateId");
     expect(inputSchema?.properties).toHaveProperty("emailType");
     expect(inputSchema?.properties).toHaveProperty("replyTo");
+    expect(inputSchema?.properties).toHaveProperty("trackingSettings");
+    const trackingSettingsSchema = properties?.["trackingSettings"] as
+      | {
+          description?: string;
+          properties?: Record<string, { description?: string }>;
+        }
+      | undefined;
+    expect(trackingSettingsSchema?.description).toContain(
+      "cannot enable tracking the account has disabled"
+    );
+    expect(
+      trackingSettingsSchema?.properties?.["clickTracking"]?.description
+    ).toContain("skip click-link rewriting for this send only");
+    expect(
+      trackingSettingsSchema?.properties?.["openTracking"]?.description
+    ).toContain("skip the open-tracking pixel for this send only");
     expect(sendEmailTool?.outputSchema?.properties).toHaveProperty("emailType");
     expect(sendEmailTool?.description).toContain(
       "saved first and last names fill omitted name variables"
@@ -1904,6 +2611,65 @@ describe("transactional email tools", () => {
         to: "user@example.com",
         slug: "trial-reminder",
         emailType: "marketing",
+      },
+      undefined
+    );
+  });
+
+  it("forwards send_email trackingSettings opt-outs to the API body", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      emailSendId: "send_track_123",
+    });
+
+    await handleToolCall("send_email", {
+      to: "user@example.com",
+      templateId: "order-confirmation",
+      trackingSettings: { clickTracking: false, openTracking: false },
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/transactional/send",
+      {
+        to: "user@example.com",
+        slug: "order-confirmation",
+        trackingSettings: { clickTracking: false, openTracking: false },
+      },
+      undefined
+    );
+  });
+
+  it("rejects non-boolean send_email trackingSettings fields", async () => {
+    const result = await handleToolCall("send_email", {
+      to: "user@example.com",
+      templateId: "order-confirmation",
+      trackingSettings: { clickTracking: "no" },
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`trackingSettings.clickTracking` must be a boolean"
+    );
+  });
+
+  it("omits send_email tracking flags when not provided", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      emailSendId: "send_no_track_123",
+    });
+
+    await handleToolCall("send_email", {
+      to: "user@example.com",
+      templateId: "order-confirmation",
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/transactional/send",
+      {
+        to: "user@example.com",
+        slug: "order-confirmation",
       },
       undefined
     );
@@ -2316,7 +3082,49 @@ describe("update_campaign tool validation", () => {
     expect(inputSchema?.properties).toHaveProperty("bccEmails");
     expect(inputSchema?.properties).toHaveProperty("campaignData");
     expect(inputSchema?.properties).toHaveProperty("computedLists");
+    expect(inputSchema?.properties).toHaveProperty("targetLists");
+    expect(inputSchema?.properties).toHaveProperty("segmentId");
     expect(inputSchema?.properties).toHaveProperty("labels");
+  });
+
+  it("forwards an update_campaign audience change to the API", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      campaign: {
+        id: "camp_123",
+        targetLists: { type: "lists", listIds: ["list_123"] },
+      },
+    });
+
+    const result = await handleToolCall("update_campaign", {
+      companyId: "comp_123",
+      campaignId: "camp_123",
+      targetLists: { type: "lists", listIds: ["list_123"] },
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/campaigns/camp_123",
+      expect.objectContaining({
+        targetLists: { type: "lists", listIds: ["list_123"] },
+      }),
+      "comp_123"
+    );
+  });
+
+  it("rejects update_campaign calls that combine segmentId and targetLists", async () => {
+    const result = await handleToolCall("update_campaign", {
+      campaignId: "camp_123",
+      segmentId: "seg_123",
+      targetLists: { type: "all" },
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Provide either `segmentId` or `targetLists` when calling `update_campaign`, not both."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
   it("publishes schedule_campaign with a plain object schema", () => {
@@ -2367,6 +3175,60 @@ describe("update_campaign tool validation", () => {
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain(
       "Provide either `replyTo` or `replyProfileId` when calling `update_campaign`, not both."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("states the whole profile rule when a display name is sent with a profile id", async () => {
+    // Adding fromEmail was the only remedy the old message suggested, and it
+    // just produced the opposite complaint, so callers got stuck in a loop.
+    const senderResult = await handleToolCall("create_campaign", {
+      name: "Blocked draft",
+      subject: "Hello",
+      senderProfileId: "sender_123",
+      fromName: "Outlex",
+    });
+
+    expect(senderResult.isError).toBe(true);
+    expect(senderResult.content[0]?.text).not.toContain(
+      "`fromName` requires `fromEmail`"
+    );
+    expect(senderResult.content[0]?.text).toContain(
+      "`fromName` cannot be combined with `senderProfileId` when calling `create_campaign`."
+    );
+    expect(senderResult.content[0]?.text).toContain(
+      "send it without `fromEmail` and `fromName`"
+    );
+
+    const replyResult = await handleToolCall("update_campaign", {
+      campaignId: "camp_123",
+      replyProfileId: "reply_123",
+      replyToName: "Outlex Support",
+    });
+
+    expect(replyResult.isError).toBe(true);
+    expect(replyResult.content[0]?.text).not.toContain(
+      "`replyToName` requires `replyTo`"
+    );
+    expect(replyResult.content[0]?.text).toContain(
+      "`replyToName` cannot be combined with `replyProfileId` when calling `update_campaign`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("keeps pointing a bare display name at its address field", async () => {
+    const result = await handleToolCall("create_campaign", {
+      name: "Blocked draft",
+      subject: "Hello",
+      fromName: "Outlex",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`fromName` requires `fromEmail` when calling `create_campaign`."
+    );
+    expect(result.content[0]?.text).toContain(
+      "send `senderProfileId` on its own"
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
   });
@@ -2851,6 +3713,72 @@ describe("label list filters", () => {
     );
   });
 
+  it("passes campaign pagination as query parameters", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      campaigns: [],
+      pagination: {
+        limit: 100,
+        offset: 200,
+        count: 0,
+        total: 200,
+        hasMore: false,
+      },
+    });
+
+    const result = await handleToolCall("list_campaigns", {
+      companyId: "comp_123",
+      limit: 100,
+      offset: 200,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/campaigns?limit=100&offset=200",
+      undefined,
+      "comp_123"
+    );
+  });
+
+  it("exposes limit and offset inputs plus pagination output on list_campaigns", () => {
+    const tool = tools.find((entry) => entry.name === "list_campaigns");
+    const inputProperties = tool?.inputSchema.properties as
+      | Record<string, unknown>
+      | undefined;
+
+    expect(inputProperties).toHaveProperty("limit");
+    expect(inputProperties).toHaveProperty("offset");
+    expect(tool?.outputSchema?.properties).toHaveProperty("pagination");
+  });
+
+  it("returns the pagination window from campaign list results", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      campaigns: [],
+      pagination: {
+        limit: 50,
+        offset: 0,
+        count: 50,
+        total: 125,
+        hasMore: true,
+      },
+    });
+
+    const result = await handleToolCall("list_campaigns", {
+      companyId: "comp_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.structuredContent?.["pagination"]).toEqual({
+      limit: 50,
+      offset: 0,
+      count: 50,
+      total: 125,
+      hasMore: true,
+    });
+  });
+
   it("returns rejection feedback from campaign list results", async () => {
     mockApiRequest.mockResolvedValueOnce({
       success: true,
@@ -2978,6 +3906,70 @@ describe("saved form tools", () => {
     expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
+  it("passes create_form theme overrides through to the API", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      form: { id: "form_123" },
+    });
+
+    const result = await handleToolCall("create_form", {
+      name: "Branded form",
+      listIds: ["list_123"],
+      theme: { accentColor: "#0f766e" },
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/forms",
+      {
+        name: "Branded form",
+        listIds: ["list_123"],
+        theme: { accentColor: "#0f766e" },
+      },
+      undefined
+    );
+  });
+
+  it("routes update_form edits to the form's PATCH endpoint", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      form: { id: "form/123", name: "Renamed" },
+    });
+
+    const result = await handleToolCall("update_form", {
+      companyId: "comp_123",
+      formId: "form/123",
+      name: "Renamed",
+      theme: { accentColor: "#0f766e" },
+      blocks: [{ id: "form-heading", kind: "heading", content: "Hi" }],
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/forms/form%2F123",
+      {
+        name: "Renamed",
+        theme: { accentColor: "#0f766e" },
+        blocks: [{ id: "form-heading", kind: "heading", content: "Hi" }],
+      },
+      "comp_123"
+    );
+  });
+
+  it("rejects update_form calls that change nothing", async () => {
+    const result = await handleToolCall("update_form", {
+      formId: "form_123",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Provide at least one field to change"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
   it("URL-encodes get_form_embed IDs and preserves secret-free snippets", async () => {
     mockApiRequest.mockResolvedValueOnce({
       success: true,
@@ -3052,6 +4044,7 @@ describe("landing page tools", () => {
     expect(toolNames).toContain("get_landing_page");
     expect(toolNames).toContain("create_landing_page");
     expect(toolNames).toContain("update_landing_page");
+    expect(toolNames).toContain("duplicate_landing_page");
     expect(toolNames).toContain("delete_landing_page");
     expect(toolNames).toContain("publish_landing_page");
     expect(toolNames).toContain("unpublish_landing_page");
@@ -3163,6 +4156,44 @@ describe("landing page tools", () => {
       "POST",
       "/api/v1/landing-pages/lp_123/unpublish",
       { slug: "draft-page" },
+      "comp_123"
+    );
+  });
+
+  it("routes duplicate_landing_page", async () => {
+    mockApiRequest
+      .mockResolvedValueOnce({
+        success: true,
+        landingPage: { id: "lp_456", companyId: "comp_123" },
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        landingPage: { id: "lp_789", companyId: "comp_123" },
+      });
+
+    await handleToolCall("duplicate_landing_page", {
+      companyId: "comp_123",
+      landingPageId: "lp_123",
+    });
+    await handleToolCall("duplicate_landing_page", {
+      companyId: "comp_123",
+      landingPageId: "lp_123",
+      name: "Spring Sale v2",
+      slug: "spring-sale-v2",
+    });
+
+    expect(mockApiRequest).toHaveBeenNthCalledWith(
+      1,
+      "POST",
+      "/api/v1/landing-pages/lp_123/duplicate",
+      {},
+      "comp_123"
+    );
+    expect(mockApiRequest).toHaveBeenNthCalledWith(
+      2,
+      "POST",
+      "/api/v1/landing-pages/lp_123/duplicate",
+      { name: "Spring Sale v2", slug: "spring-sale-v2" },
       "comp_123"
     );
   });
@@ -4152,6 +5183,56 @@ describe("update_sequence tool", () => {
     expect(stopCondition?.properties?.type?.enum).toContain("entered_segment");
     expect(stopCondition?.properties?.type?.enum).toContain("field_changed");
     expect(stopCondition?.properties?.value?.type).toEqual(["string", "null"]);
+  });
+
+  it("documents the config fields each path node type expects", () => {
+    const updateSequence = tools.find(
+      (tool) => tool.name === "update_sequence"
+    );
+    const inputSchema = updateSequence?.inputSchema as
+      | {
+          properties?: Record<
+            string,
+            {
+              properties?: {
+                steps?: {
+                  items?: {
+                    properties?: {
+                      config?: {
+                        description?: string;
+                        properties?: Record<string, unknown>;
+                      };
+                    };
+                  };
+                };
+              };
+            }
+          >;
+        }
+      | undefined;
+    const stepConfig =
+      inputSchema?.properties?.["insertSteps"]?.properties?.steps?.items
+        ?.properties?.config;
+
+    for (const field of [
+      "tagId",
+      "tagName",
+      "listId",
+      "eventName",
+      "timeoutDays",
+      "timeoutAction",
+      "conditionType",
+      "url",
+      "customAttributeUpdates",
+    ]) {
+      expect(stepConfig?.properties).toHaveProperty(field);
+    }
+    expect(stepConfig?.description).toContain(
+      "action_add_tag and action_remove_tag need tagId or tagName"
+    );
+    expect(stepConfig?.description).toContain(
+      "action_add_to_list and action_remove_from_list need listId"
+    );
   });
 
   it("forwards an atomic inbound-webhook trigger replacement", async () => {
@@ -5265,6 +6346,81 @@ describe("insert_sequence_step tool", () => {
     );
   });
 
+  it("forwards call-webhook body, resultKey, and onError in a linear sequence insertion", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      sequence: {
+        id: "seq_123",
+        insertedNodeIds: ["webhook_booking"],
+      },
+    });
+
+    const result = await handleToolCall("insert_sequence_step", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      type: "webhook",
+      afterNodeId: "email_1",
+      label: "Fetch booking",
+      url: "https://api.example.com/bookings/{{event.booking_id}}",
+      method: "PUT",
+      body: '{"email":"{{email}}"}',
+      resultKey: "booking",
+      onError: "continue",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/sequences/seq_123",
+      {
+        insertSteps: {
+          afterNodeId: "email_1",
+          steps: [
+            {
+              type: "webhook",
+              nodeType: "action_webhook",
+              config: {
+                label: "Fetch booking",
+                url: "https://api.example.com/bookings/{{event.booking_id}}",
+                method: "PUT",
+                body: '{"email":"{{email}}"}',
+                resultKey: "booking",
+                onError: "continue",
+              },
+            },
+          ],
+        },
+      },
+      "comp_123"
+    );
+  });
+
+  it("rejects an invalid webhook onError before hitting the API", async () => {
+    const result = await handleToolCall("insert_sequence_step", {
+      sequenceId: "seq_123",
+      type: "webhook",
+      url: "https://example.com/hooks/sequence",
+      onError: "retry",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("onError");
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects an invalid webhook method before hitting the API", async () => {
+    const result = await handleToolCall("insert_sequence_step", {
+      sequenceId: "seq_123",
+      type: "webhook",
+      url: "https://example.com/hooks/sequence",
+      method: "HEAD",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("method");
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
   it("rejects invalid webhook headers before hitting the API", async () => {
     const result = await handleToolCall("insert_sequence_step", {
       sequenceId: "seq_123",
@@ -6004,6 +7160,90 @@ describe("sequence enrollment pause tools", () => {
   });
 });
 
+describe("list_sequence_enrollments tool", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("is published as a read-only tool requiring sequenceId", () => {
+    const tool = tools.find(
+      (candidate) => candidate.name === "list_sequence_enrollments"
+    );
+    const inputSchema = tool?.inputSchema as
+      | {
+          type?: string;
+          required?: string[];
+          properties?: Record<string, unknown>;
+        }
+      | undefined;
+
+    expect(inputSchema?.type).toBe("object");
+    expect(inputSchema?.required).toEqual(["sequenceId"]);
+    expect(inputSchema?.properties).toHaveProperty("currentNodeId");
+    expect(inputSchema?.properties).toHaveProperty("status");
+    expect(inputSchema?.properties).toHaveProperty("limit");
+    expect(inputSchema?.properties).toHaveProperty("offset");
+    expect(tool?.annotations?.readOnlyHint).toBe(true);
+  });
+
+  it("lists enrollments without filters", async () => {
+    mockApiRequest.mockResolvedValue({
+      success: true,
+      sequenceId: "seq_123",
+      enrollments: [],
+      pagination: { limit: 50, offset: 0, count: 0, total: 0, hasMore: false },
+    });
+
+    const result = await handleToolCall("list_sequence_enrollments", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/sequences/seq_123/enrollments",
+      undefined,
+      "comp_123"
+    );
+  });
+
+  it("collapses array filters into comma-separated query values", async () => {
+    mockApiRequest.mockResolvedValue({
+      success: true,
+      sequenceId: "seq_123",
+      enrollments: [],
+      pagination: { limit: 500, offset: 0, count: 0, total: 0, hasMore: false },
+    });
+
+    await handleToolCall("list_sequence_enrollments", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      currentNodeId: ["node_wave_1", "node_wave_2"],
+      status: ["waiting"],
+      subscriberId: ["sub_1"],
+      email: "one@example.com",
+      sort: "wait_until_asc",
+      limit: 500,
+      offset: 100,
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/sequences/seq_123/enrollments?currentNodeId=node_wave_1%2Cnode_wave_2&status=waiting&subscriberId=sub_1&email=one%40example.com&sort=wait_until_asc&limit=500&offset=100",
+      undefined,
+      "comp_123"
+    );
+  });
+
+  it("requires sequenceId before calling the API", async () => {
+    const result = await handleToolCall("list_sequence_enrollments", {});
+
+    expect(result.isError).toBe(true);
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+});
+
 describe("cancel_sequence_enrollments tool", () => {
   beforeEach(() => {
     mockApiRequest.mockClear();
@@ -6025,7 +7265,9 @@ describe("cancel_sequence_enrollments tool", () => {
     expect(inputSchema?.required).toEqual(["sequenceId"]);
     expect(inputSchema?.anyOf).toBeUndefined();
     expect(inputSchema?.additionalProperties).toBe(false);
+    expect(inputSchema?.properties).toHaveProperty("cancelAll");
     expect(inputSchema?.properties).toHaveProperty("subscriberId");
+    expect(inputSchema?.properties).toHaveProperty("subscriberIds");
     expect(inputSchema?.properties).toHaveProperty("fieldPath");
     expect(inputSchema?.properties).toHaveProperty("fieldValues");
     expect(inputSchema?.properties).toHaveProperty("dryRun");
@@ -6064,12 +7306,70 @@ describe("cancel_sequence_enrollments tool", () => {
     );
   });
 
+  it("passes cancelAll through to the API", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      sequenceId: "seq_123",
+      dryRun: false,
+      matchedCount: 3522,
+      cancelledCount: 1000,
+      remainingCount: 2522,
+    });
+
+    const result = await handleToolCall("cancel_sequence_enrollments", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      cancelAll: true,
+      dryRun: false,
+      reason: "Lifecycle cutover",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/sequences/seq_123/enrollments/cancel",
+      { cancelAll: true, dryRun: false, reason: "Lifecycle cutover" },
+      "comp_123"
+    );
+  });
+
+  it("trims and forwards a subscriberIds batch to the API", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true });
+
+    await handleToolCall("cancel_sequence_enrollments", {
+      sequenceId: "seq_123",
+      subscriberIds: [" sub_1 ", "sub_2", "sub_1"],
+      dryRun: false,
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/sequences/seq_123/enrollments/cancel",
+      { subscriberIds: ["sub_1", "sub_2", "sub_1"], dryRun: false },
+      undefined
+    );
+  });
+
   it("rejects mixed subscriber and field-value targets before hitting the API", async () => {
     const result = await handleToolCall("cancel_sequence_enrollments", {
       companyId: "comp_123",
       sequenceId: "seq_123",
       subscriberId: "sub_123",
       fieldValues: ["ord_1"],
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Provide exactly one target when calling `cancel_sequence_enrollments`"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects combining cancelAll with another target", async () => {
+    const result = await handleToolCall("cancel_sequence_enrollments", {
+      sequenceId: "seq_123",
+      cancelAll: true,
+      subscriberIds: ["sub_1"],
     });
 
     expect(result.isError).toBe(true);
@@ -6322,6 +7622,37 @@ describe("create_segment tool", () => {
   it("rejects unsupported non-tag operators before hitting the API", async () => {
     const result = await handleToolCall("create_segment", {
       companyId: "comp_123",
+      name: "Missing emails",
+      filters: [
+        {
+          field: "email",
+          operator: "is_empty",
+          value: "",
+        },
+      ],
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.type).toBe("text");
+    expect(result.content[0]?.text).toContain(
+      'Operator "is_empty" is not supported for email filters'
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("passes exact email operators through to the API", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      segment: {
+        id: "seg_exact_emails",
+        name: "Exact emails",
+        filters: [],
+        filterJoinOperator: "and",
+      },
+    });
+
+    const result = await handleToolCall("create_segment", {
+      companyId: "comp_123",
       name: "Exact emails",
       filters: [
         {
@@ -6332,12 +7663,21 @@ describe("create_segment tool", () => {
       ],
     });
 
-    expect(result.isError).toBe(true);
-    expect(result.content[0]?.type).toBe("text");
-    expect(result.content[0]?.text).toContain(
-      'Operator "is" is not supported for email filters'
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/segments",
+      expect.objectContaining({
+        filters: [
+          expect.objectContaining({
+            field: "email",
+            operator: "is",
+            value: "alice@example.com",
+          }),
+        ],
+      }),
+      "comp_123"
     );
-    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
   it("rejects invalid segment value formats before hitting the API", async () => {
@@ -6599,6 +7939,22 @@ describe("product tools", () => {
       "/api/v1/products/my%20ebook",
       undefined,
       undefined
+    );
+  });
+
+  it("selects a Stripe integration for product sync", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true, jobId: "job_123" });
+
+    await handleToolCall("sync_products", {
+      companyId: "company_123",
+      integrationId: "int/selected",
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/products/sync?integrationId=int%2Fselected",
+      undefined,
+      "company_123"
     );
   });
 
@@ -8502,5 +9858,69 @@ describe("recipient suppression tools", () => {
       undefined,
       undefined
     );
+  });
+});
+
+describe("buildInsertSequenceStepBody webhook steps", () => {
+  const baseArgs = {
+    type: "webhook",
+    url: "https://api.example.com/lookup",
+  };
+
+  it("keeps a string body, resultKey, and onError", async () => {
+    const { buildInsertSequenceStepBody } = await import(
+      "./sequence-validation"
+    );
+
+    const body = buildInsertSequenceStepBody({
+      ...baseArgs,
+      method: "POST",
+      body: '{"email":"{{email}}"}',
+      resultKey: "lookup",
+      onError: "continue",
+    });
+
+    expect(body.insertSteps).toEqual({
+      steps: [
+        {
+          type: "webhook",
+          nodeType: "action_webhook",
+          config: {
+            label: "Webhook",
+            url: "https://api.example.com/lookup",
+            method: "POST",
+            body: '{"email":"{{email}}"}',
+            resultKey: "lookup",
+            onError: "continue",
+          },
+        },
+      ],
+    });
+  });
+
+  it("rejects a non-string body instead of dropping it", async () => {
+    const { buildInsertSequenceStepBody } = await import(
+      "./sequence-validation"
+    );
+
+    // An object body used to be silently discarded, so the step was created
+    // sending the default payload with no indication the template was lost.
+    expect(() =>
+      buildInsertSequenceStepBody({
+        ...baseArgs,
+        method: "POST",
+        body: { email: "{{email}}" },
+      })
+    ).toThrow("`body` must be a JSON string");
+  });
+
+  it("rejects a non-string resultKey instead of dropping it", async () => {
+    const { buildInsertSequenceStepBody } = await import(
+      "./sequence-validation"
+    );
+
+    expect(() =>
+      buildInsertSequenceStepBody({ ...baseArgs, resultKey: 7 })
+    ).toThrow("`resultKey` must be a string");
   });
 });

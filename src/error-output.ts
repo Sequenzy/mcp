@@ -65,7 +65,9 @@ function extractMissingApiKeyScopes(message: string): string[] {
     return [];
   }
 
-  return match[1].match(/[a-z_]+:[a-z_]+/gi) ?? [];
+  // Deduped: a message may name the same scope twice (once as the missing
+  // scope, once in the guidance that follows it).
+  return [...new Set(match[1].match(/[a-z_]+:[a-z_]+/gi) ?? [])];
 }
 
 function describeMcpError(error: unknown): McpErrorDescriptor {

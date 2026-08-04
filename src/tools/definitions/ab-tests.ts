@@ -1,6 +1,7 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 
 import {
+  blockFieldWarningsHint,
   rawHtmlContentWarning,
   replacementEmailBlocksDescription,
   includeMachineEngagementToolProperty,
@@ -156,7 +157,7 @@ export const abTestToolDefinitions: Tool[] = [
         },
         blocks: {
           type: "array",
-          description: `${replacementEmailBlocksDescription} Mutually exclusive with html.`,
+          description: `${replacementEmailBlocksDescription}${blockFieldWarningsHint} Mutually exclusive with html.`,
           items: {
             type: "object",
           },
@@ -304,7 +305,7 @@ export const abTestToolDefinitions: Tool[] = [
               },
               blocks: {
                 type: "array",
-                description: replacementEmailBlocksDescription,
+                description: `${replacementEmailBlocksDescription}${blockFieldWarningsHint}`,
                 items: { type: "object" },
               },
             },
@@ -340,7 +341,7 @@ export const abTestToolDefinitions: Tool[] = [
         },
         blocks: {
           type: "array",
-          description: replacementEmailBlocksDescription,
+          description: `${replacementEmailBlocksDescription}${blockFieldWarningsHint}`,
           items: { type: "object" },
         },
         confirmLiveChange: {

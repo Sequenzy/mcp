@@ -1,9 +1,18 @@
+import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { describe, expect, it } from "bun:test";
 
+import { abTestToolDefinitions } from "./definitions/ab-tests";
+import { sequenceBasicToolDefinitions } from "./definitions/sequences-basic";
+import { sequenceEditingToolDefinitions } from "./definitions/sequences-editing";
 import {
   blockConditionsHint,
+  blockFieldWarningsHint,
+  buttonColorHint,
   emailBlocksDescription,
   rawHtmlContentWarning,
+  sequenceNodeChangesSchema,
+  sequenceStepBlocksFormatHint,
+  sequenceStepBlocksFormatHintForNodeChanges,
 } from "./descriptions";
 
 describe("blockConditionsHint", () => {
@@ -59,5 +68,122 @@ describe("email authoring descriptions", () => {
     expect(rawHtmlContentWarning).toContain("one opaque block");
     expect(rawHtmlContentWarning).toContain("does not add a company logo");
     expect(rawHtmlContentWarning).toContain("theme-driven block design");
+  });
+
+  it("separates the button color guidance from the warnings promise", () => {
+    // The button/styles distinction is true everywhere; the `warnings` promise
+    // is only true on routes that validate blocks through the shared parser.
+    expect(buttonColorHint).toContain("buttonTextColor");
+    expect(buttonColorHint).not.toContain("warnings");
+    expect(emailBlocksDescription).toContain(blockFieldWarningsHint);
+  });
+});
+
+function blockPropertyDescriptions(tools: Tool[]): string[] {
+  const descriptions: string[] = [];
+
+  const visit = (value: unknown): void => {
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+      return;
+    }
+    if (typeof value !== "object" || value === null) {
+      return;
+    }
+
+    for (const [key, child] of Object.entries(value)) {
+      if (
+        key === "blocks" &&
+        typeof child === "object" &&
+        child !== null &&
+        typeof (child as { description?: unknown }).description === "string"
+      ) {
+        descriptions.push((child as { description: string }).description);
+      }
+      visit(child);
+    }
+  };
+
+  visit(tools);
+  return descriptions;
+}
+
+describe("block field warnings promise", () => {
+  // Sequence email steps validate through `parseEmailBlocksPayload` and report
+  // advisory `warnings`, so an agent editing one has to be told to read them -
+  // otherwise it reads a 2xx as "every field I sent took effect".
+  it("is present on sequence email block properties", () => {
+    const descriptions = blockPropertyDescriptions([
+      ...sequenceBasicToolDefinitions,
+      ...sequenceEditingToolDefinitions,
+    ]).filter((description) => description.includes("Sequenzy email blocks"));
+
+    expect(descriptions.length).toBeGreaterThan(0);
+    for (const description of descriptions) {
+      expect(description).toContain(blockFieldWarningsHint);
+    }
+  });
+
+  // SMS steps are a different content pipeline and are not parsed through the
+  // shared email block schema, so the promise must not leak onto them.
+  it("is absent from sequence SMS block properties", () => {
+    const descriptions = blockPropertyDescriptions(
+      sequenceEditingToolDefinitions
+    ).filter((description) => description.includes("SMS content blocks"));
+
+    expect(descriptions.length).toBeGreaterThan(0);
+    for (const description of descriptions) {
+      expect(description).not.toContain(blockFieldWarningsHint);
+    }
+  });
+
+  it("is present on A/B test tools, whose routes do report warnings", () => {
+    const descriptions = blockPropertyDescriptions(abTestToolDefinitions);
+
+    expect(descriptions.length).toBeGreaterThan(0);
+    for (const description of descriptions) {
+      expect(description).toContain(blockFieldWarningsHint);
+    }
+  });
+});
+
+describe("sequence step block format hint", () => {
+  // Only the sequence step update routes re-apply managed chrome on write, so
+  // the contract belongs on the replacement block fields.
+  it("is present on replacement email block properties", () => {
+    const descriptions = blockPropertyDescriptions(
+      sequenceEditingToolDefinitions
+    ).filter((description) =>
+      description.includes("Replacement Sequenzy email blocks")
+    );
+
+    expect(descriptions.length).toBeGreaterThan(0);
+    for (const description of descriptions) {
+      expect(description).toContain(sequenceStepBlocksFormatHint);
+    }
+  });
+
+  // SMS steps have a `blocks` field of their own that never gains a logo or a
+  // footer, so the email format contract must not leak onto it.
+  it("is absent from sequence SMS block properties", () => {
+    const descriptions = blockPropertyDescriptions(
+      sequenceEditingToolDefinitions
+    ).filter((description) => description.includes("SMS content blocks"));
+
+    expect(descriptions.length).toBeGreaterThan(0);
+    for (const description of descriptions) {
+      expect(description).not.toContain(sequenceStepBlocksFormatHint);
+    }
+  });
+
+  // The node changes description covers every node type, including action_sms,
+  // so an unscoped hint there reads as applying to SMS blocks too.
+  it("is scoped to action_email in the generic node changes description", () => {
+    expect(sequenceNodeChangesSchema.description).toContain(
+      sequenceStepBlocksFormatHintForNodeChanges
+    );
+    expect(sequenceStepBlocksFormatHintForNodeChanges).toStartWith(
+      " For action_email:"
+    );
   });
 });

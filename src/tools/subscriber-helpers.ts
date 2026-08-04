@@ -14,8 +14,10 @@ export interface SubscriberSearchResult {
   pagination?: {
     page: number;
     limit: number;
-    total: number;
-    totalPages: number;
+    total: number | null;
+    totalPages: number | null;
+    nextCursor?: string | null;
+    hasMore?: boolean;
   };
 }
 
@@ -32,6 +34,19 @@ export interface AggregatedSubscriberSearchResult {
   returned: number;
   truncated: boolean;
 }
+
+/**
+ * The list endpoint accepts up to 1000 rows per request. Pulling a 9k-subscriber
+ * audience 100 rows at a time took ~90 sequential round trips and blew past the
+ * MCP session timeout, so full pulls page as coarsely as the server allows.
+ */
+const SUBSCRIBER_SEARCH_MAX_PAGE_SIZE = 1_000;
+
+/**
+ * Backstop against an unbounded loop if a server ever keeps reporting more
+ * pages. At the max page size this still covers a million subscribers.
+ */
+const SUBSCRIBER_SEARCH_MAX_REQUESTS = 1_000;
 
 export interface DetailedSubscriberResult {
   success: boolean;
@@ -59,6 +74,8 @@ export function buildSubscriberSearchParams(input: {
   status?: unknown;
   page: number;
   pageSize: number;
+  cursor?: string | undefined;
+  includeTotal?: boolean | undefined;
 }): URLSearchParams {
   const params = new URLSearchParams();
 
@@ -97,8 +114,18 @@ export function buildSubscriberSearchParams(input: {
     params.set("status", input.status.trim());
   }
 
-  params.set("page", String(input.page));
+  // `cursor` and `page` are mutually exclusive server-side.
+  if (input.cursor) {
+    params.set("cursor", input.cursor);
+  } else {
+    params.set("page", String(input.page));
+  }
+
   params.set("limit", String(input.pageSize));
+
+  if (input.includeTotal === false) {
+    params.set("includeTotal", "false");
+  }
 
   return params;
 }
@@ -111,10 +138,14 @@ export async function fetchAllSubscribers(
     typeof args.limit === "number" && Number.isFinite(args.limit)
       ? Math.max(1, Math.trunc(args.limit))
       : undefined;
-  const pageSize = Math.min(100, Math.max(1, requestedLimit ?? 100));
+  const pageSize = Math.min(
+    SUBSCRIBER_SEARCH_MAX_PAGE_SIZE,
+    Math.max(1, requestedLimit ?? SUBSCRIBER_SEARCH_MAX_PAGE_SIZE)
+  );
   const subscribers: unknown[] = [];
 
   let page = 1;
+  let cursor: string | undefined;
   let total = 0;
   let totalPages = 0;
   let fetchedPages = 0;
@@ -130,6 +161,7 @@ export async function fetchAllSubscribers(
       status: args.status,
       page,
       pageSize,
+      cursor,
     });
 
     const response = await apiRequest<SubscriberSearchResult>(
@@ -139,22 +171,54 @@ export async function fetchAllSubscribers(
       companyId
     );
 
-    total = response.pagination?.total ?? response.subscribers.length;
-    totalPages = response.pagination?.totalPages ?? 1;
+    // Only the first request carries a count; cursor responses report
+    // `total: null` because they skip the count query entirely.
+    if (fetchedPages === 0) {
+      total = response.pagination?.total ?? response.subscribers.length;
+      totalPages = response.pagination?.totalPages ?? 1;
+    }
+
     fetchedPages += 1;
     subscribers.push(...(response.subscribers ?? []));
 
+    const pageCount = (response.subscribers ?? []).length;
+    const nextCursor = response.pagination?.nextCursor ?? undefined;
     const reachedLimit =
       requestedLimit !== undefined && subscribers.length >= requestedLimit;
-    const reachedEnd = response.pagination
-      ? page >= response.pagination.totalPages
-      : (response.subscribers ?? []).length < pageSize;
 
-    if (reachedLimit || reachedEnd) {
+    let reachedEnd: boolean;
+    if (nextCursor) {
+      reachedEnd = false;
+    } else if (response.pagination?.hasMore !== undefined) {
+      reachedEnd = !response.pagination.hasMore;
+    } else if (
+      response.pagination?.totalPages !== undefined &&
+      response.pagination.totalPages !== null
+    ) {
+      // Older servers without cursor support still page by number.
+      reachedEnd = page >= response.pagination.totalPages;
+    } else {
+      reachedEnd = pageCount < pageSize;
+    }
+
+    if (
+      reachedLimit ||
+      reachedEnd ||
+      pageCount === 0 ||
+      fetchedPages >= SUBSCRIBER_SEARCH_MAX_REQUESTS
+    ) {
       break;
     }
 
-    page += 1;
+    if (nextCursor) {
+      cursor = nextCursor;
+    } else {
+      page += 1;
+    }
+  }
+
+  if (total === 0 && subscribers.length > 0) {
+    total = subscribers.length;
   }
 
   const returnedSubscribers =

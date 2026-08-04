@@ -28,13 +28,95 @@ describe("subscriber MCP tools", () => {
     mockApiRequest.mockReset();
   });
 
-  it("fetches all subscriber pages when search_subscribers has no limit", async () => {
+  it("follows nextCursor instead of counting pages when search_subscribers has no limit", async () => {
+    mockApiRequest.mockImplementation(async (_method, path) => {
+      if (!path.includes("cursor=")) {
+        return {
+          success: true,
+          subscribers: [{ email: "one@example.com" }],
+          pagination: {
+            page: 1,
+            limit: 1000,
+            total: 3,
+            totalPages: 3,
+            nextCursor: "cursor-2",
+            hasMore: true,
+          },
+        };
+      }
+
+      if (path.includes("cursor=cursor-2")) {
+        return {
+          success: true,
+          subscribers: [{ email: "two@example.com" }],
+          pagination: {
+            page: 1,
+            limit: 1000,
+            total: null,
+            totalPages: null,
+            nextCursor: "cursor-3",
+            hasMore: true,
+          },
+        };
+      }
+
+      if (path.includes("cursor=cursor-3")) {
+        return {
+          success: true,
+          subscribers: [{ email: "three@example.com" }],
+          pagination: {
+            page: 1,
+            limit: 1000,
+            total: null,
+            totalPages: null,
+            nextCursor: null,
+            hasMore: false,
+          },
+        };
+      }
+
+      throw new Error(`Unexpected path: ${path}`);
+    });
+
+    const result = await handleToolCall("search_subscribers", {
+      status: "active",
+    });
+
+    expect(result.isError).toBeUndefined();
+    const payload = JSON.parse(result.content[0]?.text ?? "{}") as {
+      returned: number;
+      pagination: { fetchedPages: number; total: number };
+      subscribers: Array<{ email: string }>;
+    };
+
+    expect(payload.returned).toBe(3);
+    expect(payload.pagination.fetchedPages).toBe(3);
+    // The count comes from the first page and survives the null-total cursor
+    // pages that follow.
+    expect(payload.pagination.total).toBe(3);
+    expect(payload.subscribers.map((subscriber) => subscriber.email)).toEqual([
+      "one@example.com",
+      "two@example.com",
+      "three@example.com",
+    ]);
+
+    // Cursor requests must not also carry a page number.
+    const cursorCalls = mockApiRequest.mock.calls.filter((call) =>
+      String(call[1]).includes("cursor=")
+    );
+    expect(cursorCalls).toHaveLength(2);
+    for (const call of cursorCalls) {
+      expect(String(call[1])).not.toContain("page=");
+    }
+  });
+
+  it("falls back to page numbers when the server returns no cursor", async () => {
     mockApiRequest.mockImplementation(async (_method, path) => {
       if (path.includes("page=1")) {
         return {
           success: true,
           subscribers: [{ email: "one@example.com" }],
-          pagination: { page: 1, limit: 100, total: 2, totalPages: 2 },
+          pagination: { page: 1, limit: 1000, total: 2, totalPages: 2 },
         };
       }
 
@@ -42,7 +124,7 @@ describe("subscriber MCP tools", () => {
         return {
           success: true,
           subscribers: [{ email: "two@example.com" }],
-          pagination: { page: 2, limit: 100, total: 2, totalPages: 2 },
+          pagination: { page: 2, limit: 1000, total: 2, totalPages: 2 },
         };
       }
 
@@ -66,14 +148,14 @@ describe("subscriber MCP tools", () => {
       "one@example.com",
       "two@example.com",
     ]);
-    expect(mockApiRequest.mock.calls[0]?.[1]).toContain("limit=100");
+    expect(mockApiRequest.mock.calls[0]?.[1]).toContain("limit=1000");
   });
 
   it("passes list filters to search_subscribers", async () => {
     mockApiRequest.mockResolvedValue({
       success: true,
       subscribers: [],
-      pagination: { page: 1, limit: 100, total: 0, totalPages: 0 },
+      pagination: { page: 1, limit: 1000, total: 0, totalPages: 0 },
     });
 
     const result = await handleToolCall("search_subscribers", {
@@ -84,7 +166,7 @@ describe("subscriber MCP tools", () => {
     expect(result.isError).toBeUndefined();
     expect(mockApiRequest).toHaveBeenCalledWith(
       "GET",
-      "/api/v1/subscribers?listName=Master+List&page=1&limit=100",
+      "/api/v1/subscribers?listName=Master+List&page=1&limit=1000",
       undefined,
       "comp_123"
     );
@@ -247,9 +329,23 @@ describe("subscriber MCP tools", () => {
 
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain(
-      "Subscriber record 0 must include a non-empty email string"
+      "Subscriber record 0 must include an email or a phone number"
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("accepts a phone-only subscriber import record", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      data: { id: "imp_1", status: "queued" },
+    });
+
+    const result = await handleToolCall("create_subscriber_import", {
+      subscribers: [{ phone: "+14155550123" }],
+    });
+
+    expect(result.isError).toBeFalsy();
+    expect(mockApiRequest).toHaveBeenCalled();
   });
 
   it("updates native firstName/lastName fields on update_subscriber", async () => {
@@ -267,6 +363,51 @@ describe("subscriber MCP tools", () => {
       firstName: "Grace",
       lastName: "",
     });
+  });
+
+  it("updates the native phone field on update_subscriber", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true });
+
+    await handleToolCall("update_subscriber", {
+      companyId: "comp_123",
+      email: "detail@example.com",
+      phone: "351 234 5678",
+      phoneCountry: "it",
+      smsConsent: true,
+    });
+
+    expect(mockApiRequest.mock.calls).toHaveLength(1);
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/subscribers/detail%40example.com",
+      { phone: "351 234 5678", phoneCountry: "it", smsConsent: true },
+      "comp_123"
+    );
+  });
+
+  it("forwards an empty phone on update_subscriber so the API can clear it", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true });
+
+    await handleToolCall("update_subscriber", {
+      email: "detail@example.com",
+      phone: "",
+    });
+
+    expect(mockApiRequest.mock.calls[0]?.[2]).toEqual({ phone: "" });
+  });
+
+  it("passes phoneCountry through add_subscriber", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true });
+
+    await handleToolCall("add_subscriber", {
+      email: "new@example.com",
+      phone: "351 234 5678",
+      phoneCountry: "IT",
+    });
+
+    const body = mockApiRequest.mock.calls[0]?.[2] as Record<string, unknown>;
+    expect(body["phone"]).toBe("351 234 5678");
+    expect(body["phoneCountry"]).toBe("IT");
   });
 
   it("updates subscriber status without requiring a profile read", async () => {
@@ -560,6 +701,114 @@ describe("subscriber MCP tools", () => {
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain(
       "`emails` item 2 must be a string"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("posts a custom event for one subscriber via trigger_subscriber_event", async () => {
+    mockApiRequest.mockImplementation(async () => ({
+      success: true,
+      event: { name: "invoice.paid", created: true },
+    }));
+
+    const result = await handleToolCall("trigger_subscriber_event", {
+      email: " qa@example.com ",
+      event: "invoice.paid",
+      properties: { invoice: { id: "inv_123" } },
+      attributes: { plan: "pro" },
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/subscribers/events",
+      {
+        email: "qa@example.com",
+        event: "invoice.paid",
+        properties: { invoice: { id: "inv_123" } },
+        customAttributes: { plan: "pro" },
+      },
+      undefined
+    );
+  });
+
+  it("rejects trigger_subscriber_event without a subscriber identifier", async () => {
+    const result = await handleToolCall("trigger_subscriber_event", {
+      event: "invoice.paid",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Provide either `email` or `externalId`"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("posts several events for one subscriber via trigger_subscriber_events", async () => {
+    mockApiRequest.mockImplementation(async () => ({ success: true }));
+
+    await handleToolCall("trigger_subscriber_events", {
+      externalId: "ext_1",
+      events: [{ name: "trial.started" }, { name: "invoice.paid" }],
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/subscribers/events/bulk",
+      {
+        externalId: "ext_1",
+        events: [{ name: "trial.started" }, { name: "invoice.paid" }],
+      },
+      undefined
+    );
+  });
+
+  it("posts a bulk tag add with only the identifier lists that were provided", async () => {
+    mockApiRequest.mockImplementation(async () => ({ success: true }));
+
+    await handleToolCall("bulk_add_subscriber_tags", {
+      tags: [" derived-churn "],
+      emails: ["one@example.com", " two@example.com "],
+      triggerAutomations: false,
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/subscribers/bulk/tags/add",
+      {
+        tags: ["derived-churn"],
+        emails: ["one@example.com", "two@example.com"],
+        triggerAutomations: false,
+      },
+      undefined
+    );
+  });
+
+  it("drops triggerAutomations from bulk_remove_subscriber_tags", async () => {
+    mockApiRequest.mockImplementation(async () => ({ success: true }));
+
+    await handleToolCall("bulk_remove_subscriber_tags", {
+      tags: ["legacy-plan"],
+      subscriberIds: ["sub_1"],
+      triggerAutomations: true,
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/subscribers/bulk/tags/remove",
+      { tags: ["legacy-plan"], subscriberIds: ["sub_1"] },
+      undefined
+    );
+  });
+
+  it("rejects bulk tag calls without any subscriber identifiers", async () => {
+    const result = await handleToolCall("bulk_add_subscriber_tags", {
+      tags: ["vip"],
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Provide `emails`, `externalIds`, or `subscriberIds`"
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
   });

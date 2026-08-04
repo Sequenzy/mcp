@@ -4,6 +4,7 @@ import {
 } from "./argument-validation.js";
 import { isRecord, optionalString } from "./common-primitives.js";
 import {
+  discountMergeTagsHint,
   sequenceEmailBlocksDescription,
   sequenceWaitUntilSchema,
   sequenceDelaySchema,
@@ -268,6 +269,142 @@ export const subscriberUpdateConfigSchema = {
   additionalProperties: true,
 };
 
+export const sequencePathStepConfigSchema = {
+  type: "object",
+  description:
+    "Config for advanced nodeType steps. Required fields depend on nodeType: action_add_tag and action_remove_tag need tagId or tagName; action_add_to_list and action_remove_from_list need listId; action_update_attributes uses the Update Subscriber fields (firstName, lastName, status, customAttributeUpdates) and may use trigger-event merge tags; logic_wait_for_event needs eventName plus optional timeoutDays and timeoutAction; logic_condition needs conditionType plus that condition's resource field; action_webhook needs an HTTPS url plus optional method, headers, body, resultKey, and onError; logic_delay uses delayDays/delayHours/delayMinutes. Fields that do not apply to the node type are dropped.",
+  properties: {
+    ...subscriberUpdateConfigSchema.properties,
+    tagId: {
+      type: "string",
+      description:
+        "action_add_tag / action_remove_tag: tag ID. Pass a name in tagName instead, because tag actions resolve tagId by ID only. has_tag / does_not_have_tag also accept a tag name here. Missing tag definitions are created automatically.",
+    },
+    tagName: {
+      type: "string",
+      description:
+        "action_add_tag / action_remove_tag / has_tag / does_not_have_tag: tag name. Use instead of tagId when you only know the name.",
+    },
+    listId: {
+      type: "string",
+      description:
+        "action_add_to_list / action_remove_from_list / in_list: list ID. It must match an existing list in this company; listName is filled in for you.",
+    },
+    listName: {
+      type: "string",
+      description: "Optional cached list display name for list actions.",
+    },
+    eventName: {
+      type: "string",
+      description:
+        "logic_wait_for_event and event_received conditions: event to wait for or check, for example email.replied.",
+    },
+    timeoutDays: {
+      type: "number",
+      description:
+        "logic_wait_for_event: maximum wait in whole days from 1 to 365. Defaults to 7.",
+    },
+    timeoutAction: {
+      type: "string",
+      enum: ["continue", "exit"],
+      description:
+        "logic_wait_for_event: continue to the next node or exit the sequence when the timeout is reached. Defaults to continue.",
+    },
+    conditionType: {
+      type: "string",
+      enum: [
+        "has_tag",
+        "does_not_have_tag",
+        "in_list",
+        "in_segment",
+        "event_received",
+        "link_clicked",
+        "field_equals",
+        "field_contains",
+        "field_greater_than",
+        "field_less_than",
+        "has_phone",
+        "sms_subscribed",
+      ],
+      description:
+        "logic_condition: condition evaluated before continuing. has_phone and sms_subscribed need no resource fields.",
+    },
+    segmentId: {
+      type: "string",
+      description: "logic_condition: segment ID for in_segment.",
+    },
+    segmentName: {
+      type: "string",
+      description: "Optional cached segment display name.",
+    },
+    linkUrl: {
+      type: "string",
+      description:
+        "logic_condition: optional URL substring for link_clicked. Omit to match any tracked click.",
+    },
+    activityScope: {
+      type: "string",
+      enum: ["ever", "this_sequence", "previous_email"],
+      description:
+        "logic_condition: scope for event_received and link_clicked. Use this_sequence to restrict activity to the current enrollment.",
+    },
+    fieldName: {
+      type: "string",
+      description:
+        "logic_condition: subscriber attribute name/path for field comparisons.",
+    },
+    fieldValue: {
+      type: "string",
+      description: "logic_condition: comparison value for field comparisons.",
+    },
+    url: {
+      type: "string",
+      description:
+        "action_webhook: destination HTTPS URL called when a subscriber reaches this step. Supports merge tags like {{email}} and {{event.order_id}} resolved at execution time.",
+    },
+    method: {
+      type: "string",
+      enum: ["POST", "GET", "PUT", "PATCH", "DELETE"],
+      description: "action_webhook: HTTP method. Defaults to POST.",
+    },
+    headers: {
+      type: "object",
+      description:
+        "action_webhook: optional string-valued request headers. Values support merge tags. Secret values are redacted on sequence reads.",
+      additionalProperties: { type: "string" },
+    },
+    body: {
+      type: "string",
+      description:
+        'action_webhook: optional JSON body template for POST/PUT/PATCH. Must be valid JSON as written, with merge tags inside quoted string values ({"email": "{{email}}"}); a tag in a bare value position is rejected. Tags are resolved at execution time; when omitted, the default payload with subscriber and sequence context is sent.',
+    },
+    resultKey: {
+      type: "string",
+      description:
+        "action_webhook: when set, the HTTP response is saved and later email steps can reference it via {{webhooks.KEY.data.field}} merge tags. Must start with a letter; letters, numbers, underscores; max 64 chars.",
+    },
+    onError: {
+      type: "string",
+      enum: ["continue", "exit", "fail"],
+      description:
+        "action_webhook: behavior when the request fails. continue proceeds to the next step, exit ends the sequence for the subscriber, fail marks the enrollment failed (default).",
+    },
+    delayDays: {
+      type: "number",
+      description: "logic_delay: whole days to wait.",
+    },
+    delayHours: {
+      type: "number",
+      description: "logic_delay: hours to wait.",
+    },
+    delayMinutes: {
+      type: "number",
+      description: "logic_delay: minutes to wait.",
+    },
+  },
+  additionalProperties: true,
+} as const;
+
 export const sequenceEmailStepIdentityProperties = {
   senderProfileId: {
     type: "string",
@@ -297,7 +434,7 @@ export const sequenceEmailStepIdentityProperties = {
   replyToName: {
     type: "string",
     description:
-      "Display name for a newly created reply profile. Requires replyTo.",
+      "Display name for a newly created reply profile. Requires replyTo; omit it when using replyProfileId, which already carries its own display name.",
   },
 } as const;
 
@@ -338,14 +475,9 @@ export const sequencePathStepSchema = {
         "action_webhook",
       ],
       description:
-        "Advanced sequence path node type. Prefer type unless creating a non-email action.",
+        "Advanced sequence path node type. Prefer type unless creating a non-email action. Tag, list, subscriber-update, wait, condition, and webhook node types carry their fields in config, for example nodeType:'action_add_tag' with config:{ tagName:'newsletter-confirmed' }. SMS steps still use the step-level text/imageUrls/ineligibleAction, discount steps the step-level discount fields, and delays the step-level delay/delayMs/waitUntil.",
     },
-    config: {
-      ...subscriberUpdateConfigSchema,
-      description:
-        "Config for advanced nodeType steps. For action_update_attributes, use the documented Update Subscriber fields and trigger-event merge tags; other node types accept their normal config fields.",
-      additionalProperties: true,
-    },
+    config: sequencePathStepConfigSchema,
     subject: {
       type: "string",
       description: "Email subject. Required for email steps.",
@@ -445,12 +577,11 @@ export const sequencePathStepSchema = {
     replyToName: {
       type: "string",
       description:
-        "Display name for a newly created reply profile. Requires replyTo.",
+        "Display name for a newly created reply profile. Requires replyTo; omit it when using replyProfileId, which already carries its own display name.",
     },
     discount: {
       type: "object",
-      description:
-        "Discount configuration for create_discount steps. Same shape as create_sequence steps.",
+      description: `Discount configuration for create_discount steps. Same shape as create_sequence steps.${discountMergeTagsHint}`,
       additionalProperties: true,
     },
     label: {
