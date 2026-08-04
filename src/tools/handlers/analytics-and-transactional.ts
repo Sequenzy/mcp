@@ -159,6 +159,23 @@ export async function handleAnalyticsAndTransactionalTools(
       break;
     }
 
+    case "delete_transactional_email": {
+      const companyId = args.companyId as string | undefined;
+      const idOrSlug = requiredString(
+        "delete_transactional_email",
+        args,
+        "idOrSlug"
+      );
+
+      result = await apiRequest(
+        "DELETE",
+        `/api/v1/transactional/${encodeURIComponent(idOrSlug)}`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
     case "send_email": {
       const companyId = args.companyId as string | undefined;
       const to = requiredString("send_email", args, "to");

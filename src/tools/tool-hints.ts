@@ -14,7 +14,12 @@ export const READ_ONLY_TOOL_NAMES = new Set([
   "list_api_keys",
   "list_websites",
   "list_integrations",
+  "get_integration",
+  "get_integration_pixel",
+  "list_integration_capabilities",
+  "list_integration_activity",
   "list_sender_profiles",
+  "get_notification_preferences",
   "get_tracking_settings",
   "check_website",
   "get_integration_guide",
@@ -75,8 +80,16 @@ export const MUTATING_TOOL_NAMES = new Set([
   "select_company",
   "create_company",
   "update_company",
+  "update_notification_preferences",
+  "update_sender_profile",
+  "update_tracking_settings",
   "update_sync_rules",
   "update_shopify_automation_settings",
+  "connect_integration",
+  "set_integration_sync_enabled",
+  "sync_integration",
+  // Writes a web pixel to the merchant's Shopify store.
+  "activate_integration_pixel",
   "create_api_key",
   "revoke_api_key",
   "delete_api_key",
@@ -139,6 +152,7 @@ export const MUTATING_TOOL_NAMES = new Set([
   "duplicate_campaign",
   "resend_campaign_to_non_openers",
   "create_form",
+  "update_form",
   "create_landing_page",
   "update_landing_page",
   "duplicate_landing_page",
@@ -172,6 +186,7 @@ export const MUTATING_TOOL_NAMES = new Set([
   "delete_sequence",
   "create_transactional_email",
   "update_transactional_email",
+  "delete_transactional_email",
   "send_email",
   "invite_team_member",
   "cancel_team_invitation",
@@ -199,6 +214,14 @@ export const OPEN_WORLD_TOOL_NAMES = new Set([
   "add_sending_domain",
   "add_website",
   "verify_sending_domain",
+  // Validates credentials against the provider's API and queues backfills.
+  "connect_integration",
+  // Reaches the payment provider's API through a background sync job.
+  "sync_integration",
+  // Both talk to the Shopify Admin API in the request: the read cannot be
+  // served from our own state, and the write changes the merchant's store.
+  "get_integration_pixel",
+  "activate_integration_pixel",
   "enable_sequence",
   "unarchive_sequence",
   "resume_sequence_enrollments",
@@ -233,6 +256,9 @@ export const DESTRUCTIVE_TOOL_NAMES = new Set([
   "delete_campaign",
   "delete_landing_page",
   "unpublish_landing_page",
+  // Disabling sync stops an integration feeding the account, in the same way
+  // disabling a sequence stops it running. Reversible, but worth a confirm.
+  "set_integration_sync_enabled",
   "disable_sequence",
   "archive_sequence",
   "delete_sequence_goal",
@@ -242,6 +268,7 @@ export const DESTRUCTIVE_TOOL_NAMES = new Set([
   "delete_sequence",
   "cancel_team_invitation",
   "delete_webhook",
+  "delete_transactional_email",
   "remove_recipient_suppression",
 ]);
 

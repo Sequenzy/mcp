@@ -4,6 +4,7 @@ import {
 } from "./argument-validation.js";
 import { isRecord, optionalString } from "./common-primitives.js";
 import {
+  discountMergeTagsHint,
   sequenceEmailBlocksDescription,
   sequenceWaitUntilSchema,
   sequenceDelaySchema,
@@ -271,7 +272,7 @@ export const subscriberUpdateConfigSchema = {
 export const sequencePathStepConfigSchema = {
   type: "object",
   description:
-    "Config for advanced nodeType steps. Required fields depend on nodeType: action_add_tag and action_remove_tag need tagId or tagName; action_add_to_list and action_remove_from_list need listId; action_update_attributes uses the Update Subscriber fields (firstName, lastName, status, customAttributeUpdates) and may use trigger-event merge tags; logic_wait_for_event needs eventName plus optional timeoutDays and timeoutAction; logic_condition needs conditionType plus that condition's resource field; action_webhook needs url plus optional method and headers; logic_delay uses delayDays/delayHours/delayMinutes. Fields that do not apply to the node type are dropped.",
+    "Config for advanced nodeType steps. Required fields depend on nodeType: action_add_tag and action_remove_tag need tagId or tagName; action_add_to_list and action_remove_from_list need listId; action_update_attributes uses the Update Subscriber fields (firstName, lastName, status, customAttributeUpdates) and may use trigger-event merge tags; logic_wait_for_event needs eventName plus optional timeoutDays and timeoutAction; logic_condition needs conditionType plus that condition's resource field; action_webhook needs an HTTPS url plus optional method, headers, body, resultKey, and onError; logic_delay uses delayDays/delayHours/delayMinutes. Fields that do not apply to the node type are dropped.",
   properties: {
     ...subscriberUpdateConfigSchema.properties,
     tagId: {
@@ -359,18 +360,34 @@ export const sequencePathStepConfigSchema = {
     url: {
       type: "string",
       description:
-        "action_webhook: destination URL called when a subscriber reaches this step.",
+        "action_webhook: destination HTTPS URL called when a subscriber reaches this step. Supports merge tags like {{email}} and {{event.order_id}} resolved at execution time.",
     },
     method: {
       type: "string",
-      enum: ["POST", "GET"],
+      enum: ["POST", "GET", "PUT", "PATCH", "DELETE"],
       description: "action_webhook: HTTP method. Defaults to POST.",
     },
     headers: {
       type: "object",
       description:
-        "action_webhook: optional string-valued request headers. Secret values are redacted on sequence reads.",
+        "action_webhook: optional string-valued request headers. Values support merge tags. Secret values are redacted on sequence reads.",
       additionalProperties: { type: "string" },
+    },
+    body: {
+      type: "string",
+      description:
+        'action_webhook: optional JSON body template for POST/PUT/PATCH. Must be valid JSON as written, with merge tags inside quoted string values ({"email": "{{email}}"}); a tag in a bare value position is rejected. Tags are resolved at execution time; when omitted, the default payload with subscriber and sequence context is sent.',
+    },
+    resultKey: {
+      type: "string",
+      description:
+        "action_webhook: when set, the HTTP response is saved and later email steps can reference it via {{webhooks.KEY.data.field}} merge tags. Must start with a letter; letters, numbers, underscores; max 64 chars.",
+    },
+    onError: {
+      type: "string",
+      enum: ["continue", "exit", "fail"],
+      description:
+        "action_webhook: behavior when the request fails. continue proceeds to the next step, exit ends the sequence for the subscriber, fail marks the enrollment failed (default).",
     },
     delayDays: {
       type: "number",
@@ -417,7 +434,7 @@ export const sequenceEmailStepIdentityProperties = {
   replyToName: {
     type: "string",
     description:
-      "Display name for a newly created reply profile. Requires replyTo.",
+      "Display name for a newly created reply profile. Requires replyTo; omit it when using replyProfileId, which already carries its own display name.",
   },
 } as const;
 
@@ -560,12 +577,11 @@ export const sequencePathStepSchema = {
     replyToName: {
       type: "string",
       description:
-        "Display name for a newly created reply profile. Requires replyTo.",
+        "Display name for a newly created reply profile. Requires replyTo; omit it when using replyProfileId, which already carries its own display name.",
     },
     discount: {
       type: "object",
-      description:
-        "Discount configuration for create_discount steps. Same shape as create_sequence steps.",
+      description: `Discount configuration for create_discount steps. Same shape as create_sequence steps.${discountMergeTagsHint}`,
       additionalProperties: true,
     },
     label: {

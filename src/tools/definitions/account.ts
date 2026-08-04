@@ -126,7 +126,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "update_company",
     description:
-      "Edit company product info, brand context, the default email theme, reply-tracking settings, and account-wide sending identity defaults. fromEmail must use a verified sending domain; replyTo may be any valid mailbox. Missing sender/reply profiles are created automatically. Send fromName/replyToName on their own to rename the display name of the existing default profile without changing its address, or pair them with senderProfileId/replyProfileId (from list_sender_profiles) to rename a specific profile. Provide at least one editable field.",
+      "Edit company product info, brand context, the default email theme, reply-tracking settings, and account-wide sending identity defaults. fromEmail must use a verified sending domain; replyTo may be any valid mailbox. Missing sender/reply profiles are created automatically. Send fromName/replyToName on their own to rename the display name of the existing default profile without changing its address, or pair them with senderProfileId/replyProfileId (from list_sender_profiles) to rename a specific profile. Provide at least one editable field. Profile, branding, and AI-context fields need the company_profile:manage scope; the sending identity and reply-tracking fields additionally need companies:manage.",
     inputSchema: {
       type: "object",
       properties: {
@@ -193,7 +193,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
         emailLengthPreference: {
           type: "string",
           description:
-            "Email length preference: concise, balanced, or detailed.",
+            "Email length preference: concise, balanced, or detailed. New workspaces default to concise.",
         },
         socialLinks: {
           type: "object",
@@ -761,9 +761,41 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
     },
   },
   {
+    name: "update_sender_profile",
+    description:
+      "Rename one sender (From) or reply-to profile in place, without changing which profile is the account default. Use this to standardize a display name across the several identities a mailbox may carry, e.g. renaming 'Viraj from SnapCount' to 'SnapCount'. Get IDs from list_sender_profiles. Only the display name changes: the address, its sending domain, and the account-wide default From/Reply-To selection are untouched, and existing campaigns and sequences pinned to this profile pick up the new name. To change which profile is the default instead, use update_company with senderProfileId/replyProfileId. A company cannot have two sender identities with the same name on one address, so a colliding rename is rejected and reports the ID already using that name. Requires the companies:manage scope.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        profileId: {
+          type: "string",
+          description:
+            "ID of the profile to rename, from list_sender_profiles. Sender profile IDs come from senderProfiles, reply-to IDs from replyProfiles.",
+        },
+        name: {
+          type: "string",
+          description:
+            "New display name, e.g. 'SnapCount'. Trimmed; must be non-empty and 255 characters or fewer.",
+        },
+        type: {
+          type: "string",
+          enum: ["sender", "reply"],
+          description:
+            "Which list profileId came from. Defaults to sender. Pass reply to rename a reply-to profile.",
+        },
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+      },
+      required: ["profileId", "name"],
+    },
+  },
+  {
     name: "get_tracking_settings",
     description:
-      "Get the company's email tracking configuration: open/click/unsubscribe tracking flags, default attribution window, automatic UTM tagging, the dedicated click-tracking domain and its verification status, and inbound reply-tracking settings. Use this to audit measurement readiness and to explain why opens or clicks may not be recorded.",
+      "Get the company's email tracking and signup consent configuration: open/click/unsubscribe tracking flags, opt-in strict bot filtering, default attribution window, automatic UTM tagging, the dedicated click-tracking domain and its verification status, inbound reply-tracking settings, and whether double opt-in is required for new contacts. Use this to audit measurement readiness, to explain why opens or clicks may not be recorded, and to check how contacts enter the list before investigating bot or alias signups.",
     inputSchema: {
       type: "object",
       properties: {
@@ -773,6 +805,121 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
             "Company ID. If not provided, uses the currently selected company.",
         },
       },
+    },
+  },
+  {
+    name: "update_tracking_settings",
+    description:
+      "Update the company's account-wide email tracking defaults: open, click, and unsubscribe tracking, opt-in strict bot filtering, the default attribution window, and automatic UTM tagging, plus the account-wide double opt-in requirement for new contacts. Applies to every campaign, sequence, and transactional email sent afterwards; already-sent emails keep the links they were rendered with. Provide at least one field. Reply tracking (inbound email, reply domain mode, reply forwarding) is on update_company, and the dedicated click-tracking domain is configured in the dashboard.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        openTrackingEnabled: {
+          type: "boolean",
+          description:
+            "Whether to embed the open-tracking pixel. Turning this off also stops open rates from being recorded.",
+        },
+        clickTrackingEnabled: {
+          type: "boolean",
+          description:
+            "Whether to rewrite links through the click-tracking redirect. Turning this off stops click rates and click-based automation triggers.",
+        },
+        strictBotFilteringEnabled: {
+          type: "boolean",
+          description:
+            "Opt in to aggressive bot detection: strict user-agent patterns, datacenter-IP classification, and cross-send IP sweeps. Off by default because it can also discard real engagement, lowering reported open and click rates. Enable it when the audience sits behind email-security appliances that inflate engagement.",
+        },
+        unsubscribeTrackingEnabled: {
+          type: "boolean",
+          description:
+            "Whether unsubscribe links are attributed to the email that produced them. Unsubscribe links keep working either way.",
+        },
+        defaultAttributionWindowHours: {
+          type: "number",
+          description:
+            "Default revenue attribution window in hours (1-720). Used by goals and revenue reporting when no per-goal window is set.",
+        },
+        doubleOptInEnabled: {
+          type: "boolean",
+          description:
+            "Require email confirmation before a new contact becomes subscribed. When on, contacts added by forms, the API, and integrations start pending and receive a confirmation email; they only become active after clicking it, and they are never sent marketing email while pending. This is the account-wide default that the per-write optInMode on add_subscriber overrides. Use it to stop bot and alias signups from landing in the list as active contacts. Enabling it requires a sender profile and provisions the confirmation email automatically if the account has none; it does not retroactively unsubscribe existing active contacts.",
+        },
+        autoUtmEnabled: {
+          type: "boolean",
+          description:
+            "Whether to append UTM parameters to outgoing links automatically. Enabling this with no stored parameters seeds the platform defaults.",
+        },
+        autoUtmSettings: {
+          type: ["object", "null"],
+          description:
+            "UTM templates to merge over the stored ones: source, medium, campaign, content, term. Values support placeholders such as {{email.subject}} and {{link.text}}. Pass null for a single parameter to stop emitting it, or null for the whole object to reset every parameter to the defaults.",
+          properties: {
+            source: { type: ["string", "null"] },
+            medium: { type: ["string", "null"] },
+            campaign: { type: ["string", "null"] },
+            content: { type: ["string", "null"] },
+            term: { type: ["string", "null"] },
+          },
+        },
+      },
+    },
+  },
+  {
+    name: "get_notification_preferences",
+    description:
+      "Get the account notification settings for the API key's own user in this company: whether Sequenzy emails them when a new subscriber joins and when a campaign finishes sending, and whether each arrives per-occurrence or as a daily summary. Returns the supported modes and platform defaults alongside the current values. These are per-person settings - this never reads a teammate's preferences.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+      },
+    },
+  },
+  {
+    name: "update_notification_preferences",
+    description:
+      "Change which account notifications Sequenzy emails the API key's own user for this company. Requires the companies:manage scope. Useful before a bulk import or a large migration, when per-signup notifications would otherwise flood the inbox. Modes are 'off', 'instant' (one email per occurrence), and 'daily' (one summary per day); 'daily' is only valid for new_subscriber, because a campaign finishes once. New-subscriber notifications already fall back to a daily summary automatically on high-volume days, and imports never trigger them at all.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        notificationPreferences: {
+          type: "array",
+          description:
+            "Preferences to set. Events not listed keep their current value.",
+          items: {
+            type: "object",
+            properties: {
+              event: {
+                type: "string",
+                enum: ["new_subscriber", "campaign_completed"],
+                description: "Which notification to configure.",
+              },
+              mode: {
+                type: "string",
+                enum: ["off", "instant", "daily"],
+                description:
+                  "How to receive it. 'daily' is not supported for campaign_completed.",
+              },
+            },
+            required: ["event", "mode"],
+          },
+        },
+      },
+      required: ["notificationPreferences"],
     },
   },
   {

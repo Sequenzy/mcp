@@ -4,6 +4,7 @@ import {
   rawHtmlContentWarning,
   replacementEmailBlocksDescription,
   sequenceEmailBlocksDescription,
+  sequenceStepBlocksFormatHint,
   sequenceSendingWindowSchema,
   sequenceWaitUntilSchema,
   sequenceDelaySchema,
@@ -19,7 +20,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
   {
     name: "update_sequence",
     description:
-      "Update an existing sequence. To target a specific existing step, use IDs returned by get_sequence. The emails/steps arrays edit email steps, smsSteps edits SMS steps, and subscriberUpdateSteps replaces the config of action_update_attributes steps. To insert new linear steps, use insertSteps with an afterNodeId from get_sequence; omit afterNodeId only to append to an unambiguous linear tail. Deleting a step immediately moves parked recipients to its unique surviving successor, or completes them when no successor remains; inspect migratedRecipientCount and completedRecipientCount in the returned sequence. For active sequences, structural changes such as insertSteps or branch require confirmStructuralChange:true after the user confirms the live-flow impact.",
+      "Update an existing sequence: both its settings and its steps. Sequence-level settings live directly on this tool - name, description, labels, trigger (with its trigger-specific field), enrollmentMode plus enrollmentFieldPath, enrollmentPaused, userCancellable, stopCondition, sendingWindow, bccEmails, and the sender/reply identity. This is the only way to change enrollmentMode after create_sequence, so use it to move a tag- or event-triggered sequence off the default 'unlimited' re-entry to 'one_time' or 'matching_field'. To target a specific existing step, use IDs returned by get_sequence. The emails/steps arrays edit email steps, smsSteps edits SMS steps, and subscriberUpdateSteps replaces the config of action_update_attributes steps. To insert new linear steps, use insertSteps with an afterNodeId from get_sequence; omit afterNodeId only to append to an unambiguous linear tail. Deleting a step immediately moves parked recipients to its unique surviving successor, or completes them when no successor remains; inspect migratedRecipientCount and completedRecipientCount in the returned sequence. For active sequences, structural changes such as insertSteps or branch require confirmStructuralChange:true after the user confirms the live-flow impact.",
     inputSchema: {
       type: "object",
       properties: {
@@ -200,12 +201,12 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         fromName: {
           type: "string",
           description:
-            "Display name for a newly created sender profile. Requires fromEmail.",
+            "Display name for a newly created sender profile. Requires fromEmail; omit it when using senderProfileId, which already carries its own display name.",
         },
         senderProfileId: {
           type: "string",
           description:
-            "Set an existing sender profile. Mutually exclusive with fromEmail.",
+            "Set an existing sender profile (see list_sender_profiles). It already supplies both the From address and display name, so send it on its own and omit fromEmail and fromName.",
         },
         replyTo: {
           type: "string",
@@ -215,12 +216,12 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         replyToName: {
           type: "string",
           description:
-            "Display name for a newly created reply profile. Requires replyTo.",
+            "Display name for a newly created reply profile. Requires replyTo; omit it when using replyProfileId, which already carries its own display name.",
         },
         replyProfileId: {
           type: "string",
           description:
-            "Set an existing reply profile. Mutually exclusive with replyTo.",
+            "Set an existing reply profile (see list_sender_profiles). It already supplies both the Reply-To address and display name, so send it on its own and omit replyTo and replyToName.",
         },
         enrollmentPaused: {
           type: "boolean",
@@ -241,7 +242,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
           type: "string",
           enum: ["unlimited", "one_time", "matching_field"],
           description:
-            "Updated sequence re-entry mode. 'matching_field' is only valid for event-based sequence triggers.",
+            "Updated sequence re-entry mode. Use this to move an existing sequence off the default 'unlimited', which re-enrolls a subscriber every time the trigger fires again. 'matching_field' is only valid for event-based sequence triggers.",
         },
         enrollmentFieldPath: {
           type: "string",
@@ -273,7 +274,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         stopCondition: {
           type: "object",
           description:
-            "Update the sequence auto-stop condition. Example: { type: 'has_tag', value: 'customer' } ends the sequence when the subscriber has that tag. Use { type: 'entered_segment', value: 'segment_123' } to stop when they enter a segment, { type: 'field_changed', value: 'plan' } to stop when a subscriber field changes, { type: 'removed_from_list', value: 'list_123' } to stop when they leave a list, or { type: 'none', value: null } to clear it.",
+            "Update the sequence auto-stop condition, which is re-evaluated before every step including the first one. Example: { type: 'has_tag', value: 'customer' } ends the sequence when the subscriber has that tag. Use { type: 'entered_segment', value: 'segment_123' } to stop when they enter a segment, { type: 'field_changed', value: 'plan' } to stop when a subscriber field changes, { type: 'added_to_list', value: 'list_123' } to stop when they join a list, or { type: 'none', value: null } to clear it. The negative forms are audience guards rather than lifecycle stops: { type: 'does_not_have_tag', value: 'allowlist' } and { type: 'removed_from_list', value: 'list_123' } cancel the run before any step sends unless the subscriber carries that tag or list membership. That is how you restrict a live event or segment trigger to a chosen set of contacts without editing the graph, for example for a first pass on a production trigger or a phased rollout. Guarded-out contacts still enroll and are then cancelled at the trigger node, so they appear as cancellations there rather than in the active or waiting enrollment counts. Clearing the guard does not retry them: nothing re-enrolls them, so they only receive the sequence if the trigger fires for them again, which one-shot triggers never do, and on the one_time enrollment mode a repeated trigger is ignored too because enrollment is blocked by the existence of any earlier run rather than by its outcome. Guard a duplicate sequence and leave the real one ungated, or enroll the missed contacts afterwards with enroll_subscribers_in_sequence, which skips the one_time check.",
           properties: {
             type: {
               type: "string",
@@ -287,11 +288,13 @@ export const sequenceEditingToolDefinitions: Tool[] = [
                 "field_changed",
                 "event_received",
               ],
+              description:
+                "Stop condition type. has_tag, added_to_list, entered_segment, field_changed, and event_received stop the run once the thing happens. does_not_have_tag and removed_from_list stop the run whenever the subscriber lacks that tag or list membership, so they act as a required-tag or required-list allowlist for everyone the trigger enrolls.",
             },
             value: {
               type: ["string", "null"],
               description:
-                "Tag name, list ID, segment ID, field path, or event name for the stop condition.",
+                "Tag name, list ID, segment ID, field path, or event name for the stop condition. For the does_not_have_tag and removed_from_list guards this is the tag or list a subscriber must have to keep receiving the sequence.",
             },
             matchConfig: {
               type: ["object", "null"],
@@ -404,7 +407,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
               },
               blocks: {
                 type: "array",
-                description: replacementEmailBlocksDescription,
+                description: `${replacementEmailBlocksDescription}${sequenceStepBlocksFormatHint}`,
                 items: { type: "object" },
               },
               isTransactional: { type: "boolean" },
@@ -478,7 +481,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
               },
               blocks: {
                 type: "array",
-                description: replacementEmailBlocksDescription,
+                description: `${replacementEmailBlocksDescription}${sequenceStepBlocksFormatHint}`,
                 items: { type: "object" },
               },
               isTransactional: { type: "boolean" },
@@ -704,7 +707,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
   {
     name: "insert_sequence_step",
     description:
-      "Insert one dashboard-compatible typed step into an existing sequence: email, SMS, delay/date wait, discount, subscriber update, tag/list action, outbound webhook, condition gate, wait-for-event, or wired If/Else branch. Use get_sequence first and pass afterNodeId. Branch paths can target existing nodes, including completion. For active sequences, confirm the structural change first.",
+      "Insert one dashboard-compatible typed step into an existing sequence: email, SMS, delay/date wait, discount (later emails print the generated code with {{discount.code}}), subscriber update, tag/list action, outbound webhook, condition gate, wait-for-event, or wired If/Else branch. Use get_sequence first and pass afterNodeId. Branch paths can target existing nodes, including completion. For active sequences, confirm the structural change first.",
     inputSchema: {
       type: "object",
       properties: {
@@ -824,7 +827,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         replyToName: {
           type: "string",
           description:
-            "Email steps only: display name for a newly created reply profile. Requires replyTo.",
+            "Email steps only: display name for a newly created reply profile. Requires replyTo; omit it when using replyProfileId, which already carries its own display name.",
         },
         text: {
           type: "string",
@@ -873,18 +876,34 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         url: {
           type: "string",
           description:
-            "webhook only: destination URL called when a subscriber reaches this step.",
+            "webhook only: destination HTTPS URL called when a subscriber reaches this step. Supports merge tags like {{email}} and {{event.order_id}}.",
         },
         method: {
           type: "string",
-          enum: ["POST", "GET"],
+          enum: ["POST", "GET", "PUT", "PATCH", "DELETE"],
           description: "webhook only: HTTP method. Defaults to POST.",
         },
         headers: {
           type: "object",
           description:
-            "webhook only: optional string-valued request headers. Secret values are redacted on sequence reads.",
+            "webhook only: optional string-valued request headers. Values support merge tags. Secret values are redacted on sequence reads.",
           additionalProperties: { type: "string" },
+        },
+        body: {
+          type: "string",
+          description:
+            'webhook only: optional JSON body template for POST/PUT/PATCH. Must be valid JSON as written, with merge tags inside quoted string values ({"email": "{{email}}"}); a tag in a bare value position is rejected. Tags are resolved at execution time; when omitted, the default payload with subscriber and sequence context is sent.',
+        },
+        resultKey: {
+          type: "string",
+          description:
+            "webhook only: when set, the HTTP response is saved and later email steps can reference it via {{webhooks.KEY.data.field}} merge tags. Must start with a letter; letters, numbers, underscores; max 64 chars.",
+        },
+        onError: {
+          type: "string",
+          enum: ["continue", "exit", "fail"],
+          description:
+            "webhook only: behavior when the request fails. continue proceeds to the next step, exit ends the sequence for the subscriber, fail marks the enrollment failed (default).",
         },
         segmentId: {
           type: "string",

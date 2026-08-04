@@ -1,6 +1,7 @@
 import { apiRequest } from "../../runtime.js";
 import {
   validateHtmlOrBlocksArgs,
+  validateSendingIdentityArgs,
   validateLabelsArg,
   validateCreateCampaignContentArgs,
   validateCreateTemplateContentArgs,
@@ -840,26 +841,7 @@ export async function handleCampaignTools(
     case "create_campaign": {
       const companyId = args.companyId as string | undefined;
       validateCreateCampaignContentArgs(args);
-      if (args.fromEmail !== undefined && args.senderProfileId !== undefined) {
-        throw new Error(
-          "Provide either `fromEmail` or `senderProfileId` when calling `create_campaign`, not both."
-        );
-      }
-      if (args.replyTo !== undefined && args.replyProfileId !== undefined) {
-        throw new Error(
-          "Provide either `replyTo` or `replyProfileId` when calling `create_campaign`, not both."
-        );
-      }
-      if (args.fromName !== undefined && args.fromEmail === undefined) {
-        throw new Error(
-          "`fromName` requires `fromEmail` when calling `create_campaign`."
-        );
-      }
-      if (args.replyToName !== undefined && args.replyTo === undefined) {
-        throw new Error(
-          "`replyToName` requires `replyTo` when calling `create_campaign`."
-        );
-      }
+      validateSendingIdentityArgs("create_campaign", args);
 
       const createBody = Object.fromEntries(
         Object.entries(args).filter(([key]) => key !== "companyId")
@@ -910,26 +892,9 @@ export async function handleCampaignTools(
       validateHtmlOrBlocksArgs("update_campaign", args);
       validateLabelsArg("update_campaign", args);
 
-      if (args.replyTo !== undefined && args.replyProfileId !== undefined) {
-        throw new Error(
-          "Provide either `replyTo` or `replyProfileId` when calling `update_campaign`, not both."
-        );
-      }
-      if (args.fromEmail !== undefined && args.senderProfileId !== undefined) {
-        throw new Error(
-          "Provide either `fromEmail` or `senderProfileId` when calling `update_campaign`, not both."
-        );
-      }
-      if (args.fromName !== undefined && args.fromEmail === undefined) {
-        throw new Error(
-          "`fromName` requires `fromEmail` when calling `update_campaign`."
-        );
-      }
-      if (args.replyToName !== undefined && args.replyTo === undefined) {
-        throw new Error(
-          "`replyToName` requires `replyTo` when calling `update_campaign`."
-        );
-      }
+      validateSendingIdentityArgs("update_campaign", args, {
+        replyFirst: true,
+      });
       if (args.segmentId !== undefined && args.targetLists !== undefined) {
         throw new Error(
           "Provide either `segmentId` or `targetLists` when calling `update_campaign`, not both."

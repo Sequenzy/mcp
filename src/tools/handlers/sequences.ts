@@ -12,6 +12,7 @@ import {
   validateCreateSequenceGoalArgs,
   validateUpdateSequenceGoalArgs,
   validateLabelsArg,
+  validateSendingIdentityArgs,
 } from "../internal.js";
 
 const MAX_DEFAULT_SEQUENCE_NAME_LENGTH = 80;
@@ -191,26 +192,7 @@ export async function handleSequenceTools(
     case "create_sequence": {
       const companyId = args.companyId as string | undefined;
       validateLabelsArg("create_sequence", args);
-      if (args.fromEmail !== undefined && args.senderProfileId !== undefined) {
-        throw new Error(
-          "Provide either `fromEmail` or `senderProfileId` when calling `create_sequence`, not both."
-        );
-      }
-      if (args.replyTo !== undefined && args.replyProfileId !== undefined) {
-        throw new Error(
-          "Provide either `replyTo` or `replyProfileId` when calling `create_sequence`, not both."
-        );
-      }
-      if (args.fromName !== undefined && args.fromEmail === undefined) {
-        throw new Error(
-          "`fromName` requires `fromEmail` when calling `create_sequence`."
-        );
-      }
-      if (args.replyToName !== undefined && args.replyTo === undefined) {
-        throw new Error(
-          "`replyToName` requires `replyTo` when calling `create_sequence`."
-        );
-      }
+      validateSendingIdentityArgs("create_sequence", args);
       const hasExplicitSteps = Array.isArray(args.steps);
       const createsBlankDraft =
         args.goal === undefined && args.steps === undefined;

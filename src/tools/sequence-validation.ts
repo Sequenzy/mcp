@@ -492,9 +492,9 @@ export function buildInsertSequenceStepBody(
       };
     } else if (stepType === "webhook") {
       const method = optionalString(args, "method") ?? "POST";
-      if (method !== "POST" && method !== "GET") {
+      if (!["POST", "GET", "PUT", "PATCH", "DELETE"].includes(method)) {
         throw new Error(
-          "`method` must be `POST` or `GET` when inserting a webhook step."
+          "`method` must be one of POST, GET, PUT, PATCH, or DELETE when inserting a webhook step."
         );
       }
       if (
@@ -508,6 +508,28 @@ export function buildInsertSequenceStepBody(
           "`headers` must be an object with string values when inserting a webhook step."
         );
       }
+      const onError = optionalString(args, "onError");
+      if (onError && !["continue", "exit", "fail"].includes(onError)) {
+        throw new Error(
+          "`onError` must be `continue`, `exit`, or `fail` when inserting a webhook step."
+        );
+      }
+      // optionalString drops anything that is not a string, so a caller that
+      // passes an object for `body` (or a number for `resultKey`) would
+      // otherwise get a step created without it and no error. The API rejects
+      // a provided-but-invalid webhook field loudly; match that here.
+      if (args.body !== undefined && typeof args.body !== "string") {
+        throw new Error(
+          "`body` must be a JSON string when inserting a webhook step."
+        );
+      }
+      if (args.resultKey !== undefined && typeof args.resultKey !== "string") {
+        throw new Error(
+          "`resultKey` must be a string when inserting a webhook step."
+        );
+      }
+      const body = optionalString(args, "body");
+      const resultKey = optionalString(args, "resultKey");
       step = {
         type: "webhook",
         nodeType: "action_webhook",
@@ -516,6 +538,9 @@ export function buildInsertSequenceStepBody(
           url: requiredString("insert_sequence_step", args, "url"),
           method,
           ...(args.headers !== undefined ? { headers: args.headers } : {}),
+          ...(body ? { body } : {}),
+          ...(resultKey ? { resultKey } : {}),
+          ...(onError ? { onError } : {}),
         },
       };
     } else if (stepType === "condition") {

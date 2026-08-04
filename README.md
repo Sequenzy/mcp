@@ -24,7 +24,7 @@ Connect Sequenzy to Claude Desktop, Claude Code, Codex, Cursor, Windsurf, VS Cod
 - Generate email copy, subject lines, and multi-step sequences.
 - Inspect analytics, subscriber activity, deliverability health, integrations, sending identities, tracking settings, and dashboard URLs.
 - Inspect and clean up exact-recipient bounce suppression without exposing the shared SES suppression list.
-- Configure company product info, account-wide sending identity defaults, sender domains, and integration examples for common frameworks.
+- Configure company product info, account-wide sending identity defaults, rename individual sender and reply-to profiles, manage sender domains, and inspect integration examples for common frameworks.
 
 Every published MCP tool includes explicit `readOnlyHint`, `destructiveHint`, and `openWorldHint` annotations so compatible clients can display accurate tool-use affordances. Tools also publish `outputSchema` definitions and return `structuredContent`, giving clients and models machine-readable result shapes for follow-up calls.
 
@@ -225,7 +225,7 @@ build a list as well as create it. Imports that apply `listIds` also need
 
 ## Tools
 
-This server currently exposes 175 MCP tools.
+This server currently exposes 189 MCP tools.
 
 ### Account, Companies, Setup
 
@@ -251,9 +251,19 @@ This server currently exposes 175 MCP tools.
 | `check_website`                      | Read a sending domain's stored SPF, DKIM, MAIL FROM, and aggregate verification details.                                      |
 | `verify_sending_domain`              | Run a fresh sending-domain DNS/provider verification and return current status and diagnostics.                               |
 | `list_integrations`                  | List connected integrations with connection and sync health, without returning credentials.                                   |
-| `list_sender_profiles`               | List sender and reply-to profiles, account defaults, and sending-domain verification status.                                  |
 | `get_tracking_settings`              | Read open, click, unsubscribe, attribution, UTM, click-domain, and reply-tracking settings.                                   |
 | `get_integration_guide`              | Get framework-specific integration examples.                                                                                  |
+| `get_integration`                    | Inspect one connected integration, its event wiring, recent activity, and recommendations.                                    |
+| `list_integration_capabilities`      | Compare provider capabilities whether or not they are connected.                                                              |
+| `list_integration_activity`          | Read the retained integration-specific webhook and sync activity log.                                                         |
+| `set_integration_sync_enabled`       | Enable or disable bulk imports and backfills while leaving live webhooks connected.                                           |
+| `sync_integration`                   | Queue a manual payment-provider customer and revenue backfill.                                                                |
+| `get_integration_pixel`              | Read Shopify's live pixel/configuration state and distinguish confirmed dark events from an unknown read.                     |
+| `activate_integration_pixel`         | Install or repoint Shopify's storefront pixel; idempotent when it is already current.                                         |
+| `list_sender_profiles`               | List sender and reply-to profiles, account defaults, and sending-domain verification status.                                  |
+| `update_sender_profile`              | Rename one sender or reply-to profile without changing the account defaults.                                                  |
+| `get_notification_preferences`       | Read the current user's per-company account notification settings and supported modes.                                        |
+| `update_notification_preferences`    | Update the current user's account notification delivery modes without affecting teammates.                                    |
 
 For a new sending domain, call `add_sending_domain`, publish the DNS records in
 the returned `website.dnsRecords`, wait for DNS propagation, and then call
@@ -263,9 +273,23 @@ legacy domains can return Amazon SES MAIL FROM and inbound-reply records. If
 verification is attempted before creation, the error points back to
 `add_sending_domain` with the requested domain.
 
+For Shopify, call `get_integration_pixel` before relying on product views,
+cart activity, or browse-abandonment triggers. The result is read live from
+Shopify because merchants can remove the pixel independently. If
+`pixel.healthy` is false, `dependentEvents` names the triggers that cannot
+arrive; call `activate_integration_pixel` to install or repoint the pixel.
+Activation is idempotent, and events begin on the next storefront visit rather
+than being backfilled.
+
 New companies start with no sync rules. The inherited preset remains available
 for SaaS/ecommerce companies by passing `null` to `update_sync_rules`; services
 and consulting companies should normally keep `[]` or define explicit rules.
+
+Use `list_sender_profiles` to find the profile ID, then call
+`update_sender_profile` to change only its display name. Pass `type: "reply"`
+for a reply-to profile; sender is the default. The address, sending domain, and
+account-wide default From/Reply-To selections remain unchanged. Renaming
+requires the `companies:manage` scope.
 
 Shopify cart abandonment is enabled by default. It fires
 `ecommerce.cart_abandoned` after one hour of cart inactivity, with a 24-hour
@@ -282,7 +306,7 @@ abandonment or price-drop settings. Timing values must be positive;
 | `add_subscriber`              | Add one subscriber; status is creation-only, so use `update_subscriber` for an existing contact.                |
 | `create_subscriber_import`    | Queue up to 5,000 full CRM records with names, IDs, phones, statuses, tags, lists, and typed custom attributes. |
 | `get_subscriber_import`       | Read progress, row outcome counts, and failure summaries for a queued import.                                   |
-| `update_subscriber`           | Update profile fields, attributes, tags, or global status; `unsubscribed` safely suppresses marketing.          |
+| `update_subscriber`           | Update native profile and phone fields, SMS consent, attributes, tags, or global status.                        |
 | `remove_subscriber`           | Unsubscribe while preserving suppression history, or permanently delete only with `hardDelete: true`.           |
 | `get_subscriber`              | Fetch subscriber details by email or external ID.                                                               |
 | `search_subscribers`          | Search by query, tags, list, status, segment, or pagination.                                                    |
@@ -303,6 +327,11 @@ not retry `add_subscriber` with a different status: status on that tool applies
 only when the contact is first created, and a mismatched skipped result is
 reported as an error.
 
+`update_subscriber.phone` writes the native phone field shown on the contact,
+not a custom attribute. Pass `smsConsent: true` only after verifying express
+written consent, or `false` to opt the contact out. Changing the phone without
+`smsConsent` resets SMS consent because consent belongs to the old number.
+
 ### Products & Digital Delivery
 
 | Tool                  | Description                                                                           |
@@ -312,7 +341,7 @@ reported as an error.
 | `delete_product`      | Delete a product previously pushed through the Commerce API.                          |
 | `attach_product_file` | Attach a hosted or locally uploaded delivery file to a product.                       |
 | `remove_product_file` | Remove an attached product delivery file.                                             |
-| `sync_products`       | Queue a Stripe product catalog sync.                                                  |
+| `sync_products`       | Queue a Stripe product catalog sync, optionally selecting an integration by ID.       |
 
 After a product delivery file is attached, matching purchase events include `download.url` and `download.name`, so purchase-triggered emails can use merge tags like `{{event.download.url}}`.
 
@@ -583,11 +612,12 @@ attribute and fires `poll.answered` for automations and outbound webhooks.
 
 ### Saved Forms
 
-| Tool             | Description                                                                                               |
-| ---------------- | --------------------------------------------------------------------------------------------------------- |
-| `list_forms`     | List saved forms with their server-managed audience settings and public action URLs.                      |
-| `create_form`    | Create and publish a saved form scoped to one or more lists, with optional tags and success behavior.     |
-| `get_form_embed` | Return the public action URL, hosted JavaScript, minimal native form, and fetch example for a saved form. |
+| Tool             | Description                                                                                                   |
+| ---------------- | ------------------------------------------------------------------------------------------------------------- |
+| `list_forms`     | List saved forms with their server-managed audience settings, content blocks, and public action URLs.         |
+| `create_form`    | Create and publish a saved form scoped to one or more lists, with optional tags, theme, and success behavior. |
+| `update_form`    | Partially update a saved form's audience, copy, theme, success behavior, or complete content block array.     |
+| `get_form_embed` | Return the public action URL, hosted JavaScript, minimal native form, and fetch example for a saved form.     |
 
 For Astro, Hugo, Jekyll, Cloudflare Pages, Netlify, GitHub Pages, or any other
 static site, call `list_forms`, use `create_form` if a suitable form does not
@@ -597,6 +627,11 @@ server-side, so the deployed browser code never contains a Sequenzy API key.
 Generated native and standalone markup includes "Powered by Sequenzy" for free
 workspaces; paid workspaces receive unbranded markup. The API resolves that
 entitlement server-side, so callers should use the returned snippet unchanged.
+When updating a form, omitted fields remain unchanged and theme fields merge
+into the current theme. Pass an empty `tagIds` array to clear tags or an empty
+`redirectUrl` to restore confirmation-message behavior. The `blocks` field is
+a complete replacement, so read the current content with `list_forms` first
+and retain exactly one email field and one submit button.
 
 ### Landing Pages
 

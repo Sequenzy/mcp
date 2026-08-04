@@ -320,8 +320,136 @@ export const outputPropertiesByToolName: Record<
   },
   list_integrations: {
     integrations: resourceListOutputProperty(
-      "connected integration, including provider, provider account ID, active and sync status, last sync time, last sync error, and allowlisted non-secret details. Credentials are never included"
+      "connected integration, including provider, provider account ID, active and sync status, last sync time, last sync error, allowlisted non-secret details, and lastSyncSkipped (records the last sync could not import normally: suppressed profiles that cannot receive email, plus any that were not imported). Credentials are never included"
     ),
+  },
+  get_integration: {
+    integration: objectOutputProperty(
+      "The connected integration: provider, display name, category, provider account ID, active and sync status, last sync time and error, and allowlisted non-secret details. Credentials are never included."
+    ),
+    capabilities: nullableObjectOutputProperty(
+      "What this provider does: category, connect method, what it syncs, every event it emits with when it fires, attributes it writes, supported actions, availability, and caveats. Null for a provider with no catalog entry."
+    ),
+    events: arrayOutputProperty(
+      "Each event the provider emits, every matching tag rule and its conditions, listening sequences, and account-wide observation fields. Use activity for integration-specific delivery."
+    ),
+    unusedEvents: {
+      type: "array",
+      description:
+        "Events the provider emits that no sequence triggers on. These are the concrete automation gaps for this integration.",
+      items: stringOutputProperty("Event name with no listening sequence."),
+    },
+    accountNeverReceivedEvents: {
+      type: "array",
+      description:
+        "Provider event names this account has never received from any source. This is not integration-specific delivery evidence.",
+      items: stringOutputProperty("Event name never seen account-wide."),
+    },
+    activity: objectOutputProperty(
+      "Webhook and sync activity over the last 24 hours: totals by status, stalled count, last activity time, and recent failures."
+    ),
+    pixel: nullableObjectOutputProperty(
+      "Shopify only: live storefront pixel state (installed, endpoint, endpointCurrent, configurationCurrent, healthy, error, dependentEvents). Null for providers without a pixel. When error is null and healthy is false, every dependentEvent is confirmed dark; an error means Shopify could not confirm the state."
+    ),
+    recommendations: arrayOutputProperty(
+      "Prioritized problems and suggestions, each with a code, severity (error, warning, info), message, and a concrete action."
+    ),
+    availableActions: {
+      type: "array",
+      description:
+        "Action ids callable on this integration right now, given its current state.",
+      items: stringOutputProperty("Available action id."),
+    },
+  },
+  list_integration_capabilities: {
+    providers: resourceListOutputProperty(
+      "integration provider, including category, connect method, what it syncs, every event it emits with the moment that triggers it, the subscriber attributes it writes, supported actions, availability, and caveats"
+    ),
+  },
+  list_integration_activity: {
+    activity: resourceListOutputProperty(
+      "integration activity row, including provider, action, status, event type, matched contact, message, and error. Payloads are sanitized, so no credentials appear"
+    ),
+    windowHours: {
+      type: "number",
+      description: "Retention window in hours for integration activity.",
+    },
+    note: noteOutputProperty,
+  },
+  connect_integration: {
+    integration: {
+      type: "object",
+      description:
+        "The connected integration: id, provider, name, providerAccountId, sync state, and safe (non-credential) details.",
+    },
+    webhookUrl: stringOutputProperty(
+      "URL to configure in the provider's webhook settings with the same secret. Always relay this to the user - delivery does not start until it is configured."
+    ),
+    revenueSyncQueued: booleanOutputProperty(
+      "Payment providers only: whether the initial revenue backfill was queued."
+    ),
+    backfillQueued: booleanOutputProperty(
+      "Affonso only: whether the affiliate backfill was queued."
+    ),
+    history: {
+      type: "object",
+      description:
+        "PostHog only: outcome of the optional history import request ({ requested, queued, error }). The webhook connection succeeds even if queueing the import failed.",
+    },
+  },
+  set_integration_sync_enabled: {
+    integrationId: stringOutputProperty("The integration that was updated."),
+    provider: stringOutputProperty("Provider of the updated integration."),
+    syncEnabled: booleanOutputProperty("Sync state after the update."),
+    changed: booleanOutputProperty(
+      "False when the integration was already in the requested state."
+    ),
+    message: messageOutputProperty,
+  },
+  get_integration_pixel: {
+    integrationId: stringOutputProperty("The Shopify integration inspected."),
+    provider: stringOutputProperty("Always `shopify`."),
+    shopDomain: stringOutputProperty("Store the pixel was read from."),
+    pixel: objectOutputProperty(
+      "Live pixel state: installed, id, endpoint it posts to, endpointCurrent (including the supported compatibility route), configurationCurrent (endpoint plus signed connection settings), healthy, and error when Shopify could not confirm."
+    ),
+    dependentEvents: {
+      type: "array",
+      description:
+        "Event names that depend on this pixel. They are confirmed unable to arrive only when pixel.error is null and pixel.healthy is false.",
+      items: stringOutputProperty("Pixel-dependent event name."),
+    },
+    message: messageOutputProperty,
+  },
+  activate_integration_pixel: {
+    integrationId: stringOutputProperty("The Shopify integration updated."),
+    provider: stringOutputProperty("Always `shopify`."),
+    shopDomain: stringOutputProperty("Store the pixel was installed on."),
+    pixel: objectOutputProperty("Pixel state after activation."),
+    changed: booleanOutputProperty(
+      "False when the pixel was already installed and reporting to this account."
+    ),
+    created: booleanOutputProperty("True when a new pixel was installed."),
+    updated: booleanOutputProperty(
+      "True when an existing pixel was repointed at this account."
+    ),
+    dependentEvents: {
+      type: "array",
+      description: "Event names this pixel enables.",
+      items: stringOutputProperty("Pixel-dependent event name."),
+    },
+    message: messageOutputProperty,
+  },
+  sync_integration: {
+    integrationId: stringOutputProperty("The integration being synced."),
+    provider: stringOutputProperty("Provider of the synced integration."),
+    jobId: nullableStringOutputProperty(
+      "Background job id for the queued sync, when one was created."
+    ),
+    syncStatus: stringOutputProperty(
+      "Sync status after queueing. Poll get_integration to watch it progress."
+    ),
+    message: messageOutputProperty,
   },
   list_sender_profiles: {
     senderProfiles: resourceListOutputProperty(
@@ -335,9 +463,45 @@ export const outputPropertiesByToolName: Record<
       "Company default reply-to profile ID. Null when no default is set."
     ),
   },
+  update_sender_profile: {
+    senderProfile: resourceOutputProperty(
+      "renamed sender (From) profile, present when type was sender"
+    ),
+    replyProfile: resourceOutputProperty(
+      "renamed reply-to profile, present when type was reply"
+    ),
+    renamed: booleanOutputProperty(
+      "False when the profile already carried that name, so nothing changed."
+    ),
+  },
+  get_notification_preferences: {
+    notificationPreferences: arrayOutputProperty(
+      "One entry per notification event with its current mode: off, instant, or daily. Every event is always present; an event the user has never configured reports the platform default."
+    ),
+    supportedModes: objectOutputProperty(
+      "Modes each event accepts, keyed by event. campaign_completed does not accept daily."
+    ),
+    defaults: objectOutputProperty(
+      "Mode each event uses when the user has never configured it."
+    ),
+  },
+  update_notification_preferences: {
+    notificationPreferences: arrayOutputProperty(
+      "Every notification event with its mode after the update, not only the events that were changed."
+    ),
+    supportedModes: objectOutputProperty(
+      "Modes each event accepts, keyed by event. campaign_completed does not accept daily."
+    ),
+    defaults: objectOutputProperty(
+      "Mode each event uses when the user has never configured it."
+    ),
+  },
   get_tracking_settings: {
     tracking: objectOutputProperty(
-      "Open, click, and unsubscribe tracking flags plus the default attribution window in hours."
+      "Open, click, and unsubscribe tracking flags, the opt-in strictBotFilteringEnabled bot-detection flag, plus the default attribution window in hours."
+    ),
+    consent: objectOutputProperty(
+      "Signup consent settings: doubleOptInEnabled, and doubleOptInEmailId for the confirmation email sent to pending contacts (null when double opt-in has never been enabled)."
     ),
     autoUtm: objectOutputProperty(
       "Automatic UTM tagging state and its configured parameters."
@@ -347,6 +511,24 @@ export const outputPropertiesByToolName: Record<
     ),
     replyTracking: objectOutputProperty(
       "Inbound reply tracking configuration."
+    ),
+  },
+  update_tracking_settings: {
+    message: messageOutputProperty,
+    tracking: objectOutputProperty(
+      "Open, click, and unsubscribe tracking flags, the opt-in strictBotFilteringEnabled bot-detection flag, plus the default attribution window in hours, after the update."
+    ),
+    consent: objectOutputProperty(
+      "Signup consent settings after the update: doubleOptInEnabled, and doubleOptInEmailId for the confirmation email, which is provisioned automatically the first time double opt-in is enabled."
+    ),
+    autoUtm: objectOutputProperty(
+      "Automatic UTM tagging state and its configured parameters, after the update."
+    ),
+    trackingDomain: nullableObjectOutputProperty(
+      "Dedicated click-tracking domain with verification and SSL status. Null when click links use the shared Sequenzy tracking domain."
+    ),
+    replyTracking: objectOutputProperty(
+      "Inbound reply tracking configuration. Unchanged by this tool; set it with update_company."
     ),
   },
   add_website: {
@@ -479,6 +661,9 @@ export const outputPropertiesByToolName: Record<
   },
   list_products: {
     products: resourceListOutputProperty("product"),
+    pagination: objectOutputProperty(
+      "Pagination metadata: limit, offset, count (this page), total (whole catalog) and hasMore. Page with offset when hasMore is true."
+    ),
   },
   upsert_products: {
     products: resourceListOutputProperty("product"),
@@ -747,6 +932,12 @@ export const outputPropertiesByToolName: Record<
       "Public action URL plus JavaScript, native form, and fetch snippets."
     ),
   },
+  update_form: {
+    form: resourceOutputProperty("saved form"),
+    embed: objectOutputProperty(
+      "Public action URL plus JavaScript, native form, and fetch snippets (published forms only)."
+    ),
+  },
   get_form_embed: {
     form: resourceOutputProperty("saved form"),
     embed: objectOutputProperty(
@@ -818,16 +1009,19 @@ export const outputPropertiesByToolName: Record<
           ),
           sequenceId: stringOutputProperty("Sequence ID."),
           subscriberId: stringOutputProperty("Subscriber ID."),
-          email: stringOutputProperty(
-            "Subscriber email address. Falls back to the address captured at enrollment when the subscriber record no longer exists."
+          // Every one of these is nullable on the wire, and ajv rejects the
+          // whole tool call on a `null` in a plain-string field. Any enrollment
+          // whose contact has no stored name reaches this listing.
+          email: nullableStringOutputProperty(
+            "Subscriber email address. Falls back to the address captured at enrollment when the subscriber record no longer exists, and is null when neither is known."
           ),
-          firstName: stringOutputProperty(
+          firstName: nullableStringOutputProperty(
             "Subscriber first name, or null when unset."
           ),
-          lastName: stringOutputProperty(
+          lastName: nullableStringOutputProperty(
             "Subscriber last name, or null when unset."
           ),
-          subscriberStatus: stringOutputProperty(
+          subscriberStatus: nullableStringOutputProperty(
             "Subscriber status (active, unsubscribed, bounced), or null when the subscriber record no longer exists."
           ),
           status: stringOutputProperty(
@@ -851,13 +1045,22 @@ export const outputPropertiesByToolName: Record<
           enrollmentStartedAt: stringOutputProperty(
             "ISO 8601 timestamp when this enrollment entered the sequence."
           ),
-          waitUntil: stringOutputProperty(
+          waitUntil: nullableStringOutputProperty(
             "ISO 8601 timestamp this enrollment is scheduled to resume, or null when nothing is scheduled."
           ),
           lastUpdatedAt: stringOutputProperty(
             "ISO 8601 timestamp of the last change to this enrollment. For a waiting enrollment this is when it arrived at its current node; the platform does not separately track node entry time."
           ),
+          failedReason: nullableStringOutputProperty(
+            "Why this enrollment stopped, for status `failed`. Null for every other status and for failures recorded before this field existed. A reason repeated across enrollments on the same currentNodeId points at that step's configuration or content rather than at the contacts."
+          ),
         },
+        // `failedReason` is deliberately absent, like every other field this
+        // package added after the fact: clients validate structuredContent
+        // against this schema, so requiring a key the deployed API may not
+        // return yet would fail the whole tool call during the window between
+        // publishing this package and shipping the API change. It is declared
+        // nullable instead.
         required: [
           "enrollmentId",
           "sequenceId",
@@ -1033,6 +1236,11 @@ export const outputPropertiesByToolName: Record<
   },
   update_transactional_email: {
     transactional: resourceOutputProperty("transactional email"),
+  },
+  delete_transactional_email: {
+    deleted: objectOutputProperty(
+      "Deleted transactional email: id, slug, name, and emailId of the email content that was kept as a reusable template."
+    ),
   },
   send_email: {
     emailSendId: stringOutputProperty("Durable email delivery ID."),
@@ -1287,10 +1495,13 @@ export const outputPropertiesByToolName: Record<
     ),
     locale: stringOutputProperty("Localization locale the render resolved to."),
     personalized: booleanOutputProperty(
-      "Whether a real contact was supplied. False means a sample contact was used and merge tags resolved to empty values."
+      "Whether a real contact was supplied. False means a sample contact was used, so contact-specific merge tags resolve to empty values."
     ),
     trackingApplied: booleanOutputProperty(
       "Whether auto-UTM link decoration was applied."
+    ),
+    unresolvedMergeTags: arrayOutputProperty(
+      'Merge tags that rendered as an empty string, as [{ tag, reason }]. reason "unknown" means nothing provides that name, so it stays empty for every recipient - usually a typo or a tag copied from another platform. reason "no_value" means the name is recognized, or could not be checked, but is blank for this contact. A name is only called unknown when the render had a source to check it against. Without the contact\'s attributes nothing is checkable, since a bare {{plan}} reads the same attribute map as {{subscriber.plan}}, so pass a stored subscriberId or an inline subscriber carrying customAttributes. Beyond that, {{event.*}} needs sample event properties in variables, since a real send fills those from the enrolling event; {{recommendedProducts.*}} needs a stored subscriberId the catalog has something to recommend for; and {{discount.*}} is only checkable on a sequence step whose incoming paths all run the same discount step, never on a standalone template. Rendering a transactional email is checkable only when variables is passed, because its tags come from the variables of each send call and carry no prefix marking them. Otherwise those tags land in no_value rather than in unknown. An optional attribute this contact never had set is kept out of unknown by checking the names other contacts in the account carry, which needs the subscribers:read scope; a key without it may report such a name as unknown. An empty array means every tag in the email resolved.'
     ),
     entity: objectOutputProperty(
       "Which entity was rendered: type, id, and variantId."

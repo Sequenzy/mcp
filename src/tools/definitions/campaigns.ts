@@ -42,7 +42,7 @@ export const campaignToolDefinitions: Tool[] = [
   {
     name: "get_campaign",
     description:
-      "Get campaign details and stats, including rejectionComment reviewer feedback for rejected campaigns. `targetLists` holds the raw audience targeting (IDs only); call get_campaign_audience for resolved list/segment names and a recipient count. Note that `computedLists` is email personalization (product lists rendered inside the email), not audience targeting.",
+      "Get campaign details and stats, including rejectionComment reviewer feedback for rejected campaigns. `emailId` is the campaign's linked email body - the same record returned by the templates tools - and can be passed as templateId to create_campaign to reuse the design; it is null for SMS campaigns. `targetLists` holds the raw audience targeting (IDs only); call get_campaign_audience for resolved list/segment names and a recipient count. Note that `computedLists` is email personalization (product lists rendered inside the email), not audience targeting.",
     inputSchema: {
       type: "object",
       properties: {
@@ -263,12 +263,12 @@ export const campaignToolDefinitions: Tool[] = [
         fromName: {
           type: "string",
           description:
-            "Display name for a newly created sender profile. Requires fromEmail.",
+            "Display name for a newly created sender profile. Requires fromEmail; omit it when using senderProfileId, which already carries its own display name.",
         },
         senderProfileId: {
           type: "string",
           description:
-            "Existing sender profile ID. Mutually exclusive with fromEmail.",
+            "Existing sender profile ID (see list_sender_profiles). It already supplies both the From address and display name, so send it on its own and omit fromEmail and fromName.",
         },
         replyTo: {
           type: "string",
@@ -278,12 +278,12 @@ export const campaignToolDefinitions: Tool[] = [
         replyToName: {
           type: "string",
           description:
-            "Display name for a newly created reply profile. Requires replyTo.",
+            "Display name for a newly created reply profile. Requires replyTo; omit it when using replyProfileId, which already carries its own display name.",
         },
         replyProfileId: {
           type: "string",
           description:
-            "Existing reply profile ID. Mutually exclusive with replyTo.",
+            "Existing reply profile ID (see list_sender_profiles). It already supplies both the Reply-To address and display name, so send it on its own and omit replyTo and replyToName.",
         },
         campaignData: {
           type: "object",
@@ -357,12 +357,12 @@ export const campaignToolDefinitions: Tool[] = [
         replyProfileId: {
           type: "string",
           description:
-            "Set reply-to using a reply profile ID for this company.",
+            "Set reply-to using a reply profile ID for this company (see list_sender_profiles). It already supplies both the Reply-To address and display name, so send it on its own and omit replyTo and replyToName.",
         },
         replyToName: {
           type: "string",
           description:
-            "Display name for a newly created reply profile. Requires replyTo.",
+            "Display name for a newly created reply profile. Requires replyTo; omit it when using replyProfileId, which already carries its own display name.",
         },
         fromEmail: {
           type: "string",
@@ -372,12 +372,12 @@ export const campaignToolDefinitions: Tool[] = [
         fromName: {
           type: "string",
           description:
-            "Display name for a newly created sender profile. Requires fromEmail.",
+            "Display name for a newly created sender profile. Requires fromEmail; omit it when using senderProfileId, which already carries its own display name.",
         },
         senderProfileId: {
           type: "string",
           description:
-            "Set an existing sender profile. Mutually exclusive with fromEmail.",
+            "Set an existing sender profile (see list_sender_profiles). It already supplies both the From address and display name, so send it on its own and omit fromEmail and fromName.",
         },
         ccEmails: {
           type: ["array", "null"],

@@ -161,6 +161,99 @@ describe("account tools", () => {
       { type: "number", exclusiveMinimum: 0, maximum: 95 }
     );
   });
+
+  it("reads per-user notification preferences for the selected company", async () => {
+    const response = {
+      success: true,
+      notificationPreferences: [
+        { event: "new_subscriber", mode: "daily" },
+        { event: "campaign_completed", mode: "instant" },
+      ],
+      supportedModes: {
+        new_subscriber: ["off", "instant", "daily"],
+        campaign_completed: ["off", "instant"],
+      },
+      defaults: {
+        new_subscriber: "instant",
+        campaign_completed: "instant",
+      },
+    };
+    mockApiRequest.mockResolvedValueOnce(response);
+
+    const result = await handleToolCall("get_notification_preferences", {
+      companyId: "company_123",
+    });
+    const tool = tools.find(
+      (candidate) => candidate.name === "get_notification_preferences"
+    );
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/notification-preferences",
+      undefined,
+      "company_123"
+    );
+    expect(result.isError).toBeUndefined();
+    expect(result.structuredContent?.["notificationPreferences"]).toEqual(
+      response.notificationPreferences
+    );
+    expect(tool?.annotations?.readOnlyHint).toBe(true);
+  });
+
+  it("updates notification preferences with a mutation-safe schema", async () => {
+    const notificationPreferences = [{ event: "new_subscriber", mode: "off" }];
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      notificationPreferences,
+      supportedModes: {
+        new_subscriber: ["off", "instant", "daily"],
+        campaign_completed: ["off", "instant"],
+      },
+      defaults: {
+        new_subscriber: "instant",
+        campaign_completed: "instant",
+      },
+    });
+
+    const result = await handleToolCall("update_notification_preferences", {
+      companyId: "company_123",
+      notificationPreferences,
+    });
+    const tool = tools.find(
+      (candidate) => candidate.name === "update_notification_preferences"
+    );
+    const preferencesSchema = tool?.inputSchema.properties?.[
+      "notificationPreferences"
+    ] as
+      | {
+          items?: {
+            properties?: Record<string, { enum?: string[] }>;
+            required?: string[];
+          };
+        }
+      | undefined;
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/notification-preferences",
+      { notificationPreferences },
+      "company_123"
+    );
+    expect(result.isError).toBeUndefined();
+    expect(tool?.inputSchema.required).toContain("notificationPreferences");
+    expect(preferencesSchema?.items?.required).toEqual(["event", "mode"]);
+    expect(preferencesSchema?.items?.properties?.["event"]?.enum).toEqual([
+      "new_subscriber",
+      "campaign_completed",
+    ]);
+    expect(preferencesSchema?.items?.properties?.["mode"]?.enum).toEqual([
+      "off",
+      "instant",
+      "daily",
+    ]);
+    expect(tool?.annotations?.readOnlyHint).toBe(false);
+    expect(tool?.annotations?.destructiveHint).toBe(false);
+  });
 });
 
 describe("API key permission errors", () => {
@@ -370,6 +463,54 @@ describe("tool schema compatibility", () => {
 
     expect(conditionType?.enum).toContain("does_not_have_tag");
   });
+
+  it("publishes the same webhook step fields on insertSteps as insert_sequence_step", () => {
+    const updateSequenceTool = tools.find(
+      (tool) => tool.name === "update_sequence"
+    );
+    const inputSchema = updateSequenceTool?.inputSchema as
+      | Record<string, unknown>
+      | undefined;
+    const properties = inputSchema?.properties as
+      | Record<string, unknown>
+      | undefined;
+    const insertSteps = properties?.insertSteps as
+      | Record<string, unknown>
+      | undefined;
+    const insertStepsProperties = insertSteps?.properties as
+      | Record<string, unknown>
+      | undefined;
+    const steps = insertStepsProperties?.steps as
+      | Record<string, unknown>
+      | undefined;
+    const stepItem = steps?.items as Record<string, unknown> | undefined;
+    const stepProperties = stepItem?.properties as
+      | Record<string, unknown>
+      | undefined;
+    const config = stepProperties?.config as
+      | Record<string, unknown>
+      | undefined;
+    const configProperties = config?.properties as
+      | Record<string, Record<string, unknown>>
+      | undefined;
+
+    // A stale enum here makes agents reject methods the API accepts, and
+    // missing fields hide body/resultKey/onError from the insertSteps path.
+    expect(configProperties?.["method"]?.["enum"]).toEqual([
+      "POST",
+      "GET",
+      "PUT",
+      "PATCH",
+      "DELETE",
+    ]);
+    expect(configProperties?.["body"]?.["type"]).toBe("string");
+    expect(configProperties?.["resultKey"]?.["type"]).toBe("string");
+    expect(configProperties?.["onError"]?.["enum"]).toEqual([
+      "continue",
+      "exit",
+      "fail",
+    ]);
+  });
 });
 
 describe("create_api_key tool schema", () => {
@@ -558,6 +699,64 @@ describe("read-only audit tools", () => {
     expect(result.structuredContent?.["defaultSenderProfileId"]).toBe("sp_1");
   });
 
+  it("renames a sender profile", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      senderProfile: {
+        id: "sp_1",
+        name: "SnapCount",
+        email: "hi@snapcount.app",
+        isDefault: true,
+      },
+      renamed: true,
+    });
+
+    const result = await handleToolCall("update_sender_profile", {
+      profileId: "sp_1",
+      name: "SnapCount",
+      companyId: "company_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/sender-profiles/sp_1",
+      { name: "SnapCount" },
+      "company_123"
+    );
+    expect(result.structuredContent?.["renamed"]).toBe(true);
+  });
+
+  // Profile IDs are opaque cuids with no type prefix, so the caller says which
+  // list the ID came from rather than the handler guessing.
+  it("routes update_sender_profile to the reply route when type is reply", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      replyProfile: {
+        id: "rp_1",
+        name: "SnapCount",
+        email: "support@snapcount.app",
+        isDefault: false,
+      },
+      renamed: true,
+    });
+
+    const result = await handleToolCall("update_sender_profile", {
+      profileId: "rp_1",
+      name: "SnapCount",
+      type: "reply",
+      companyId: "company_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/reply-profiles/rp_1",
+      { name: "SnapCount" },
+      "company_123"
+    );
+  });
+
   it("gets tracking settings", async () => {
     mockApiRequest.mockResolvedValueOnce({
       success: true,
@@ -579,6 +778,113 @@ describe("read-only audit tools", () => {
       "company_123"
     );
     expect(result.structuredContent?.["trackingDomain"]).toBeNull();
+  });
+
+  it("updates tracking settings", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      message: "Updated tracking settings: openTrackingEnabled.",
+      tracking: { openTrackingEnabled: false, clickTrackingEnabled: false },
+      autoUtm: { enabled: false, settings: {} },
+      trackingDomain: null,
+      replyTracking: { inboundEmailEnabled: false },
+    });
+
+    const result = await handleToolCall("update_tracking_settings", {
+      companyId: "company_123",
+      openTrackingEnabled: false,
+      clickTrackingEnabled: false,
+      autoUtmSettings: { source: "newsletter", term: null },
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/tracking-settings",
+      {
+        openTrackingEnabled: false,
+        clickTrackingEnabled: false,
+        autoUtmSettings: { source: "newsletter", term: null },
+      },
+      "company_123"
+    );
+    expect(result.structuredContent?.["message"]).toBe(
+      "Updated tracking settings: openTrackingEnabled."
+    );
+  });
+
+  it("forwards doubleOptInEnabled and surfaces the consent block", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      message: "Updated tracking settings: doubleOptInEnabled.",
+      tracking: { openTrackingEnabled: true, clickTrackingEnabled: true },
+      consent: { doubleOptInEnabled: true, doubleOptInEmailId: "email_1" },
+      autoUtm: { enabled: false, settings: {} },
+      trackingDomain: null,
+      replyTracking: { inboundEmailEnabled: false },
+    });
+
+    const result = await handleToolCall("update_tracking_settings", {
+      companyId: "company_123",
+      doubleOptInEnabled: true,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/tracking-settings",
+      { doubleOptInEnabled: true },
+      "company_123"
+    );
+    expect(result.structuredContent?.["consent"]).toEqual({
+      doubleOptInEnabled: true,
+      doubleOptInEmailId: "email_1",
+    });
+  });
+
+  it("rejects a non-boolean doubleOptInEnabled", async () => {
+    const result = await handleToolCall("update_tracking_settings", {
+      companyId: "company_123",
+      doubleOptInEnabled: "on",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("`doubleOptInEnabled`");
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects tracking settings updates with no editable field", async () => {
+    const result = await handleToolCall("update_tracking_settings", {
+      companyId: "company_123",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("Provide at least one of");
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects reply-tracking fields on update_tracking_settings", async () => {
+    // Reply tracking is owned by update_company; silently dropping it here
+    // would read as a successful opt-out.
+    const result = await handleToolCall("update_tracking_settings", {
+      companyId: "company_123",
+      replyTrackingEnabled: false,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("`replyTrackingEnabled`");
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects an out-of-range attribution window", async () => {
+    const result = await handleToolCall("update_tracking_settings", {
+      companyId: "company_123",
+      defaultAttributionWindowHours: 5000,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("defaultAttributionWindowHours");
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
   it("resolves a campaign audience with a recipient count", async () => {
@@ -671,6 +977,87 @@ describe("nullable structured output", () => {
     expect(result.valid).toBe(true);
   });
 
+  // The default listing (active and waiting) sends `failedReason: null` on every
+  // row, and a contact with no stored name sends null for the name fields too.
+  // Declaring any of them as a plain string makes ajv reject the whole tool call,
+  // so the diagnostic field would break the listing it was added to.
+  it("accepts a waiting enrollment with no failure reason and no name", () => {
+    const result = validateStructuredContent("list_sequence_enrollments", {
+      success: true,
+      sequenceId: "seq_abc123",
+      sequenceName: "Onboarding",
+      statuses: ["active", "waiting"],
+      enrollments: [
+        {
+          enrollmentId: "tok_abc123",
+          sequenceId: "seq_abc123",
+          subscriberId: "sub_abc123",
+          email: null,
+          firstName: null,
+          lastName: null,
+          subscriberStatus: null,
+          status: "waiting",
+          currentNodeId: "node_wave_1",
+          currentNodeMissing: false,
+          enrollmentKey: "__default__",
+          enrollmentStartedAt: "2026-01-01T00:00:00.000Z",
+          waitUntil: null,
+          lastUpdatedAt: "2026-01-01T00:00:00.000Z",
+          failedReason: null,
+        },
+      ],
+      pagination: {
+        limit: 50,
+        offset: 0,
+        count: 1,
+        total: 1,
+        hasMore: false,
+      },
+    });
+
+    expect(result.errorMessage).toBeUndefined();
+    expect(result.valid).toBe(true);
+  });
+
+  it("accepts a failed enrollment carrying its reason", () => {
+    const result = validateStructuredContent("list_sequence_enrollments", {
+      success: true,
+      sequenceId: "seq_abc123",
+      sequenceName: "Onboarding",
+      statuses: ["failed"],
+      enrollments: [
+        {
+          enrollmentId: "tok_failed",
+          sequenceId: "seq_abc123",
+          subscriberId: "sub_abc123",
+          email: "customer@example.com",
+          firstName: "Wanda",
+          lastName: "Waiter",
+          subscriberStatus: "active",
+          status: "failed",
+          currentNodeId: "node_welcome",
+          currentNodeMissing: false,
+          enrollmentKey: "__default__",
+          enrollmentStartedAt: "2026-01-01T00:00:00.000Z",
+          waitUntil: null,
+          lastUpdatedAt: "2026-01-01T00:00:00.000Z",
+          failedReason:
+            "undefined is not an object (evaluating 'block.text.replace')",
+        },
+      ],
+      pagination: {
+        limit: 50,
+        offset: 0,
+        count: 1,
+        total: 1,
+        hasMore: false,
+      },
+    });
+
+    expect(result.errorMessage).toBeUndefined();
+    expect(result.valid).toBe(true);
+  });
+
   it("still rejects a wrongly typed value in a nullable field", () => {
     const result = validateStructuredContent("get_tracking_settings", {
       success: true,
@@ -678,6 +1065,43 @@ describe("nullable structured output", () => {
     });
 
     expect(result.valid).toBe(false);
+  });
+
+  // This package ships independently of the API, so between publishing it and
+  // deploying the API the listing still answers without `failedReason`. A schema
+  // that required the key would reject the whole tool call for that window.
+  it("accepts an enrollment from an API that does not send failedReason yet", () => {
+    const result = validateStructuredContent("list_sequence_enrollments", {
+      success: true,
+      sequenceId: "seq_abc123",
+      sequenceName: "Onboarding",
+      statuses: ["active", "waiting"],
+      enrollments: [
+        {
+          enrollmentId: "tok_abc123",
+          sequenceId: "seq_abc123",
+          subscriberId: "sub_abc123",
+          email: "customer@example.com",
+          status: "waiting",
+          currentNodeId: "node_wave_1",
+          currentNodeMissing: false,
+          enrollmentKey: "__default__",
+          enrollmentStartedAt: "2026-01-01T00:00:00.000Z",
+          waitUntil: null,
+          lastUpdatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+      pagination: {
+        limit: 50,
+        offset: 0,
+        count: 1,
+        total: 1,
+        hasMore: false,
+      },
+    });
+
+    expect(result.errorMessage).toBeUndefined();
+    expect(result.valid).toBe(true);
   });
 });
 
@@ -2763,6 +3187,60 @@ describe("update_campaign tool validation", () => {
     expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
+  it("states the whole profile rule when a display name is sent with a profile id", async () => {
+    // Adding fromEmail was the only remedy the old message suggested, and it
+    // just produced the opposite complaint, so callers got stuck in a loop.
+    const senderResult = await handleToolCall("create_campaign", {
+      name: "Blocked draft",
+      subject: "Hello",
+      senderProfileId: "sender_123",
+      fromName: "Outlex",
+    });
+
+    expect(senderResult.isError).toBe(true);
+    expect(senderResult.content[0]?.text).not.toContain(
+      "`fromName` requires `fromEmail`"
+    );
+    expect(senderResult.content[0]?.text).toContain(
+      "`fromName` cannot be combined with `senderProfileId` when calling `create_campaign`."
+    );
+    expect(senderResult.content[0]?.text).toContain(
+      "send it without `fromEmail` and `fromName`"
+    );
+
+    const replyResult = await handleToolCall("update_campaign", {
+      campaignId: "camp_123",
+      replyProfileId: "reply_123",
+      replyToName: "Outlex Support",
+    });
+
+    expect(replyResult.isError).toBe(true);
+    expect(replyResult.content[0]?.text).not.toContain(
+      "`replyToName` requires `replyTo`"
+    );
+    expect(replyResult.content[0]?.text).toContain(
+      "`replyToName` cannot be combined with `replyProfileId` when calling `update_campaign`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("keeps pointing a bare display name at its address field", async () => {
+    const result = await handleToolCall("create_campaign", {
+      name: "Blocked draft",
+      subject: "Hello",
+      fromName: "Outlex",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`fromName` requires `fromEmail` when calling `create_campaign`."
+    );
+    expect(result.content[0]?.text).toContain(
+      "send `senderProfileId` on its own"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
   it("rejects mixed html and blocks content in update_campaign", async () => {
     const result = await handleToolCall("update_campaign", {
       campaignId: "camp_123",
@@ -3432,6 +3910,70 @@ describe("saved form tools", () => {
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain(
       "`listIds` must contain at least one list ID"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("passes create_form theme overrides through to the API", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      form: { id: "form_123" },
+    });
+
+    const result = await handleToolCall("create_form", {
+      name: "Branded form",
+      listIds: ["list_123"],
+      theme: { accentColor: "#0f766e" },
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/forms",
+      {
+        name: "Branded form",
+        listIds: ["list_123"],
+        theme: { accentColor: "#0f766e" },
+      },
+      undefined
+    );
+  });
+
+  it("routes update_form edits to the form's PATCH endpoint", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      form: { id: "form/123", name: "Renamed" },
+    });
+
+    const result = await handleToolCall("update_form", {
+      companyId: "comp_123",
+      formId: "form/123",
+      name: "Renamed",
+      theme: { accentColor: "#0f766e" },
+      blocks: [{ id: "form-heading", kind: "heading", content: "Hi" }],
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/forms/form%2F123",
+      {
+        name: "Renamed",
+        theme: { accentColor: "#0f766e" },
+        blocks: [{ id: "form-heading", kind: "heading", content: "Hi" }],
+      },
+      "comp_123"
+    );
+  });
+
+  it("rejects update_form calls that change nothing", async () => {
+    const result = await handleToolCall("update_form", {
+      formId: "form_123",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Provide at least one field to change"
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
   });
@@ -5812,6 +6354,81 @@ describe("insert_sequence_step tool", () => {
     );
   });
 
+  it("forwards call-webhook body, resultKey, and onError in a linear sequence insertion", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      sequence: {
+        id: "seq_123",
+        insertedNodeIds: ["webhook_booking"],
+      },
+    });
+
+    const result = await handleToolCall("insert_sequence_step", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      type: "webhook",
+      afterNodeId: "email_1",
+      label: "Fetch booking",
+      url: "https://api.example.com/bookings/{{event.booking_id}}",
+      method: "PUT",
+      body: '{"email":"{{email}}"}',
+      resultKey: "booking",
+      onError: "continue",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/sequences/seq_123",
+      {
+        insertSteps: {
+          afterNodeId: "email_1",
+          steps: [
+            {
+              type: "webhook",
+              nodeType: "action_webhook",
+              config: {
+                label: "Fetch booking",
+                url: "https://api.example.com/bookings/{{event.booking_id}}",
+                method: "PUT",
+                body: '{"email":"{{email}}"}',
+                resultKey: "booking",
+                onError: "continue",
+              },
+            },
+          ],
+        },
+      },
+      "comp_123"
+    );
+  });
+
+  it("rejects an invalid webhook onError before hitting the API", async () => {
+    const result = await handleToolCall("insert_sequence_step", {
+      sequenceId: "seq_123",
+      type: "webhook",
+      url: "https://example.com/hooks/sequence",
+      onError: "retry",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("onError");
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects an invalid webhook method before hitting the API", async () => {
+    const result = await handleToolCall("insert_sequence_step", {
+      sequenceId: "seq_123",
+      type: "webhook",
+      url: "https://example.com/hooks/sequence",
+      method: "HEAD",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("method");
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
   it("rejects invalid webhook headers before hitting the API", async () => {
     const result = await handleToolCall("insert_sequence_step", {
       sequenceId: "seq_123",
@@ -7330,6 +7947,22 @@ describe("product tools", () => {
       "/api/v1/products/my%20ebook",
       undefined,
       undefined
+    );
+  });
+
+  it("selects a Stripe integration for product sync", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true, jobId: "job_123" });
+
+    await handleToolCall("sync_products", {
+      companyId: "company_123",
+      integrationId: "int/selected",
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/products/sync?integrationId=int%2Fselected",
+      undefined,
+      "company_123"
     );
   });
 
@@ -9233,5 +9866,69 @@ describe("recipient suppression tools", () => {
       undefined,
       undefined
     );
+  });
+});
+
+describe("buildInsertSequenceStepBody webhook steps", () => {
+  const baseArgs = {
+    type: "webhook",
+    url: "https://api.example.com/lookup",
+  };
+
+  it("keeps a string body, resultKey, and onError", async () => {
+    const { buildInsertSequenceStepBody } = await import(
+      "./sequence-validation"
+    );
+
+    const body = buildInsertSequenceStepBody({
+      ...baseArgs,
+      method: "POST",
+      body: '{"email":"{{email}}"}',
+      resultKey: "lookup",
+      onError: "continue",
+    });
+
+    expect(body.insertSteps).toEqual({
+      steps: [
+        {
+          type: "webhook",
+          nodeType: "action_webhook",
+          config: {
+            label: "Webhook",
+            url: "https://api.example.com/lookup",
+            method: "POST",
+            body: '{"email":"{{email}}"}',
+            resultKey: "lookup",
+            onError: "continue",
+          },
+        },
+      ],
+    });
+  });
+
+  it("rejects a non-string body instead of dropping it", async () => {
+    const { buildInsertSequenceStepBody } = await import(
+      "./sequence-validation"
+    );
+
+    // An object body used to be silently discarded, so the step was created
+    // sending the default payload with no indication the template was lost.
+    expect(() =>
+      buildInsertSequenceStepBody({
+        ...baseArgs,
+        method: "POST",
+        body: { email: "{{email}}" },
+      })
+    ).toThrow("`body` must be a JSON string");
+  });
+
+  it("rejects a non-string resultKey instead of dropping it", async () => {
+    const { buildInsertSequenceStepBody } = await import(
+      "./sequence-validation"
+    );
+
+    expect(() =>
+      buildInsertSequenceStepBody({ ...baseArgs, resultKey: 7 })
+    ).toThrow("`resultKey` must be a string");
   });
 });

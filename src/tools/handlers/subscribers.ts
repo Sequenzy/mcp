@@ -3,6 +3,7 @@ import {
   isRecord,
   normalizeSubscriberTag,
   fetchAllSubscribers,
+  getSubscriberIdentifier,
   requireSubscriberIdentifier,
   getSubscriberDetailPath,
   getSubscriberNotesPath,
@@ -87,7 +88,15 @@ export async function handleSubscriberTools(
   switch (name) {
     case "add_subscriber": {
       const companyId = args.companyId as string | undefined;
-      const identifier = requireSubscriberIdentifier("add_subscriber", args);
+      const phone =
+        typeof args.phone === "string" && args.phone.trim() !== ""
+          ? args.phone.trim()
+          : undefined;
+      // A phone alone is a valid identity: it creates or matches a
+      // phone-only (SMS) contact.
+      const identifier = phone
+        ? getSubscriberIdentifier(args)
+        : requireSubscriberIdentifier("add_subscriber", args);
       const status = optionalAllowedString("add_subscriber", args, "status", [
         "active",
         "unsubscribed",
@@ -104,6 +113,14 @@ export async function handleSubscriberTools(
         "/api/v1/subscribers",
         {
           ...identifier,
+          ...(phone !== undefined && { phone }),
+          ...(typeof args.phoneCountry === "string" &&
+            args.phoneCountry.trim() !== "" && {
+              phoneCountry: args.phoneCountry.trim(),
+            }),
+          ...(typeof args.smsConsent === "boolean" && {
+            smsConsent: args.smsConsent,
+          }),
           ...(args.firstName !== undefined && { firstName: args.firstName }),
           ...(args.lastName !== undefined && { lastName: args.lastName }),
           customAttributes: args.attributes,
@@ -111,6 +128,7 @@ export async function handleSubscriberTools(
           lists: args.listIds,
           ...(status !== undefined && { status }),
           ...(optInMode !== undefined && { optInMode }),
+          ...(args.createdAt !== undefined && { createdAt: args.createdAt }),
         },
         companyId
       );
@@ -143,13 +161,17 @@ export async function handleSubscriberTools(
       }
       for (let index = 0; index < args.subscribers.length; index += 1) {
         const subscriber = args.subscribers[index];
-        if (
-          !isRecord(subscriber) ||
-          typeof subscriber.email !== "string" ||
-          subscriber.email.trim() === ""
-        ) {
+        const hasEmail =
+          isRecord(subscriber) &&
+          typeof subscriber.email === "string" &&
+          subscriber.email.trim() !== "";
+        const hasPhone =
+          isRecord(subscriber) &&
+          typeof subscriber.phone === "string" &&
+          subscriber.phone.trim() !== "";
+        if (!hasEmail && !hasPhone) {
           throw new Error(
-            `Subscriber record ${index} must include a non-empty email string.`
+            `Subscriber record ${index} must include an email or a phone number.`
           );
         }
       }
@@ -261,6 +283,18 @@ export async function handleSubscriberTools(
       }
       if (args.lastName !== undefined) {
         body.lastName = args.lastName;
+      }
+      // Phone and phoneCountry are native profile fields. They are forwarded
+      // verbatim (including "" to clear the phone) so the API stays the single
+      // place that validates and normalizes numbers.
+      if (typeof args.phone === "string" || args.phone === null) {
+        body.phone = args.phone;
+      }
+      if (typeof args.phoneCountry === "string") {
+        body.phoneCountry = args.phoneCountry;
+      }
+      if (typeof args.smsConsent === "boolean") {
+        body.smsConsent = args.smsConsent;
       }
       if (status !== undefined) {
         body.status = status;
@@ -399,6 +433,8 @@ export async function handleSubscriberTools(
           ...(args.attributes !== undefined && {
             customAttributes: args.attributes,
           }),
+          ...(args.occurredAt !== undefined && { occurredAt: args.occurredAt }),
+          ...(args.eventId !== undefined && { eventId: args.eventId }),
         },
         companyId
       );
@@ -414,6 +450,11 @@ export async function handleSubscriberTools(
       if (!Array.isArray(args.events) || args.events.length === 0) {
         throw new Error(
           "`events` must be a non-empty array when calling `trigger_subscriber_events`."
+        );
+      }
+      if (args.events.length > 500) {
+        throw new Error(
+          "`trigger_subscriber_events` accepts at most 500 events per call. Split a larger history import into several calls."
         );
       }
       for (let index = 0; index < args.events.length; index += 1) {

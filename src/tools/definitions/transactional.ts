@@ -184,6 +184,28 @@ export const transactionalToolDefinitions: Tool[] = [
     },
   },
   {
+    name: "delete_transactional_email",
+    description:
+      "Permanently delete a saved transactional email template by ID or slug. Use this to retire an obsolete template: the slug stops sending and becomes free to reuse. Already-sent deliveries and their stats are kept, so history and analytics survive the delete. The linked email content stays as a reusable template and comes back as `deleted.emailId`; pass that to `delete_template` to remove the content too. To stop sends without losing the template, call `update_transactional_email` with `enabled` set to false instead.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        idOrSlug: {
+          type: "string",
+          description:
+            "Transactional email ID or API slug, for example `welcome-email`.",
+        },
+      },
+      required: ["idOrSlug"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "send_email",
     description:
       "Queue one email using either a saved transactional email API slug (`templateId`) or direct `subject` and `html` content. The default delivery policy is transactional. When the recipient matches a subscriber, saved first and last names fill omitted name variables; explicit variables take precedence. Set `emailType` to `marketing` to add subscriber suppression, a marketing footer, and RFC 8058 one-click unsubscribe. Company Reply-To defaults are inherited when no override is provided, and `{{viewInBrowserUrl}}` is replaced with a hosted copy URL. Use `trackingSettings` with `clickTracking` or `openTracking` set to `false` to disable click-link rewriting or the open-tracking pixel for this send only; these opt-out fields cannot enable tracking the account has disabled. Returns a durable emailSendId and the accepted emailType; pass the ID to get_email_send for delivery status and failure details.",
@@ -217,7 +239,7 @@ export const transactionalToolDefinitions: Tool[] = [
         variables: {
           type: "object",
           description:
-            "Variables for template personalization. Nested objects and arrays are supported for repeat blocks, for example { items: [...] }. When the recipient matches a subscriber, saved first and last names fill omitted name variables; explicit values, including blanks, take precedence.",
+            "Variables for template personalization. Nested objects and arrays are supported for repeat blocks, for example { items: [...] }. When the recipient matches a subscriber, saved first and last names fill omitted name variables; explicit values, including blanks, take precedence. Variables are HTML-escaped; a template can prefix a tag with 'html.' ({{html.prerenderedHtml}}) to insert a trusted, sanitized HTML value unescaped.",
         },
         subscriberExternalId: {
           type: "string",
