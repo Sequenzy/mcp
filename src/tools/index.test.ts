@@ -813,6 +813,46 @@ describe("read-only audit tools", () => {
     );
   });
 
+  it("forwards doubleOptInEnabled and surfaces the consent block", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      message: "Updated tracking settings: doubleOptInEnabled.",
+      tracking: { openTrackingEnabled: true, clickTrackingEnabled: true },
+      consent: { doubleOptInEnabled: true, doubleOptInEmailId: "email_1" },
+      autoUtm: { enabled: false, settings: {} },
+      trackingDomain: null,
+      replyTracking: { inboundEmailEnabled: false },
+    });
+
+    const result = await handleToolCall("update_tracking_settings", {
+      companyId: "company_123",
+      doubleOptInEnabled: true,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/tracking-settings",
+      { doubleOptInEnabled: true },
+      "company_123"
+    );
+    expect(result.structuredContent?.["consent"]).toEqual({
+      doubleOptInEnabled: true,
+      doubleOptInEmailId: "email_1",
+    });
+  });
+
+  it("rejects a non-boolean doubleOptInEnabled", async () => {
+    const result = await handleToolCall("update_tracking_settings", {
+      companyId: "company_123",
+      doubleOptInEnabled: "on",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("`doubleOptInEnabled`");
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
   it("rejects tracking settings updates with no editable field", async () => {
     const result = await handleToolCall("update_tracking_settings", {
       companyId: "company_123",
@@ -1581,6 +1621,14 @@ describe("sending domain tools", () => {
       (candidate) => candidate.name === "add_sending_domain"
     );
     expect(tool?.inputSchema.required).toEqual(["domain"]);
+    expect(tool?.description).toContain(
+      "every cohort-specific DNS record returned"
+    );
+    expect(tool?.description).toContain("DMARC when present");
+    const websiteOutput = tool?.outputSchema?.properties?.["website"] as
+      | { description?: string }
+      | undefined;
+    expect(websiteOutput?.description).toContain("every returned record");
     expect(tool?.annotations).toMatchObject({
       readOnlyHint: false,
       destructiveHint: false,

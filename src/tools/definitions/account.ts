@@ -648,7 +648,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "add_sending_domain",
     description:
-      "Add and configure a sending domain. Returns the SPF, DKIM, MAIL FROM, and inbound DNS records to publish before calling verify_sending_domain.",
+      "Add and configure a sending domain. Publish every cohort-specific DNS record returned, including DMARC when present, before calling verify_sending_domain.",
     inputSchema: {
       type: "object",
       properties: {
@@ -795,7 +795,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "get_tracking_settings",
     description:
-      "Get the company's email tracking configuration: open/click/unsubscribe tracking flags, default attribution window, automatic UTM tagging, the dedicated click-tracking domain and its verification status, and inbound reply-tracking settings. Use this to audit measurement readiness and to explain why opens or clicks may not be recorded.",
+      "Get the company's email tracking and signup consent configuration: open/click/unsubscribe tracking flags, opt-in strict bot filtering, default attribution window, automatic UTM tagging, the dedicated click-tracking domain and its verification status, inbound reply-tracking settings, and whether double opt-in is required for new contacts. Use this to audit measurement readiness, to explain why opens or clicks may not be recorded, and to check how contacts enter the list before investigating bot or alias signups.",
     inputSchema: {
       type: "object",
       properties: {
@@ -810,7 +810,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "update_tracking_settings",
     description:
-      "Update the company's account-wide email tracking defaults: open, click, and unsubscribe tracking, opt-in strict bot filtering, the default attribution window, and automatic UTM tagging. Applies to every campaign, sequence, and transactional email sent afterwards; already-sent emails keep the links they were rendered with. Provide at least one field. Reply tracking (inbound email, reply domain mode, reply forwarding) is on update_company, and the dedicated click-tracking domain is configured in the dashboard.",
+      "Update the company's account-wide email tracking defaults: open, click, and unsubscribe tracking, opt-in strict bot filtering, the default attribution window, and automatic UTM tagging, plus the account-wide double opt-in requirement for new contacts. Applies to every campaign, sequence, and transactional email sent afterwards; already-sent emails keep the links they were rendered with. Provide at least one field. Reply tracking (inbound email, reply domain mode, reply forwarding) is on update_company, and the dedicated click-tracking domain is configured in the dashboard.",
     inputSchema: {
       type: "object",
       properties: {
@@ -843,6 +843,11 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
           type: "number",
           description:
             "Default revenue attribution window in hours (1-720). Used by goals and revenue reporting when no per-goal window is set.",
+        },
+        doubleOptInEnabled: {
+          type: "boolean",
+          description:
+            "Require email confirmation before a new contact becomes subscribed. When on, contacts added by forms, the API, and integrations start pending and receive a confirmation email; they only become active after clicking it, and they are never sent marketing email while pending. This is the account-wide default that the per-write optInMode on add_subscriber overrides. Use it to stop bot and alias signups from landing in the list as active contacts. Enabling it requires a sender profile and provisions the confirmation email automatically if the account has none; it does not retroactively unsubscribe existing active contacts.",
         },
         autoUtmEnabled: {
           type: "boolean",
