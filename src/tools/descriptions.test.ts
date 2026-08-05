@@ -9,6 +9,7 @@ import {
   blockFieldWarningsHint,
   buttonColorHint,
   emailBlocksDescription,
+  pollBlockHint,
   rawHtmlContentWarning,
   sequenceNodeChangesSchema,
   sequenceStepBlocksFormatHint,
@@ -76,6 +77,21 @@ describe("email authoring descriptions", () => {
     expect(buttonColorHint).toContain("buttonTextColor");
     expect(buttonColorHint).not.toContain("warnings");
     expect(emailBlocksDescription).toContain(blockFieldWarningsHint);
+  });
+
+  it("documents poll styling fields on every block-authoring surface", () => {
+    for (const field of [
+      "accentColor",
+      "optionRadius",
+      "questionColor",
+      "fontFamily",
+      "optionFontSize",
+      "questionFontSize",
+    ]) {
+      expect(pollBlockHint).toContain(`\`${field}\``);
+      expect(emailBlocksDescription).toContain(`\`${field}\``);
+    }
+    expect(pollBlockHint).toContain("weights are 100-900");
   });
 });
 

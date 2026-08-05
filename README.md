@@ -610,6 +610,16 @@ such as `nps_score`. The scale is always 0-10; optional `npsLowLabel` and
 `npsHighLabel` customize its captions. Each answer updates the subscriber
 attribute and fires `poll.answered` for automations and outbound webhooks.
 
+Poll blocks also support brand-specific styling. `accentColor` recolors every
+appearance, including `"brutal"`; `optionRadius` sets answer-button corners in
+pixels (`0` is square), independently of the container's
+`styles.borderRadius`; and `questionColor` recolors only the question.
+`fontFamily` applies to the poll. Use the `optionFontSize`,
+`optionFontWeight`, `optionLetterSpacing`, and `optionTextTransform` fields for
+answers, or the matching `question*` fields for the question. Sizes and
+spacing are pixels, weights range from 100 to 900, and text transforms are
+`"none"` or `"uppercase"`.
+
 ### Saved Forms
 
 | Tool             | Description                                                                                                   |
