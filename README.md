@@ -22,7 +22,7 @@ Connect Sequenzy to Claude Desktop, Claude Code, Codex, Cursor, Windsurf, VS Cod
 - Manage team invitations, inbox conversations, and outbound webhook endpoints.
 - Generate email copy, subject lines, and multi-step sequences.
 - Inspect analytics, subscriber activity, deliverability health, and dashboard URLs.
-- Inspect and clean up exact-recipient bounce suppression without exposing the shared SES suppression list.
+- Inspect exact-recipient bounce, complaint, and email-hygiene suppression and clean up removable bounces without exposing the shared SES suppression list.
 - Configure company product info, account-wide sending identity defaults, rename individual sender and reply-to profiles, manage sender domains, and inspect integration examples for common frameworks.
 
 Every published MCP tool includes explicit `readOnlyHint`, `destructiveHint`, and `openWorldHint` annotations so compatible clients can display accurate tool-use affordances. Tools also publish `outputSchema` definitions and return `structuredContent`, giving clients and models machine-readable result shapes for follow-up calls.
@@ -255,12 +255,12 @@ This server currently exposes 186 MCP tools.
 | `list_integration_activity`          | Read the retained integration-specific webhook and sync activity log.                                                         |
 | `set_integration_sync_enabled`       | Enable or disable bulk imports and backfills while leaving live webhooks connected.                                           |
 | `sync_integration`                   | Queue a manual payment-provider customer and revenue backfill.                                                                |
-| `get_integration_pixel`              | Read Shopify's live pixel/configuration state and distinguish confirmed dark events from an unknown read.                    |
-| `activate_integration_pixel`         | Install or repoint Shopify's storefront pixel; idempotent when it is already current.                                          |
+| `get_integration_pixel`              | Read Shopify's live pixel/configuration state and distinguish confirmed dark events from an unknown read.                     |
+| `activate_integration_pixel`         | Install or repoint Shopify's storefront pixel; idempotent when it is already current.                                         |
 | `list_sender_profiles`               | List sender and reply-to profiles, defaults, and sending-domain readiness.                                                    |
 | `update_sender_profile`              | Rename one sender or reply-to profile without changing the account defaults.                                                  |
-| `get_notification_preferences`       | Read the current user's per-company account notification settings and supported modes.                                       |
-| `update_notification_preferences`    | Update the current user's account notification delivery modes without affecting teammates.                                   |
+| `get_notification_preferences`       | Read the current user's per-company account notification settings and supported modes.                                        |
+| `update_notification_preferences`    | Update the current user's account notification delivery modes without affecting teammates.                                    |
 | `render_email`                       | Render email blocks or HTML into final email-safe HTML without sending.                                                       |
 
 For a new sending domain, call `add_sending_domain`, publish the DNS records in
@@ -296,21 +296,23 @@ abandonment or price-drop settings. Timing values must be positive;
 
 ### Subscribers
 
-| Tool                       | Description                                                                                                     |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `add_subscriber`           | Add one subscriber; status is creation-only, so use `update_subscriber` for an existing contact.                |
-| `create_subscriber_import` | Queue up to 5,000 full CRM records with names, IDs, phones, statuses, tags, lists, and typed custom attributes. |
-| `get_subscriber_import`    | Read progress, row outcome counts, and failure summaries for a queued import.                                   |
-| `update_subscriber`        | Update native profile and phone fields, SMS consent, attributes, tags, or global status.                         |
-| `remove_subscriber`        | Unsubscribe while preserving suppression history, or permanently delete only with `hardDelete: true`.           |
-| `get_subscriber`           | Fetch subscriber details by email or external ID.                                                               |
-| `search_subscribers`       | Search by query, tags, list, status, segment, or pagination.                                                    |
+| Tool                       | Description                                                                                           |
+| -------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `add_subscriber`           | Add one subscriber; status is creation-only, so use `update_subscriber` for an existing contact.      |
+| `create_subscriber_import` | Queue up to 5,000 full CRM records and automatically check email deliverability.                      |
+| `get_subscriber_import`    | Read progress, row outcomes, hygiene counts, and failure summaries for a queued import.               |
+| `update_subscriber`        | Update native profile and phone fields, SMS consent, attributes, tags, or global status.              |
+| `remove_subscriber`        | Unsubscribe while preserving suppression history, or permanently delete only with `hardDelete: true`. |
+| `get_subscriber`           | Fetch subscriber details by email or external ID.                                                     |
+| `search_subscribers`       | Search by query, tags, list, status, segment, or pagination.                                          |
 
 Use `create_subscriber_import` for CRM onboarding instead of looping over
 `add_subscriber`. One call accepts 5,000 full records and returns an asynchronous
 import ID; poll it with `get_subscriber_import`. A `completed` import can still
-contain row failures, so inspect `failedCount` and `failedReasons`. Use
-`optInMode: "confirmed"` only when consent was already verified.
+contain row failures, so inspect `failedCount` and `failedReasons`. Email rows
+are checked automatically; status includes checked, valid, risky, invalid, and
+temporarily unavailable counts, and invalid addresses are suppressed from
+sends. Use `optInMode: "confirmed"` only when consent was already verified.
 
 For compliance suppression, call `update_subscriber` with
 `status: "unsubscribed"` (or use `remove_subscriber` without `hardDelete`). Do
@@ -497,24 +499,24 @@ Use `get_ab_test` to copy the effective `settings` object and discover variant I
 
 ### Campaigns
 
-| Tool                             | Description                                                                               |
-| -------------------------------- | ----------------------------------------------------------------------------------------- |
-| `list_campaigns`                 | List campaigns by status, including reviewer feedback for rejected campaigns.             |
-| `get_campaign`                   | Get details, stats, and reviewer feedback for a rejected campaign.                        |
-| `list_email_sends`               | Search and filter recent delivery history; every row includes its dashboard URL.          |
-| `get_email_send`                 | Inspect a queued, test, sent, suppressed, or failed delivery by durable email-send ID.    |
-| `get_recipient_suppression`      | Check local and regional SES suppression for one exact recipient.                         |
-| `remove_recipient_suppression`   | Remove stale bounce suppression for a company-associated recipient.                       |
-| `create_campaign`                | Create a campaign with content, data, and optional From/Reply-To identity overrides.      |
-| `update_campaign`                | Update a draft campaign, including content, data, From, Reply-To, CC, and BCC.            |
-| `schedule_campaign`              | Schedule a draft or reschedule an existing scheduled campaign.                            |
-| `send_test_email`                | Send a test email to one address.                                                         |
-| `cancel_campaign`                | Cancel a scheduled or sending campaign.                                                   |
-| `pause_campaign`                 | Pause a sending campaign.                                                                 |
-| `resume_campaign`                | Resume a paused campaign, optionally spreading delivery over time.                        |
-| `delete_campaign`                | Delete a campaign.                                                                        |
-| `duplicate_campaign`             | Duplicate a campaign into a new draft.                                                    |
-| `resend_campaign_to_non_openers` | Create a draft resend for the original audience members who did not open a sent campaign. |
+| Tool                             | Description                                                                                       |
+| -------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `list_campaigns`                 | List campaigns by status, including reviewer feedback for rejected campaigns.                     |
+| `get_campaign`                   | Get details, stats, and reviewer feedback for a rejected campaign.                                |
+| `list_email_sends`               | Search and filter recent delivery history; every row includes its dashboard URL.                  |
+| `get_email_send`                 | Inspect a queued, test, sent, suppressed, or failed delivery by durable email-send ID.            |
+| `get_recipient_suppression`      | Check local email-hygiene, bounce, complaint, and regional SES suppression for one recipient.     |
+| `remove_recipient_suppression`   | Remove stale bounce suppression while preserving complaint, unsubscribe, and hygiene protections. |
+| `create_campaign`                | Create a campaign with content, data, and optional From/Reply-To identity overrides.              |
+| `update_campaign`                | Update a draft campaign, including content, data, From, Reply-To, CC, and BCC.                    |
+| `schedule_campaign`              | Schedule a draft or reschedule an existing scheduled campaign.                                    |
+| `send_test_email`                | Send a test email to one address.                                                                 |
+| `cancel_campaign`                | Cancel a scheduled or sending campaign.                                                           |
+| `pause_campaign`                 | Pause a sending campaign.                                                                         |
+| `resume_campaign`                | Resume a paused campaign, optionally spreading delivery over time.                                |
+| `delete_campaign`                | Delete a campaign.                                                                                |
+| `duplicate_campaign`             | Duplicate a campaign into a new draft.                                                            |
+| `resend_campaign_to_non_openers` | Create a draft resend for the original audience members who did not open a sent campaign.         |
 
 Prompt-created campaigns are generated and persisted in one API request and
 remain drafts. Use `templateId`, `blocks`, or `html` only when copying or
@@ -530,7 +532,9 @@ are not exposed through the MCP contract. Every returned delivery has a direct
 dashboard `url`. Use `get_recipient_suppression` before cleanup, then
 `remove_recipient_suppression` only after confirming a hard-bounced mailbox is
 working again. Cleanup removes bounce entries but never complaint or unsubscribe
-protections.
+or email-hygiene protections. A local hygiene result uses the `bounced` reason
+with `email_hygiene` as its source without changing the subscriber's consent
+status.
 
 Email blocks may use conditional display rules or `conditional-group` branches.
 Conditions support render-time variables and subscriber attributes plus live
@@ -597,12 +601,12 @@ attribute and fires `poll.answered` for automations and outbound webhooks.
 
 ### Saved Forms
 
-| Tool             | Description                                                                                                             |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `list_forms`     | List saved forms with their server-managed audience settings, content blocks, and public action URLs.                  |
-| `create_form`    | Create and publish a saved form scoped to one or more lists, with optional tags, theme, and success behavior.          |
-| `update_form`    | Partially update a saved form's audience, copy, theme, success behavior, or complete content block array.              |
-| `get_form_embed` | Return the public action URL, hosted JavaScript, minimal native form, and fetch example for a saved form.               |
+| Tool             | Description                                                                                                   |
+| ---------------- | ------------------------------------------------------------------------------------------------------------- |
+| `list_forms`     | List saved forms with their server-managed audience settings, content blocks, and public action URLs.         |
+| `create_form`    | Create and publish a saved form scoped to one or more lists, with optional tags, theme, and success behavior. |
+| `update_form`    | Partially update a saved form's audience, copy, theme, success behavior, or complete content block array.     |
+| `get_form_embed` | Return the public action URL, hosted JavaScript, minimal native form, and fetch example for a saved form.     |
 
 For Astro, Hugo, Jekyll, Cloudflare Pages, Netlify, GitHub Pages, or any other
 static site, call `list_forms`, use `create_form` if a suitable form does not
