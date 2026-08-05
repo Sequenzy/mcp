@@ -588,6 +588,42 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
     },
   },
   {
+    name: "update_api_key",
+    description:
+      "Rename a company-scoped API key or replace its permissions in place, without issuing a new key. Use this when a call fails with a missing-scope error: the key value stays the same, so no client has to be re-wired, and added permissions apply on the next retry. Removed permissions may remain usable for up to five minutes while API caches expire. preset and scopes REPLACE the current selection rather than merging into it - call list_api_keys first and pass the full set you want. Returns non-secret metadata only.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description: "Company ID that owns the API key",
+        },
+        apiKeyId: {
+          type: "string",
+          description: "Exact API key ID returned by list_api_keys",
+        },
+        name: {
+          type: "string",
+          description: "New human-readable name for the key",
+        },
+        preset: {
+          type: "string",
+          description:
+            "Replacement permission preset. Supported values: full_access, read_only, agent_safe, ai_drafting, data_ingest_safe, data_ingest_automations, transactional_sender, marketing_sender.",
+        },
+        scopes: {
+          type: "array",
+          description:
+            "Replacement explicit permission scopes. Overrides preset and must include at least one supported scope.",
+          items: {
+            type: "string",
+          },
+        },
+      },
+      required: ["companyId", "apiKeyId"],
+    },
+  },
+  {
     name: "revoke_api_key",
     description:
       "Permanently revoke a company-scoped API key by ID. The response contains non-secret metadata only. Call list_api_keys first and compare the ID, name, prefix, and isCurrent flag because revoking a key cannot be undone and may invalidate the active credential.",

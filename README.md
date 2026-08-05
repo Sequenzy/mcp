@@ -211,12 +211,11 @@ for API Keys settings. If the key does not include `account:read`, open the
 [Sequenzy dashboard](https://sequenzy.com/dashboard) directly and use the MCP
 setup or **Settings → API Keys** instead.
 
-Permissions cannot be changed on an existing key. For a local API-key
-connection, open `manageUrl`, create a replacement key with **Read-only**,
-**Safer agent access**, or the exact custom scopes named in the error, update
-`SEQUENZY_API_KEY`, and restart the client. For hosted OAuth MCP, disconnect and
-reauthorize the Sequenzy connection with a preset or custom permissions that
-include the missing scopes.
+For a company-scoped key, call `list_api_keys` to identify it, then use
+`update_api_key` with a complete replacement preset or scope list. The key value
+does not change, so clients do not need to be reconfigured. For hosted OAuth
+MCP or personal keys, use `manageUrl` to update the connection permissions or
+reauthorize with the required scopes.
 
 The AI drafting preset includes `subscribers:write`, so drafting agents can
 build a list as well as create it. Imports that apply `listIds` also need
@@ -225,7 +224,7 @@ build a list as well as create it. Imports that apply `listIds` also need
 
 ## Tools
 
-This server currently exposes 189 MCP tools.
+This server currently exposes 190 MCP tools.
 
 ### Account, Companies, Setup
 
@@ -243,6 +242,7 @@ This server currently exposes 189 MCP tools.
 | `update_shopify_automation_settings` | Partially update Shopify automation settings or reset an individual section to its platform defaults.                         |
 | `create_api_key`                     | Create an API key for a company, with optional permission preset or explicit scopes.                                          |
 | `list_api_keys`                      | List company API keys as non-secret metadata for safe identification and cleanup.                                             |
+| `update_api_key`                     | Rename a company API key or replace its permission preset or scopes without changing the key value.                           |
 | `revoke_api_key`                     | Permanently revoke an exact company API key by ID after checking it with `list_api_keys`.                                     |
 | `delete_api_key`                     | Compatibility alias for `revoke_api_key`.                                                                                     |
 | `list_websites`                      | List sending domains with stored aggregate, SPF, DKIM, and MAIL FROM status.                                                  |
@@ -313,8 +313,8 @@ abandonment or price-drop settings. Timing values must be positive;
 | `search_subscribers`          | Search by query, tags, list, status, segment, or pagination.                                                    |
 | `trigger_subscriber_event`    | Emit one custom event exactly as an integration would, applying sync rules and matching sequence triggers.      |
 | `trigger_subscriber_events`   | Emit several ordered custom events for one subscriber.                                                          |
-| `bulk_add_subscriber_tags`    | Add tags to up to 500 existing subscribers without creating unknown contacts.                                   |
-| `bulk_remove_subscriber_tags` | Remove tags from up to 500 existing subscribers without creating unknown contacts.                              |
+| `bulk_add_subscriber_tags`    | Add tags to up to 500 existing subscribers; requires `subscribers:tag` and may also require `tags:write`.        |
+| `bulk_remove_subscriber_tags` | Remove tags from up to 500 existing subscribers; requires `subscribers:tag` or `subscribers:write`.              |
 
 Use `create_subscriber_import` for CRM onboarding instead of looping over
 `add_subscriber`. One call accepts 5,000 full records and returns an asynchronous

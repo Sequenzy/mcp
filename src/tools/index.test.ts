@@ -527,6 +527,16 @@ describe("create_api_key tool schema", () => {
     expect(properties?.["scopes"]?.items?.type).toBe("string");
     expect(tool?.inputSchema.required).toEqual(["companyId"]);
   });
+
+  it("documents the narrow tag scope on both bulk tag tools", () => {
+    for (const toolName of [
+      "bulk_add_subscriber_tags",
+      "bulk_remove_subscriber_tags",
+    ]) {
+      const tool = tools.find((candidate) => candidate.name === toolName);
+      expect(tool?.description).toContain("subscribers:tag");
+    }
+  });
 });
 
 describe("API key lifecycle tools", () => {
@@ -592,6 +602,46 @@ describe("API key lifecycle tools", () => {
         isCurrent: false,
       }),
     ]);
+  });
+
+  it("updates an API key in place", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      apiKey: {
+        id: "key_agent",
+        name: "Agent key",
+        prefix: "seq_live_A",
+        scopes: ["account:read", "subscribers:tag"],
+      },
+      message: "API key permissions updated.",
+    });
+
+    const result = await handleToolCall("update_api_key", {
+      companyId: "company_123",
+      apiKeyId: "key_agent",
+      scopes: ["account:read", "subscribers:tag"],
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/api-keys/key_agent",
+      { scopes: ["account:read", "subscribers:tag"] },
+      "company_123"
+    );
+  });
+
+  it("rejects API key updates without an update field", async () => {
+    const result = await handleToolCall("update_api_key", {
+      companyId: "company_123",
+      apiKeyId: "key_agent",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Provide at least one of `name`, `preset`, or `scopes`"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
   it.each(["revoke_api_key", "delete_api_key"])(
