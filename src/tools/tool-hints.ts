@@ -93,6 +93,7 @@ export const MUTATING_TOOL_NAMES = new Set([
   // Writes a web pixel to the merchant's Shopify store.
   "activate_integration_pixel",
   "create_api_key",
+  "update_api_key",
   "revoke_api_key",
   "delete_api_key",
   "add_sending_domain",

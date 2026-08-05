@@ -211,12 +211,14 @@ for API Keys settings. If the key does not include `account:read`, open the
 [Sequenzy dashboard](https://sequenzy.com/dashboard) directly and use the MCP
 setup or **Settings → API Keys** instead.
 
-Permissions cannot be changed on an existing key. For a local API-key
-connection, open `manageUrl`, create a replacement key with **Read-only**,
-**Safer agent access**, or the exact custom scopes named in the error, update
-`SEQUENZY_API_KEY`, and restart the client. For hosted OAuth MCP, disconnect and
-reauthorize the Sequenzy connection with a preset or custom permissions that
-include the missing scopes.
+For a local company-key connection, call `list_api_keys`, identify the exact key
+ID, and use `update_api_key` to rename it or replace its permissions in place.
+The key value stays unchanged, widened permissions apply on the next retry, and
+removed permissions may remain usable for up to five minutes while caches
+expire. `preset` and `scopes` replace the whole selection rather than merging,
+so pass the complete permission set you want. The dashboard remains available
+at `manageUrl`; for hosted OAuth MCP, disconnect and reauthorize the Sequenzy
+connection with the required permissions.
 
 The AI drafting preset includes `subscribers:write`, so drafting agents can
 build a list as well as create it. Imports that apply `listIds` also need
@@ -225,7 +227,7 @@ build a list as well as create it. Imports that apply `listIds` also need
 
 ## Tools
 
-This server currently exposes 191 MCP tools.
+This server currently exposes 192 MCP tools.
 
 ### Account, Companies, Setup
 
@@ -243,6 +245,7 @@ This server currently exposes 191 MCP tools.
 | `update_shopify_automation_settings` | Partially update Shopify automation settings or reset an individual section to its platform defaults.                         |
 | `create_api_key`                     | Create an API key for a company, with optional permission preset or explicit scopes.                                          |
 | `list_api_keys`                      | List company API keys as non-secret metadata for safe identification and cleanup.                                             |
+| `update_api_key`                     | Rename a company API key or replace its permissions in place without changing the key value.                                  |
 | `revoke_api_key`                     | Permanently revoke an exact company API key by ID after checking it with `list_api_keys`.                                     |
 | `delete_api_key`                     | Compatibility alias for `revoke_api_key`.                                                                                     |
 | `list_websites`                      | List sending domains with stored aggregate, SPF, DKIM, and MAIL FROM status.                                                  |
@@ -313,8 +316,8 @@ abandonment or price-drop settings. Timing values must be positive;
 | `search_subscribers`          | Search by query, tags, list, status, segment, or pagination.                                                    |
 | `trigger_subscriber_event`    | Emit one custom event exactly as an integration would, applying sync rules and matching sequence triggers.      |
 | `trigger_subscriber_events`   | Emit several ordered custom events for one subscriber.                                                          |
-| `bulk_add_subscriber_tags`    | Add tags to up to 500 existing subscribers without creating unknown contacts.                                   |
-| `bulk_remove_subscriber_tags` | Remove tags from up to 500 existing subscribers without creating unknown contacts.                              |
+| `bulk_add_subscriber_tags`    | Add tags to up to 500 existing subscribers; needs `subscribers:tag`, plus `tags:write` for new tag names.       |
+| `bulk_remove_subscriber_tags` | Remove tags from up to 500 existing subscribers; needs `subscribers:tag` or `subscribers:write`.                |
 
 Use `create_subscriber_import` for CRM onboarding instead of looping over
 `add_subscriber`. One call accepts 5,000 full records and returns an asynchronous
@@ -620,6 +623,16 @@ For NPS, use `"variant": "nps"`, an empty `options` array, and an attribute
 such as `nps_score`. The scale is always 0-10; optional `npsLowLabel` and
 `npsHighLabel` customize its captions. Each answer updates the subscriber
 attribute and fires `poll.answered` for automations and outbound webhooks.
+
+Poll blocks also support brand-specific styling. `accentColor` recolors every
+appearance, including `"brutal"`; `optionRadius` sets answer-button corners in
+pixels (`0` is square), independently of the container's
+`styles.borderRadius`; and `questionColor` recolors only the question.
+`fontFamily` applies to the poll. Use the `optionFontSize`,
+`optionFontWeight`, `optionLetterSpacing`, and `optionTextTransform` fields for
+answers, or the matching `question*` fields for the question. Sizes and
+spacing are pixels, weights range from 100 to 900, and text transforms are
+`"none"` or `"uppercase"`.
 
 ### Saved Forms
 

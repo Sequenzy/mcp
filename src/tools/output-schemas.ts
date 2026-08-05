@@ -309,6 +309,11 @@ export const outputPropertiesByToolName: Record<
       "non-secret API key metadata, including ID, name, prefix, permissions, timestamps, and active-credential status"
     ),
   },
+  update_api_key: {
+    apiKey: resourceOutputProperty(
+      "updated non-secret API key metadata, including the `scopes` now in effect (null when the key has full access)"
+    ),
+  },
   revoke_api_key: {
     apiKey: resourceOutputProperty("revoked non-secret API key metadata"),
   },
