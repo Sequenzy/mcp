@@ -664,7 +664,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "list_websites",
     description:
-      "List configured sending domains with stored aggregate, SPF, DKIM, and MAIL FROM verification status",
+      "List configured sending domains with separate DNS verification, selected home-transport readiness, and SPF, DKIM, and MAIL FROM status",
     inputSchema: {
       type: "object",
       properties: {
@@ -724,7 +724,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "check_website",
     description:
-      "Read a sending domain's stored aggregate status plus SPF, DKIM, MAIL FROM records and diagnostics. Use verify_sending_domain to run a fresh DNS check.",
+      "Read a sending domain's separate DNS verification, selected home-transport readiness, and SPF, DKIM, MAIL FROM diagnostics. Use verify_sending_domain to run a fresh DNS check.",
     inputSchema: {
       type: "object",
       properties: {
@@ -744,7 +744,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "verify_sending_domain",
     description:
-      "Run a fresh DNS/provider verification for a configured sending domain and return current aggregate, SPF, DKIM, and MAIL FROM status with diagnostics.",
+      "Run a fresh DNS check for a configured sending domain and return DNS verification separately from selected home-transport readiness. A DNS-verified domain may still be activating in SES.",
     inputSchema: {
       type: "object",
       properties: {
@@ -784,7 +784,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "list_sender_profiles",
     description:
-      "List sender (From) profiles and reply-to profiles for the company, including which are the account defaults and whether each sender address sits on a verified sending domain. Use this to audit sending identity before scheduling, or to pick a valid senderProfileId/replyProfileId for create_campaign or update_campaign.",
+      "List sender (From) profiles and reply-to profiles for the company, including which are the account defaults and whether each sender address has verified DNS plus a ready home transport. Use this to audit sending identity before scheduling, or to pick a valid senderProfileId/replyProfileId for create_campaign or update_campaign.",
     inputSchema: {
       type: "object",
       properties: {

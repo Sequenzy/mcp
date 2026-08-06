@@ -321,7 +321,9 @@ export const outputPropertiesByToolName: Record<
     apiKey: resourceOutputProperty("deleted non-secret API key metadata"),
   },
   list_websites: {
-    websites: resourceListOutputProperty("sender website"),
+    websites: resourceListOutputProperty(
+      "sending domain, including DNS verification and readyToSend home-transport readiness"
+    ),
   },
   list_integrations: {
     integrations: resourceListOutputProperty(
@@ -458,7 +460,7 @@ export const outputPropertiesByToolName: Record<
   },
   list_sender_profiles: {
     senderProfiles: resourceListOutputProperty(
-      "sender (From) profile, including the sending domain behind it, its verification status, and whether the address can currently send"
+      "sender (From) profile, including the sending domain behind it, its DNS verification status, and whether DNS plus the home transport allow the address to send"
     ),
     replyProfiles: resourceListOutputProperty("reply-to profile"),
     defaultSenderProfileId: nullableStringOutputProperty(
@@ -547,16 +549,21 @@ export const outputPropertiesByToolName: Record<
     ),
   },
   check_website: {
-    website: resourceOutputProperty("sender website"),
+    website: resourceOutputProperty(
+      "sending domain with separate DNS verification and readyToSend home-transport readiness"
+    ),
     ready: booleanOutputProperty("Whether the sender website is ready."),
     status: stringOutputProperty("Current processing or verification status."),
   },
   verify_sending_domain: {
     website: resourceOutputProperty(
-      "Sending domain with current aggregate, SPF, DKIM, and MAIL FROM verification details."
+      "Sending domain with current DNS verification, readyToSend home-transport readiness, SPF, DKIM, and MAIL FROM details."
     ),
     verified: booleanOutputProperty(
-      "Whether the sending domain passed the fresh verification check."
+      "Whether the sending domain passed the fresh DNS verification check. This does not by itself mean SES or MTA is ready."
+    ),
+    readyToSend: booleanOutputProperty(
+      "Whether DNS and the selected home transport are both ready for sending."
     ),
     message: stringOutputProperty("Verification result summary."),
   },
@@ -1310,6 +1317,36 @@ export const outputPropertiesByToolName: Record<
     stats: objectOutputProperty(
       `Delivery funnel across every email step in this sequence. ${EMAIL_FUNNEL_STATS_HINT}`
     ),
+    steps: {
+      type: "array",
+      description: `Per-step delivery funnel: one entry per email step of the sequence, in graph order, each with its own sent/delivered/opened/clicked counts. Read this to answer "how many of step N went out" - do not recount list_sequence_events. Counts come from the retained event stream, so they are not limited to the 14-day list_email_sends history. ${EMAIL_FUNNEL_STATS_HINT}`,
+      items: {
+        type: "object",
+        description: "Metrics for one email step of the sequence.",
+        properties: {
+          step: numberOutputProperty(
+            "1-based position of this email step in graph order. Step 4 is the fourth email a contact receives on the traversed path; on a branching graph, positions are assigned by traversal, so cross-check nodeId when a sequence forks."
+          ),
+          nodeId: stringOutputProperty(
+            "Automation node ID of this email step. Pass it to list_sequence_events or list_email_sends as automationNodeId to reach the individual recipients behind these counts, and it is the emailId that list_email_metrics reports for sequence emails."
+          ),
+          subject: nullableStringOutputProperty(
+            "Subject line of the step's email, falling back to the node label, or null when neither is set."
+          ),
+          stats: objectOutputProperty(
+            `Delivery funnel for this step alone: sent, delivered, bounced, opened, clicked, replies, unsubscribed, and their rates. ${EMAIL_FUNNEL_STATS_HINT}`
+          ),
+          failedCount: numberOutputProperty(
+            "Contacts currently stuck on this step with a failed enrollment."
+          ),
+          failedSubscribers: arrayOutputProperty(
+            "Up to 20 of the failed contacts on this step, as { subscriberId, email, failedAt, failedReason }."
+          ),
+        },
+        required: ["step", "nodeId", "stats"],
+        additionalProperties: true,
+      },
+    },
     enrollmentCounts: {
       type: "object",
       description:
@@ -1391,6 +1428,73 @@ export const outputPropertiesByToolName: Record<
   list_sequence_events: {
     events: resourceListOutputProperty("sequence email event"),
     pagination: objectOutputProperty("Pagination metadata."),
+  },
+  list_email_metrics: {
+    emails: {
+      type: "array",
+      description:
+        "One entry per email in scope: each campaign and each sequence email step, sorted by the requested sort/order.",
+      items: {
+        type: "object",
+        description: "Metrics for one campaign or one sequence email step.",
+        properties: {
+          emailType: {
+            type: "string",
+            enum: ["campaign", "sequence"],
+            description: "Whether this row is a campaign or a sequence email.",
+          },
+          emailId: stringOutputProperty(
+            "Stable identifier: the campaign ID for campaigns, the automation node ID for sequence emails."
+          ),
+          name: stringOutputProperty(
+            "Campaign name, or the sequence step's subject line falling back to its node label."
+          ),
+          campaignId: nullableStringOutputProperty(
+            "Campaign ID, or null for sequence emails."
+          ),
+          sequenceId: nullableStringOutputProperty(
+            "Sequence ID, or null for campaigns."
+          ),
+          sequenceName: nullableStringOutputProperty(
+            "Name of the sequence this step belongs to, or null for campaigns."
+          ),
+          automationNodeId: nullableStringOutputProperty(
+            "Automation node ID of this step, or null for campaigns. Pass it as automationNodeId to list_sequence_events or list_email_sends to reach the recipients behind these counts."
+          ),
+          step: {
+            type: ["number", "null"],
+            description:
+              "1-based position of this email in its sequence, counted in graph order, or null for campaigns. Matches the step number in get_sequence_stats steps[].",
+          },
+          stats: objectOutputProperty(
+            `Delivery funnel for this email alone. ${EMAIL_FUNNEL_STATS_HINT}`
+          ),
+          conversions: numberOutputProperty(
+            "Attributed conversions credited to this email."
+          ),
+          revenueCents: numberOutputProperty(
+            "Attributed revenue in minor currency units credited to this email."
+          ),
+        },
+        required: ["emailType", "emailId", "name", "stats"],
+        additionalProperties: true,
+      },
+    },
+    totals: objectOutputProperty(
+      `Summed funnel across every email matching the filters, not just the returned page, plus \`emails\` (the number of matching emails), \`conversions\`, and \`revenueCents\`. Read totals.sent for "how many of this step went out in total". ${EMAIL_FUNNEL_STATS_HINT}`
+    ),
+    pagination: objectOutputProperty("Pagination metadata."),
+    sort: stringOutputProperty("Sort field the response was ordered by."),
+    order: stringOutputProperty("Sort order the response was ordered by."),
+    step: numberOutputProperty(
+      "Echo of the step filter, present only when one was requested."
+    ),
+    sequenceIds: {
+      type: "array",
+      description:
+        "Echo of the sequence IDs the breakdown was scoped to, present only when scoped.",
+      items: stringOutputProperty("Sequence ID."),
+    },
   },
   get_subscriber_activity: {
     activity: resourceListOutputProperty("subscriber activity event"),
