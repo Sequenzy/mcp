@@ -245,10 +245,10 @@ This server currently exposes 191 MCP tools.
 | `list_api_keys`                      | List company API keys as non-secret metadata for safe identification and cleanup.                                             |
 | `revoke_api_key`                     | Permanently revoke an exact company API key by ID after checking it with `list_api_keys`.                                     |
 | `delete_api_key`                     | Compatibility alias for `revoke_api_key`.                                                                                     |
-| `list_websites`                      | List sending domains with stored aggregate, SPF, DKIM, and MAIL FROM status.                                                  |
-| `add_sending_domain`                 | Add a sending domain and return its cohort-specific DNS setup records.                                                        |
+| `list_websites`                      | List sending domains with DNS/readiness state and per-transport SPF alignment.                                                |
+| `add_sending_domain`                 | Add a sending domain and return its cohort-specific DNS setup records, including the SES envelope pair when present.          |
 | `add_website`                        | Compatibility alias for `add_sending_domain`.                                                                                 |
-| `check_website`                      | Read a sending domain's stored SPF, DKIM, MAIL FROM, and aggregate verification details.                                      |
+| `check_website`                      | Read stored SPF, DKIM, MAIL FROM, SES-envelope, aggregate verification, and transport-alignment details.                      |
 | `verify_sending_domain`              | Run a fresh sending-domain DNS/provider verification and return current status and diagnostics.                               |
 | `list_integrations`                  | List connected integrations with connection and sync health, without returning credentials.                                   |
 | `get_tracking_settings`              | Read open, click, unsubscribe, attribution, UTM, click-domain, and reply-tracking settings.                                   |
@@ -272,6 +272,11 @@ fixed provider or record count: unified domains include required DMARC, while
 legacy domains can return Amazon SES MAIL FROM and inbound-reply records. If
 verification is attempted before creation, the error points back to
 `add_sending_domain` with the requested domain.
+
+Unified domains can also return an `envelope.<domain>` SPF/MX pair for
+SES-routed messages. Publish both records. The website response includes
+`spfAlignment` with separate SES and MTA verdicts; a non-null warning means
+SES delivery still works but currently falls back to a non-aligned envelope.
 
 For Shopify, call `get_integration_pixel` before relying on product views,
 cart activity, or browse-abandonment triggers. The result is read live from

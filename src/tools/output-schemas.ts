@@ -322,7 +322,7 @@ export const outputPropertiesByToolName: Record<
   },
   list_websites: {
     websites: resourceListOutputProperty(
-      "sending domain, including DNS verification and readyToSend home-transport readiness"
+      "sending domain, including DNS verification, readyToSend home-transport readiness, and spfAlignment (per-transport SPF alignment with a warning when SES-routed sends are unaligned)"
     ),
   },
   list_integrations: {
@@ -540,24 +540,24 @@ export const outputPropertiesByToolName: Record<
   },
   add_website: {
     website: resourceOutputProperty(
-      "Sending domain with its cohort-specific DNS records. Publish every returned record, including DMARC when present."
+      "Sending domain with its cohort-specific DNS records. Publish every returned record, including the SES envelope pair (envelope.<domain>) and DMARC when present."
     ),
   },
   add_sending_domain: {
     website: resourceOutputProperty(
-      "Sending domain with its cohort-specific DNS records. Publish every returned record, including DMARC when present."
+      "Sending domain with its cohort-specific DNS records. Publish every returned record, including the SES envelope pair (envelope.<domain>) and DMARC when present."
     ),
   },
   check_website: {
     website: resourceOutputProperty(
-      "sending domain with separate DNS verification and readyToSend home-transport readiness"
+      "sending domain with separate DNS verification, readyToSend home-transport readiness, the sesEnvelope record pair, and spfAlignment (per-transport SPF alignment; its warning means SES-routed sends are NOT SPF-aligned even though they still deliver)"
     ),
     ready: booleanOutputProperty("Whether the sender website is ready."),
     status: stringOutputProperty("Current processing or verification status."),
   },
   verify_sending_domain: {
     website: resourceOutputProperty(
-      "Sending domain with current DNS verification, readyToSend home-transport readiness, SPF, DKIM, and MAIL FROM details."
+      "Sending domain with current DNS verification, readyToSend home-transport readiness, SPF, DKIM, MAIL FROM, sesEnvelope, and spfAlignment details. A spfAlignment.warning means SES-routed sends are not SPF-aligned yet."
     ),
     verified: booleanOutputProperty(
       "Whether the sending domain passed the fresh DNS verification check. This does not by itself mean SES or MTA is ready."
