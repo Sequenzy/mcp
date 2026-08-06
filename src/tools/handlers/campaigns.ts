@@ -814,6 +814,7 @@ export async function handleCampaignTools(
         "campaignId",
         "transactionalEmailId",
         "automationId",
+        "automationNodeId",
       ] as const;
       for (const key of stringFilters) {
         const value = optionalString(args, key);
