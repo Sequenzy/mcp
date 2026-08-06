@@ -626,8 +626,8 @@ spacing are pixels, weights range from 100 to 900, and text transforms are
 | Tool             | Description                                                                                                   |
 | ---------------- | ------------------------------------------------------------------------------------------------------------- |
 | `list_forms`     | List saved forms with their server-managed audience settings, content blocks, and public action URLs.         |
-| `create_form`    | Create and publish a saved form scoped to one or more lists, with optional tags, theme, and success behavior. |
-| `update_form`    | Partially update a saved form's audience, copy, theme, success behavior, or complete content block array.     |
+| `create_form`    | Create and publish a saved form with standard email/name fields, audience settings, theme, and success behavior. |
+| `update_form`    | Update a saved form, including its complete ordered block array and typed custom fields.                         |
 | `get_form_embed` | Return the public action URL, hosted JavaScript, minimal native form, and fetch example for a saved form.     |
 
 For Astro, Hugo, Jekyll, Cloudflare Pages, Netlify, GitHub Pages, or any other
@@ -642,7 +642,9 @@ When updating a form, omitted fields remain unchanged and theme fields merge
 into the current theme. Pass an empty `tagIds` array to clear tags or an empty
 `redirectUrl` to restore confirmation-message behavior. The `blocks` field is
 a complete replacement, so read the current content with `list_forms` first
-and retain exactly one email field and one submit button.
+and retain exactly one required email field and one submit button. Add custom
+inputs as `form-field` blocks with a supported `fieldType`; select, radio, and
+checkbox fields require options, while hidden defaults are enforced server-side.
 
 ### Landing Pages
 
