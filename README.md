@@ -224,7 +224,7 @@ build a list as well as create it. Imports that apply `listIds` also need
 
 ## Tools
 
-This server currently exposes 186 MCP tools.
+This server currently exposes 187 MCP tools.
 
 ### Account, Companies, Setup
 
@@ -497,24 +497,24 @@ Use `get_ab_test` to copy the effective `settings` object and discover variant I
 
 ### Campaigns
 
-| Tool                             | Description                                                                               |
-| -------------------------------- | ----------------------------------------------------------------------------------------- |
-| `list_campaigns`                 | List campaigns by status, including reviewer feedback for rejected campaigns.             |
-| `get_campaign`                   | Get details, stats, and reviewer feedback for a rejected campaign.                        |
-| `list_email_sends`               | Search and filter recent delivery history; every row includes its dashboard URL.          |
-| `get_email_send`                 | Inspect a queued, test, sent, suppressed, or failed delivery by durable email-send ID.    |
-| `get_recipient_suppression`      | Check local and regional SES suppression for one exact recipient.                         |
-| `remove_recipient_suppression`   | Remove stale bounce suppression for a company-associated recipient.                       |
-| `create_campaign`                | Create a campaign with content, data, and optional From/Reply-To identity overrides.      |
-| `update_campaign`                | Update a draft campaign, including content, data, From, Reply-To, CC, and BCC.            |
-| `schedule_campaign`              | Schedule a draft or reschedule an existing scheduled campaign.                            |
-| `send_test_email`                | Send a test email to one address.                                                         |
-| `cancel_campaign`                | Cancel a scheduled or sending campaign.                                                   |
-| `pause_campaign`                 | Pause a sending campaign.                                                                 |
-| `resume_campaign`                | Resume a paused campaign, optionally spreading delivery over time.                        |
-| `delete_campaign`                | Delete a campaign.                                                                        |
-| `duplicate_campaign`             | Duplicate a campaign into a new draft.                                                    |
-| `resend_campaign_to_non_openers` | Create a draft resend for the original audience members who did not open a sent campaign. |
+| Tool                             | Description                                                                                 |
+| -------------------------------- | ------------------------------------------------------------------------------------------- |
+| `list_campaigns`                 | List campaigns by status, including reviewer feedback for rejected campaigns.               |
+| `get_campaign`                   | Get details, stats, and reviewer feedback for a rejected campaign.                          |
+| `list_email_sends`               | Search recent delivery history, optionally filtering recipients to one sequence email step. |
+| `get_email_send`                 | Inspect a queued, test, sent, suppressed, or failed delivery by durable email-send ID.      |
+| `get_recipient_suppression`      | Check local and regional SES suppression for one exact recipient.                           |
+| `remove_recipient_suppression`   | Remove stale bounce suppression for a company-associated recipient.                         |
+| `create_campaign`                | Create a campaign with content, data, and optional From/Reply-To identity overrides.        |
+| `update_campaign`                | Update a draft campaign, including content, data, From, Reply-To, CC, and BCC.              |
+| `schedule_campaign`              | Schedule a draft or reschedule an existing scheduled campaign.                              |
+| `send_test_email`                | Send a test email to one address.                                                           |
+| `cancel_campaign`                | Cancel a scheduled or sending campaign.                                                     |
+| `pause_campaign`                 | Pause a sending campaign.                                                                   |
+| `resume_campaign`                | Resume a paused campaign, optionally spreading delivery over time.                          |
+| `delete_campaign`                | Delete a campaign.                                                                          |
+| `duplicate_campaign`             | Duplicate a campaign into a new draft.                                                      |
+| `resend_campaign_to_non_openers` | Create a draft resend for the original audience members who did not open a sent campaign.   |
 
 Prompt-created campaigns are generated and persisted in one API request and
 remain drafts. Use `templateId`, `blocks`, or `html` only when copying or
@@ -842,15 +842,16 @@ variables automatically. Explicit values, including blanks, take precedence.
 
 ### Analytics
 
-| Tool                      | Description                                                                                                 |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `get_stats`               | Get overview stats for `7d`, `30d`, or `90d`; filter by structural email type.                              |
-| `get_transactional_stats` | Get all-time or time-scoped metrics for one saved transactional email by ID or slug.                        |
-| `get_campaign_stats`      | Get campaign performance, reply metrics, and Poll/NPS summaries.                                            |
-| `get_sequence_stats`      | Get aggregate and per-step sequence performance plus live active/waiting enrollment counts by current node. |
-| `list_campaign_events`    | List paginated raw email events for a campaign.                                                             |
-| `list_sequence_events`    | List paginated raw email events for a sequence.                                                             |
-| `get_subscriber_activity` | Get subscriber email stats, activity, and enrollments.                                                      |
+| Tool                      | Description                                                                                                    |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `get_stats`               | Get overview stats for `7d`, `30d`, or `90d`; filter by structural email type.                                 |
+| `get_transactional_stats` | Get all-time or time-scoped metrics for one saved transactional email by ID or slug.                           |
+| `get_campaign_stats`      | Get campaign performance, reply metrics, and Poll/NPS summaries.                                               |
+| `get_sequence_stats`      | Get aggregate and per-step sequence performance plus live active/waiting enrollment counts by current node.    |
+| `list_email_metrics`      | Compare campaign and sequence-step funnels, replies, conversions, and revenue, including cross-sequence steps. |
+| `list_campaign_events`    | List paginated raw email events for a campaign.                                                                |
+| `list_sequence_events`    | List paginated raw events for a sequence, optionally scoped to one email step.                                 |
+| `get_subscriber_activity` | Get subscriber email stats, activity, and enrollments.                                                         |
 
 Analytics tools exclude detected bot, scanner, link-preview, and tracked asset opens/clicks by default. Pass `includeMachineEngagement: true` to `get_stats`, `get_campaign_stats`, `get_sequence_stats`, `get_ab_test_stats`, `get_subscriber`, or `get_subscriber_activity` when you need raw engagement diagnostics; included open/click activity rows expose `machine`, `engagementQuality`, and `classificationReasons` fields where the API returns event-level activity.
 
@@ -858,6 +859,13 @@ Analytics tools exclude detected bot, scanner, link-preview, and tracked asset o
 active and waiting enrollment runs grouped by current node. It counts
 enrollment tokens rather than necessarily distinct subscribers, and it is not
 limited by historical `period`, `start`, or `end` filters.
+
+Use `list_email_metrics` for comparisons across campaigns or sequence steps.
+Pass `step` with optional `sequenceId` values to total the same step across
+sequences; use the returned `automationNodeId` with `list_sequence_events` or
+`list_email_sends` to inspect recipients. `campaignId` cannot be combined with
+`sequenceId` or `step`. Explicit campaign and sequence scopes retain configured
+emails with zero activity so weak performers are not silently omitted.
 
 Pass `emailType: "transactional"` to `get_stats` for Send API and
 transactional SMTP delivery, open, click, and reply rates. This includes direct
