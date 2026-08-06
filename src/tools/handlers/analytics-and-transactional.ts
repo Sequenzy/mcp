@@ -7,7 +7,9 @@ import {
   requiredString,
   buildEmailEventListParams,
   optionalString,
+  optionalStringArray,
   optionalAllowedString,
+  optionalIntegerInRange,
 } from "../internal.js";
 
 export async function handleAnalyticsAndTransactionalTools(
@@ -402,10 +404,152 @@ export async function handleAnalyticsAndTransactionalTools(
         "sequenceId"
       );
       const params = buildEmailEventListParams("list_sequence_events", args);
+      const automationNodeId = optionalString(args, "automationNodeId");
+      if (automationNodeId) {
+        params.set("automationNodeId", automationNodeId);
+      }
       const query = params.toString();
       result = await apiRequest(
         "GET",
         `/api/v1/metrics/sequences/${encodeURIComponent(sequenceId)}/events${query ? `?${query}` : ""}`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "list_email_metrics": {
+      const companyId = args.companyId as string | undefined;
+      const params = new URLSearchParams();
+
+      const emailType = optionalAllowedString(
+        "list_email_metrics",
+        args,
+        "emailType",
+        ["campaign", "sequence"]
+      );
+      if (emailType) {
+        params.set("emailType", emailType);
+      }
+
+      const sequenceIds = optionalStringArray(
+        "list_email_metrics",
+        args,
+        "sequenceId"
+      );
+      const campaignIds = optionalStringArray(
+        "list_email_metrics",
+        args,
+        "campaignId"
+      );
+
+      const step = optionalIntegerInRange(
+        "list_email_metrics",
+        args,
+        "step",
+        1,
+        1_000
+      );
+      if (campaignIds.length > 0 && (sequenceIds.length > 0 || step)) {
+        throw new Error(
+          "`campaignId` cannot be combined with `sequenceId` or `step` when calling `list_email_metrics`."
+        );
+      }
+      if (
+        emailType === "campaign" &&
+        (sequenceIds.length > 0 || step !== undefined)
+      ) {
+        throw new Error(
+          "`emailType` campaign cannot be combined with `sequenceId` or `step` when calling `list_email_metrics`."
+        );
+      }
+      if (emailType === "sequence" && campaignIds.length > 0) {
+        throw new Error(
+          "`emailType` sequence cannot be combined with `campaignId` when calling `list_email_metrics`."
+        );
+      }
+      if (sequenceIds.length > 0) {
+        params.set("sequenceId", sequenceIds.join(","));
+      }
+      if (campaignIds.length > 0) {
+        params.set("campaignId", campaignIds.join(","));
+      }
+      if (step !== undefined) {
+        params.set("step", String(step));
+      }
+
+      const period = optionalAllowedString(
+        "list_email_metrics",
+        args,
+        "period",
+        ["1h", "24h", "7d", "30d", "90d"]
+      );
+      if (period) {
+        params.set("period", period);
+      }
+
+      for (const key of ["start", "end"] as const) {
+        const value = optionalString(args, key);
+        if (value) {
+          params.set(key, value);
+        }
+      }
+
+      const sort = optionalAllowedString("list_email_metrics", args, "sort", [
+        "sent",
+        "delivered",
+        "opened",
+        "clicked",
+        "openRate",
+        "clickRate",
+        "unsubscribed",
+        "conversions",
+        "revenue",
+        "step",
+        "name",
+      ]);
+      if (sort) {
+        params.set("sort", sort);
+      }
+
+      const order = optionalAllowedString("list_email_metrics", args, "order", [
+        "asc",
+        "desc",
+      ]);
+      if (order) {
+        params.set("order", order);
+      }
+
+      const page = optionalIntegerInRange(
+        "list_email_metrics",
+        args,
+        "page",
+        1,
+        1_000_000
+      );
+      if (page !== undefined) {
+        params.set("page", String(page));
+      }
+
+      const limit = optionalIntegerInRange(
+        "list_email_metrics",
+        args,
+        "limit",
+        1,
+        500
+      );
+      if (limit !== undefined) {
+        params.set("limit", String(limit));
+      }
+
+      if (args.includeMachineEngagement === true) {
+        params.set("includeMachineEngagement", "true");
+      }
+
+      const query = params.toString();
+      result = await apiRequest(
+        "GET",
+        `/api/v1/metrics/emails${query ? `?${query}` : ""}`,
         undefined,
         companyId
       );

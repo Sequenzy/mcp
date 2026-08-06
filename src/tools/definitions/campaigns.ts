@@ -82,7 +82,7 @@ export const campaignToolDefinitions: Tool[] = [
   {
     name: "list_email_sends",
     description:
-      "List and filter the recent sent-email delivery history shown in the dashboard. Search subject/title or recipient, filter by delivery status, email type, bounce type, or source ID, then pass a returned emailSendId to get_email_send for exact open/click timestamps and the complete event timeline. Each row carries recipientEmail, subscriberId, automationNodeId, abTestVariantId, and sent/delivered/opened/clicked timestamps, so rows join into a recipient-level delivery matrix without re-reading the raw event stream. Delivery rows are retained for 14 days.",
+      "List and filter the recent sent-email delivery history shown in the dashboard. Search subject/title or recipient, filter by delivery status, email type, bounce type, or source ID, then pass a returned emailSendId to get_email_send for exact open/click timestamps and the complete event timeline. Each row carries recipientEmail, subscriberId, automationNodeId, abTestVariantId, and sent/delivered/opened/clicked timestamps, so rows join into a recipient-level delivery matrix without re-reading the raw event stream. Pass automationNodeId to list only the recipients of one sequence step. Delivery rows are retained for 14 days, so this is the wrong tool for send totals: read get_sequence_stats steps[] or list_email_metrics, which cover the full retained event window.",
     inputSchema: {
       type: "object",
       properties: {
@@ -128,6 +128,11 @@ export const campaignToolDefinitions: Tool[] = [
         automationId: {
           type: "string",
           description: "Filter deliveries from one sequence/automation.",
+        },
+        automationNodeId: {
+          type: "string",
+          description:
+            "Filter deliveries from one email step of a sequence, using the nodeId from get_sequence_stats steps[] or get_sequence nodes.",
         },
         days: {
           type: "number",

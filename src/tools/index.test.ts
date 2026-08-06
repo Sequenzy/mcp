@@ -527,6 +527,16 @@ describe("create_api_key tool schema", () => {
     expect(properties?.["scopes"]?.items?.type).toBe("string");
     expect(tool?.inputSchema.required).toEqual(["companyId"]);
   });
+
+  it("documents the narrow tag scope on both bulk tag tools", () => {
+    for (const toolName of [
+      "bulk_add_subscriber_tags",
+      "bulk_remove_subscriber_tags",
+    ]) {
+      const tool = tools.find((candidate) => candidate.name === toolName);
+      expect(tool?.description).toContain("subscribers:tag");
+    }
+  });
 });
 
 describe("API key lifecycle tools", () => {
@@ -592,6 +602,46 @@ describe("API key lifecycle tools", () => {
         isCurrent: false,
       }),
     ]);
+  });
+
+  it("updates an API key in place", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      apiKey: {
+        id: "key_agent",
+        name: "Agent key",
+        prefix: "seq_live_A",
+        scopes: ["account:read", "subscribers:tag"],
+      },
+      message: "API key permissions updated.",
+    });
+
+    const result = await handleToolCall("update_api_key", {
+      companyId: "company_123",
+      apiKeyId: "key_agent",
+      scopes: ["account:read", "subscribers:tag"],
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/api-keys/key_agent",
+      { scopes: ["account:read", "subscribers:tag"] },
+      "company_123"
+    );
+  });
+
+  it("rejects API key updates without an update field", async () => {
+    const result = await handleToolCall("update_api_key", {
+      companyId: "company_123",
+      apiKeyId: "key_agent",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Provide at least one of `name`, `preset`, or `scopes`"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
   it.each(["revoke_api_key", "delete_api_key"])(
@@ -1714,10 +1764,18 @@ describe("sending domain tools", () => {
       (candidate) => candidate.name === "verify_sending_domain"
     );
     expect(tool?.inputSchema.required).toEqual(["domain"]);
+    expect(tool?.description).toContain("DNS verification separately");
+    expect(tool?.outputSchema?.properties).toHaveProperty("readyToSend");
     mockApiRequest.mockResolvedValueOnce({
       success: true,
       verified: true,
-      website: { domain: "mail.example.com", status: "verified" },
+      readyToSend: false,
+      website: {
+        domain: "mail.example.com",
+        status: "verified",
+        dnsVerified: true,
+        readyToSend: false,
+      },
     });
 
     const result = await handleToolCall("verify_sending_domain", {
@@ -1904,7 +1962,13 @@ describe("A/B test tools", () => {
       "commerceForecast"
     );
     expect(campaignTool?.description).toContain("replies and reply rate");
-    expect(sequenceTool?.description).toContain("per-step replies");
+    // The steps array has to name the counts it carries, sends included:
+    // agents that cannot see per-step sends in the description fall back to
+    // reconstructing them from the raw event stream.
+    expect(sequenceTool?.description).toContain("steps array");
+    expect(sequenceTool?.description).toMatch(
+      /sent, delivered, bounced, opened, clicked, replies/
+    );
     expect(result.structuredContent?.["stats"]).toEqual({
       replies: 4,
       replyRate: 12.5,
@@ -2305,6 +2369,138 @@ describe("A/B test tools", () => {
       undefined,
       "company_123"
     );
+  });
+
+  it("scopes a sequence event stream to one email step", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      events: [],
+      pagination: { page: 1, limit: 100, total: 0, totalPages: 0 },
+    });
+
+    await handleToolCall("list_sequence_events", {
+      companyId: "company_123",
+      sequenceId: "seq_123",
+      automationNodeId: "node_email_4",
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/metrics/sequences/seq_123/events?automationNodeId=node_email_4",
+      undefined,
+      "company_123"
+    );
+  });
+
+  it("documents per-step sends on get_sequence_stats steps[]", () => {
+    // The gap this closes: steps[] was already returned but undeclared, so
+    // agents read the schema, concluded per-step sends did not exist, and
+    // rebuilt them from raw events.
+    const sequenceTool = tools.find(
+      (candidate) => candidate.name === "get_sequence_stats"
+    );
+    const stepsSchema = sequenceTool?.outputSchema?.properties?.["steps"] as
+      | {
+          type?: string;
+          description?: string;
+          items?: { properties?: Record<string, unknown> };
+        }
+      | undefined;
+
+    expect(stepsSchema?.type).toBe("array");
+    expect(stepsSchema?.description).toContain("sent/delivered/opened/clicked");
+    expect(stepsSchema?.items?.properties).toHaveProperty("step");
+    expect(stepsSchema?.items?.properties).toHaveProperty("nodeId");
+    expect(stepsSchema?.items?.properties).toHaveProperty("stats");
+  });
+
+  it("lists per-email metrics across sequences for one step", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      emails: [],
+      totals: { emails: 0, sent: 0 },
+      pagination: { page: 1, limit: 50, total: 0, totalPages: 0 },
+    });
+
+    await handleToolCall("list_email_metrics", {
+      companyId: "company_123",
+      sequenceId: ["seq_1", "seq_2"],
+      step: 4,
+      sort: "sent",
+      order: "desc",
+      limit: 100,
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/metrics/emails?sequenceId=seq_1%2Cseq_2&step=4&sort=sent&order=desc&limit=100",
+      undefined,
+      "company_123"
+    );
+  });
+
+  it("accepts a bare string for the sequenceId list", async () => {
+    // Models routinely pass a single ID for an array parameter; dropping it
+    // would silently widen the breakdown to every sequence in the account.
+    mockApiRequest.mockResolvedValueOnce({ success: true, emails: [] });
+
+    await handleToolCall("list_email_metrics", {
+      sequenceId: "seq_1",
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/metrics/emails?sequenceId=seq_1",
+      undefined,
+      undefined
+    );
+  });
+
+  it("rejects an unsupported list_email_metrics sort before calling the API", async () => {
+    const result = await handleToolCall("list_email_metrics", {
+      sort: "bounces",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("`sort` must be one of");
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects conflicting list_email_metrics scopes before calling the API", async () => {
+    const result = await handleToolCall("list_email_metrics", {
+      sequenceId: ["seq_1"],
+      campaignId: ["camp_1"],
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`campaignId` cannot be combined with `sequenceId` or `step`"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects email types that conflict with list_email_metrics scopes", async () => {
+    const cases = [
+      {
+        args: { emailType: "campaign", sequenceId: ["seq_1"] },
+        message: "`emailType` campaign cannot be combined",
+      },
+      {
+        args: { emailType: "campaign", step: 2 },
+        message: "`emailType` campaign cannot be combined",
+      },
+      {
+        args: { emailType: "sequence", campaignId: ["camp_1"] },
+        message: "`emailType` sequence cannot be combined",
+      },
+    ];
+
+    for (const testCase of cases) {
+      const result = await handleToolCall("list_email_metrics", testCase.args);
+      expect(result.isError).toBe(true);
+      expect(result.content[0]?.text).toContain(testCase.message);
+    }
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
   it("rejects invalid event types before calling the event APIs", async () => {
@@ -3052,6 +3248,27 @@ describe("update_campaign tool validation", () => {
     };
     expect(payload.emailSends[0]?.url).toBe(
       "https://sequenzy.com/dashboard/company/comp_123/sent-emails/send_123"
+    );
+  });
+
+  it("filters sent emails by one sequence step", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      retentionDays: 14,
+      emailSends: [],
+      pagination: { page: 1, limit: 20, total: 0, totalPages: 0 },
+    });
+
+    await handleToolCall("list_email_sends", {
+      automationId: "seq_123",
+      automationNodeId: "node_email_4",
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/email-sends?automationId=seq_123&automationNodeId=node_email_4",
+      undefined,
+      undefined
     );
   });
 

@@ -20,7 +20,7 @@ export const savedFormToolDefinitions: Tool[] = [
   {
     name: "create_form",
     description:
-      "Create and publish a saved signup form whose opaque formId is a client-safe public capability. The selected lists, tags, duplicate behavior, and success action stay server-side; no API key is needed in the deployed form.",
+      "Create and publish a saved signup form whose opaque formId is a client-safe public capability. The selected lists, tags, duplicate behavior, and success action stay server-side; no API key is needed in the deployed form. This creates the email/name fields only - add typed custom fields (select, textarea, hidden, ...) afterwards with update_form's blocks argument.",
     inputSchema: {
       type: "object",
       properties: {
@@ -161,7 +161,7 @@ export const savedFormToolDefinitions: Tool[] = [
         blocks: {
           type: "array",
           description:
-            "Full replacement for the form's content blocks. Fetch the current blocks from list_forms, modify them, and send the complete array - the form must keep exactly one email field and one submit button.",
+            'Full replacement for the form\'s content blocks. Fetch the current blocks from list_forms, modify them, and send the complete array - the form must keep exactly one required email field and one submit button. Blocks render in array order; every block needs a unique "id" and a "kind", and "sectionId" ("success" or "error") moves a content block into that screen. Input blocks are kind "form-field": { id, kind: "form-field", fieldType, name, label, placeholder, required, defaultValue, showLabel, width ("full" | "half"), mapsTo, options }. fieldType is one of text, email, phone, number, textarea, select, radio, checkbox, consent, hidden. mapsTo is one of email, firstName, lastName, phone, customAttribute and defaults to customAttribute, which stores the answer under the block\'s "name" as a subscriber custom attribute (name must start with a letter and may contain letters, digits, "_", ".", "-"). select, radio, and checkbox fields require options: [{ value, label, id }] - label and id default to value when omitted. A hidden field with a defaultValue always stores that server-owned value and ignores whatever the page posts; a hidden field with an empty defaultValue stores the value the page submits. Other kinds: heading, text, image, button, divider, spacer, custom-html, feature-grid, testimonial, countdown, form-step, submit-button, success-screen, error-state. Validation errors name the offending property, for example "blocks[3].options[0].value".',
           items: { type: "object", additionalProperties: true },
         },
       },

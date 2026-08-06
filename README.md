@@ -225,7 +225,7 @@ build a list as well as create it. Imports that apply `listIds` also need
 
 ## Tools
 
-This server currently exposes 189 MCP tools.
+This server currently exposes 191 MCP tools.
 
 ### Account, Companies, Setup
 
@@ -260,7 +260,7 @@ This server currently exposes 189 MCP tools.
 | `sync_integration`                   | Queue a manual payment-provider customer and revenue backfill.                                                                |
 | `get_integration_pixel`              | Read Shopify's live pixel/configuration state and distinguish confirmed dark events from an unknown read.                     |
 | `activate_integration_pixel`         | Install or repoint Shopify's storefront pixel; idempotent when it is already current.                                         |
-| `list_sender_profiles`               | List sender and reply-to profiles, account defaults, and sending-domain verification status.                                  |
+| `list_sender_profiles`               | List sender and reply-to profiles, defaults, and sending-domain readiness.                                                    |
 | `update_sender_profile`              | Rename one sender or reply-to profile without changing the account defaults.                                                  |
 | `get_notification_preferences`       | Read the current user's per-company account notification settings and supported modes.                                        |
 | `update_notification_preferences`    | Update the current user's account notification delivery modes without affecting teammates.                                    |
@@ -509,15 +509,15 @@ Use `get_ab_test` to copy the effective `settings` object and discover variant I
 
 ### Campaigns
 
-| Tool                             | Description                                                                                       |
-| -------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `list_campaigns`                 | List paginated campaigns by status or label, including reviewer feedback for rejected campaigns.  |
+| Tool                             | Description                                                                                        |
+| -------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `list_campaigns`                 | List paginated campaigns by status or label, including reviewer feedback for rejected campaigns.   |
 | `get_campaign`                   | Get details, stats, and reviewer feedback for a rejected campaign.                                 |
-| `get_campaign_audience`          | Resolve saved targeting, missing references, a plain-language summary, and live recipient count.  |
-| `list_email_sends`               | Search delivery history with related resource IDs, timestamps, and a dashboard URL for each row.  |
+| `get_campaign_audience`          | Resolve saved targeting, missing references, a plain-language summary, and live recipient count.   |
+| `list_email_sends`               | Search recent delivery history with resource IDs and URLs, optionally scoped to one sequence step. |
 | `get_email_send`                 | Inspect a queued, test, sent, suppressed, or failed delivery by durable email-send ID.             |
-| `get_recipient_suppression`      | Check local email-hygiene, bounce, complaint, and regional SES suppression for one recipient.      |
-| `remove_recipient_suppression`   | Remove stale bounce suppression while preserving complaint, unsubscribe, and hygiene protections. |
+| `get_recipient_suppression`      | Check local email-hygiene, bounce, complaint, and regional SES suppression for one recipient.       |
+| `remove_recipient_suppression`   | Remove stale bounce suppression while preserving complaint, unsubscribe, and hygiene protections.  |
 | `create_campaign`                | Create a campaign with content, data, and optional From/Reply-To identity overrides.               |
 | `update_campaign`                | Update a draft campaign, including content, data, From, Reply-To, CC, and BCC.                     |
 | `schedule_campaign`              | Schedule a draft or reschedule an existing scheduled campaign.                                     |
@@ -883,15 +883,16 @@ tracking that the account has disabled.
 
 ### Analytics
 
-| Tool                      | Description                                                                                                 |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `get_stats`               | Get overview stats for `7d`, `30d`, or `90d`; filter by structural email type.                              |
-| `get_transactional_stats` | Get all-time or time-scoped metrics for one saved transactional email by ID or slug.                        |
-| `get_campaign_stats`      | Get campaign performance, reply metrics, and Poll/NPS summaries.                                            |
-| `get_sequence_stats`      | Get aggregate and per-step sequence performance plus live active/waiting enrollment counts by current node. |
-| `list_campaign_events`    | List paginated raw email events for a campaign.                                                             |
-| `list_sequence_events`    | List paginated raw email events for a sequence.                                                             |
-| `get_subscriber_activity` | Get subscriber email stats, activity, and enrollments.                                                      |
+| Tool                      | Description                                                                                                    |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `get_stats`               | Get overview stats for `7d`, `30d`, or `90d`; filter by structural email type.                                 |
+| `get_transactional_stats` | Get all-time or time-scoped metrics for one saved transactional email by ID or slug.                           |
+| `get_campaign_stats`      | Get campaign performance, reply metrics, and Poll/NPS summaries.                                               |
+| `get_sequence_stats`      | Get aggregate and per-step sequence performance plus live active/waiting enrollment counts by current node.    |
+| `list_email_metrics`      | Compare campaign and sequence-step funnels, replies, conversions, and revenue, including cross-sequence steps. |
+| `list_campaign_events`    | List paginated raw email events for a campaign.                                                                |
+| `list_sequence_events`    | List paginated raw events for a sequence, optionally scoped to one email step.                                 |
+| `get_subscriber_activity` | Get subscriber email stats, activity, and enrollments.                                                         |
 
 Campaign and sequence event filters accept `transport_failure` alongside
 delivery, bounce, complaint, engagement, unsubscribe, and delay events.
@@ -904,6 +905,13 @@ Analytics tools exclude detected bot, scanner, link-preview, and tracked asset o
 active and waiting enrollment runs grouped by current node. It counts
 enrollment tokens rather than necessarily distinct subscribers, and it is not
 limited by historical `period`, `start`, or `end` filters.
+
+Use `list_email_metrics` for comparisons across campaigns or sequence steps.
+Pass `step` with optional `sequenceId` values to total the same step across
+sequences; use the returned `automationNodeId` with `list_sequence_events` or
+`list_email_sends` to inspect recipients. `campaignId` cannot be combined with
+`sequenceId` or `step`. Explicit campaign and sequence scopes retain configured
+emails with zero activity so weak performers are not silently omitted.
 
 Pass `emailType: "transactional"` to `get_stats` for Send API and
 transactional SMTP delivery, open, click, and reply rates. This includes direct
