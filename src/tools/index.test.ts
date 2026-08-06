@@ -527,6 +527,16 @@ describe("create_api_key tool schema", () => {
     expect(properties?.["scopes"]?.items?.type).toBe("string");
     expect(tool?.inputSchema.required).toEqual(["companyId"]);
   });
+
+  it("documents the narrow tag scope on both bulk tag tools", () => {
+    for (const toolName of [
+      "bulk_add_subscriber_tags",
+      "bulk_remove_subscriber_tags",
+    ]) {
+      const tool = tools.find((candidate) => candidate.name === toolName);
+      expect(tool?.description).toContain("subscribers:tag");
+    }
+  });
 });
 
 describe("API key lifecycle tools", () => {
@@ -592,6 +602,46 @@ describe("API key lifecycle tools", () => {
         isCurrent: false,
       }),
     ]);
+  });
+
+  it("updates an API key in place", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      apiKey: {
+        id: "key_agent",
+        name: "Agent key",
+        prefix: "seq_live_A",
+        scopes: ["account:read", "subscribers:tag"],
+      },
+      message: "API key permissions updated.",
+    });
+
+    const result = await handleToolCall("update_api_key", {
+      companyId: "company_123",
+      apiKeyId: "key_agent",
+      scopes: ["account:read", "subscribers:tag"],
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/api-keys/key_agent",
+      { scopes: ["account:read", "subscribers:tag"] },
+      "company_123"
+    );
+  });
+
+  it("rejects API key updates without an update field", async () => {
+    const result = await handleToolCall("update_api_key", {
+      companyId: "company_123",
+      apiKeyId: "key_agent",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Provide at least one of `name`, `preset`, or `scopes`"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
   it.each(["revoke_api_key", "delete_api_key"])(
@@ -811,6 +861,46 @@ describe("read-only audit tools", () => {
     expect(result.structuredContent?.["message"]).toBe(
       "Updated tracking settings: openTrackingEnabled."
     );
+  });
+
+  it("forwards doubleOptInEnabled and surfaces the consent block", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      message: "Updated tracking settings: doubleOptInEnabled.",
+      tracking: { openTrackingEnabled: true, clickTrackingEnabled: true },
+      consent: { doubleOptInEnabled: true, doubleOptInEmailId: "email_1" },
+      autoUtm: { enabled: false, settings: {} },
+      trackingDomain: null,
+      replyTracking: { inboundEmailEnabled: false },
+    });
+
+    const result = await handleToolCall("update_tracking_settings", {
+      companyId: "company_123",
+      doubleOptInEnabled: true,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/tracking-settings",
+      { doubleOptInEnabled: true },
+      "company_123"
+    );
+    expect(result.structuredContent?.["consent"]).toEqual({
+      doubleOptInEnabled: true,
+      doubleOptInEmailId: "email_1",
+    });
+  });
+
+  it("rejects a non-boolean doubleOptInEnabled", async () => {
+    const result = await handleToolCall("update_tracking_settings", {
+      companyId: "company_123",
+      doubleOptInEnabled: "on",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("`doubleOptInEnabled`");
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
   it("rejects tracking settings updates with no editable field", async () => {
@@ -1581,6 +1671,14 @@ describe("sending domain tools", () => {
       (candidate) => candidate.name === "add_sending_domain"
     );
     expect(tool?.inputSchema.required).toEqual(["domain"]);
+    expect(tool?.description).toContain(
+      "every cohort-specific DNS record returned"
+    );
+    expect(tool?.description).toContain("DMARC when present");
+    const websiteOutput = tool?.outputSchema?.properties?.["website"] as
+      | { description?: string }
+      | undefined;
+    expect(websiteOutput?.description).toContain("every returned record");
     expect(tool?.annotations).toMatchObject({
       readOnlyHint: false,
       destructiveHint: false,
@@ -1666,10 +1764,18 @@ describe("sending domain tools", () => {
       (candidate) => candidate.name === "verify_sending_domain"
     );
     expect(tool?.inputSchema.required).toEqual(["domain"]);
+    expect(tool?.description).toContain("DNS verification separately");
+    expect(tool?.outputSchema?.properties).toHaveProperty("readyToSend");
     mockApiRequest.mockResolvedValueOnce({
       success: true,
       verified: true,
-      website: { domain: "mail.example.com", status: "verified" },
+      readyToSend: false,
+      website: {
+        domain: "mail.example.com",
+        status: "verified",
+        dnsVerified: true,
+        readyToSend: false,
+      },
     });
 
     const result = await handleToolCall("verify_sending_domain", {
@@ -2370,6 +2476,30 @@ describe("A/B test tools", () => {
     expect(result.content[0]?.text).toContain(
       "`campaignId` cannot be combined with `sequenceId` or `step`"
     );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects email types that conflict with list_email_metrics scopes", async () => {
+    const cases = [
+      {
+        args: { emailType: "campaign", sequenceId: ["seq_1"] },
+        message: "`emailType` campaign cannot be combined",
+      },
+      {
+        args: { emailType: "campaign", step: 2 },
+        message: "`emailType` campaign cannot be combined",
+      },
+      {
+        args: { emailType: "sequence", campaignId: ["camp_1"] },
+        message: "`emailType` sequence cannot be combined",
+      },
+    ];
+
+    for (const testCase of cases) {
+      const result = await handleToolCall("list_email_metrics", testCase.args);
+      expect(result.isError).toBe(true);
+      expect(result.content[0]?.text).toContain(testCase.message);
+    }
     expect(mockApiRequest).not.toHaveBeenCalled();
   });
 

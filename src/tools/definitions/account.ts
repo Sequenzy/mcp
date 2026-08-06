@@ -588,6 +588,42 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
     },
   },
   {
+    name: "update_api_key",
+    description:
+      "Rename a company-scoped API key or replace its permissions in place, without issuing a new key. Use this when a call fails with a missing-scope error: the key value stays the same, so no client has to be re-wired, and added permissions apply on the next retry. Removed permissions may remain usable for up to five minutes while API caches expire. preset and scopes REPLACE the current selection rather than merging into it - call list_api_keys first and pass the full set you want. Returns non-secret metadata only.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description: "Company ID that owns the API key",
+        },
+        apiKeyId: {
+          type: "string",
+          description: "Exact API key ID returned by list_api_keys",
+        },
+        name: {
+          type: "string",
+          description: "New human-readable name for the key",
+        },
+        preset: {
+          type: "string",
+          description:
+            "Replacement permission preset. Supported values: full_access, read_only, agent_safe, ai_drafting, data_ingest_safe, data_ingest_automations, transactional_sender, marketing_sender.",
+        },
+        scopes: {
+          type: "array",
+          description:
+            "Replacement explicit permission scopes. Overrides preset and must include at least one supported scope.",
+          items: {
+            type: "string",
+          },
+        },
+      },
+      required: ["companyId", "apiKeyId"],
+    },
+  },
+  {
     name: "revoke_api_key",
     description:
       "Permanently revoke a company-scoped API key by ID. The response contains non-secret metadata only. Call list_api_keys first and compare the ID, name, prefix, and isCurrent flag because revoking a key cannot be undone and may invalidate the active credential.",
@@ -628,7 +664,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "list_websites",
     description:
-      "List configured sending domains with stored aggregate, SPF, DKIM, and MAIL FROM verification status",
+      "List configured sending domains with separate DNS verification, selected home-transport readiness, and SPF, DKIM, and MAIL FROM status",
     inputSchema: {
       type: "object",
       properties: {
@@ -648,7 +684,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "add_sending_domain",
     description:
-      "Add and configure a sending domain. Returns the SPF, DKIM, MAIL FROM, and inbound DNS records to publish before calling verify_sending_domain.",
+      "Add and configure a sending domain. Publish every cohort-specific DNS record returned, including DMARC when present, before calling verify_sending_domain.",
     inputSchema: {
       type: "object",
       properties: {
@@ -688,7 +724,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "check_website",
     description:
-      "Read a sending domain's stored aggregate status plus SPF, DKIM, MAIL FROM records and diagnostics. Use verify_sending_domain to run a fresh DNS check.",
+      "Read a sending domain's separate DNS verification, selected home-transport readiness, and SPF, DKIM, MAIL FROM diagnostics. Use verify_sending_domain to run a fresh DNS check.",
     inputSchema: {
       type: "object",
       properties: {
@@ -708,7 +744,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "verify_sending_domain",
     description:
-      "Run a fresh DNS/provider verification for a configured sending domain and return current aggregate, SPF, DKIM, and MAIL FROM status with diagnostics.",
+      "Run a fresh DNS check for a configured sending domain and return DNS verification separately from selected home-transport readiness. A DNS-verified domain may still be activating in SES.",
     inputSchema: {
       type: "object",
       properties: {
@@ -748,7 +784,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "list_sender_profiles",
     description:
-      "List sender (From) profiles and reply-to profiles for the company, including which are the account defaults and whether each sender address sits on a verified sending domain. Use this to audit sending identity before scheduling, or to pick a valid senderProfileId/replyProfileId for create_campaign or update_campaign.",
+      "List sender (From) profiles and reply-to profiles for the company, including which are the account defaults and whether each sender address has verified DNS plus a ready home transport. Use this to audit sending identity before scheduling, or to pick a valid senderProfileId/replyProfileId for create_campaign or update_campaign.",
     inputSchema: {
       type: "object",
       properties: {
@@ -795,7 +831,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "get_tracking_settings",
     description:
-      "Get the company's email tracking configuration: open/click/unsubscribe tracking flags, default attribution window, automatic UTM tagging, the dedicated click-tracking domain and its verification status, and inbound reply-tracking settings. Use this to audit measurement readiness and to explain why opens or clicks may not be recorded.",
+      "Get the company's email tracking and signup consent configuration: open/click/unsubscribe tracking flags, opt-in strict bot filtering, default attribution window, automatic UTM tagging, the dedicated click-tracking domain and its verification status, inbound reply-tracking settings, and whether double opt-in is required for new contacts. Use this to audit measurement readiness, to explain why opens or clicks may not be recorded, and to check how contacts enter the list before investigating bot or alias signups.",
     inputSchema: {
       type: "object",
       properties: {
@@ -810,7 +846,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "update_tracking_settings",
     description:
-      "Update the company's account-wide email tracking defaults: open, click, and unsubscribe tracking, opt-in strict bot filtering, the default attribution window, and automatic UTM tagging. Applies to every campaign, sequence, and transactional email sent afterwards; already-sent emails keep the links they were rendered with. Provide at least one field. Reply tracking (inbound email, reply domain mode, reply forwarding) is on update_company, and the dedicated click-tracking domain is configured in the dashboard.",
+      "Update the company's account-wide email tracking defaults: open, click, and unsubscribe tracking, opt-in strict bot filtering, the default attribution window, and automatic UTM tagging, plus the account-wide double opt-in requirement for new contacts. Applies to every campaign, sequence, and transactional email sent afterwards; already-sent emails keep the links they were rendered with. Provide at least one field. Reply tracking (inbound email, reply domain mode, reply forwarding) is on update_company, and the dedicated click-tracking domain is configured in the dashboard.",
     inputSchema: {
       type: "object",
       properties: {
@@ -843,6 +879,11 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
           type: "number",
           description:
             "Default revenue attribution window in hours (1-720). Used by goals and revenue reporting when no per-goal window is set.",
+        },
+        doubleOptInEnabled: {
+          type: "boolean",
+          description:
+            "Require email confirmation before a new contact becomes subscribed. When on, contacts added by forms, the API, and integrations start pending and receive a confirmation email; they only become active after clicking it, and they are never sent marketing email while pending. This is the account-wide default that the per-write optInMode on add_subscriber overrides. Use it to stop bot and alias signups from landing in the list as active contacts. Enabling it requires a sender profile and provisions the confirmation email automatically if the account has none; it does not retroactively unsubscribe existing active contacts.",
         },
         autoUtmEnabled: {
           type: "boolean",

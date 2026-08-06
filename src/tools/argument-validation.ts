@@ -345,6 +345,7 @@ export const TRACKING_SETTINGS_UPDATE_FIELDS = [
   "strictBotFilteringEnabled",
   "unsubscribeTrackingEnabled",
   "defaultAttributionWindowHours",
+  "doubleOptInEnabled",
   "autoUtmEnabled",
   "autoUtmSettings",
 ] as const;
@@ -392,6 +393,7 @@ export function buildUpdateTrackingSettingsBody(
     "clickTrackingEnabled",
     "strictBotFilteringEnabled",
     "unsubscribeTrackingEnabled",
+    "doubleOptInEnabled",
     "autoUtmEnabled",
   ] as const) {
     if (args[key] !== undefined && typeof args[key] !== "boolean") {

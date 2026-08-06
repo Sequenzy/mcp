@@ -255,12 +255,12 @@ This server currently exposes 187 MCP tools.
 | `list_integration_activity`          | Read the retained integration-specific webhook and sync activity log.                                                         |
 | `set_integration_sync_enabled`       | Enable or disable bulk imports and backfills while leaving live webhooks connected.                                           |
 | `sync_integration`                   | Queue a manual payment-provider customer and revenue backfill.                                                                |
-| `get_integration_pixel`              | Read Shopify's live pixel/configuration state and distinguish confirmed dark events from an unknown read.                    |
-| `activate_integration_pixel`         | Install or repoint Shopify's storefront pixel; idempotent when it is already current.                                          |
+| `get_integration_pixel`              | Read Shopify's live pixel/configuration state and distinguish confirmed dark events from an unknown read.                     |
+| `activate_integration_pixel`         | Install or repoint Shopify's storefront pixel; idempotent when it is already current.                                         |
 | `list_sender_profiles`               | List sender and reply-to profiles, defaults, and sending-domain readiness.                                                    |
 | `update_sender_profile`              | Rename one sender or reply-to profile without changing the account defaults.                                                  |
-| `get_notification_preferences`       | Read the current user's per-company account notification settings and supported modes.                                       |
-| `update_notification_preferences`    | Update the current user's account notification delivery modes without affecting teammates.                                   |
+| `get_notification_preferences`       | Read the current user's per-company account notification settings and supported modes.                                        |
+| `update_notification_preferences`    | Update the current user's account notification delivery modes without affecting teammates.                                    |
 | `render_email`                       | Render email blocks or HTML into final email-safe HTML without sending.                                                       |
 
 For a new sending domain, call `add_sending_domain`, publish the DNS records in
@@ -301,7 +301,7 @@ abandonment or price-drop settings. Timing values must be positive;
 | `add_subscriber`           | Add one subscriber; status is creation-only, so use `update_subscriber` for an existing contact.                |
 | `create_subscriber_import` | Queue up to 5,000 full CRM records with names, IDs, phones, statuses, tags, lists, and typed custom attributes. |
 | `get_subscriber_import`    | Read progress, row outcome counts, and failure summaries for a queued import.                                   |
-| `update_subscriber`        | Update native profile and phone fields, SMS consent, attributes, tags, or global status.                         |
+| `update_subscriber`        | Update native profile and phone fields, SMS consent, attributes, tags, or global status.                        |
 | `remove_subscriber`        | Unsubscribe while preserving suppression history, or permanently delete only with `hardDelete: true`.           |
 | `get_subscriber`           | Fetch subscriber details by email or external ID.                                                               |
 | `search_subscribers`       | Search by query, tags, list, status, segment, or pagination.                                                    |
@@ -597,12 +597,12 @@ attribute and fires `poll.answered` for automations and outbound webhooks.
 
 ### Saved Forms
 
-| Tool             | Description                                                                                                             |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `list_forms`     | List saved forms with their server-managed audience settings, content blocks, and public action URLs.                  |
-| `create_form`    | Create and publish a saved form scoped to one or more lists, with optional tags, theme, and success behavior.          |
-| `update_form`    | Partially update a saved form's audience, copy, theme, success behavior, or complete content block array.              |
-| `get_form_embed` | Return the public action URL, hosted JavaScript, minimal native form, and fetch example for a saved form.               |
+| Tool             | Description                                                                                                   |
+| ---------------- | ------------------------------------------------------------------------------------------------------------- |
+| `list_forms`     | List saved forms with their server-managed audience settings, content blocks, and public action URLs.         |
+| `create_form`    | Create and publish a saved form scoped to one or more lists, with optional tags, theme, and success behavior. |
+| `update_form`    | Partially update a saved form's audience, copy, theme, success behavior, or complete content block array.     |
+| `get_form_embed` | Return the public action URL, hosted JavaScript, minimal native form, and fetch example for a saved form.     |
 
 For Astro, Hugo, Jekyll, Cloudflare Pages, Netlify, GitHub Pages, or any other
 static site, call `list_forms`, use `create_form` if a suitable form does not

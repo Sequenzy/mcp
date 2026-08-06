@@ -309,6 +309,11 @@ export const outputPropertiesByToolName: Record<
       "non-secret API key metadata, including ID, name, prefix, permissions, timestamps, and active-credential status"
     ),
   },
+  update_api_key: {
+    apiKey: resourceOutputProperty(
+      "updated non-secret API key metadata, including the `scopes` now in effect (null when the key has full access)"
+    ),
+  },
   revoke_api_key: {
     apiKey: resourceOutputProperty("revoked non-secret API key metadata"),
   },
@@ -316,7 +321,9 @@ export const outputPropertiesByToolName: Record<
     apiKey: resourceOutputProperty("deleted non-secret API key metadata"),
   },
   list_websites: {
-    websites: resourceListOutputProperty("sender website"),
+    websites: resourceListOutputProperty(
+      "sending domain, including DNS verification and readyToSend home-transport readiness"
+    ),
   },
   list_integrations: {
     integrations: resourceListOutputProperty(
@@ -453,7 +460,7 @@ export const outputPropertiesByToolName: Record<
   },
   list_sender_profiles: {
     senderProfiles: resourceListOutputProperty(
-      "sender (From) profile, including the sending domain behind it, its verification status, and whether the address can currently send"
+      "sender (From) profile, including the sending domain behind it, its DNS verification status, and whether DNS plus the home transport allow the address to send"
     ),
     replyProfiles: resourceListOutputProperty("reply-to profile"),
     defaultSenderProfileId: nullableStringOutputProperty(
@@ -500,6 +507,9 @@ export const outputPropertiesByToolName: Record<
     tracking: objectOutputProperty(
       "Open, click, and unsubscribe tracking flags, the opt-in strictBotFilteringEnabled bot-detection flag, plus the default attribution window in hours."
     ),
+    consent: objectOutputProperty(
+      "Signup consent settings: doubleOptInEnabled, and doubleOptInEmailId for the confirmation email sent to pending contacts (null when double opt-in has never been enabled)."
+    ),
     autoUtm: objectOutputProperty(
       "Automatic UTM tagging state and its configured parameters."
     ),
@@ -515,6 +525,9 @@ export const outputPropertiesByToolName: Record<
     tracking: objectOutputProperty(
       "Open, click, and unsubscribe tracking flags, the opt-in strictBotFilteringEnabled bot-detection flag, plus the default attribution window in hours, after the update."
     ),
+    consent: objectOutputProperty(
+      "Signup consent settings after the update: doubleOptInEnabled, and doubleOptInEmailId for the confirmation email, which is provisioned automatically the first time double opt-in is enabled."
+    ),
     autoUtm: objectOutputProperty(
       "Automatic UTM tagging state and its configured parameters, after the update."
     ),
@@ -527,25 +540,30 @@ export const outputPropertiesByToolName: Record<
   },
   add_website: {
     website: resourceOutputProperty(
-      "Sending domain with the SPF, DKIM, MAIL FROM, and inbound DNS records required for setup."
+      "Sending domain with its cohort-specific DNS records. Publish every returned record, including DMARC when present."
     ),
   },
   add_sending_domain: {
     website: resourceOutputProperty(
-      "Sending domain with the SPF, DKIM, MAIL FROM, and inbound DNS records required for setup."
+      "Sending domain with its cohort-specific DNS records. Publish every returned record, including DMARC when present."
     ),
   },
   check_website: {
-    website: resourceOutputProperty("sender website"),
+    website: resourceOutputProperty(
+      "sending domain with separate DNS verification and readyToSend home-transport readiness"
+    ),
     ready: booleanOutputProperty("Whether the sender website is ready."),
     status: stringOutputProperty("Current processing or verification status."),
   },
   verify_sending_domain: {
     website: resourceOutputProperty(
-      "Sending domain with current aggregate, SPF, DKIM, and MAIL FROM verification details."
+      "Sending domain with current DNS verification, readyToSend home-transport readiness, SPF, DKIM, and MAIL FROM details."
     ),
     verified: booleanOutputProperty(
-      "Whether the sending domain passed the fresh verification check."
+      "Whether the sending domain passed the fresh DNS verification check. This does not by itself mean SES or MTA is ready."
+    ),
+    readyToSend: booleanOutputProperty(
+      "Whether DNS and the selected home transport are both ready for sending."
     ),
     message: stringOutputProperty("Verification result summary."),
   },

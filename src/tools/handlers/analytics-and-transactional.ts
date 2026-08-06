@@ -455,6 +455,19 @@ export async function handleAnalyticsAndTransactionalTools(
           "`campaignId` cannot be combined with `sequenceId` or `step` when calling `list_email_metrics`."
         );
       }
+      if (
+        emailType === "campaign" &&
+        (sequenceIds.length > 0 || step !== undefined)
+      ) {
+        throw new Error(
+          "`emailType` campaign cannot be combined with `sequenceId` or `step` when calling `list_email_metrics`."
+        );
+      }
+      if (emailType === "sequence" && campaignIds.length > 0) {
+        throw new Error(
+          "`emailType` sequence cannot be combined with `campaignId` when calling `list_email_metrics`."
+        );
+      }
       if (sequenceIds.length > 0) {
         params.set("sequenceId", sequenceIds.join(","));
       }
