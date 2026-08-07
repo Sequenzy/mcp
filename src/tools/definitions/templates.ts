@@ -9,7 +9,7 @@ export const templateToolDefinitions: Tool[] = [
   {
     name: "list_templates",
     description:
-      "List the company's 50 most recently created email bodies, including per-locale localization sync status. Results include standalone templates plus recent bodies behind campaigns and transactional emails. To retrieve a specific campaign body even when it is not among these 50 results, pass the campaign's emailId to get_template. Bodies are kept when their campaign or transactional email is deleted.",
+      "List the company's 50 most recently created email bodies, including per-locale localization sync status and each body's `emailPreset` Style > Format (branded or minimal; null for standalone raw HTML). Results include standalone templates plus recent bodies behind campaigns and transactional emails. To retrieve a specific campaign body even when it is not among these 50 results, pass the campaign's emailId to get_template. Bodies are kept when their campaign or transactional email is deleted.",
     inputSchema: {
       type: "object",
       properties: {
@@ -24,7 +24,7 @@ export const templateToolDefinitions: Tool[] = [
   {
     name: "get_template",
     description:
-      "Get a template's details, content, and all localized variants with sync status",
+      "Get a template's details, content, and all localized variants with sync status. `emailPreset` reports the per-email Style > Format (branded or minimal; null when the whole email is standalone raw HTML) the same way get_sequence does per step.",
     inputSchema: {
       type: "object",
       properties: {

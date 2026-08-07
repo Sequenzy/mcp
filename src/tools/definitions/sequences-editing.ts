@@ -403,7 +403,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
                 type: "string",
                 enum: ["branded", "minimal"],
                 description:
-                  "Per-email Style > Format for native Sequenzy blocks, including emails that contain supported custom HTML blocks. Minimal removes the company logo and uses the simple footer; branded restores the branded chrome. Does not change the company default. Not supported when the entire email is standalone raw HTML and must not be combined with html/htmlContent.",
+                  "Per-email Style > Format for native Sequenzy blocks, including emails that contain supported custom HTML blocks. Minimal removes the company logo and uses the simple footer; branded restores the branded chrome. Does not change the company default. Not a lossless toggle: minimal deletes standalone logo blocks, so switching back to branded generates a new logo block with a new id and the company name as alt text - send the authored logo block in `blocks` alongside the branded update to keep it. Not supported when the entire email is standalone raw HTML and must not be combined with html/htmlContent.",
               },
               blocks: {
                 type: "array",
@@ -477,7 +477,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
                 type: "string",
                 enum: ["branded", "minimal"],
                 description:
-                  "Per-email Style > Format for native Sequenzy blocks, including emails that contain supported custom HTML blocks. Minimal removes the company logo and uses the simple footer; branded restores the branded chrome. Does not change the company default. Not supported when the entire email is standalone raw HTML and must not be combined with html/htmlContent.",
+                  "Per-email Style > Format for native Sequenzy blocks, including emails that contain supported custom HTML blocks. Minimal removes the company logo and uses the simple footer; branded restores the branded chrome. Does not change the company default. Not a lossless toggle: minimal deletes standalone logo blocks, so switching back to branded generates a new logo block with a new id and the company name as alt text - send the authored logo block in `blocks` alongside the branded update to keep it. Not supported when the entire email is standalone raw HTML and must not be combined with html/htmlContent.",
               },
               blocks: {
                 type: "array",

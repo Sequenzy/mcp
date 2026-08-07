@@ -261,7 +261,7 @@ export const sequenceNodeChangesSchema = {
       type: "string",
       enum: ["branded", "minimal"],
       description:
-        "For an action_email node with native Sequenzy blocks, set the linked email's per-email Style > Format. Native block emails may include supported custom HTML blocks. Use minimal for a direct text-forward note without the company logo and with the simple footer, or branded to restore branded chrome. This does not change the company-wide default. A standalone raw HTML email does not support this field, and emailPreset must not be combined with html/htmlContent.",
+        "For an action_email node with native Sequenzy blocks, set the linked email's per-email Style > Format. Native block emails may include supported custom HTML blocks. Use minimal for a direct text-forward note without the company logo and with the simple footer, or branded to restore branded chrome. This does not change the company-wide default. Not a lossless toggle: minimal deletes standalone logo blocks, so switching back to branded generates a new logo block with a new id and the company name as alt text - send the authored logo block in `blocks` alongside the branded update to keep it. A standalone raw HTML email does not support this field, and emailPreset must not be combined with html/htmlContent.",
     },
   },
   additionalProperties: true,
