@@ -1,6 +1,11 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 
-import { emailBlocksDescription, rawHtmlContentWarning } from "../internal.js";
+import {
+  emailBlocksDescription,
+  rawHtmlContentWarning,
+  replyToNameDescription,
+  senderFromNameDescription,
+} from "../internal.js";
 
 export const campaignToolDefinitions: Tool[] = [
   // ============================================================================
@@ -267,8 +272,7 @@ export const campaignToolDefinitions: Tool[] = [
         },
         fromName: {
           type: "string",
-          description:
-            "Display name for a newly created sender profile. Requires fromEmail; omit it when using senderProfileId, which already carries its own display name.",
+          description: senderFromNameDescription,
         },
         senderProfileId: {
           type: "string",
@@ -282,8 +286,7 @@ export const campaignToolDefinitions: Tool[] = [
         },
         replyToName: {
           type: "string",
-          description:
-            "Display name for a newly created reply profile. Requires replyTo; omit it when using replyProfileId, which already carries its own display name.",
+          description: replyToNameDescription,
         },
         replyProfileId: {
           type: "string",
@@ -366,8 +369,7 @@ export const campaignToolDefinitions: Tool[] = [
         },
         replyToName: {
           type: "string",
-          description:
-            "Display name for a newly created reply profile. Requires replyTo; omit it when using replyProfileId, which already carries its own display name.",
+          description: replyToNameDescription,
         },
         fromEmail: {
           type: "string",
@@ -376,8 +378,7 @@ export const campaignToolDefinitions: Tool[] = [
         },
         fromName: {
           type: "string",
-          description:
-            "Display name for a newly created sender profile. Requires fromEmail; omit it when using senderProfileId, which already carries its own display name.",
+          description: senderFromNameDescription,
         },
         senderProfileId: {
           type: "string",

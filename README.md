@@ -532,6 +532,13 @@ remain drafts. Use `templateId`, `blocks`, or `html` only when copying or
 preserving existing content rather than asking the agent to author it. Omit all
 content fields to create an empty draft for later editing.
 
+For campaign- and sequence-level identities, `fromEmail` plus `fromName`
+selects the sender identity with that display name on the mailbox, creating it
+when needed without renaming other same-address identities. A Reply-To address
+instead has one company-wide saved name: when `replyToName` differs from that
+name, the saved name is kept and the successful response includes recovery
+guidance in `warnings`.
+
 `send_email` and `send_test_email` return a durable `emailSendId`. Use
 `list_email_sends` to discover recent IDs by subject/title, recipient, delivery
 status, type, bounce type, or source; pass an ID to `get_email_send` to inspect
@@ -817,11 +824,13 @@ recipients already waiting retain their existing scheduled timestamp.
 Existing and newly inserted email steps can set their own From identity with
 `senderProfileId` or `fromEmail` plus optional `fromName`, and their Reply-To
 identity with `replyProfileId` or `replyTo` plus optional `replyToName`. A
-`fromName` on its own changes only that step's visible sender name. New email
-steps without explicit identity fields inherit the effective identity of the
-nearest sequence email. After a branch merge, only identity fields shared by
-every incoming path are inherited; conflicting fields use the sequence or
-company defaults.
+`fromName` on its own changes only that step's visible sender name. A step-level
+`replyToName` similarly overrides the visible Reply-To name for that step
+without renaming the company-wide reply profile. New email steps without
+explicit identity fields inherit the effective identity of the nearest
+sequence email. After a branch merge, only identity fields shared by every
+incoming path are inherited; conflicting fields use the sequence or company
+defaults.
 
 Use `edit_sequence_graph` with the latest `graphRevision` from `get_sequence` to restructure an existing sequence atomically. It can move a node before or after another node, reuse the normalized `sequence.edges` array for explicit reconnection or multi-node reordering, delete a node, or deep-copy a node. A/B test duplication creates independent test, variant, email, and localization records with reset statistics. Moving a node before the shared node below a branch reconnects every converging branch path through that node. Deleting a node immediately moves parked recipients to its unique surviving successor, or completes them when no successor remains; inspect `sequence.migratedRecipientCount` and `sequence.completedRecipientCount` in the result. Deletion is refused when parked recipients would have multiple surviving continuations. Stale revisions, invalid branch lanes, cycles, and unreachable nodes are also rejected. Active sequences require `confirmStructuralChange: true`.
 
