@@ -812,6 +812,65 @@ describe("read-only audit tools", () => {
     );
   });
 
+  it("gets company sending status with the selected company override", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      status: "paused",
+      pauseReason: "Permanent-bounce rate exceeded the threshold",
+      pauseReasonKind: "high_hard_bounce_rate",
+      selfResume: { canSelfResume: true },
+      senderHealth: {
+        scopedSent: 1,
+        bounceScopedSent: 1,
+        complaintScopedSent: 2,
+      },
+      metricsWindow: { kind: "all_time_since_reset", expiresAt: null },
+      remediation: { steps: ["Clean the list."] },
+    });
+
+    const result = await handleToolCall("get_sending_status", {
+      companyId: "company_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/sending-status",
+      undefined,
+      "company_123"
+    );
+    expect(
+      (result.structuredContent?.["senderHealth"] as Record<string, unknown>)[
+        "complaintScopedSent"
+      ]
+    ).toBe(2);
+  });
+
+  it("forwards the explicit list-cleanup confirmation when resuming sending", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      resumed: true,
+      message: "Sending resumed.",
+      status: "active",
+      selfResume: { canSelfResume: false },
+      metricsWindow: { kind: "all_time_since_reset", expiresAt: null },
+      remediation: { steps: ["Keep suppressions in place."] },
+    });
+
+    const result = await handleToolCall("resume_sending", {
+      companyId: "company_123",
+      listSanitizationConfirmed: true,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/sending-status/resume",
+      { listSanitizationConfirmed: true },
+      "company_123"
+    );
+  });
+
   it("gets tracking settings", async () => {
     mockApiRequest.mockResolvedValueOnce({
       success: true,

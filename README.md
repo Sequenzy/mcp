@@ -22,7 +22,8 @@ Connect Sequenzy to Claude Desktop, Claude Code, Codex, Cursor, Windsurf, VS Cod
 - Connect and verify custom domains for published landing pages.
 - Manage team invitations, inbox conversations, and outbound webhook endpoints.
 - Generate email copy, subject lines, and multi-step sequences.
-- Inspect analytics, subscriber activity, deliverability health, integrations, sending identities, tracking settings, and dashboard URLs.
+- Inspect analytics, subscriber activity, deliverability health, company-level sending pauses, integrations, sending identities, tracking settings, and dashboard URLs.
+- Diagnose why sending is paused and restore eligible hard-bounce pauses after confirming list cleanup.
 - Inspect and clean up exact-recipient bounce suppression without exposing the shared SES suppression list.
 - Configure company product info, account-wide sending identity defaults, rename individual sender and reply-to profiles, manage sender domains, and inspect integration examples for common frameworks.
 
@@ -236,7 +237,7 @@ build a list as well as create it. Imports that apply `listIds` also need
 
 ## Tools
 
-This server currently exposes 191 MCP tools.
+This server currently exposes 193 MCP tools.
 
 ### Account, Companies, Setup
 
@@ -262,6 +263,8 @@ This server currently exposes 191 MCP tools.
 | `check_website`                      | Read a sending domain's stored SPF, DKIM, MAIL FROM, and aggregate verification details.                                      |
 | `verify_sending_domain`              | Run a fresh sending-domain DNS/provider verification and return current status and diagnostics.                               |
 | `list_integrations`                  | List connected integrations with connection and sync health, without returning credentials.                                   |
+| `get_sending_status`                 | Diagnose active, paused, or suspended sending, including enforcement denominators, review gates, and remediation steps.       |
+| `resume_sending`                     | Restore an eligible hard-bounce pause after explicitly confirming the list has been sanitized.                                |
 | `get_tracking_settings`              | Read open, click, unsubscribe, attribution, UTM, click-domain, and reply-tracking settings.                                   |
 | `get_integration_guide`              | Get framework-specific integration examples.                                                                                  |
 | `get_integration`                    | Inspect one connected integration, its event wiring, recent activity, and recommendations.                                    |
