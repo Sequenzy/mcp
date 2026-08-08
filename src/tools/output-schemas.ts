@@ -520,7 +520,7 @@ export const outputPropertiesByToolName: Record<
       "Whether the account can clear this pause itself: canSelfResume, supported, allowedByAdmin, ownerIsTrusted, the automated aiReviewStatus (not_required, pending, approved, flagged, failed) with its reason and timestamps, and unavailableReason naming the blocking gate (unsupported_reason, waiting_for_review, blocked_by_ai, review_failed, blocked_by_admin)."
     ),
     senderHealth: nullableObjectOutputProperty(
-      "Enforcement counts and the thresholds that apply at this volume for hard bounces, soft bounces, and complaints. bounceScopedSent is the denominator for bounce rates, complaintScopedSent is the denominator for complaint rates, and scopedSent remains as a backward-compatible alias for bounceScopedSent. Also includes enforcementMode. Null when the account has no metrics record yet."
+      "Enforcement counts and the thresholds that apply at this volume for hard bounces, soft bounces, and complaints. bounceScopedSent is the denominator for bounce rates, complaintScopedSent is the denominator for complaint rates, and scopedSent remains as a backward-compatible alias for bounceScopedSent. Also includes enforcementMode. Null when the account has no metrics record yet or sender-health analytics are temporarily unavailable; pause state and remediation remain authoritative."
     ),
     metricsWindow: objectOutputProperty(
       "Proof that enforcement is not time-windowed: kind is always all_time_since_reset and expiresAt is always null. bounceResetAt and complaintResetAt are the watermarks the totals are counted from. Do not tell the user to wait for a window to expire - there is none."

@@ -279,6 +279,10 @@ This server currently exposes 193 MCP tools.
 | `get_notification_preferences`       | Read the current user's per-company account notification settings and supported modes.                                        |
 | `update_notification_preferences`    | Update the current user's account notification delivery modes without affecting teammates.                                    |
 
+`get_sending_status` keeps the Postgres-backed pause state, review gates, and
+remediation available when sender-health analytics are temporarily unavailable;
+in that degraded case `senderHealth` is `null`.
+
 For a new sending domain, call `add_sending_domain`, publish the DNS records in
 the returned `website.dnsRecords`, wait for DNS propagation, and then call
 `verify_sending_domain`. Publish every returned record instead of assuming a
