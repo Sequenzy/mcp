@@ -71,6 +71,23 @@ export const sequenceEmailBlocksDescription = `Sequenzy email blocks. Provide bl
   blockConditionsHint
 }${buttonColorHint}${blockFieldWarningsHint}${pollBlockHint}${imageBlockHint}${coreEmailBlockExamples}`;
 
+/**
+ * A mailbox may carry several From display names, so `fromName` selects one
+ * rather than only seeding a profile the address has never had. Stating that
+ * up front matters because the alternative reading - "the saved name wins" -
+ * looks identical in a 2xx response until someone reads the echoed fromName.
+ */
+export const senderFromNameDescription =
+  "Display name recipients see, e.g. 'Brennon at TradeTally'. Selects the sender identity of that name on fromEmail, creating it when the address has no identity by that name; the mailbox's other display names, and everything pinned to them, are untouched. Requires fromEmail; omit it when using senderProfileId, which already carries its own display name.";
+
+/**
+ * Reply-To has no equivalent: an address carries exactly one Reply-To name for
+ * the whole company, so a conflicting name cannot be honored and is reported
+ * instead of silently replaced.
+ */
+export const replyToNameDescription =
+  "Display name for the Reply-To address. Requires replyTo; omit it when using replyProfileId, which already carries its own display name. An address carries one Reply-To name company-wide: if replyTo already has a saved profile under a different name, that saved name is kept and the response `warnings` array says so. Rename it with update_sender_profile (type 'reply') to change it everywhere.";
+
 export const landingPageContentDescription =
   "Complete Sequenzy landing page content JSON. Use this when replacing the page structure. The content must be the editor-compatible landing page schema with version, template, seo, theme, and blocks. Landing pages must include exactly one footer block and at most one form block.";
 

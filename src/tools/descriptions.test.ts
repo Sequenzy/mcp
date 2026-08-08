@@ -5,6 +5,10 @@ import { abTestToolDefinitions } from "./definitions/ab-tests";
 import { sequenceBasicToolDefinitions } from "./definitions/sequences-basic";
 import { sequenceEditingToolDefinitions } from "./definitions/sequences-editing";
 import {
+  sequenceEmailStepIdentityProperties,
+  sequencePathStepSchema,
+} from "./content-validation";
+import {
   blockConditionsHint,
   blockFieldWarningsHint,
   buttonColorHint,
@@ -204,5 +208,16 @@ describe("sequence step block format hint", () => {
     expect(sequenceStepBlocksFormatHintForNodeChanges).toStartWith(
       " For action_email:"
     );
+  });
+});
+
+describe("sequence step Reply-To identity descriptions", () => {
+  it("documents replyToName as a per-step override on updates and inserted steps", () => {
+    expect(
+      sequenceEmailStepIdentityProperties.replyToName.description
+    ).toContain("display name override");
+    expect(
+      sequencePathStepSchema.properties.replyToName.description
+    ).toContain("display name override");
   });
 });

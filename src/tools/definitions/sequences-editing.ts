@@ -3,6 +3,8 @@ import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import {
   rawHtmlContentWarning,
   replacementEmailBlocksDescription,
+  replyToNameDescription,
+  senderFromNameDescription,
   sequenceEmailBlocksDescription,
   sequenceStepBlocksFormatHint,
   sequenceSendingWindowSchema,
@@ -200,8 +202,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         },
         fromName: {
           type: "string",
-          description:
-            "Display name for a newly created sender profile. Requires fromEmail; omit it when using senderProfileId, which already carries its own display name.",
+          description: senderFromNameDescription,
         },
         senderProfileId: {
           type: "string",
@@ -215,8 +216,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         },
         replyToName: {
           type: "string",
-          description:
-            "Display name for a newly created reply profile. Requires replyTo; omit it when using replyProfileId, which already carries its own display name.",
+          description: replyToNameDescription,
         },
         replyProfileId: {
           type: "string",
@@ -827,7 +827,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         replyToName: {
           type: "string",
           description:
-            "Email steps only: display name for a newly created reply profile. Requires replyTo; omit it when using replyProfileId, which already carries its own display name.",
+            "Email steps only: Reply-To display name override for the new step. Requires replyTo; omit it when using replyProfileId, which already carries its own display name.",
         },
         text: {
           type: "string",
