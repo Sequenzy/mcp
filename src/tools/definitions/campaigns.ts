@@ -14,7 +14,7 @@ export const campaignToolDefinitions: Tool[] = [
   {
     name: "list_campaigns",
     description:
-      "List campaigns. Results are paginated: the default page size is 50 and limit is capped at 100. Always read the returned `pagination` object (`limit`, `offset`, `count`, `total`, `hasMore`) and keep paging with `offset` while `hasMore` is true - a single call does not necessarily return every campaign.",
+      "List campaigns. Each item carries `emailPreset`, the linked email's Style > Format (branded or minimal; null for SMS campaigns and standalone raw HTML emails), so chrome can be compared across campaigns without one get_campaign call each. Results are paginated: the default page size is 50 and limit is capped at 100. Always read the returned `pagination` object (`limit`, `offset`, `count`, `total`, `hasMore`) and keep paging with `offset` while `hasMore` is true - a single call does not necessarily return every campaign.",
     inputSchema: {
       type: "object",
       properties: {
@@ -47,7 +47,7 @@ export const campaignToolDefinitions: Tool[] = [
   {
     name: "get_campaign",
     description:
-      "Get campaign details and stats, including rejectionComment reviewer feedback for rejected campaigns. `emailId` is the campaign's linked email body - the same record returned by the templates tools - and can be passed as templateId to create_campaign to reuse the design; it is null for SMS campaigns. `targetLists` holds the raw audience targeting (IDs only); call get_campaign_audience for resolved list/segment names and a recipient count. Note that `computedLists` is email personalization (product lists rendered inside the email), not audience targeting.",
+      "Get campaign details and stats, including rejectionComment reviewer feedback for rejected campaigns. `emailId` is the campaign's linked email body - the same record returned by the templates tools - and can be passed as templateId to create_campaign to reuse the design; it is null for SMS campaigns. `emailPreset` reports that email's Style > Format the same way get_sequence does per step (branded or minimal; null for SMS campaigns and standalone raw HTML emails), so campaign chrome can be compared against sequence steps and transactional templates without rendering them - minimal suppresses the company logo at render time. `targetLists` holds the raw audience targeting (IDs only); call get_campaign_audience for resolved list/segment names and a recipient count. Note that `computedLists` is email personalization (product lists rendered inside the email), not audience targeting.",
     inputSchema: {
       type: "object",
       properties: {
