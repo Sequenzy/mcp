@@ -276,9 +276,14 @@ describe("API key permission errors", () => {
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain("API key permission required");
     expect(result.content[0]?.text).toContain("`templates:write`");
-    expect(result.content[0]?.text).toContain("`companies[].settingsUrl`");
+    expect(result.content[0]?.text).toContain(
+      "`apiKeyPermissions.manageUrl`"
+    );
+    expect(result.content[0]?.text).toContain(
+      "Personal keys cannot be changed through `update_api_key`"
+    );
     expect(result.content[0]?.text).toContain("https://sequenzy.com/dashboard");
-    expect(result.content[0]?.text).toContain("replace `SEQUENZY_API_KEY`");
+    expect(result.content[0]?.text).toContain("retry the same tool call");
   });
 });
 
