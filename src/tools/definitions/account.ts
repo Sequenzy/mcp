@@ -854,7 +854,7 @@ Requires the account:read scope, so a read-only key can diagnose a blocked accou
 
 Only proceed when the bad source is actually fixed (import, form, or integration) and permanent bounces remain suppressed. Call get_sending_status first: resume only succeeds when \`selfResume.canSelfResume\` is true, which requires a hard-bounce pause reason, a cleared automated sender-health review, and no admin block. Any other state needs a support review, and the error tells you which one.
 
-You MUST pass listSanitizationConfirmed: true, and you should only pass it after the user has confirmed the remediation - it is recorded on the account's audit trail as their statement that the list is clean. On success, sending is restored, the bounce watermark resets so the rate is recalculated from later sends, and paused campaigns plus due sequence steps are requeued.
+You MUST pass listSanitizationConfirmed: true, and you should only pass it after the user has confirmed the remediation - it is recorded on the account's audit trail as their statement that the list is clean. On success, sending is restored, the bounce watermark resets so the rate is recalculated from later sends, and the service attempts to requeue paused campaigns plus due sequence steps. Relay the response message: it contains support guidance if part of that queue handoff is temporarily unavailable.
 
 Requires the companies:manage scope and owner or admin access to the company.`,
     inputSchema: {
