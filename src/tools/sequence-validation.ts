@@ -445,16 +445,17 @@ export function buildInsertSequenceStepBody(
     let step: Record<string, unknown>;
     if (stepType === "delay") {
       step = { type: "delay" };
-      for (const key of ["delay", "delayMs", "waitUntil"]) {
+      for (const key of ["delay", "delayMs", "waitUntil", "waitUntilWeekday"]) {
         if (args[key] !== undefined) step[key] = args[key];
       }
       if (
         step.delay === undefined &&
         step.delayMs === undefined &&
-        step.waitUntil === undefined
+        step.waitUntil === undefined &&
+        step.waitUntilWeekday === undefined
       ) {
         throw new Error(
-          "Provide `delay`, `delayMs`, or `waitUntil` when inserting a delay step."
+          "Provide `delay`, `delayMs`, `waitUntil`, or `waitUntilWeekday` when inserting a delay step."
         );
       }
     } else if (stepType === "create_discount") {
@@ -662,7 +663,7 @@ export function buildInsertSequenceStepBody(
       step = { nodeType, config };
     }
 
-    for (const key of ["delay", "delayMs", "waitUntil"]) {
+    for (const key of ["delay", "delayMs", "waitUntil", "waitUntilWeekday"]) {
       if (stepType !== "delay" && args[key] !== undefined) {
         step[key] = args[key];
       }
@@ -706,6 +707,7 @@ export function buildInsertSequenceStepBody(
       "delay",
       "delayMs",
       "waitUntil",
+      "waitUntilWeekday",
     ]) {
       if (args[key] !== undefined) {
         step[key] = args[key];
@@ -732,6 +734,7 @@ export function buildInsertSequenceStepBody(
       "delay",
       "delayMs",
       "waitUntil",
+      "waitUntilWeekday",
       "senderProfileId",
       "fromEmail",
       "fromName",

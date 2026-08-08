@@ -6,6 +6,7 @@ import {
   sequenceEmailBlocksDescription,
   sequenceSendingWindowSchema,
   sequenceWaitUntilSchema,
+  sequenceWaitUntilWeekdaySchema,
   sequenceDelaySchema,
   subscriberUpdateConfigSchema,
   sequenceEmailStepIdentityProperties,
@@ -567,6 +568,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
                   "Delay before this step in milliseconds. Prefer delay for readability; use delayMs when importing provider waits.",
               },
               waitUntil: sequenceWaitUntilSchema,
+              waitUntilWeekday: sequenceWaitUntilWeekdaySchema,
               name: {
                 type: "string",
                 description: "Email template name for email steps.",

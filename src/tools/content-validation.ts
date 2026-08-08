@@ -7,6 +7,7 @@ import {
   discountMergeTagsHint,
   sequenceEmailBlocksDescription,
   sequenceWaitUntilSchema,
+  sequenceWaitUntilWeekdaySchema,
   sequenceDelaySchema,
 } from "./descriptions.js";
 
@@ -545,6 +546,7 @@ export const sequencePathStepSchema = {
         "Delay in milliseconds. Useful for standalone type:'delay' steps.",
     },
     waitUntil: sequenceWaitUntilSchema,
+    waitUntilWeekday: sequenceWaitUntilWeekdaySchema,
     name: {
       type: "string",
       description: "Email template name for email steps.",

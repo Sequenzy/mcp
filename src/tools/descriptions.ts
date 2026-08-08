@@ -128,7 +128,7 @@ export const sequenceSendingWindowSchema = {
     endTime: {
       type: "string",
       description:
-        "Latest local send cutoff in 24-hour HH:mm format, e.g. 20:00. Must be later than startTime.",
+        "Latest local send cutoff in 24-hour HH:mm format, e.g. 20:00, or 24:00 for the end-of-day boundary. Must be later than startTime.",
     },
     days: {
       type: "array",
@@ -204,19 +204,78 @@ export const sequenceWaitUntilSchema = {
   additionalProperties: false,
 } as const;
 
+export const sequenceWaitUntilWeekdaySchema = {
+  type: "object",
+  description:
+    "Wait until the next occurrence of a weekday inside a local-time window before this step, e.g. { day: 'sunday', startTime: '09:00', endTime: '12:00', timezone: 'America/Los_Angeles' }. Continues immediately when the step is reached inside the window, so a Sunday-morning enrollment is not pushed a full week. Use this as a hard timing gate before the first email when the send day must be guaranteed (a sequence-level sendingWindow only holds emails at send time; it does not reschedule the graph).",
+  properties: {
+    day: {
+      type: "string",
+      description:
+        "Single weekday convenience alias for days, e.g. sunday or sun.",
+    },
+    days: {
+      type: "array",
+      items: { type: "string" },
+      description:
+        "Weekdays the wait may release on. Full or short names such as sunday, sun. The nearest upcoming day wins.",
+    },
+    startTime: {
+      type: "string",
+      description:
+        "Window start in 24-hour HH:mm local time, e.g. 09:00. Required.",
+    },
+    endTime: {
+      type: "string",
+      description:
+        "Window end in 24-hour HH:mm local time. Defaults to the end-of-day boundary 24:00. If the wake-up is missed past endTime (rare operational failure), the wait rolls to the next configured day instead of releasing late.",
+    },
+    timezone: {
+      type: "string",
+      description:
+        "IANA timezone the window is evaluated in, e.g. America/Los_Angeles. Required.",
+    },
+    untilStartTime: { type: "string", description: "Alias for startTime." },
+    untilEndTime: { type: "string", description: "Alias for endTime." },
+    untilTimezone: { type: "string", description: "Alias for timezone." },
+  },
+  additionalProperties: false,
+} as const;
+
 export const sequenceDelaySchema = {
   type: "object",
   description:
-    "Fixed delay before this step. For a dynamic wait-until-date delay, either set mode:'until_date' plus untilDateField here, or use waitUntil.",
+    "Fixed delay before this step. For a dynamic wait-until-date delay, either set mode:'until_date' plus untilDateField here, or use waitUntil. For a wait-until-weekday-window delay, either set mode:'until_weekday' plus untilDays/untilStartTime/untilTimezone here, or use waitUntilWeekday.",
   properties: {
     days: { type: "number" },
     hours: { type: "number" },
     minutes: { type: "number" },
     mode: {
       type: "string",
-      enum: ["duration", "until_date"],
+      enum: ["duration", "until_date", "until_weekday"],
       description:
-        "Use duration for a fixed wait, or until_date to resolve a date from the trigger event.",
+        "Use duration for a fixed wait, until_date to resolve a date from the trigger event, or until_weekday to wait for the next weekday/time window.",
+    },
+    untilDays: {
+      type: "array",
+      items: { type: "string" },
+      description:
+        "For mode:'until_weekday', weekday names the wait may release on.",
+    },
+    untilStartTime: {
+      type: "string",
+      description:
+        "For mode:'until_weekday', window start in 24-hour HH:mm local time.",
+    },
+    untilEndTime: {
+      type: "string",
+      description:
+        "For mode:'until_weekday', window end in 24-hour HH:mm local time. Defaults to the end-of-day boundary 24:00.",
+    },
+    untilTimezone: {
+      type: "string",
+      description:
+        "For mode:'until_weekday', IANA timezone the window is evaluated in.",
     },
     untilDateField: {
       type: "string",
@@ -255,7 +314,7 @@ export const sequenceDelaySchema = {
 
 export const sequenceNodeChangesSchema = {
   type: "object",
-  description: `Type-aware patch for the existing node. Start from get_sequence.sequence.nodes[].config. For logic_delay, set exactly one of delay ({ days, hours, minutes }), delayMs, or waitUntil; optional label is also accepted. For action_email, use name/label, subject, previewText, html/htmlContent or blocks, emailPreset, isTransactional, attachments ([{ filename, path }] URL-backed files fetched at send time; path may use {{event.*}} from the enrollment event; [] removes them), and sender/reply identity fields. For action_sms, use text, blocks, imageUrls, label, or ineligibleAction. Other node types accept their editable config keys. Managed IDs, nodeType conversion, and branch path IDs/count are not editable here; use edit_sequence_graph for topology. Webhook header patches are merged, and redacted values from get_sequence must be omitted or replaced with a real new value.${sequenceStepBlocksFormatHintForNodeChanges}`,
+  description: `Type-aware patch for the existing node. Start from get_sequence.sequence.nodes[].config. For logic_delay, set exactly one of delay ({ days, hours, minutes }), delayMs, waitUntil, or waitUntilWeekday ({ day, startTime, endTime, timezone } - hold until the next weekday window); optional label is also accepted. For action_email, use name/label, subject, previewText, html/htmlContent or blocks, emailPreset, isTransactional, attachments ([{ filename, path }] URL-backed files fetched at send time; path may use {{event.*}} from the enrollment event; [] removes them), and sender/reply identity fields. For action_sms, use text, blocks, imageUrls, label, or ineligibleAction. Other node types accept their editable config keys. Managed IDs, nodeType conversion, and branch path IDs/count are not editable here; use edit_sequence_graph for topology. Webhook header patches are merged, and redacted values from get_sequence must be omitted or replaced with a real new value.${sequenceStepBlocksFormatHintForNodeChanges}`,
   properties: {
     emailPreset: {
       type: "string",

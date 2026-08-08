@@ -7,6 +7,7 @@ import {
   sequenceStepBlocksFormatHint,
   sequenceSendingWindowSchema,
   sequenceWaitUntilSchema,
+  sequenceWaitUntilWeekdaySchema,
   sequenceDelaySchema,
   sequenceNodeChangesSchema,
   sequenceNodeUpdateItemSchema,
@@ -945,6 +946,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
             "Optional wait in milliseconds before the new step. Prefer delay for readability.",
         },
         waitUntil: sequenceWaitUntilSchema,
+        waitUntilWeekday: sequenceWaitUntilWeekdaySchema,
         eventName: {
           type: "string",
           description:
