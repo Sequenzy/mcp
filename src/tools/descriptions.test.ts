@@ -92,6 +92,9 @@ describe("email authoring descriptions", () => {
       expect(emailBlocksDescription).toContain(`\`${field}\``);
     }
     expect(pollBlockHint).toContain("weights are 100-900");
+    expect(pollBlockHint).toContain("allowMultiple: true");
+    expect(pollBlockHint).toContain("cannot use option images");
+    expect(pollBlockHint).toContain("delivery-safe size limit");
   });
 });
 

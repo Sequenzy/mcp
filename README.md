@@ -610,6 +610,14 @@ such as `nps_score`. The scale is always 0-10; optional `npsLowLabel` and
 `npsHighLabel` customize its captions. Each answer updates the subscriber
 attribute and fires `poll.answered` for automations and outbound webhooks.
 
+Set `"allowMultiple": true` on a text-only options poll to open a hosted page
+where recipients can check several answers and save the whole selection at
+once. The subscriber attribute stores the selected-value list, so attribute
+segments should use `contains`. Multi-select polls cannot use option images or
+configurations whose encoded signed links exceed the delivery-safe size limit.
+Campaign poll summaries set `allowMultiple: true`, use respondent count for
+`totalResponses`, and can report answer percentages that add up past 100%.
+
 Poll blocks also support brand-specific styling. `accentColor` recolors every
 appearance, including `"brutal"`; `optionRadius` sets answer-button corners in
 pixels (`0` is square), independently of the container's

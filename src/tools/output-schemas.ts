@@ -1287,7 +1287,7 @@ export const outputPropertiesByToolName: Record<
     },
     polls: {
       type: "array",
-      description: `Poll and NPS summaries. Each subscriber counts once per campaign poll block using their latest answer to that block; NPS entries include score, average, and promoter/passive/detractor counts. To list the exact historical respondents behind a count, use the summary blockId and the get_campaign_stats campaignId with create_segment. ${pollRespondentFilterHint} A summary's attributeKey identifies the subscriber attribute that stores their current/latest response and may be overwritten by a later poll that reuses the key.`,
+      description: `Poll and NPS summaries. Each subscriber counts once per campaign poll block using their latest answer to that block; NPS entries include score, average, and promoter/passive/detractor counts. Multi-select polls set allowMultiple: true, count each subscriber once per selected option (answer percentages can sum past 100), and report totalResponses as the respondent count. To list the exact historical respondents behind a count, use the summary blockId and the get_campaign_stats campaignId with create_segment. ${pollRespondentFilterHint} A summary's attributeKey identifies the subscriber attribute that stores their current/latest response (a value list for multi-select polls) and may be overwritten by a later poll that reuses the key.`,
       items: objectOutputProperty("One poll or NPS results summary."),
     },
     recommendations: objectOutputProperty(
