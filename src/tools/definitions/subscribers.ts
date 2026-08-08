@@ -541,7 +541,7 @@ export const subscriberToolDefinitions: Tool[] = [
   {
     name: "bulk_add_subscriber_tags",
     description:
-      "Add tags to up to 500 existing subscribers in one call, identified by emails, externalIds, or subscriberIds. Built for reconciling historical or derived tags: subscribers that do not exist are reported in notFound instead of being created, and tag automations do NOT run unless triggerAutomations is true. Needs the subscribers:tag scope, which the agent_safe key preset includes; a tag name that does not exist yet also needs tags:write. Use add_subscriber or update_subscriber for single-contact changes.",
+      "Add tags to up to 500 existing subscribers in one call, identified by emails, externalIds, or subscriberIds. Built for reconciling historical or derived tags: subscribers that do not exist are reported in notFound instead of being created, and tag automations do NOT run unless triggerAutomations is true. Needs the subscribers:tag scope; a tag name that does not exist yet also needs tags:write. The agent_safe key preset includes both. Use add_subscriber or update_subscriber for single-contact changes.",
     inputSchema: {
       type: "object",
       properties: {

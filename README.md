@@ -206,17 +206,28 @@ stored key hash.
 
 If a tool reports a missing scope such as `campaigns:read` or
 `templates:write`, call `get_account`. Its `apiKeyPermissions` field lists the
-current scopes, common missing marketing read scopes, and a direct `manageUrl`
-for API Keys settings. If the key does not include `account:read`, open the
-[Sequenzy dashboard](https://sequenzy.com/dashboard) directly and use the MCP
-setup or **Settings → API Keys** instead.
+current key identity and type, scopes, common missing marketing read scopes, and
+a direct `manageUrl`. Personal keys open Account API Keys; company keys open the
+selected workspace's API Keys settings. If the key does not include
+`account:read`, open the
+[Sequenzy dashboard](https://sequenzy.com/dashboard) directly and choose the
+matching API Keys page.
 
-Permissions cannot be changed on an existing key. For a local API-key
-connection, open `manageUrl`, create a replacement key with **Read-only**,
-**Safer agent access**, or the exact custom scopes named in the error, update
-`SEQUENZY_API_KEY`, and restart the client. For hosted OAuth MCP, disconnect and
-reauthorize the Sequenzy connection with a preset or custom permissions that
-include the missing scopes.
+Permissions are editable in place, so open `manageUrl`, update the active key,
+and retry the failed tool without replacing the credential or restarting the
+client. An agent using a company key with `api_keys:manage` can instead call
+`update_api_key`; personal keys must be edited on the account-level page because
+that tool only manages company keys. Its `scopes` and `preset` inputs replace
+the whole permission selection rather than merging, so preserve every existing
+scope that is still needed. Hosted OAuth connections can alternatively
+disconnect and reauthorize with broader permissions.
+
+The default **Safer agent access** preset includes `lists:write` and
+`tags:write`, so agents can create and update list and tag definitions, and it
+includes `subscribers:tag` for applying tags to existing contacts. It does not
+include `subscribers:write`, so it cannot add contacts to lists or remove them
+from lists. Deleting a list or tag still requires the matching `lists:delete`
+or `tags:delete` permission.
 
 The AI drafting preset includes `subscribers:write`, so drafting agents can
 build a list as well as create it. Imports that apply `listIds` also need
@@ -1071,10 +1082,12 @@ Create a new personal key in Settings -> API Keys, update your MCP config, and r
 ### Missing API Key Scope
 
 Call `get_account` and inspect `apiKeyPermissions`. Local connections should
-open `apiKeyPermissions.manageUrl`, create a replacement key with the missing
-scope, update `SEQUENZY_API_KEY`, and restart. Hosted OAuth connections should
-disconnect and reauthorize with broader permissions. The tool error includes
-the exact scope or scopes required.
+open `apiKeyPermissions.manageUrl`, add the missing scope to the active key, and
+retry without restarting. `update_api_key` can perform this only for company
+keys that already hold `api_keys:manage`; edit personal keys on the account-level
+API Keys page. Hosted OAuth connections can alternatively disconnect and
+reauthorize with broader permissions. The tool error includes the exact scope or
+scopes required.
 
 ### Duplicate Resources
 
