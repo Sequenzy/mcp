@@ -276,9 +276,7 @@ describe("API key permission errors", () => {
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain("API key permission required");
     expect(result.content[0]?.text).toContain("`templates:write`");
-    expect(result.content[0]?.text).toContain(
-      "`apiKeyPermissions.manageUrl`"
-    );
+    expect(result.content[0]?.text).toContain("`apiKeyPermissions.manageUrl`");
     expect(result.content[0]?.text).toContain(
       "Personal keys cannot be changed through `update_api_key`"
     );
@@ -1978,6 +1976,7 @@ describe("A/B test tools", () => {
 
     expect(outputProperties).toHaveProperty("polls");
     expect(pollsOutput?.description).toContain("exact historical respondents");
+    expect(pollsOutput?.description).toContain("list_poll_responses");
     expect(pollsOutput?.description).toContain("pollResponse");
     expect(pollsOutput?.description).toContain("may be overwritten");
     expect(result.isError).toBeUndefined();
@@ -1988,6 +1987,68 @@ describe("A/B test tools", () => {
       undefined,
       "company_123"
     );
+  });
+
+  it("lists individual poll respondents with their answers and times", async () => {
+    const tool = tools.find(
+      (candidate) => candidate.name === "list_poll_responses"
+    );
+    const responses = [
+      {
+        subscriberId: "sub_1",
+        email: "respondent@example.com",
+        blockId: "poll-1",
+        variant: "options",
+        question: "Did you get your sample?",
+        attributeKey: "prem_rouge_sample_received",
+        allowMultiple: false,
+        answers: ["Yes"],
+        values: ["yes"],
+        respondedAt: "2026-08-08T11:00:00.000Z",
+      },
+    ];
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      campaignId: "camp_123",
+      blockId: "poll-1",
+      responses,
+      pagination: { page: 1, limit: 100, total: 1, totalPages: 1 },
+    });
+
+    const result = await handleToolCall("list_poll_responses", {
+      companyId: "company_123",
+      campaignId: "camp_123",
+      blockId: "poll-1",
+      limit: 100,
+    });
+
+    // Agents used to page the whole audience reading the poll attribute off
+    // every contact, which loses the response time entirely.
+    expect(tool?.description).toContain("who answered what and when");
+    expect(tool?.description).toContain("Do not reconstruct respondents");
+    const paginationOutput = tool?.outputSchema?.properties?.["pagination"] as
+      | { description?: string }
+      | undefined;
+    expect(paginationOutput?.description).toContain(
+      "one row per subscriber per poll block"
+    );
+    expect(result.isError).toBeUndefined();
+    expect(result.structuredContent?.["responses"]).toEqual(responses);
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/metrics/campaigns/camp_123/poll-responses?blockId=poll-1&limit=100",
+      undefined,
+      "company_123"
+    );
+  });
+
+  it("requires a campaignId for list_poll_responses", async () => {
+    const result = await handleToolCall("list_poll_responses", {
+      blockId: "poll-1",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
   it("documents and returns overview analytics including commerce forecasts", async () => {

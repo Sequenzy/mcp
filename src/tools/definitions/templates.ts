@@ -18,6 +18,11 @@ export const templateToolDefinitions: Tool[] = [
           description:
             "Company ID. If not provided, uses the currently selected company.",
         },
+        label: {
+          type: "string",
+          description:
+            "Optional label name filter. Only templates assigned this label are returned.",
+        },
       },
     },
   },

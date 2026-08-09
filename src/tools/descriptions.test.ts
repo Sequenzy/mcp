@@ -216,8 +216,8 @@ describe("sequence step Reply-To identity descriptions", () => {
     expect(
       sequenceEmailStepIdentityProperties.replyToName.description
     ).toContain("display name override");
-    expect(
-      sequencePathStepSchema.properties.replyToName.description
-    ).toContain("display name override");
+    expect(sequencePathStepSchema.properties.replyToName.description).toContain(
+      "display name override"
+    );
   });
 });

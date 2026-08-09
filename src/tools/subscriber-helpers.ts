@@ -27,8 +27,8 @@ export interface AggregatedSubscriberSearchResult {
   pagination: {
     page: number;
     limit: number;
-    total: number;
-    totalPages: number;
+    total: number | null;
+    totalPages: number | null;
     fetchedPages: number;
   };
   returned: number;
@@ -72,6 +72,8 @@ export function buildSubscriberSearchParams(input: {
   listName?: unknown;
   segmentId?: unknown;
   status?: unknown;
+  attribute?: unknown;
+  attributeOperator?: unknown;
   page: number;
   pageSize: number;
   cursor?: string | undefined;
@@ -114,6 +116,17 @@ export function buildSubscriberSearchParams(input: {
     params.set("status", input.status.trim());
   }
 
+  if (typeof input.attribute === "string" && input.attribute.trim() !== "") {
+    params.set("attribute", input.attribute.trim());
+  }
+
+  if (
+    typeof input.attributeOperator === "string" &&
+    input.attributeOperator.trim() !== ""
+  ) {
+    params.set("attributeOperator", input.attributeOperator.trim());
+  }
+
   // `cursor` and `page` are mutually exclusive server-side.
   if (input.cursor) {
     params.set("cursor", input.cursor);
@@ -146,9 +159,13 @@ export async function fetchAllSubscribers(
 
   let page = 1;
   let cursor: string | undefined;
-  let total = 0;
-  let totalPages = 0;
+  // `null` until the server reports a count. Attribute-filtered and cursor
+  // responses skip the count entirely, so the aggregate falls back to what was
+  // actually fetched instead of reporting the first page size as the total.
+  let reportedTotal: number | null = null;
+  let reportedTotalPages: number | null = null;
   let fetchedPages = 0;
+  let stoppedWithMoreRemaining = false;
 
   while (true) {
     const searchParams = buildSubscriberSearchParams({
@@ -159,6 +176,8 @@ export async function fetchAllSubscribers(
       listName: args.listName,
       segmentId: args.segmentId,
       status: args.status,
+      attribute: args.attribute,
+      attributeOperator: args.attributeOperator,
       page,
       pageSize,
       cursor,
@@ -174,8 +193,8 @@ export async function fetchAllSubscribers(
     // Only the first request carries a count; cursor responses report
     // `total: null` because they skip the count query entirely.
     if (fetchedPages === 0) {
-      total = response.pagination?.total ?? response.subscribers.length;
-      totalPages = response.pagination?.totalPages ?? 1;
+      reportedTotal = response.pagination?.total ?? null;
+      reportedTotalPages = response.pagination?.totalPages ?? null;
     }
 
     fetchedPages += 1;
@@ -207,6 +226,7 @@ export async function fetchAllSubscribers(
       pageCount === 0 ||
       fetchedPages >= SUBSCRIBER_SEARCH_MAX_REQUESTS
     ) {
+      stoppedWithMoreRemaining = !reachedEnd && pageCount > 0;
       break;
     }
 
@@ -217,9 +237,22 @@ export async function fetchAllSubscribers(
     }
   }
 
-  if (total === 0 && subscribers.length > 0) {
-    total = subscribers.length;
-  }
+  // Once a count-less cursor walk reaches the end, the fetched count is exact.
+  // If a requested limit stops it while more remain, preserve "unknown"
+  // instead of inventing an exact total from the partial result.
+  const total =
+    reportedTotal !== null
+      ? Math.max(reportedTotal, subscribers.length)
+      : stoppedWithMoreRemaining
+        ? null
+        : subscribers.length;
+  const totalPages =
+    total === null
+      ? null
+      : Math.max(
+          reportedTotalPages ?? 0,
+          Math.max(1, Math.ceil(total / pageSize))
+        );
 
   const returnedSubscribers =
     requestedLimit !== undefined
@@ -237,10 +270,12 @@ export async function fetchAllSubscribers(
       fetchedPages,
     },
     returned: returnedSubscribers.length,
+    // A count-less (attribute or cursor) pull cannot compare against a total,
+    // so it reports truncation from having stopped with pages still left.
     truncated:
       requestedLimit !== undefined &&
-      total > 0 &&
-      returnedSubscribers.length < total,
+      (stoppedWithMoreRemaining ||
+        (total !== null && total > 0 && returnedSubscribers.length < total)),
   };
 }
 

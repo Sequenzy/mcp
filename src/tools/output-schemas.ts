@@ -709,7 +709,9 @@ export const outputPropertiesByToolName: Record<
   },
   search_subscribers: {
     subscribers: resourceListOutputProperty("subscriber"),
-    pagination: objectOutputProperty("Pagination metadata."),
+    pagination: objectOutputProperty(
+      "Pagination metadata. total and totalPages are null when the API skipped counting and a requested limit stopped pagination while more matches remained."
+    ),
     returned: numberOutputProperty("Number of subscribers returned."),
     truncated: booleanOutputProperty(
       "Whether the result was truncated by the requested limit."
@@ -1331,11 +1333,26 @@ export const outputPropertiesByToolName: Record<
     },
     polls: {
       type: "array",
-      description: `Poll and NPS summaries. Each subscriber counts once per campaign poll block using their latest answer to that block; NPS entries include score, average, and promoter/passive/detractor counts. Multi-select polls set allowMultiple: true, count each subscriber once per selected option (answer percentages can sum past 100), and report totalResponses as the respondent count. To list the exact historical respondents behind a count, use the summary blockId and the get_campaign_stats campaignId with create_segment. ${pollRespondentFilterHint} A summary's attributeKey identifies the subscriber attribute that stores their current/latest response (a value list for multi-select polls) and may be overwritten by a later poll that reuses the key.`,
+      description: `Poll and NPS summaries. Each subscriber counts once per campaign poll block using their latest answer to that block; NPS entries include score, average, and promoter/passive/detractor counts. Multi-select polls set allowMultiple: true, count each subscriber once per selected option (answer percentages can sum past 100), and report totalResponses as the respondent count. To read the exact historical respondents with their answers and response times, call list_poll_responses with this campaignId (and the summary blockId to scope it). To build a reusable audience from one answer, use the summary blockId and this campaignId with create_segment. ${pollRespondentFilterHint} A summary's attributeKey identifies the subscriber attribute that stores their current/latest response (a value list for multi-select polls) and may be overwritten by a later poll that reuses the key.`,
       items: objectOutputProperty("One poll or NPS results summary."),
     },
     recommendations: objectOutputProperty(
       "Product recommendation funnel: impressions, recipients, clicks, clickers, orders, legacy revenueCents, currency-safe revenueByCurrency totals, and topProducts (per-product impressions/clicks). Orders count when a subscriber buys a recommended product within 7 days of clicking it. Present only when the campaign rendered product recommendation blocks."
+    ),
+  },
+  list_poll_responses: {
+    campaignId: stringOutputProperty("Campaign the responses belong to."),
+    blockId: stringOutputProperty(
+      "Poll block the results were scoped to. Present only when blockId was requested."
+    ),
+    responses: {
+      type: "array",
+      description:
+        "Individual responses, newest answer first. Each entry has subscriberId, email, externalId, firstName, lastName, blockId, variant (options or nps), question, attributeKey (the subscriber attribute the answer was stored under), allowMultiple, answers (selected option labels), values (their stored values), and respondedAt. Only each subscriber's latest answer per block appears. email is null when the subscriber has since been deleted.",
+      items: objectOutputProperty("One respondent's latest answer."),
+    },
+    pagination: objectOutputProperty(
+      "Pagination metadata: page, limit, total (response rows across every page; one row per subscriber per poll block), and totalPages. Keep paging while page < totalPages."
     ),
   },
   get_transactional_stats: {

@@ -62,6 +62,7 @@ export const READ_ONLY_TOOL_NAMES = new Set([
   "get_stats",
   "get_transactional_stats",
   "get_campaign_stats",
+  "list_poll_responses",
   "get_sequence_stats",
   "list_campaign_events",
   "list_sequence_events",

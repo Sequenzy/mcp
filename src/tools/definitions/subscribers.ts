@@ -621,7 +621,7 @@ export const subscriberToolDefinitions: Tool[] = [
   {
     name: "search_subscribers",
     description:
-      "Search subscribers by free-text query, tags, list, or segment. If you omit limit, the tool fetches all pages and returns every match.",
+      "Search subscribers by free-text query, tags, list, segment, status, or custom attribute. If you omit limit, the tool fetches all pages and returns every match. Every filter listed here is applied server-side - never page the whole audience and filter client-side. Filters combine with AND; for OR logic, nested groups, engagement, or event conditions, build a segment with create_segment and pass its segmentId. Ordinary searches are newest-created first; searches with attribute use stable subscriber-ID ascending order. There is no sort option.",
     inputSchema: {
       type: "object",
       properties: {
@@ -661,6 +661,17 @@ export const subscriberToolDefinitions: Tool[] = [
           type: "string",
           description:
             "Filter by subscriber status: active, unsubscribed, or bounced.",
+        },
+        attribute: {
+          type: "string",
+          description:
+            'Filter by custom attribute, written as "attributeName:value" (e.g. "plan:pro", or "prem_rouge_sample_received:" with attributeOperator is_not_empty to match everyone who has the attribute set at all). Poll answers are stored as attributes, so the attributeKey reported by get_campaign_stats works here. Cannot be combined with segmentId - use a segment for compound attribute conditions.',
+        },
+        attributeOperator: {
+          type: "string",
+          enum: ["is", "contains", "gt", "gte", "lt", "lte", "is_not_empty"],
+          description:
+            "How to compare the attribute value. Defaults to is. Use is_not_empty to match every subscriber that has the attribute set. For is_not, not_contains, or is_empty, create a segment instead.",
         },
         limit: {
           type: "number",

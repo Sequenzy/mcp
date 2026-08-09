@@ -237,7 +237,12 @@ build a list as well as create it. Imports that apply `listIds` also need
 
 ## Tools
 
-This server currently exposes 193 MCP tools.
+This server currently exposes 194 MCP tools.
+
+Tools reject arguments they do not declare instead of silently ignoring them.
+Errors name the unsupported fields, list the supported arguments, and provide
+focused guidance for common mistakes such as invented subscriber filters or
+sort options.
 
 ### Account, Companies, Setup
 
@@ -327,7 +332,7 @@ abandonment or price-drop settings. Timing values must be positive;
 | `update_subscriber`           | Update native profile and phone fields, SMS consent, attributes, tags, or global status.                        |
 | `remove_subscriber`           | Unsubscribe while preserving suppression history, or permanently delete only with `hardDelete: true`.           |
 | `get_subscriber`              | Fetch subscriber details by email or external ID.                                                               |
-| `search_subscribers`          | Search by query, tags, list, status, segment, or pagination.                                                    |
+| `search_subscribers`          | Search by query, tags, list, status, segment, or one custom attribute, with automatic pagination.               |
 | `trigger_subscriber_event`    | Emit one custom event exactly as an integration would, applying sync rules and matching sequence triggers.      |
 | `trigger_subscriber_events`   | Emit several ordered custom events for one subscriber.                                                          |
 | `bulk_add_subscriber_tags`    | Add tags to up to 500 existing subscribers without creating unknown contacts.                                   |
@@ -413,7 +418,12 @@ origin.
 | `delete_segment`               | Delete a saved segment.                                     |
 | `get_segment_count`            | Preview the active subscriber count for a segment.          |
 
-For subscriber exports, `search_subscribers` accepts `listId`, exact `listName`, or `list` (ID first, then exact name). If `limit` is omitted, the tool fetches all matching subscribers using 100-row API pages.
+For subscriber exports, `search_subscribers` accepts `listId`, exact `listName`,
+or `list` (ID first, then exact name). It also accepts one `attribute` written
+as `"attributeName:value"`, with `attributeOperator` for `contains`, numeric
+comparisons, or `is_not_empty`. Filters combine with AND; use a saved segment
+for OR logic, nested groups, exclusions, engagement, or event conditions. If
+`limit` is omitted, the tool fetches every matching page automatically.
 
 For bulk list population, use `add_subscribers_to_list`; the backing API endpoint is `POST /api/v1/lists/{listId}/subscribers` with no `/bulk` suffix:
 
@@ -482,7 +492,7 @@ Audiences are add-only: subscribers who later leave the segment stay in the Meta
 
 | Tool                          | Description                                                            |
 | ----------------------------- | ---------------------------------------------------------------------- |
-| `list_templates`              | List templates with localization status.                               |
+| `list_templates`              | List templates with localization status, optionally filtered by label. |
 | `get_template`                | Read template details, content, and localized variants.                |
 | `create_template`             | Create templates from a prompt, HTML, or Sequenzy blocks.              |
 | `update_template`             | Update template metadata, inbox preview text, labels, HTML, or blocks. |
@@ -918,6 +928,7 @@ tracking that the account has disabled.
 | `get_stats`               | Get overview stats for `7d`, `30d`, or `90d`; filter by structural email type.                                 |
 | `get_transactional_stats` | Get all-time or time-scoped metrics for one saved transactional email by ID or slug.                           |
 | `get_campaign_stats`      | Get campaign performance, reply metrics, and Poll/NPS summaries.                                               |
+| `list_poll_responses`     | List each respondent's latest Poll/NPS answer per block, with identity and response time.                      |
 | `get_sequence_stats`      | Get aggregate and per-step sequence performance plus live active/waiting enrollment counts by current node.    |
 | `list_email_metrics`      | Compare campaign and sequence-step funnels, replies, conversions, and revenue, including cross-sequence steps. |
 | `list_campaign_events`    | List paginated raw email events for a campaign.                                                                |
@@ -959,6 +970,14 @@ top-level `polls` array. Each subscriber counts once per poll block using their
 latest answer. NPS summaries include the score, average, and
 promoter/passive/detractor counts. These are lifetime response summaries even
 when engagement metrics use a time filter.
+
+Use `list_poll_responses` to read who answered what and when. It returns each
+subscriber's latest answer per poll block, newest first, including the email,
+stored value, attribute key, and response time. Pass `blockId` to scope one
+poll; for a sequence email step, pass its automation node ID as `campaignId`.
+Do not reconstruct this history by scanning subscriber attributes: an
+attribute has no response timestamp and may have been overwritten by a later
+email that reused the same key.
 
 To list the exact historical respondents behind a count, call `create_segment`
 with field `pollResponse`, operator `is`, and a JSON value scoped to the

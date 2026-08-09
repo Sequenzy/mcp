@@ -21,7 +21,7 @@ await mock.module("../runtime.js", () => ({
   setSelectedCompanyId: () => undefined,
 }));
 
-const { handleToolCall } = await import("./index.js");
+const { handleToolCall, tools } = await import("./index.js");
 
 describe("subscriber MCP tools", () => {
   beforeEach(() => {
@@ -170,6 +170,138 @@ describe("subscriber MCP tools", () => {
       undefined,
       "comp_123"
     );
+  });
+
+  it("passes the custom attribute filter to search_subscribers", async () => {
+    mockApiRequest.mockResolvedValue({
+      success: true,
+      subscribers: [],
+      pagination: {
+        page: 1,
+        limit: 1000,
+        total: null,
+        totalPages: null,
+        nextCursor: null,
+        hasMore: false,
+      },
+    });
+
+    const result = await handleToolCall("search_subscribers", {
+      attribute: "prem_rouge_sample_received:",
+      attributeOperator: "is_not_empty",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/subscribers?attribute=prem_rouge_sample_received%3A&attributeOperator=is_not_empty&page=1&limit=1000",
+      undefined,
+      undefined
+    );
+  });
+
+  // Attribute-filtered pulls are cursor-paged, so the server reports no count.
+  // Reporting the first page size as the total made a 1-page pull of a 2-page
+  // result look complete.
+  it("reports the fetched count as the total when the server sends none", async () => {
+    mockApiRequest.mockImplementation(async (_method, path) => {
+      if (!path.includes("cursor=")) {
+        return {
+          success: true,
+          subscribers: [{ email: "one@example.com" }],
+          pagination: {
+            page: 1,
+            limit: 1,
+            total: null,
+            totalPages: null,
+            nextCursor: "cursor-2",
+            hasMore: true,
+          },
+        };
+      }
+
+      return {
+        success: true,
+        subscribers: [{ email: "two@example.com" }],
+        pagination: {
+          page: 1,
+          limit: 1,
+          total: null,
+          totalPages: null,
+          nextCursor: null,
+          hasMore: false,
+        },
+      };
+    });
+
+    const result = await handleToolCall("search_subscribers", {
+      attribute: "plan:pro",
+    });
+
+    const payload = JSON.parse(result.content[0]?.text ?? "{}") as {
+      returned: number;
+      truncated: boolean;
+      pagination: { total: number };
+    };
+
+    expect(payload.returned).toBe(2);
+    expect(payload.pagination.total).toBe(2);
+    expect(payload.truncated).toBe(false);
+  });
+
+  it("reports truncation when a limit stops a count-less pull early", async () => {
+    mockApiRequest.mockResolvedValue({
+      success: true,
+      subscribers: [{ email: "one@example.com" }],
+      pagination: {
+        page: 1,
+        limit: 1,
+        total: null,
+        totalPages: null,
+        nextCursor: "cursor-2",
+        hasMore: true,
+      },
+    });
+
+    const result = await handleToolCall("search_subscribers", {
+      attribute: "plan:pro",
+      limit: 1,
+    });
+
+    const payload = JSON.parse(result.content[0]?.text ?? "{}") as {
+      truncated: boolean;
+      pagination: { total: number | null; totalPages: number | null };
+    };
+
+    expect(payload.truncated).toBe(true);
+    expect(payload.pagination.total).toBeNull();
+    expect(payload.pagination.totalPages).toBeNull();
+  });
+
+  // Unsupported arguments used to be dropped, so an agent's filter/sort came
+  // back as an unfiltered full-audience dump that looked like a real answer.
+  it("rejects invented filter and sort arguments on search_subscribers", async () => {
+    const result = await handleToolCall("search_subscribers", {
+      filters: [{ field: "tag", operator: "contains", value: "posted" }],
+      filterJoinOperator: "and",
+      sortBy: "createdAt",
+      sortOrder: "desc",
+    });
+
+    expect(result.isError).toBe(true);
+    const message = result.content[0]?.text ?? "";
+    expect(message).toContain(
+      "Unsupported fields: `filters`, `filterJoinOperator`, `sortBy`, `sortOrder`."
+    );
+    expect(message).toContain("create_segment");
+    expect(message).toContain("`attribute`");
+    expect(message).toContain(
+      "attribute-filtered searches are ordered by subscriber ID ascending"
+    );
+    expect(
+      tools.find((tool) => tool.name === "search_subscribers")?.description
+    ).toContain("searches with attribute use stable subscriber-ID ascending");
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
   it("builds get_subscriber_activity from the detailed subscriber response", async () => {
@@ -784,13 +916,30 @@ describe("subscriber MCP tools", () => {
     );
   });
 
-  it("drops triggerAutomations from bulk_remove_subscriber_tags", async () => {
+  // Removing a tag never enrolls anyone, so the argument used to be dropped
+  // silently. Rejecting it tells the caller the request was not honoured.
+  it("rejects triggerAutomations on bulk_remove_subscriber_tags", async () => {
+    mockApiRequest.mockImplementation(async () => ({ success: true }));
+
+    const result = await handleToolCall("bulk_remove_subscriber_tags", {
+      tags: ["legacy-plan"],
+      subscriberIds: ["sub_1"],
+      triggerAutomations: true,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Unsupported field: `triggerAutomations`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("removes tags when only supported arguments are given", async () => {
     mockApiRequest.mockImplementation(async () => ({ success: true }));
 
     await handleToolCall("bulk_remove_subscriber_tags", {
       tags: ["legacy-plan"],
       subscriberIds: ["sub_1"],
-      triggerAutomations: true,
     });
 
     expect(mockApiRequest).toHaveBeenCalledWith(

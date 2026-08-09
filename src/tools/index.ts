@@ -13,6 +13,7 @@ import {
 } from "./internal.js";
 import type { SequenzyToolCallResult } from "./output-schemas.js";
 import { addRawHtmlWarning } from "./raw-html-warning.js";
+import { assertKnownToolArguments } from "./unknown-arguments.js";
 
 export const tools: Tool[] = toolDefinitions
   .map(withToolOutputSchema)
@@ -23,6 +24,8 @@ export async function handleToolCall(
   args: Record<string, unknown>
 ): Promise<SequenzyToolCallResult> {
   try {
+    assertKnownToolArguments(name, args);
+
     let result: unknown;
     let handled = false;
 
