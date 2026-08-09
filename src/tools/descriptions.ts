@@ -207,7 +207,7 @@ export const sequenceWaitUntilSchema = {
 export const sequenceWaitUntilWeekdaySchema = {
   type: "object",
   description:
-    "Wait until the next occurrence of a weekday inside a local-time window before this step, e.g. { day: 'sunday', startTime: '09:00', endTime: '12:00', timezone: 'America/Los_Angeles' }. Continues immediately when the step is reached inside the window, so a Sunday-morning enrollment is not pushed a full week. Use this as a hard timing gate before the first email when the send day must be guaranteed (a sequence-level sendingWindow only holds emails at send time; it does not reschedule the graph).",
+    "Wait until the next occurrence of a weekday inside a local-time window before this step, e.g. { day: 'sunday', startTime: '09:00', endTime: '12:00', timezone: 'America/Los_Angeles' }. Continues immediately when the step is reached inside the window, so a Sunday-morning enrollment is not pushed a full week. Place it immediately before the email when the send day matters - it controls when the flow resumes, so any step between it and the email shifts the send off the window (a sequence-level sendingWindow only holds emails at send time; it does not reschedule the graph).",
   properties: {
     day: {
       type: "string",

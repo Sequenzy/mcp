@@ -711,7 +711,7 @@ Sequence creation supports:
 - Explicit `steps` with HTML, which Sequenzy converts into editable blocks.
 - Explicit Update Subscriber steps that copy trigger-event properties into
   profile fields or typed custom attributes.
-- Fixed waits via `delay` / `delayMs`, dynamic date-field waits via `waitUntil`, or calendar gates via `waitUntilWeekday`. A weekday gate such as `{ "day": "sunday", "startTime": "09:00", "endTime": "12:00", "timezone": "America/Los_Angeles" }` holds the flow until the next matching window and keeps the first downstream email inside it, including after queue recovery.
+- Fixed waits via `delay` / `delayMs`, dynamic date-field waits via `waitUntil`, or calendar gates via `waitUntilWeekday`. A weekday gate such as `{ "day": "sunday", "startTime": "09:00", "endTime": "12:00", "timezone": "America/Los_Angeles" }` holds the flow until the next matching window. Place it immediately before an email to keep that send inside the window; any intervening step can shift delivery outside it. Queue recovery rechecks the window before releasing a delayed contact.
 - Dynamic Stripe or Shopify discount action steps. A `create_discount` step creates a fresh provider code when each subscriber reaches it; later emails can use merge tags like `{{discount.code}}`, `{{discount.percentOff}}`, and `{{discount.expiresAt}}`.
 - `enrollmentMode: "matching_field"` and a scalar `enrollmentFieldPath` for product-, variant-, order-, or subscription-specific event automations. Array traversal with `[]` belongs in `propertyFilters`, not the enrollment key.
 
