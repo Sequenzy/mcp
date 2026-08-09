@@ -4042,6 +4042,44 @@ describe("label list filters", () => {
     );
   });
 
+  it("passes template pagination as query parameters", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      companyId: "comp_123",
+      emailLocalizationConfig: null,
+      templates: [],
+      pagination: {
+        limit: 100,
+        offset: 100,
+        count: 0,
+        total: 100,
+        hasMore: false,
+      },
+    });
+
+    const result = await handleToolCall("list_templates", {
+      companyId: "comp_123",
+      limit: 100,
+      offset: 100,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/templates?limit=100&offset=100",
+      undefined,
+      "comp_123"
+    );
+  });
+
+  it("rejects a template limit above the server maximum", async () => {
+    const result = await handleToolCall("list_templates", { limit: 500 });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("`limit`");
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
   it("passes campaign label filters as query parameters", async () => {
     mockApiRequest.mockResolvedValueOnce({
       success: true,

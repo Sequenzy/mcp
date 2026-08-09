@@ -9,7 +9,7 @@ export const templateToolDefinitions: Tool[] = [
   {
     name: "list_templates",
     description:
-      "List the company's 50 most recently created email bodies, including per-locale localization sync status and each body's `emailPreset` Style > Format (branded or minimal; null for standalone raw HTML). Results include standalone templates plus recent bodies behind campaigns and transactional emails. To retrieve a specific campaign body even when it is not among these 50 results, pass the campaign's emailId to get_template. Bodies are kept when their campaign or transactional email is deleted.",
+      "List the company's email bodies newest first, including per-locale localization sync status and each body's `emailPreset` Style > Format (branded or minimal; null for standalone raw HTML). Results include standalone templates plus the bodies behind campaigns and transactional emails. Returns 50 per call by default (100 max); page with offset while pagination.hasMore is true, and read pagination.total for the full count. You can also pass a campaign's emailId to get_template to fetch one body directly. Bodies are kept when their campaign or transactional email is deleted.",
     inputSchema: {
       type: "object",
       properties: {
@@ -22,6 +22,15 @@ export const templateToolDefinitions: Tool[] = [
           type: "string",
           description:
             "Optional label name filter. Only templates assigned this label are returned.",
+        },
+        limit: {
+          type: "number",
+          description: "Templates per page, 1-100. Defaults to 50.",
+        },
+        offset: {
+          type: "number",
+          description:
+            "Templates to skip before returning results. Add pagination.count to the current offset to fetch the next page while pagination.hasMore is true.",
         },
       },
     },

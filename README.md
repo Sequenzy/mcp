@@ -332,7 +332,7 @@ abandonment or price-drop settings. Timing values must be positive;
 | `update_subscriber`           | Update native profile and phone fields, SMS consent, attributes, tags, or global status.                        |
 | `remove_subscriber`           | Unsubscribe while preserving suppression history, or permanently delete only with `hardDelete: true`.           |
 | `get_subscriber`              | Fetch subscriber details by email or external ID.                                                               |
-| `search_subscribers`          | Search by query, tags, list, status, segment, or one custom attribute, with automatic pagination.               |
+| `search_subscribers`          | Search by query, tags, list, status, segment, or one custom attribute, with automatic or resumable pagination.  |
 | `trigger_subscriber_event`    | Emit one custom event exactly as an integration would, applying sync rules and matching sequence triggers.      |
 | `trigger_subscriber_events`   | Emit several ordered custom events for one subscriber.                                                          |
 | `bulk_add_subscriber_tags`    | Add tags to up to 500 existing subscribers without creating unknown contacts.                                   |
@@ -419,11 +419,15 @@ origin.
 | `get_segment_count`            | Preview the active subscriber count for a segment.          |
 
 For subscriber exports, `search_subscribers` accepts `listId`, exact `listName`,
-or `list` (ID first, then exact name). It also accepts one `attribute` written
-as `"attributeName:value"`, with `attributeOperator` for `contains`, numeric
-comparisons, or `is_not_empty`. Filters combine with AND; use a saved segment
-for OR logic, nested groups, exclusions, engagement, or event conditions. If
-`limit` is omitted, the tool fetches every matching page automatically.
+or `list` (ID first, then exact name). It also accepts `attribute` plus
+`attributeValue`, with `attributeOperator` for `contains`, numeric comparisons,
+or `is_not_empty`; the combined `"attributeName:value"` form remains supported.
+Filters combine with AND; use a saved segment for OR logic, nested groups,
+exclusions, engagement, or event conditions. If `limit` is omitted, the tool
+fetches every matching page automatically. For chunked reads, pass `limit` and
+follow `pagination.nextCursor` (or `pagination.nextOffset`) while `hasMore` is
+true. `offset` and `page` are supported below 1,000,000 skipped matches; use the
+cursor for deeper audiences.
 
 For bulk list population, use `add_subscribers_to_list`; the backing API endpoint is `POST /api/v1/lists/{listId}/subscribers` with no `/bulk` suffix:
 
@@ -490,15 +494,20 @@ Audiences are add-only: subscribers who later leave the segment stay in the Meta
 
 ### Templates
 
-| Tool                          | Description                                                            |
-| ----------------------------- | ---------------------------------------------------------------------- |
-| `list_templates`              | List templates with localization status, optionally filtered by label. |
-| `get_template`                | Read template details, content, and localized variants.                |
-| `create_template`             | Create templates from a prompt, HTML, or Sequenzy blocks.              |
-| `update_template`             | Update template metadata, inbox preview text, labels, HTML, or blocks. |
-| `set_template_localization`   | Create or replace a caller-supplied localized variant.                 |
-| `sync_template_localizations` | Queue AI translation for selected or all enabled non-primary locales.  |
-| `delete_template`             | Delete a template.                                                     |
+| Tool                          | Description                                                               |
+| ----------------------------- | ------------------------------------------------------------------------- |
+| `list_templates`              | List templates with localization status, label filtering, and pagination. |
+| `get_template`                | Read template details, content, and localized variants.                   |
+| `create_template`             | Create templates from a prompt, HTML, or Sequenzy blocks.                 |
+| `update_template`             | Update template metadata, inbox preview text, labels, HTML, or blocks.    |
+| `set_template_localization`   | Create or replace a caller-supplied localized variant.                    |
+| `sync_template_localizations` | Queue AI translation for selected or all enabled non-primary locales.     |
+| `delete_template`             | Delete a template.                                                        |
+
+`list_templates` returns 50 email bodies newest first by default and accepts a
+`limit` up to 100. Advance `offset` by `pagination.count` while
+`pagination.hasMore` is true; `pagination.total` reports the full matching
+count, including campaign and transactional-email bodies.
 
 For net-new content requested in natural language, pass `prompt` so Sequenzy
 generates branded native blocks server-side. Use `blocks` only for finished

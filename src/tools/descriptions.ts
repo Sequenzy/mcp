@@ -97,6 +97,21 @@ export const landingPageTemplateDescription =
 export const ADD_SUBSCRIBERS_TO_LIST_EMAIL_LIMIT = 500;
 export const SEQUENCE_ENROLLMENT_TARGET_LIMIT = 500;
 
+/**
+ * Operators the subscriber list endpoint accepts for direct attribute
+ * filtering. The remaining segment operators (`is_not`, `not_contains`,
+ * `is_empty`) cannot be walked by cursor, so they stay segment-only.
+ */
+export const SUBSCRIBER_ATTRIBUTE_FILTER_OPERATORS = [
+  "is",
+  "contains",
+  "gt",
+  "gte",
+  "lt",
+  "lte",
+  "is_not_empty",
+] as const;
+
 export const includeMachineEngagementToolProperty = {
   type: "boolean",
   description:

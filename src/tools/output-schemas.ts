@@ -710,11 +710,11 @@ export const outputPropertiesByToolName: Record<
   search_subscribers: {
     subscribers: resourceListOutputProperty("subscriber"),
     pagination: objectOutputProperty(
-      "Pagination metadata. total and totalPages are null when the API skipped counting and a requested limit stopped pagination while more matches remained."
+      "Pagination metadata: page, limit, offset, total (null when the server skipped the count, which it does for attribute filters), totalPages, fetchedPages, hasMore, nextOffset, and nextCursor. When hasMore is true, repeat the call with cursor set to nextCursor, or with offset set to nextOffset when nextCursor is null."
     ),
     returned: numberOutputProperty("Number of subscribers returned."),
     truncated: booleanOutputProperty(
-      "Whether the result was truncated by the requested limit."
+      "Whether matches remain beyond the returned window. Same as pagination.hasMore."
     ),
   },
   list_products: {
@@ -822,6 +822,9 @@ export const outputPropertiesByToolName: Record<
   },
   list_templates: {
     templates: resourceListOutputProperty("email template"),
+    pagination: objectOutputProperty(
+      "Pagination metadata: limit, offset, count (this page), total (every email body) and hasMore. Page with offset when hasMore is true."
+    ),
   },
   get_template: {
     template: resourceOutputProperty("email template"),
