@@ -435,7 +435,7 @@ export const sequenceEmailStepIdentityProperties = {
   replyToName: {
     type: "string",
     description:
-      "Display name for a newly created reply profile. Requires replyTo; omit it when using replyProfileId, which already carries its own display name.",
+      "Reply-To display name override for this step. Requires replyTo; omit it when using replyProfileId, which already carries its own display name.",
   },
 } as const;
 
@@ -579,7 +579,7 @@ export const sequencePathStepSchema = {
     replyToName: {
       type: "string",
       description:
-        "Display name for a newly created reply profile. Requires replyTo; omit it when using replyProfileId, which already carries its own display name.",
+        "Reply-To display name override for this email step. Requires replyTo; omit it when using replyProfileId, which already carries its own display name.",
     },
     discount: {
       type: "object",

@@ -276,9 +276,12 @@ describe("API key permission errors", () => {
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain("API key permission required");
     expect(result.content[0]?.text).toContain("`templates:write`");
-    expect(result.content[0]?.text).toContain("`companies[].settingsUrl`");
+    expect(result.content[0]?.text).toContain("`apiKeyPermissions.manageUrl`");
+    expect(result.content[0]?.text).toContain(
+      "Personal keys cannot be changed through `update_api_key`"
+    );
     expect(result.content[0]?.text).toContain("https://sequenzy.com/dashboard");
-    expect(result.content[0]?.text).toContain("replace `SEQUENZY_API_KEY`");
+    expect(result.content[0]?.text).toContain("retry the same tool call");
   });
 });
 
@@ -803,6 +806,65 @@ describe("read-only audit tools", () => {
       "PATCH",
       "/api/v1/reply-profiles/rp_1",
       { name: "SnapCount" },
+      "company_123"
+    );
+  });
+
+  it("gets company sending status with the selected company override", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      status: "paused",
+      pauseReason: "Permanent-bounce rate exceeded the threshold",
+      pauseReasonKind: "high_hard_bounce_rate",
+      selfResume: { canSelfResume: true },
+      senderHealth: {
+        scopedSent: 1,
+        bounceScopedSent: 1,
+        complaintScopedSent: 2,
+      },
+      metricsWindow: { kind: "all_time_since_reset", expiresAt: null },
+      remediation: { steps: ["Clean the list."] },
+    });
+
+    const result = await handleToolCall("get_sending_status", {
+      companyId: "company_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/sending-status",
+      undefined,
+      "company_123"
+    );
+    expect(
+      (result.structuredContent?.["senderHealth"] as Record<string, unknown>)[
+        "complaintScopedSent"
+      ]
+    ).toBe(2);
+  });
+
+  it("forwards the explicit list-cleanup confirmation when resuming sending", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      resumed: true,
+      message: "Sending resumed.",
+      status: "active",
+      selfResume: { canSelfResume: false },
+      metricsWindow: { kind: "all_time_since_reset", expiresAt: null },
+      remediation: { steps: ["Keep suppressions in place."] },
+    });
+
+    const result = await handleToolCall("resume_sending", {
+      companyId: "company_123",
+      listSanitizationConfirmed: true,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/sending-status/resume",
+      { listSanitizationConfirmed: true },
       "company_123"
     );
   });
@@ -1914,6 +1976,7 @@ describe("A/B test tools", () => {
 
     expect(outputProperties).toHaveProperty("polls");
     expect(pollsOutput?.description).toContain("exact historical respondents");
+    expect(pollsOutput?.description).toContain("list_poll_responses");
     expect(pollsOutput?.description).toContain("pollResponse");
     expect(pollsOutput?.description).toContain("may be overwritten");
     expect(result.isError).toBeUndefined();
@@ -1924,6 +1987,68 @@ describe("A/B test tools", () => {
       undefined,
       "company_123"
     );
+  });
+
+  it("lists individual poll respondents with their answers and times", async () => {
+    const tool = tools.find(
+      (candidate) => candidate.name === "list_poll_responses"
+    );
+    const responses = [
+      {
+        subscriberId: "sub_1",
+        email: "respondent@example.com",
+        blockId: "poll-1",
+        variant: "options",
+        question: "Did you get your sample?",
+        attributeKey: "prem_rouge_sample_received",
+        allowMultiple: false,
+        answers: ["Yes"],
+        values: ["yes"],
+        respondedAt: "2026-08-08T11:00:00.000Z",
+      },
+    ];
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      campaignId: "camp_123",
+      blockId: "poll-1",
+      responses,
+      pagination: { page: 1, limit: 100, total: 1, totalPages: 1 },
+    });
+
+    const result = await handleToolCall("list_poll_responses", {
+      companyId: "company_123",
+      campaignId: "camp_123",
+      blockId: "poll-1",
+      limit: 100,
+    });
+
+    // Agents used to page the whole audience reading the poll attribute off
+    // every contact, which loses the response time entirely.
+    expect(tool?.description).toContain("who answered what and when");
+    expect(tool?.description).toContain("Do not reconstruct respondents");
+    const paginationOutput = tool?.outputSchema?.properties?.["pagination"] as
+      | { description?: string }
+      | undefined;
+    expect(paginationOutput?.description).toContain(
+      "one row per subscriber per poll block"
+    );
+    expect(result.isError).toBeUndefined();
+    expect(result.structuredContent?.["responses"]).toEqual(responses);
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/metrics/campaigns/camp_123/poll-responses?blockId=poll-1&limit=100",
+      undefined,
+      "company_123"
+    );
+  });
+
+  it("requires a campaignId for list_poll_responses", async () => {
+    const result = await handleToolCall("list_poll_responses", {
+      blockId: "poll-1",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
   it("documents and returns overview analytics including commerce forecasts", async () => {
@@ -3915,6 +4040,44 @@ describe("label list filters", () => {
       undefined,
       "comp_123"
     );
+  });
+
+  it("passes template pagination as query parameters", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      companyId: "comp_123",
+      emailLocalizationConfig: null,
+      templates: [],
+      pagination: {
+        limit: 100,
+        offset: 100,
+        count: 0,
+        total: 100,
+        hasMore: false,
+      },
+    });
+
+    const result = await handleToolCall("list_templates", {
+      companyId: "comp_123",
+      limit: 100,
+      offset: 100,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/templates?limit=100&offset=100",
+      undefined,
+      "comp_123"
+    );
+  });
+
+  it("rejects a template limit above the server maximum", async () => {
+    const result = await handleToolCall("list_templates", { limit: 500 });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("`limit`");
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
   it("passes campaign label filters as query parameters", async () => {

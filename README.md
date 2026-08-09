@@ -22,7 +22,8 @@ Connect Sequenzy to Claude Desktop, Claude Code, Codex, Cursor, Windsurf, VS Cod
 - Connect and verify custom domains for published landing pages.
 - Manage team invitations, inbox conversations, and outbound webhook endpoints.
 - Generate email copy, subject lines, and multi-step sequences.
-- Inspect analytics, subscriber activity, deliverability health, integrations, sending identities, tracking settings, and dashboard URLs.
+- Inspect analytics, subscriber activity, deliverability health, company-level sending pauses, integrations, sending identities, tracking settings, and dashboard URLs.
+- Diagnose why sending is paused and restore eligible hard-bounce pauses after confirming list cleanup.
 - Inspect and clean up exact-recipient bounce suppression without exposing the shared SES suppression list.
 - Configure company product info, account-wide sending identity defaults, rename individual sender and reply-to profiles, manage sender domains, and inspect integration examples for common frameworks.
 
@@ -206,17 +207,28 @@ stored key hash.
 
 If a tool reports a missing scope such as `campaigns:read` or
 `templates:write`, call `get_account`. Its `apiKeyPermissions` field lists the
-current scopes, common missing marketing read scopes, and a direct `manageUrl`
-for API Keys settings. If the key does not include `account:read`, open the
-[Sequenzy dashboard](https://sequenzy.com/dashboard) directly and use the MCP
-setup or **Settings → API Keys** instead.
+current key identity and type, scopes, common missing marketing read scopes, and
+a direct `manageUrl`. Personal keys open Account API Keys; company keys open the
+selected workspace's API Keys settings. If the key does not include
+`account:read`, open the
+[Sequenzy dashboard](https://sequenzy.com/dashboard) directly and choose the
+matching API Keys page.
 
-Permissions cannot be changed on an existing key. For a local API-key
-connection, open `manageUrl`, create a replacement key with **Read-only**,
-**Safer agent access**, or the exact custom scopes named in the error, update
-`SEQUENZY_API_KEY`, and restart the client. For hosted OAuth MCP, disconnect and
-reauthorize the Sequenzy connection with a preset or custom permissions that
-include the missing scopes.
+Permissions are editable in place, so open `manageUrl`, update the active key,
+and retry the failed tool without replacing the credential or restarting the
+client. An agent using a company key with `api_keys:manage` can instead call
+`update_api_key`; personal keys must be edited on the account-level page because
+that tool only manages company keys. Its `scopes` and `preset` inputs replace
+the whole permission selection rather than merging, so preserve every existing
+scope that is still needed. Hosted OAuth connections can alternatively
+disconnect and reauthorize with broader permissions.
+
+The default **Safer agent access** preset includes `lists:write` and
+`tags:write`, so agents can create and update list and tag definitions, and it
+includes `subscribers:tag` for applying tags to existing contacts. It does not
+include `subscribers:write`, so it cannot add contacts to lists or remove them
+from lists. Deleting a list or tag still requires the matching `lists:delete`
+or `tags:delete` permission.
 
 The AI drafting preset includes `subscribers:write`, so drafting agents can
 build a list as well as create it. Imports that apply `listIds` also need
@@ -225,7 +237,12 @@ build a list as well as create it. Imports that apply `listIds` also need
 
 ## Tools
 
-This server currently exposes 191 MCP tools.
+This server currently exposes 194 MCP tools.
+
+Tools reject arguments they do not declare instead of silently ignoring them.
+Errors name the unsupported fields, list the supported arguments, and provide
+focused guidance for common mistakes such as invented subscriber filters or
+sort options.
 
 ### Account, Companies, Setup
 
@@ -251,6 +268,8 @@ This server currently exposes 191 MCP tools.
 | `check_website`                      | Read a sending domain's stored SPF, DKIM, MAIL FROM, and aggregate verification details.                                      |
 | `verify_sending_domain`              | Run a fresh sending-domain DNS/provider verification and return current status and diagnostics.                               |
 | `list_integrations`                  | List connected integrations with connection and sync health, without returning credentials.                                   |
+| `get_sending_status`                 | Diagnose active, paused, or suspended sending, including enforcement denominators, review gates, and remediation steps.       |
+| `resume_sending`                     | Restore an eligible hard-bounce pause after explicitly confirming the list has been sanitized.                                |
 | `get_tracking_settings`              | Read open, click, unsubscribe, attribution, UTM, click-domain, and reply-tracking settings.                                   |
 | `get_integration_guide`              | Get framework-specific integration examples.                                                                                  |
 | `get_integration`                    | Inspect one connected integration, its event wiring, recent activity, and recommendations.                                    |
@@ -264,6 +283,10 @@ This server currently exposes 191 MCP tools.
 | `update_sender_profile`              | Rename one sender or reply-to profile without changing the account defaults.                                                  |
 | `get_notification_preferences`       | Read the current user's per-company account notification settings and supported modes.                                        |
 | `update_notification_preferences`    | Update the current user's account notification delivery modes without affecting teammates.                                    |
+
+`get_sending_status` keeps the Postgres-backed pause state, review gates, and
+remediation available when sender-health analytics are temporarily unavailable;
+in that degraded case `senderHealth` is `null`.
 
 For a new sending domain, call `add_sending_domain`, publish the DNS records in
 the returned `website.dnsRecords`, wait for DNS propagation, and then call
@@ -309,7 +332,7 @@ abandonment or price-drop settings. Timing values must be positive;
 | `update_subscriber`           | Update native profile and phone fields, SMS consent, attributes, tags, or global status.                        |
 | `remove_subscriber`           | Unsubscribe while preserving suppression history, or permanently delete only with `hardDelete: true`.           |
 | `get_subscriber`              | Fetch subscriber details by email or external ID.                                                               |
-| `search_subscribers`          | Search by query, tags, list, status, segment, or pagination.                                                    |
+| `search_subscribers`          | Search by query, tags, list, status, segment, or one custom attribute, with automatic or resumable pagination.  |
 | `trigger_subscriber_event`    | Emit one custom event exactly as an integration would, applying sync rules and matching sequence triggers.      |
 | `trigger_subscriber_events`   | Emit several ordered custom events for one subscriber.                                                          |
 | `bulk_add_subscriber_tags`    | Add tags to up to 500 existing subscribers without creating unknown contacts.                                   |
@@ -395,7 +418,16 @@ origin.
 | `delete_segment`               | Delete a saved segment.                                     |
 | `get_segment_count`            | Preview the active subscriber count for a segment.          |
 
-For subscriber exports, `search_subscribers` accepts `listId`, exact `listName`, or `list` (ID first, then exact name). If `limit` is omitted, the tool fetches all matching subscribers using 100-row API pages.
+For subscriber exports, `search_subscribers` accepts `listId`, exact `listName`,
+or `list` (ID first, then exact name). It also accepts `attribute` plus
+`attributeValue`, with `attributeOperator` for `contains`, numeric comparisons,
+or `is_not_empty`; the combined `"attributeName:value"` form remains supported.
+Filters combine with AND; use a saved segment for OR logic, nested groups,
+exclusions, engagement, or event conditions. If `limit` is omitted, the tool
+fetches every matching page automatically. For chunked reads, pass `limit` and
+follow `pagination.nextCursor` (or `pagination.nextOffset`) while `hasMore` is
+true. `offset` and `page` are supported below 1,000,000 skipped matches; use the
+cursor for deeper audiences.
 
 For bulk list population, use `add_subscribers_to_list`; the backing API endpoint is `POST /api/v1/lists/{listId}/subscribers` with no `/bulk` suffix:
 
@@ -462,15 +494,20 @@ Audiences are add-only: subscribers who later leave the segment stay in the Meta
 
 ### Templates
 
-| Tool                          | Description                                                            |
-| ----------------------------- | ---------------------------------------------------------------------- |
-| `list_templates`              | List templates with localization status.                               |
-| `get_template`                | Read template details, content, and localized variants.                |
-| `create_template`             | Create templates from a prompt, HTML, or Sequenzy blocks.              |
-| `update_template`             | Update template metadata, inbox preview text, labels, HTML, or blocks. |
-| `set_template_localization`   | Create or replace a caller-supplied localized variant.                 |
-| `sync_template_localizations` | Queue AI translation for selected or all enabled non-primary locales.  |
-| `delete_template`             | Delete a template.                                                     |
+| Tool                          | Description                                                               |
+| ----------------------------- | ------------------------------------------------------------------------- |
+| `list_templates`              | List templates with localization status, label filtering, and pagination. |
+| `get_template`                | Read template details, content, and localized variants.                   |
+| `create_template`             | Create templates from a prompt, HTML, or Sequenzy blocks.                 |
+| `update_template`             | Update template metadata, inbox preview text, labels, HTML, or blocks.    |
+| `set_template_localization`   | Create or replace a caller-supplied localized variant.                    |
+| `sync_template_localizations` | Queue AI translation for selected or all enabled non-primary locales.     |
+| `delete_template`             | Delete a template.                                                        |
+
+`list_templates` returns 50 email bodies newest first by default and accepts a
+`limit` up to 100. Advance `offset` by `pagination.count` while
+`pagination.hasMore` is true; `pagination.total` reports the full matching
+count, including campaign and transactional-email bodies.
 
 For net-new content requested in natural language, pass `prompt` so Sequenzy
 generates branded native blocks server-side. Use `blocks` only for finished
@@ -531,6 +568,13 @@ Prompt-created campaigns are generated and persisted in one API request and
 remain drafts. Use `templateId`, `blocks`, or `html` only when copying or
 preserving existing content rather than asking the agent to author it. Omit all
 content fields to create an empty draft for later editing.
+
+For campaign- and sequence-level identities, `fromEmail` plus `fromName`
+selects the sender identity with that display name on the mailbox, creating it
+when needed without renaming other same-address identities. A Reply-To address
+instead has one company-wide saved name: when `replyToName` differs from that
+name, the saved name is kept and the successful response includes recovery
+guidance in `warnings`.
 
 `send_email` and `send_test_email` return a durable `emailSendId`. Use
 `list_email_sends` to discover recent IDs by subject/title, recipient, delivery
@@ -609,6 +653,14 @@ For NPS, use `"variant": "nps"`, an empty `options` array, and an attribute
 such as `nps_score`. The scale is always 0-10; optional `npsLowLabel` and
 `npsHighLabel` customize its captions. Each answer updates the subscriber
 attribute and fires `poll.answered` for automations and outbound webhooks.
+
+Set `"allowMultiple": true` on a text-only options poll to open a hosted page
+where recipients can check several answers and save the whole selection at
+once. The subscriber attribute stores the selected-value list, so attribute
+segments should use `contains`. Multi-select polls cannot use option images or
+configurations whose encoded signed links exceed the delivery-safe size limit.
+Campaign poll summaries set `allowMultiple: true`, use respondent count for
+`totalResponses`, and can report answer percentages that add up past 100%.
 
 Poll blocks also support brand-specific styling. `accentColor` recolors every
 appearance, including `"brutal"`; `optionRadius` sets answer-button corners in
@@ -817,11 +869,13 @@ recipients already waiting retain their existing scheduled timestamp.
 Existing and newly inserted email steps can set their own From identity with
 `senderProfileId` or `fromEmail` plus optional `fromName`, and their Reply-To
 identity with `replyProfileId` or `replyTo` plus optional `replyToName`. A
-`fromName` on its own changes only that step's visible sender name. New email
-steps without explicit identity fields inherit the effective identity of the
-nearest sequence email. After a branch merge, only identity fields shared by
-every incoming path are inherited; conflicting fields use the sequence or
-company defaults.
+`fromName` on its own changes only that step's visible sender name. A step-level
+`replyToName` similarly overrides the visible Reply-To name for that step
+without renaming the company-wide reply profile. New email steps without
+explicit identity fields inherit the effective identity of the nearest
+sequence email. After a branch merge, only identity fields shared by every
+incoming path are inherited; conflicting fields use the sequence or company
+defaults.
 
 Use `edit_sequence_graph` with the latest `graphRevision` from `get_sequence` to restructure an existing sequence atomically. It can move a node before or after another node, reuse the normalized `sequence.edges` array for explicit reconnection or multi-node reordering, delete a node, or deep-copy a node. A/B test duplication creates independent test, variant, email, and localization records with reset statistics. Moving a node before the shared node below a branch reconnects every converging branch path through that node. Deleting a node immediately moves parked recipients to its unique surviving successor, or completes them when no successor remains; inspect `sequence.migratedRecipientCount` and `sequence.completedRecipientCount` in the result. Deletion is refused when parked recipients would have multiple surviving continuations. Stale revisions, invalid branch lanes, cycles, and unreachable nodes are also rejected. Active sequences require `confirmStructuralChange: true`.
 
@@ -883,6 +937,7 @@ tracking that the account has disabled.
 | `get_stats`               | Get overview stats for `7d`, `30d`, or `90d`; filter by structural email type.                                 |
 | `get_transactional_stats` | Get all-time or time-scoped metrics for one saved transactional email by ID or slug.                           |
 | `get_campaign_stats`      | Get campaign performance, reply metrics, and Poll/NPS summaries.                                               |
+| `list_poll_responses`     | List each respondent's latest Poll/NPS answer per block, with identity and response time.                      |
 | `get_sequence_stats`      | Get aggregate and per-step sequence performance plus live active/waiting enrollment counts by current node.    |
 | `list_email_metrics`      | Compare campaign and sequence-step funnels, replies, conversions, and revenue, including cross-sequence steps. |
 | `list_campaign_events`    | List paginated raw email events for a campaign.                                                                |
@@ -924,6 +979,14 @@ top-level `polls` array. Each subscriber counts once per poll block using their
 latest answer. NPS summaries include the score, average, and
 promoter/passive/detractor counts. These are lifetime response summaries even
 when engagement metrics use a time filter.
+
+Use `list_poll_responses` to read who answered what and when. It returns each
+subscriber's latest answer per poll block, newest first, including the email,
+stored value, attribute key, and response time. Pass `blockId` to scope one
+poll; for a sequence email step, pass its automation node ID as `campaignId`.
+Do not reconstruct this history by scanning subscriber attributes: an
+attribute has no response timestamp and may have been overwritten by a later
+email that reused the same key.
 
 To list the exact historical respondents behind a count, call `create_segment`
 with field `pollResponse`, operator `is`, and a JSON value scoped to the
@@ -1054,10 +1117,12 @@ Create a new personal key in Settings -> API Keys, update your MCP config, and r
 ### Missing API Key Scope
 
 Call `get_account` and inspect `apiKeyPermissions`. Local connections should
-open `apiKeyPermissions.manageUrl`, create a replacement key with the missing
-scope, update `SEQUENZY_API_KEY`, and restart. Hosted OAuth connections should
-disconnect and reauthorize with broader permissions. The tool error includes
-the exact scope or scopes required.
+open `apiKeyPermissions.manageUrl`, add the missing scope to the active key, and
+retry without restarting. `update_api_key` can perform this only for company
+keys that already hold `api_keys:manage`; edit personal keys on the account-level
+API Keys page. Hosted OAuth connections can alternatively disconnect and
+reauthorize with broader permissions. The tool error includes the exact scope or
+scopes required.
 
 ### Duplicate Resources
 

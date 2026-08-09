@@ -389,6 +389,30 @@ export async function handleAccountTools(
       break;
     }
 
+    case "get_sending_status": {
+      const companyId = args.companyId as string | undefined;
+      result = await apiRequest(
+        "GET",
+        "/api/v1/sending-status",
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "resume_sending": {
+      const companyId = args.companyId as string | undefined;
+      result = await apiRequest(
+        "POST",
+        "/api/v1/sending-status/resume",
+        {
+          listSanitizationConfirmed: args.listSanitizationConfirmed === true,
+        },
+        companyId
+      );
+      break;
+    }
+
     case "get_tracking_settings": {
       const companyId = args.companyId as string | undefined;
       result = await apiRequest(

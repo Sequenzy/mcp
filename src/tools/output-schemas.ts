@@ -503,6 +503,50 @@ export const outputPropertiesByToolName: Record<
       "Mode each event uses when the user has never configured it."
     ),
   },
+  get_sending_status: {
+    status: stringOutputProperty(
+      "Company-level sending state: active, paused, or suspended. Anything other than active blocks every send, including test sends."
+    ),
+    pauseReason: nullableStringOutputProperty(
+      "Exact enforcement message, including the measured rate, the threshold it crossed, and the send volume it was measured over. Null when sending is active."
+    ),
+    pauseReasonKind: nullableStringOutputProperty(
+      "Machine-readable pause cause: high_hard_bounce_rate, high_soft_bounce_rate, high_complaint_rate, phishing_guard, manual, or other. Only high_hard_bounce_rate can be cleared with resume_sending."
+    ),
+    pausedAt: nullableStringOutputProperty(
+      "ISO timestamp when sending was paused. Null when sending is active."
+    ),
+    selfResume: objectOutputProperty(
+      "Whether the account can clear this pause itself: canSelfResume, supported, allowedByAdmin, ownerIsTrusted, the automated aiReviewStatus (not_required, pending, approved, flagged, failed) with its reason and timestamps, and unavailableReason naming the blocking gate (unsupported_reason, waiting_for_review, blocked_by_ai, review_failed, blocked_by_admin)."
+    ),
+    senderHealth: nullableObjectOutputProperty(
+      "Enforcement counts and the thresholds that apply at this volume for hard bounces, soft bounces, and complaints. bounceScopedSent is the denominator for bounce rates, complaintScopedSent is the denominator for complaint rates, and scopedSent remains as a backward-compatible alias for bounceScopedSent. Also includes enforcementMode. Null when the account has no metrics record yet or sender-health analytics are temporarily unavailable; pause state and remediation remain authoritative."
+    ),
+    metricsWindow: objectOutputProperty(
+      "Proof that enforcement is not time-windowed: kind is always all_time_since_reset and expiresAt is always null. bounceResetAt and complaintResetAt are the watermarks the totals are counted from. Do not tell the user to wait for a window to expire - there is none."
+    ),
+    remediation: objectOutputProperty(
+      "Ordered steps for the current state, plus supportEmail, docsUrl, and the dashboard URL. Relay these verbatim instead of improvising recovery advice."
+    ),
+  },
+  resume_sending: {
+    resumed: booleanOutputProperty(
+      "True when this call restored sending. False when sending was already active."
+    ),
+    message: messageOutputProperty,
+    status: stringOutputProperty(
+      "Sending state after the request. active on success."
+    ),
+    selfResume: objectOutputProperty(
+      "Self-resume state after the request, including the automated review status and how many gates remain."
+    ),
+    metricsWindow: objectOutputProperty(
+      "Enforcement watermarks after the resume. bounceResetAt moves to now, so the paused rate is recalculated from later sends."
+    ),
+    remediation: objectOutputProperty(
+      "Steps to keep sending healthy after the resume, plus supportEmail and docsUrl."
+    ),
+  },
   get_tracking_settings: {
     tracking: objectOutputProperty(
       "Open, click, and unsubscribe tracking flags, the opt-in strictBotFilteringEnabled bot-detection flag, plus the default attribution window in hours."
@@ -665,10 +709,12 @@ export const outputPropertiesByToolName: Record<
   },
   search_subscribers: {
     subscribers: resourceListOutputProperty("subscriber"),
-    pagination: objectOutputProperty("Pagination metadata."),
+    pagination: objectOutputProperty(
+      "Pagination metadata: page, limit, offset, total (null when the server skipped the count, which it does for attribute filters), totalPages, fetchedPages, hasMore, nextOffset, and nextCursor. When hasMore is true, repeat the call with cursor set to nextCursor, or with offset set to nextOffset when nextCursor is null."
+    ),
     returned: numberOutputProperty("Number of subscribers returned."),
     truncated: booleanOutputProperty(
-      "Whether the result was truncated by the requested limit."
+      "Whether matches remain beyond the returned window. Same as pagination.hasMore."
     ),
   },
   list_products: {
@@ -776,6 +822,9 @@ export const outputPropertiesByToolName: Record<
   },
   list_templates: {
     templates: resourceListOutputProperty("email template"),
+    pagination: objectOutputProperty(
+      "Pagination metadata: limit, offset, count (this page), total (every email body) and hasMore. Page with offset when hasMore is true."
+    ),
   },
   get_template: {
     template: resourceOutputProperty("email template"),
@@ -1287,11 +1336,26 @@ export const outputPropertiesByToolName: Record<
     },
     polls: {
       type: "array",
-      description: `Poll and NPS summaries. Each subscriber counts once per campaign poll block using their latest answer to that block; NPS entries include score, average, and promoter/passive/detractor counts. To list the exact historical respondents behind a count, use the summary blockId and the get_campaign_stats campaignId with create_segment. ${pollRespondentFilterHint} A summary's attributeKey identifies the subscriber attribute that stores their current/latest response and may be overwritten by a later poll that reuses the key.`,
+      description: `Poll and NPS summaries. Each subscriber counts once per campaign poll block using their latest answer to that block; NPS entries include score, average, and promoter/passive/detractor counts. Multi-select polls set allowMultiple: true, count each subscriber once per selected option (answer percentages can sum past 100), and report totalResponses as the respondent count. To read the exact historical respondents with their answers and response times, call list_poll_responses with this campaignId (and the summary blockId to scope it). To build a reusable audience from one answer, use the summary blockId and this campaignId with create_segment. ${pollRespondentFilterHint} A summary's attributeKey identifies the subscriber attribute that stores their current/latest response (a value list for multi-select polls) and may be overwritten by a later poll that reuses the key.`,
       items: objectOutputProperty("One poll or NPS results summary."),
     },
     recommendations: objectOutputProperty(
       "Product recommendation funnel: impressions, recipients, clicks, clickers, orders, legacy revenueCents, currency-safe revenueByCurrency totals, and topProducts (per-product impressions/clicks). Orders count when a subscriber buys a recommended product within 7 days of clicking it. Present only when the campaign rendered product recommendation blocks."
+    ),
+  },
+  list_poll_responses: {
+    campaignId: stringOutputProperty("Campaign the responses belong to."),
+    blockId: stringOutputProperty(
+      "Poll block the results were scoped to. Present only when blockId was requested."
+    ),
+    responses: {
+      type: "array",
+      description:
+        "Individual responses, newest answer first. Each entry has subscriberId, email, externalId, firstName, lastName, blockId, variant (options or nps), question, attributeKey (the subscriber attribute the answer was stored under), allowMultiple, answers (selected option labels), values (their stored values), and respondedAt. Only each subscriber's latest answer per block appears. email is null when the subscriber has since been deleted.",
+      items: objectOutputProperty("One respondent's latest answer."),
+    },
+    pagination: objectOutputProperty(
+      "Pagination metadata: page, limit, total (response rows across every page; one row per subscriber per poll block), and totalPages. Keep paging while page < totalPages."
     ),
   },
   get_transactional_stats: {

@@ -5,6 +5,10 @@ import { abTestToolDefinitions } from "./definitions/ab-tests";
 import { sequenceBasicToolDefinitions } from "./definitions/sequences-basic";
 import { sequenceEditingToolDefinitions } from "./definitions/sequences-editing";
 import {
+  sequenceEmailStepIdentityProperties,
+  sequencePathStepSchema,
+} from "./content-validation";
+import {
   blockConditionsHint,
   blockFieldWarningsHint,
   buttonColorHint,
@@ -92,6 +96,9 @@ describe("email authoring descriptions", () => {
       expect(emailBlocksDescription).toContain(`\`${field}\``);
     }
     expect(pollBlockHint).toContain("weights are 100-900");
+    expect(pollBlockHint).toContain("allowMultiple: true");
+    expect(pollBlockHint).toContain("cannot use option images");
+    expect(pollBlockHint).toContain("delivery-safe size limit");
   });
 });
 
@@ -200,6 +207,17 @@ describe("sequence step block format hint", () => {
     );
     expect(sequenceStepBlocksFormatHintForNodeChanges).toStartWith(
       " For action_email:"
+    );
+  });
+});
+
+describe("sequence step Reply-To identity descriptions", () => {
+  it("documents replyToName as a per-step override on updates and inserted steps", () => {
+    expect(
+      sequenceEmailStepIdentityProperties.replyToName.description
+    ).toContain("display name override");
+    expect(sequencePathStepSchema.properties.replyToName.description).toContain(
+      "display name override"
     );
   });
 });
