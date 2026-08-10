@@ -3,9 +3,12 @@ import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import {
   discountMergeTagsHint,
   rawHtmlContentWarning,
+  replyToNameDescription,
+  senderFromNameDescription,
   sequenceEmailBlocksDescription,
   sequenceSendingWindowSchema,
   sequenceWaitUntilSchema,
+  sequenceWaitUntilWeekdaySchema,
   sequenceDelaySchema,
   subscriberUpdateConfigSchema,
   sequenceEmailStepIdentityProperties,
@@ -197,8 +200,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
         },
         fromName: {
           type: "string",
-          description:
-            "Display name for a newly created sender profile. Requires fromEmail; omit it when using senderProfileId, which already carries its own display name.",
+          description: senderFromNameDescription,
         },
         senderProfileId: {
           type: "string",
@@ -212,8 +214,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
         },
         replyToName: {
           type: "string",
-          description:
-            "Display name for a newly created reply profile. Requires replyTo; omit it when using replyProfileId, which already carries its own display name.",
+          description: replyToNameDescription,
         },
         replyProfileId: {
           type: "string",
@@ -567,6 +568,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
                   "Delay before this step in milliseconds. Prefer delay for readability; use delayMs when importing provider waits.",
               },
               waitUntil: sequenceWaitUntilSchema,
+              waitUntilWeekday: sequenceWaitUntilWeekdaySchema,
               name: {
                 type: "string",
                 description: "Email template name for email steps.",

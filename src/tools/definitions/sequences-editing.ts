@@ -3,10 +3,13 @@ import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import {
   rawHtmlContentWarning,
   replacementEmailBlocksDescription,
+  replyToNameDescription,
+  senderFromNameDescription,
   sequenceEmailBlocksDescription,
   sequenceStepBlocksFormatHint,
   sequenceSendingWindowSchema,
   sequenceWaitUntilSchema,
+  sequenceWaitUntilWeekdaySchema,
   sequenceDelaySchema,
   sequenceNodeChangesSchema,
   sequenceNodeUpdateItemSchema,
@@ -200,8 +203,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         },
         fromName: {
           type: "string",
-          description:
-            "Display name for a newly created sender profile. Requires fromEmail; omit it when using senderProfileId, which already carries its own display name.",
+          description: senderFromNameDescription,
         },
         senderProfileId: {
           type: "string",
@@ -215,8 +217,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         },
         replyToName: {
           type: "string",
-          description:
-            "Display name for a newly created reply profile. Requires replyTo; omit it when using replyProfileId, which already carries its own display name.",
+          description: replyToNameDescription,
         },
         replyProfileId: {
           type: "string",
@@ -403,7 +404,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
                 type: "string",
                 enum: ["branded", "minimal"],
                 description:
-                  "Per-email Style > Format for native Sequenzy blocks, including emails that contain supported custom HTML blocks. Minimal removes the company logo and uses the simple footer; branded restores the branded chrome. Does not change the company default. Not supported when the entire email is standalone raw HTML and must not be combined with html/htmlContent.",
+                  "Per-email Style > Format for native Sequenzy blocks, including emails that contain supported custom HTML blocks. Minimal removes the company logo and uses the simple footer; branded restores the branded chrome. Does not change the company default. Not a lossless toggle: minimal deletes standalone logo blocks, so switching back to branded generates a new logo block with a new id and the company name as alt text - send the authored logo block in `blocks` alongside the branded update to keep it. Not supported when the entire email is standalone raw HTML and must not be combined with html/htmlContent.",
               },
               blocks: {
                 type: "array",
@@ -477,7 +478,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
                 type: "string",
                 enum: ["branded", "minimal"],
                 description:
-                  "Per-email Style > Format for native Sequenzy blocks, including emails that contain supported custom HTML blocks. Minimal removes the company logo and uses the simple footer; branded restores the branded chrome. Does not change the company default. Not supported when the entire email is standalone raw HTML and must not be combined with html/htmlContent.",
+                  "Per-email Style > Format for native Sequenzy blocks, including emails that contain supported custom HTML blocks. Minimal removes the company logo and uses the simple footer; branded restores the branded chrome. Does not change the company default. Not a lossless toggle: minimal deletes standalone logo blocks, so switching back to branded generates a new logo block with a new id and the company name as alt text - send the authored logo block in `blocks` alongside the branded update to keep it. Not supported when the entire email is standalone raw HTML and must not be combined with html/htmlContent.",
               },
               blocks: {
                 type: "array",
@@ -827,7 +828,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         replyToName: {
           type: "string",
           description:
-            "Email steps only: display name for a newly created reply profile. Requires replyTo; omit it when using replyProfileId, which already carries its own display name.",
+            "Email steps only: Reply-To display name override for the new step. Requires replyTo; omit it when using replyProfileId, which already carries its own display name.",
         },
         text: {
           type: "string",
@@ -945,6 +946,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
             "Optional wait in milliseconds before the new step. Prefer delay for readability.",
         },
         waitUntil: sequenceWaitUntilSchema,
+        waitUntilWeekday: sequenceWaitUntilWeekdaySchema,
         eventName: {
           type: "string",
           description:
