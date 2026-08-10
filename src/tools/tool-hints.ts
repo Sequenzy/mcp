@@ -49,6 +49,9 @@ export const READ_ONLY_TOOL_NAMES = new Set([
   "get_email_send",
   "list_forms",
   "get_form_embed",
+  "list_popups",
+  "get_popup",
+  "get_popup_embed",
   "get_recipient_suppression",
   "list_landing_pages",
   "get_landing_page",
@@ -158,6 +161,10 @@ export const MUTATING_TOOL_NAMES = new Set([
   "resend_campaign_to_non_openers",
   "create_form",
   "update_form",
+  "create_popup",
+  "update_popup",
+  "duplicate_popup",
+  "delete_popup",
   "create_landing_page",
   "update_landing_page",
   "duplicate_landing_page",
@@ -261,6 +268,7 @@ export const DESTRUCTIVE_TOOL_NAMES = new Set([
   "delete_campaign",
   "delete_landing_page",
   "unpublish_landing_page",
+  "delete_popup",
   // Disabling sync stops an integration feeding the account, in the same way
   // disabling a sequence stops it running. Reversible, but worth a confirm.
   "set_integration_sync_enabled",

@@ -4391,6 +4391,277 @@ describe("saved form tools", () => {
   });
 });
 
+describe("saved popup tools", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("publishes plain schemas and the expected safety annotations", () => {
+    const listTool = tools.find((tool) => tool.name === "list_popups");
+    const getTool = tools.find((tool) => tool.name === "get_popup");
+    const createTool = tools.find((tool) => tool.name === "create_popup");
+    const updateTool = tools.find((tool) => tool.name === "update_popup");
+    const embedTool = tools.find((tool) => tool.name === "get_popup_embed");
+    const deleteTool = tools.find((tool) => tool.name === "delete_popup");
+    const createSchema = createTool?.inputSchema as
+      | {
+          additionalProperties?: boolean;
+          properties?: Record<string, unknown>;
+          required?: string[];
+        }
+      | undefined;
+    const updateSchema = updateTool?.inputSchema as
+      | { properties?: Record<string, unknown> }
+      | undefined;
+
+    expect(listTool?.annotations?.readOnlyHint).toBe(true);
+    expect(getTool?.annotations?.readOnlyHint).toBe(true);
+    expect(embedTool?.annotations?.readOnlyHint).toBe(true);
+    expect(createTool?.annotations).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: false,
+    });
+    // Deleting a popup also drops its view and conversion counts, so it is
+    // annotated destructive while unpublishing through update_popup is not.
+    expect(deleteTool?.annotations).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: true,
+    });
+    expect(createSchema?.additionalProperties).toBe(false);
+    // Unlike forms, popups default to every list, so listIds stays optional.
+    expect(createSchema?.required).toEqual(["name"]);
+    expect(createSchema?.properties).toHaveProperty("trigger");
+    expect(createSchema?.properties).toHaveProperty("targeting");
+    expect(updateSchema?.properties).not.toHaveProperty("template");
+    expect(embedTool?.inputSchema.required).toEqual(["popupId"]);
+  });
+
+  it("routes list_popups and get_popup to the authenticated API", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      companyId: "comp_123",
+      popups: [],
+    });
+
+    const listResult = await handleToolCall("list_popups", {
+      companyId: "comp_123",
+    });
+
+    expect(listResult.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/popups",
+      undefined,
+      "comp_123"
+    );
+
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      popup: { id: "pop/123" },
+    });
+
+    const getResult = await handleToolCall("get_popup", {
+      popupId: "pop/123",
+    });
+
+    expect(getResult.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "GET",
+      "/api/v1/popups/pop%2F123",
+      undefined,
+      undefined
+    );
+  });
+
+  it("routes create_popup with its template and behavior config", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      popup: { id: "pop_123", name: "Welcome offer" },
+      embed: { scriptUrl: "https://sequenzy.com/embed/popups/pop_123" },
+    });
+
+    const result = await handleToolCall("create_popup", {
+      companyId: "comp_123",
+      name: "Welcome offer",
+      template: "discount-offer",
+      listIds: ["list_123"],
+      duplicateStrategy: "merge",
+      trigger: { type: "exit-intent" },
+      targeting: { paths: ["/pricing"] },
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/popups",
+      {
+        name: "Welcome offer",
+        template: "discount-offer",
+        listIds: ["list_123"],
+        duplicateStrategy: "merge",
+        trigger: { type: "exit-intent" },
+        targeting: { paths: ["/pricing"] },
+      },
+      "comp_123"
+    );
+  });
+
+  it("creates a popup without listIds so it captures into every list", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      popup: { id: "pop_123" },
+    });
+
+    const result = await handleToolCall("create_popup", { name: "Newsletter" });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/popups",
+      { name: "Newsletter" },
+      undefined
+    );
+  });
+
+  it("rejects an out-of-range create_popup status", async () => {
+    const result = await handleToolCall("create_popup", {
+      name: "Newsletter",
+      status: "live",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("publishes and unpublishes through update_popup status", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      popup: { id: "pop_123", status: "draft" },
+    });
+
+    const result = await handleToolCall("update_popup", {
+      companyId: "comp_123",
+      popupId: "pop_123",
+      status: "draft",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/popups/pop_123",
+      { status: "draft" },
+      "comp_123"
+    );
+  });
+
+  it("rejects update_popup calls that change nothing", async () => {
+    const result = await handleToolCall("update_popup", {
+      popupId: "pop_123",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Provide at least one field to change"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("keeps content out of list_popups unless asked", async () => {
+    mockApiRequest.mockResolvedValue({ success: true, popups: [] });
+
+    await handleToolCall("list_popups", {});
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "GET",
+      "/api/v1/popups",
+      undefined,
+      undefined
+    );
+
+    await handleToolCall("list_popups", { includeContent: true });
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "GET",
+      "/api/v1/popups?includeContent=true",
+      undefined,
+      undefined
+    );
+  });
+
+  it("routes duplicate_popup and marks it non-destructive", async () => {
+    const duplicateTool = tools.find((tool) => tool.name === "duplicate_popup");
+    expect(duplicateTool?.annotations).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: false,
+    });
+
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      popup: { id: "pop_456", status: "draft" },
+    });
+
+    const result = await handleToolCall("duplicate_popup", {
+      popupId: "pop/123",
+      name: "Variant B",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/popups/pop%2F123/duplicate",
+      { name: "Variant B" },
+      undefined
+    );
+  });
+
+  it("returns secret-free embed snippets and routes delete_popup", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      popup: { id: "pop/123", status: "published" },
+      embed: {
+        scriptUrl: "https://sequenzy.com/embed/popups/pop%2F123",
+        javascript:
+          '<script async src="https://sequenzy.com/embed/popups/pop%2F123"></script>',
+      },
+    });
+
+    const embedResult = await handleToolCall("get_popup_embed", {
+      companyId: "comp_123",
+      popupId: "pop/123",
+    });
+
+    expect(embedResult.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/popups/embed/pop%2F123",
+      undefined,
+      "comp_123"
+    );
+    expect(JSON.stringify(embedResult.structuredContent)).not.toContain(
+      "Authorization"
+    );
+    expect(JSON.stringify(embedResult.structuredContent)).not.toContain(
+      "API_KEY"
+    );
+
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      popupId: "pop/123",
+    });
+
+    const deleteResult = await handleToolCall("delete_popup", {
+      popupId: "pop/123",
+    });
+
+    expect(deleteResult.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "DELETE",
+      "/api/v1/popups/pop%2F123",
+      undefined,
+      undefined
+    );
+  });
+});
+
 describe("landing page tools", () => {
   beforeEach(() => {
     mockApiRequest.mockClear();

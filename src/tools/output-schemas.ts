@@ -1005,6 +1005,39 @@ export const outputPropertiesByToolName: Record<
       "Public action URL plus JavaScript, native form, and fetch snippets."
     ),
   },
+  list_popups: {
+    popups: resourceListOutputProperty("saved popup"),
+  },
+  get_popup: {
+    popup: resourceOutputProperty("saved popup"),
+    embed: objectOutputProperty(
+      "Script URL plus HTML, React, WordPress, and Shopify snippets (published popups only)."
+    ),
+  },
+  create_popup: {
+    popup: resourceOutputProperty("saved popup"),
+    embed: objectOutputProperty(
+      "Script URL plus HTML, React, WordPress, and Shopify snippets (published popups only)."
+    ),
+  },
+  update_popup: {
+    popup: resourceOutputProperty("saved popup"),
+    embed: objectOutputProperty(
+      "Script URL plus HTML, React, WordPress, and Shopify snippets (published popups only)."
+    ),
+  },
+  get_popup_embed: {
+    popup: resourceOutputProperty("saved popup"),
+    embed: objectOutputProperty(
+      "Script URL plus HTML, React, WordPress, and Shopify snippets."
+    ),
+  },
+  duplicate_popup: {
+    popup: resourceOutputProperty("popup copy, created as a draft"),
+  },
+  delete_popup: {
+    popupId: stringOutputProperty("Deleted popup ID."),
+  },
   list_landing_pages: {
     landingPages: resourceListOutputProperty("landing page"),
   },

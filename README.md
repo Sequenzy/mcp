@@ -19,6 +19,7 @@ Connect Sequenzy to Claude Desktop, Claude Code, Codex, Cursor, Windsurf, VS Cod
 - Supply localized template variants or queue AI translation for enabled locales.
 - Create, edit, publish, unpublish, and delete landing pages.
 - Create list-scoped saved signup forms and return client-safe static-site embeds.
+- Create, target, publish, duplicate, and deploy saved signup popups.
 - Connect and verify custom domains for published landing pages.
 - Manage team invitations, inbox conversations, and outbound webhook endpoints.
 - Generate email copy, subject lines, and multi-step sequences.
@@ -237,7 +238,7 @@ build a list as well as create it. Imports that apply `listIds` also need
 
 ## Tools
 
-This server currently exposes 194 MCP tools.
+This server currently exposes 201 MCP tools.
 
 Tools reject arguments they do not declare instead of silently ignoring them.
 Errors name the unsupported fields, list the supported arguments, and provide
@@ -694,6 +695,25 @@ into the current theme. Pass an empty `tagIds` array to clear tags or an empty
 `redirectUrl` to restore confirmation-message behavior. The `blocks` field is
 a complete replacement, so read the current content with `list_forms` first
 and retain exactly one email field and one submit button.
+
+### Saved Popups
+
+| Tool              | Description                                                                                       |
+| ----------------- | ------------------------------------------------------------------------------------------------- |
+| `list_popups`     | List saved popups with status and engagement stats, optionally including full content.            |
+| `get_popup`       | Get one popup's blocks, trigger, targeting, schedule, frequency, theme, and published embed code. |
+| `create_popup`    | Create a popup from a starting template, published by default, and return its deployment script.  |
+| `update_popup`    | Partially update popup copy, audience, behavior, theme, blocks, or publication status.            |
+| `get_popup_embed` | Return secret-free HTML, React/Next.js, WordPress, and Shopify embed snippets.                    |
+| `duplicate_popup` | Copy a popup into a draft with independent engagement counters.                                   |
+| `delete_popup`    | Permanently delete a popup and its engagement counters.                                           |
+
+Popup deployment uses one public script tag; API keys, audience settings,
+triggering, targeting, scheduling, and frequency rules remain server-side.
+Popups capture into every list by default unless `listIds` is provided. When
+updating blocks, read the popup first and send the complete replacement array,
+retaining exactly one required email field and one submit button. Setting
+`status` to `draft` stops a popup without invalidating its existing embed code.
 
 ### Landing Pages
 
