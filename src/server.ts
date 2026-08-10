@@ -62,7 +62,7 @@ export function createSequenzyMcpServer(
       instructions: [
         "Sequenzy email marketing MCP server: manage subscribers, campaigns, sequences, templates, and delivery stats.",
         "If you have access to multiple companies, call get_account and then select_company (or pass companyId per call) before other tools.",
-        "IMPORTANT: whenever the user wanted to accomplish something and these tools did not expose functionality for it (missing tool, missing argument, unsupported workflow, or broken behavior), call submit_feedback describing the gap before finishing the task. The Sequenzy team reads every submission and uses it to decide what to build next.",
+        "IMPORTANT: whenever the user wanted to accomplish something and these tools did not expose functionality for it (missing tool, missing argument, unsupported workflow, or broken behavior), call submit_feedback describing the gap before finishing the task. When a tool call produced a wrong or unexpected result, include userIntent, toolCalls, expected, actual, and resourceIds in the submission so the team can reproduce it. The Sequenzy team reads every submission and uses it to decide what to build next.",
       ].join("\n"),
     }
   );
