@@ -12,6 +12,7 @@ import { imageAssetToolDefinitions } from "./image-assets.js";
 import { inboxToolDefinitions } from "./inbox.js";
 import { integrationToolDefinitions } from "./integrations.js";
 import { landingPageToolDefinitions } from "./landing-pages.js";
+import { savedPopupToolDefinitions } from "./popups.js";
 import { productToolDefinitions } from "./products.js";
 import { renderToolDefinitions } from "./render.js";
 import { sequenceGoalToolDefinitions } from "./sequence-goals.js";
@@ -39,6 +40,7 @@ export const toolDefinitions: Tool[] = [
   ...campaignToolDefinitions,
   ...renderToolDefinitions,
   ...savedFormToolDefinitions,
+  ...savedPopupToolDefinitions,
   ...landingPageToolDefinitions,
   ...imageAssetToolDefinitions,
   ...sequenceBasicToolDefinitions,

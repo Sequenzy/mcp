@@ -19,6 +19,7 @@ Connect Sequenzy to Claude Desktop, Claude Code, Codex, Cursor, Windsurf, VS Cod
 - Supply localized template variants or queue AI translation for enabled locales.
 - Create, edit, publish, unpublish, and delete landing pages.
 - Create list-scoped saved signup forms and return client-safe static-site embeds.
+- Create, edit, publish, unpublish, and delete saved signup popups, and return client-safe embed recipes.
 - Connect and verify custom domains for published landing pages.
 - Manage team invitations, inbox conversations, and outbound webhook endpoints.
 - Generate email copy, subject lines, and multi-step sequences.
@@ -237,7 +238,7 @@ build a list as well as create it. Imports that apply `listIds` also need
 
 ## Tools
 
-This server currently exposes 194 MCP tools.
+This server currently exposes 202 MCP tools.
 
 Tools reject arguments they do not declare instead of silently ignoring them.
 Errors name the unsupported fields, list the supported arguments, and provide
@@ -250,7 +251,7 @@ sort options.
 | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
 | `get_account`                        | Get account info, available companies, current key permissions, and the API Keys management URL.                              |
 | `select_company`                     | Set the active company for future tool calls.                                                                                 |
-| `get_app_urls`                       | Build dashboard URLs for campaigns, landing pages, sequences, emails, settings, domains, and sent email details.              |
+| `get_app_urls`                       | Build dashboard URLs for campaigns, landing pages, popups, sequences, emails, settings, domains, and sent email details.      |
 | `create_company`                     | Create a new company or brand.                                                                                                |
 | `get_company`                        | Read company details, product info, brand context, localization, reply-tracking settings, and current From/Reply-To defaults. |
 | `update_company`                     | Edit product info, brand context, email theme, reply tracking, and account-wide From/Reply-To profile defaults or names.      |
@@ -694,6 +695,30 @@ into the current theme. Pass an empty `tagIds` array to clear tags or an empty
 `redirectUrl` to restore confirmation-message behavior. The `blocks` field is
 a complete replacement, so read the current content with `list_forms` first
 and retain exactly one email field and one submit button.
+
+### Saved Popups
+
+| Tool              | Description                                                                                                         |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `list_popups`     | List saved popups with complete content, status, triggers, targeting, metrics, and dashboard URLs.                  |
+| `get_popup`       | Get one popup's complete builder content, lifecycle state, and metrics.                                             |
+| `create_popup`    | Create and immediately publish a popup from a built-in template or complete content.                                |
+| `update_popup`    | Rename a popup or replace its complete content.                                                                     |
+| `publish_popup`   | Publish a popup, optionally saving edits first, and return client-safe embed recipes.                               |
+| `unpublish_popup` | Return a popup to draft, optionally saving edits first.                                                             |
+| `delete_popup`    | Permanently delete a popup; existing deployed embeds stop working immediately.                                      |
+| `get_popup_embed` | Return the versioned script URL and HTML, React, WordPress, and Shopify installation recipes for a published popup. |
+
+Start with `list_popups` or `get_popup` before replacing `content`: popup
+content updates replace the complete editor-compatible object instead of
+merging nested fields. `create_popup` accepts either a built-in template or
+complete content, never both. The service validates required form blocks,
+click selectors, redirect URLs, and that targeted lists and tags belong to the
+selected company.
+
+Embed recipes contain only public URLs and the opaque popup ID, never a
+Sequenzy API key. A popup must be published before `get_popup_embed` returns
+installation code.
 
 ### Landing Pages
 

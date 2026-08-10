@@ -4391,6 +4391,188 @@ describe("saved form tools", () => {
   });
 });
 
+describe("saved popup tools", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("publishes the complete popup lifecycle with plain schemas and safety hints", () => {
+    const toolNames = tools.map((tool) => tool.name);
+    for (const name of [
+      "list_popups",
+      "get_popup",
+      "create_popup",
+      "update_popup",
+      "publish_popup",
+      "unpublish_popup",
+      "delete_popup",
+      "get_popup_embed",
+    ]) {
+      expect(toolNames).toContain(name);
+    }
+
+    const createTool = tools.find((tool) => tool.name === "create_popup");
+    const updateTool = tools.find((tool) => tool.name === "update_popup");
+    const publishTool = tools.find((tool) => tool.name === "publish_popup");
+    const deleteTool = tools.find((tool) => tool.name === "delete_popup");
+    const embedTool = tools.find((tool) => tool.name === "get_popup_embed");
+
+    expect(createTool?.inputSchema).toMatchObject({
+      type: "object",
+      required: ["name"],
+      additionalProperties: false,
+    });
+    expect(createTool?.inputSchema.properties).toHaveProperty("template");
+    expect(createTool?.inputSchema.properties).toHaveProperty("content");
+    expect(updateTool?.inputSchema.required).toEqual(["popupId"]);
+    expect(updateTool?.inputSchema.additionalProperties).toBe(false);
+    expect(embedTool?.annotations?.readOnlyHint).toBe(true);
+    expect(createTool?.annotations).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: true,
+    });
+    expect(publishTool?.annotations).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: true,
+    });
+    expect(deleteTool?.annotations).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: true,
+    });
+  });
+
+  it("routes every popup lifecycle tool with encoded popup IDs", async () => {
+    const popup = { id: "popup/123", status: "published" };
+    const embed = {
+      scriptUrl: "https://sequenzy.com/embed/popups/popup%2F123",
+    };
+    mockApiRequest
+      .mockResolvedValueOnce({ success: true, popups: [] })
+      .mockResolvedValueOnce({ success: true, popup })
+      .mockResolvedValueOnce({ success: true, popup, embed })
+      .mockResolvedValueOnce({ success: true, popup, embed })
+      .mockResolvedValueOnce({ success: true, popup, embed })
+      .mockResolvedValueOnce({
+        success: true,
+        popup: { ...popup, status: "draft" },
+      })
+      .mockResolvedValueOnce({ success: true, popupId: popup.id })
+      .mockResolvedValueOnce({ success: true, popup, embed });
+
+    await handleToolCall("list_popups", { companyId: "comp_123" });
+    await handleToolCall("get_popup", {
+      companyId: "comp_123",
+      popupId: popup.id,
+    });
+    await handleToolCall("create_popup", {
+      companyId: "comp_123",
+      name: "Launch popup",
+      template: "launch-modal",
+    });
+    await handleToolCall("update_popup", {
+      companyId: "comp_123",
+      popupId: popup.id,
+      name: "Updated popup",
+    });
+    await handleToolCall("publish_popup", {
+      companyId: "comp_123",
+      popupId: popup.id,
+    });
+    await handleToolCall("unpublish_popup", {
+      companyId: "comp_123",
+      popupId: popup.id,
+      content: { version: 1, surface: "popup" },
+    });
+    await handleToolCall("delete_popup", {
+      companyId: "comp_123",
+      popupId: popup.id,
+    });
+    await handleToolCall("get_popup_embed", {
+      companyId: "comp_123",
+      popupId: popup.id,
+    });
+
+    expect(mockApiRequest.mock.calls).toEqual([
+      ["GET", "/api/v1/popups", undefined, "comp_123"],
+      ["GET", "/api/v1/popups/popup%2F123", undefined, "comp_123"],
+      [
+        "POST",
+        "/api/v1/popups",
+        { name: "Launch popup", template: "launch-modal" },
+        "comp_123",
+      ],
+      [
+        "PATCH",
+        "/api/v1/popups/popup%2F123",
+        { name: "Updated popup" },
+        "comp_123",
+      ],
+      ["POST", "/api/v1/popups/popup%2F123/publish", {}, "comp_123"],
+      [
+        "POST",
+        "/api/v1/popups/popup%2F123/unpublish",
+        { content: { version: 1, surface: "popup" } },
+        "comp_123",
+      ],
+      ["DELETE", "/api/v1/popups/popup%2F123", undefined, "comp_123"],
+      ["GET", "/api/v1/popups/embed/popup%2F123", undefined, "comp_123"],
+    ]);
+  });
+
+  it("rejects ambiguous creation and empty updates before calling the API", async () => {
+    const ambiguous = await handleToolCall("create_popup", {
+      name: "Ambiguous popup",
+      template: "launch-modal",
+      content: { version: 1 },
+    });
+    const emptyUpdate = await handleToolCall("update_popup", {
+      popupId: "popup_123",
+    });
+
+    expect(ambiguous.isError).toBe(true);
+    expect(ambiguous.content[0]?.text).toContain(
+      "Provide either `template` or `content`"
+    );
+    expect(emptyUpdate.isError).toBe(true);
+    expect(emptyUpdate.content[0]?.text).toContain(
+      "Provide at least one of `name` or `content`"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("returns every popup embed recipe without secrets", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      popup: { id: "popup_123", status: "published" },
+      embed: {
+        scriptUrl: "https://sequenzy.com/embed/popups/popup_123?v=runtime",
+        html: '<script async src="https://sequenzy.com/embed/popups/popup_123"></script>',
+        react: "export function SequenzyPopupEmbed() {}",
+        wordpress: "add_shortcode('popup_123', 'popup_123');",
+        shopify: "{% comment %} Sequenzy popup {% endcomment %}",
+      },
+    });
+
+    const result = await handleToolCall("get_popup_embed", {
+      popupId: "popup_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.structuredContent?.["embed"]).toMatchObject({
+      html: expect.stringContaining("<script"),
+      react: expect.stringContaining("SequenzyPopupEmbed"),
+      wordpress: expect.stringContaining("add_shortcode"),
+      shopify: expect.stringContaining("comment"),
+    });
+    expect(JSON.stringify(result.structuredContent)).not.toContain(
+      "Authorization"
+    );
+    expect(JSON.stringify(result.structuredContent)).not.toContain("API_KEY");
+  });
+});
+
 describe("landing page tools", () => {
   beforeEach(() => {
     mockApiRequest.mockClear();
@@ -7783,6 +7965,7 @@ describe("dashboard URL helpers", () => {
       sequenceId: "seq_123",
       campaignId: "camp_123",
       landingPageId: "lp_123",
+      popupId: "popup_123",
       emailSendId: "send_123",
       settingsTab: "integrations",
     });
@@ -7793,12 +7976,14 @@ describe("dashboard URL helpers", () => {
         sequence: string;
         campaign: string;
         landingPage: string;
+        popup: string;
         emailSend: string;
         settingsTab: string;
       };
     };
 
     expect(urlSchema?.properties).toHaveProperty("landingPageId");
+    expect(urlSchema?.properties).toHaveProperty("popupId");
     expect(payload.urls.sequence).toBe(
       "https://sequenzy.com/dashboard/company/comp_123/sequences/seq_123"
     );
@@ -7807,6 +7992,9 @@ describe("dashboard URL helpers", () => {
     );
     expect(payload.urls.landingPage).toBe(
       "https://sequenzy.com/dashboard/company/comp_123/landing-pages/lp_123"
+    );
+    expect(payload.urls.popup).toBe(
+      "https://sequenzy.com/dashboard/company/comp_123/popups/popup_123"
     );
     expect(payload.urls.emailSend).toBe(
       "https://sequenzy.com/dashboard/company/comp_123/sent-emails/send_123"

@@ -65,6 +65,7 @@ export async function handleAccountTools(
         companyId,
         campaignId: optionalString(args, "campaignId"),
         landingPageId: optionalString(args, "landingPageId"),
+        popupId: optionalString(args, "popupId"),
         sequenceId: optionalString(args, "sequenceId"),
         emailId:
           optionalString(args, "emailId") ?? optionalString(args, "templateId"),

@@ -94,6 +94,12 @@ export const landingPageContentDescription =
 export const landingPageTemplateDescription =
   "Optional template key for default content, such as from-scratch, waitlist, lead-magnet, launch, demo-request, webinar, newsletter, product-hunt, pricing-offer, agency-lead-gen, or feature-announcement.";
 
+export const popupTemplateDescription =
+  "Optional popup template key: newsletter-modal, discount-offer, countdown-launch, minimal-slide-in, exit-lead-magnet, live-demo, launch-modal, paper-digest, stark-takeover, top-bar, announcement-bar, or fullscreen-welcome.";
+
+export const popupContentDescription =
+  'Complete Sequenzy popup content JSON. Use this for an exact full replacement after reading the current content with get_popup. It must include version: 1, surface: "popup", template, presentation, placement, theme, settings, trigger, targeting, schedule, frequency, visual, and blocks. The main form must retain exactly one required email field and one submit button. Click triggers require trigger.clickSelector. settings.listIds and tagIds must belong to the selected company, and redirect success actions require an HTTP or HTTPS URL.';
+
 export const ADD_SUBSCRIBERS_TO_LIST_EMAIL_LIMIT = 500;
 export const SEQUENCE_ENROLLMENT_TARGET_LIMIT = 500;
 
