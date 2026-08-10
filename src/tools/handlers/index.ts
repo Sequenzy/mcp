@@ -7,6 +7,7 @@ import { handleSavedFormTools } from "./forms.js";
 import { handleImageAssetTools } from "./image-assets.js";
 import { handleIntegrationTools } from "./integrations.js";
 import { handleLandingPageTools } from "./landing-pages.js";
+import { handleSavedPopupTools } from "./popups.js";
 import { handleProductTools } from "./products.js";
 import { handleRenderTools } from "./render.js";
 import { handleSequenceTools } from "./sequences.js";
@@ -24,6 +25,7 @@ export const toolHandlers = [
   handleCampaignTools,
   handleRenderTools,
   handleSavedFormTools,
+  handleSavedPopupTools,
   handleLandingPageTools,
   handleImageAssetTools,
   handleSequenceTools,

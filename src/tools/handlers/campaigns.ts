@@ -25,6 +25,26 @@ export async function handleCampaignTools(
       const templateParams = new URLSearchParams();
       const label = optionalString(args, "label");
       if (label) templateParams.set("label", label);
+      const templateLimit = optionalIntegerInRange(
+        "list_templates",
+        args,
+        "limit",
+        1,
+        100
+      );
+      if (templateLimit !== undefined) {
+        templateParams.set("limit", String(templateLimit));
+      }
+      const templateOffset = optionalIntegerInRange(
+        "list_templates",
+        args,
+        "offset",
+        0,
+        1_000_000
+      );
+      if (templateOffset !== undefined) {
+        templateParams.set("offset", String(templateOffset));
+      }
       result = await apiRequest(
         "GET",
         `/api/v1/templates${templateParams.size > 0 ? `?${templateParams}` : ""}`,

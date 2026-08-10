@@ -21,7 +21,7 @@ await mock.module("../runtime.js", () => ({
   setSelectedCompanyId: () => undefined,
 }));
 
-const { handleToolCall } = await import("./index.js");
+const { handleToolCall, tools } = await import("./index.js");
 
 describe("subscriber MCP tools", () => {
   beforeEach(() => {
@@ -110,6 +110,100 @@ describe("subscriber MCP tools", () => {
     }
   });
 
+  it("continues through an empty page that has a next cursor", async () => {
+    mockApiRequest
+      .mockResolvedValueOnce({
+        success: true,
+        subscribers: [],
+        pagination: {
+          page: 1,
+          limit: 1000,
+          total: null,
+          totalPages: null,
+          nextCursor: "cursor-after-empty",
+          hasMore: true,
+        },
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        subscribers: [{ email: "match@example.com" }],
+        pagination: {
+          page: 1,
+          limit: 1000,
+          total: null,
+          totalPages: null,
+          nextCursor: null,
+          hasMore: false,
+        },
+      });
+
+    const result = await handleToolCall("search_subscribers", {});
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledTimes(2);
+    expect(String(mockApiRequest.mock.calls[1]?.[1])).toContain(
+      "cursor=cursor-after-empty"
+    );
+    const payload = JSON.parse(result.content[0]?.text ?? "{}") as {
+      subscribers: Array<{ email: string }>;
+    };
+    expect(payload.subscribers).toEqual([{ email: "match@example.com" }]);
+  });
+
+  it("fails instead of repeating an offset when sparse pages hit the backstop", async () => {
+    let requestCount = 0;
+    mockApiRequest.mockImplementation(async () => {
+      requestCount += 1;
+      return {
+        success: true,
+        subscribers: [{ email: `subscriber-${requestCount}@example.com` }],
+        pagination: {
+          page: 1,
+          limit: 1000,
+          total: null,
+          totalPages: null,
+          nextCursor: `cursor-${requestCount}`,
+          hasMore: true,
+        },
+      };
+    });
+
+    const result = await handleToolCall("search_subscribers", {
+      limit: 1,
+      offset: 999_999,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("follow `pagination.nextCursor`");
+    expect(requestCount).toBe(1_000);
+  });
+
+  it("fails when the page fallback reaches exactly the offset without a cursor", async () => {
+    let requestCount = 0;
+    mockApiRequest.mockImplementation(async () => {
+      requestCount += 1;
+      return {
+        success: true,
+        subscribers: [{ email: `subscriber-${requestCount}@example.com` }],
+        pagination: {
+          page: requestCount,
+          limit: 1000,
+          total: 2_000,
+          totalPages: 2_000,
+        },
+      };
+    });
+
+    const result = await handleToolCall("search_subscribers", {
+      limit: 1,
+      offset: 1_000,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("follow `pagination.nextCursor`");
+    expect(requestCount).toBe(1_000);
+  });
+
   it("falls back to page numbers when the server returns no cursor", async () => {
     mockApiRequest.mockImplementation(async (_method, path) => {
       if (path.includes("page=1")) {
@@ -170,6 +264,505 @@ describe("subscriber MCP tools", () => {
       undefined,
       "comp_123"
     );
+    const payload = JSON.parse(result.content[0]?.text ?? "{}") as {
+      pagination: { total: number; totalPages: number };
+    };
+    expect(payload.pagination).toMatchObject({ total: 0, totalPages: 0 });
+  });
+
+  it("returns the requested window when search_subscribers pages with offset", async () => {
+    // 1893 matches at limit 50 is exactly the shape that used to pin every
+    // caller to page 1: the response advertised 38 pages with no way to ask
+    // for page 2.
+    const allEmails = Array.from(
+      { length: 1_893 },
+      (_value, index) => `subscriber-${index}@example.com`
+    );
+
+    mockApiRequest.mockImplementation(async (_method, path) => {
+      const requestUrl = new URL(`https://api.test${path}`);
+      const pageSize = Number(requestUrl.searchParams.get("limit"));
+      const page = Number(requestUrl.searchParams.get("page") ?? "1");
+      const start = (page - 1) * pageSize;
+      const slice = allEmails
+        .slice(start, start + pageSize)
+        .map((email) => ({ email }));
+
+      return {
+        success: true,
+        subscribers: slice,
+        pagination: {
+          page,
+          limit: pageSize,
+          total: allEmails.length,
+          totalPages: Math.ceil(allEmails.length / pageSize),
+          nextCursor: null,
+          hasMore: start + slice.length < allEmails.length,
+        },
+      };
+    });
+
+    const result = await handleToolCall("search_subscribers", {
+      limit: 50,
+      offset: 50,
+    });
+
+    expect(result.isError).toBeUndefined();
+    const payload = JSON.parse(result.content[0]?.text ?? "{}") as {
+      returned: number;
+      truncated: boolean;
+      pagination: {
+        page: number;
+        limit: number;
+        offset: number;
+        total: number;
+        totalPages: number;
+        hasMore: boolean;
+        nextOffset: number | null;
+        nextCursor: string | null;
+      };
+      subscribers: Array<{ email: string }>;
+    };
+
+    expect(payload.returned).toBe(50);
+    expect(payload.subscribers[0]?.email).toBe("subscriber-50@example.com");
+    expect(payload.subscribers.at(-1)?.email).toBe("subscriber-99@example.com");
+    expect(payload.pagination).toMatchObject({
+      page: 2,
+      limit: 50,
+      offset: 50,
+      total: 1_893,
+      totalPages: 38,
+      hasMore: true,
+      nextOffset: 100,
+      // A sliced window would resume mid-page, so the cursor is withheld.
+      nextCursor: null,
+    });
+    expect(payload.truncated).toBe(true);
+  });
+
+  it("hands back a resumable cursor when search_subscribers stops on a page boundary", async () => {
+    mockApiRequest.mockImplementation(async (_method, path) => {
+      if (path.includes("cursor=cursor-2")) {
+        return {
+          success: true,
+          subscribers: [{ email: "three@example.com" }],
+          pagination: {
+            page: 1,
+            limit: 2,
+            total: null,
+            totalPages: null,
+            nextCursor: null,
+            hasMore: false,
+          },
+        };
+      }
+
+      return {
+        success: true,
+        subscribers: [
+          { email: "one@example.com" },
+          { email: "two@example.com" },
+        ],
+        pagination: {
+          page: 1,
+          limit: 2,
+          total: 3,
+          totalPages: 2,
+          nextCursor: "cursor-2",
+          hasMore: true,
+        },
+      };
+    });
+
+    const firstChunk = await handleToolCall("search_subscribers", { limit: 2 });
+    const firstPayload = JSON.parse(firstChunk.content[0]?.text ?? "{}") as {
+      pagination: { nextCursor: string | null; nextOffset: number | null };
+      subscribers: Array<{ email: string }>;
+    };
+
+    expect(firstPayload.subscribers).toHaveLength(2);
+    expect(firstPayload.pagination.nextCursor).toBe("cursor-2");
+    expect(firstPayload.pagination.nextOffset).toBe(2);
+
+    const secondChunk = await handleToolCall("search_subscribers", {
+      limit: 2,
+      cursor: firstPayload.pagination.nextCursor,
+    });
+    const secondPayload = JSON.parse(secondChunk.content[0]?.text ?? "{}") as {
+      pagination: {
+        total: number | null;
+        totalPages: number | null;
+        hasMore: boolean;
+        nextCursor: string | null;
+      };
+      subscribers: Array<{ email: string }>;
+    };
+
+    expect(secondPayload.subscribers.map((s) => s.email)).toEqual([
+      "three@example.com",
+    ]);
+    expect(secondPayload.pagination.hasMore).toBe(false);
+    expect(secondPayload.pagination.nextCursor).toBeNull();
+    expect(secondPayload.pagination.total).toBeNull();
+    expect(secondPayload.pagination.totalPages).toBeNull();
+  });
+
+  it("returns an exact cursor for a large cursor-resumed window", async () => {
+    mockApiRequest.mockImplementation(async (_method, path) => {
+      const requestUrl = new URL(`https://api.test${path}`);
+      const limit = Number(requestUrl.searchParams.get("limit"));
+      const cursor = requestUrl.searchParams.get("cursor");
+      const start = cursor === "cursor-start" ? 0 : 1_000;
+      return {
+        success: true,
+        subscribers: Array.from({ length: limit }, (_value, index) => ({
+          email: `subscriber-${start + index}@example.com`,
+        })),
+        pagination: {
+          page: 1,
+          limit,
+          total: null,
+          totalPages: null,
+          nextCursor: cursor === "cursor-start" ? "cursor-mid" : "cursor-next",
+          hasMore: true,
+        },
+      };
+    });
+
+    const result = await handleToolCall("search_subscribers", {
+      limit: 1_500,
+      cursor: "cursor-start",
+    });
+
+    expect(String(mockApiRequest.mock.calls[0]?.[1])).toContain("limit=1000");
+    expect(String(mockApiRequest.mock.calls[1]?.[1])).toContain("limit=500");
+    const payload = JSON.parse(result.content[0]?.text ?? "{}") as {
+      returned: number;
+      pagination: { nextCursor: string | null; nextOffset: number | null };
+    };
+    expect(payload.returned).toBe(1_500);
+    expect(payload.pagination.nextCursor).toBe("cursor-next");
+    expect(payload.pagination.nextOffset).toBeNull();
+  });
+
+  it("stops instead of re-requesting a cursor the server did not advance", async () => {
+    // hasMore without a nextCursor should not happen, but `page` is ignored
+    // while a cursor is set, so looping here would re-request the same cursor
+    // up to the 1,000-request backstop and duplicate every row.
+    mockApiRequest.mockResolvedValue({
+      success: true,
+      subscribers: [{ email: "one@example.com" }],
+      pagination: {
+        page: 1,
+        limit: 1000,
+        total: null,
+        totalPages: null,
+        nextCursor: null,
+        hasMore: true,
+      },
+    });
+
+    const result = await handleToolCall("search_subscribers", {
+      cursor: "cursor-2",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledTimes(1);
+
+    const payload = JSON.parse(result.content[0]?.text ?? "{}") as {
+      returned: number;
+      pagination: { hasMore: boolean; nextCursor: string | null };
+    };
+    expect(payload.returned).toBe(1);
+    // Honest about being incomplete rather than silently looping.
+    expect(payload.pagination.hasMore).toBe(true);
+    expect(payload.pagination.nextCursor).toBeNull();
+  });
+
+  it("rejects cursor combined with offset in search_subscribers", async () => {
+    const result = await handleToolCall("search_subscribers", {
+      limit: 10,
+      cursor: "cursor-2",
+      offset: 10,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`cursor` cannot be combined with `offset`"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects offsets the request backstop cannot reach", async () => {
+    for (const args of [
+      { limit: 1, offset: 1_000_000 },
+      { limit: 50, page: 20_001 },
+    ]) {
+      const result = await handleToolCall("search_subscribers", args);
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0]?.text).toContain("Use `cursor`");
+    }
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("accepts page as an alternative to offset in search_subscribers", async () => {
+    mockApiRequest.mockResolvedValue({
+      success: true,
+      subscribers: [{ email: "one@example.com" }, { email: "two@example.com" }],
+      pagination: {
+        page: 1,
+        limit: 2,
+        total: 2,
+        totalPages: 1,
+        nextCursor: null,
+        hasMore: false,
+      },
+    });
+
+    const result = await handleToolCall("search_subscribers", {
+      limit: 1,
+      page: 2,
+    });
+
+    expect(result.isError).toBeUndefined();
+    const payload = JSON.parse(result.content[0]?.text ?? "{}") as {
+      returned: number;
+      pagination: { offset: number; page: number; hasMore: boolean };
+      subscribers: Array<{ email: string }>;
+    };
+
+    expect(payload.subscribers.map((subscriber) => subscriber.email)).toEqual([
+      "two@example.com",
+    ]);
+    expect(payload.pagination).toMatchObject({
+      page: 2,
+      offset: 1,
+      hasMore: false,
+    });
+  });
+
+  it("rejects page without limit in search_subscribers", async () => {
+    const result = await handleToolCall("search_subscribers", { page: 2 });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("`page` requires `limit`");
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects non-positive and fractional search_subscribers limits", async () => {
+    for (const limit of [0, -1, 1.5]) {
+      const result = await handleToolCall("search_subscribers", { limit });
+
+      expect(result.isError).toBe(true);
+      expect(result.content[0]?.text).toContain("`limit`");
+    }
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("filters search_subscribers by a custom attribute", async () => {
+    mockApiRequest.mockResolvedValue({
+      success: true,
+      subscribers: [{ email: "pro@example.com" }],
+      pagination: {
+        page: 1,
+        limit: 1000,
+        total: null,
+        totalPages: null,
+        nextCursor: null,
+        hasMore: false,
+      },
+    });
+
+    const result = await handleToolCall("search_subscribers", {
+      attribute: "plan",
+      attributeValue: "pro",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/subscribers?attribute=plan%3Apro&attributeOperator=is&page=1&limit=1000",
+      undefined,
+      undefined
+    );
+
+    // The count-free attribute response still reports an exact total once the
+    // walk has drained every match.
+    const payload = JSON.parse(result.content[0]?.text ?? "{}") as {
+      pagination: { total: number | null; hasMore: boolean };
+    };
+    expect(payload.pagination.total).toBe(1);
+    expect(payload.pagination.hasMore).toBe(false);
+  });
+
+  it("sends a value-less attribute filter for is_not_empty", async () => {
+    mockApiRequest.mockResolvedValue({
+      success: true,
+      subscribers: [],
+      pagination: {
+        page: 1,
+        limit: 1000,
+        total: null,
+        totalPages: null,
+        nextCursor: null,
+        hasMore: false,
+      },
+    });
+
+    const result = await handleToolCall("search_subscribers", {
+      attribute: "prem_rouge_sample_received",
+      attributeOperator: "is_not_empty",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(String(mockApiRequest.mock.calls[0]?.[1])).toContain(
+      "attribute=prem_rouge_sample_received%3A&attributeOperator=is_not_empty"
+    );
+  });
+
+  it("requires a value for attribute operators that compare one", async () => {
+    const result = await handleToolCall("search_subscribers", {
+      attribute: "plan",
+      attributeOperator: "is",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("`attributeValue`");
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("passes the custom attribute filter to search_subscribers", async () => {
+    mockApiRequest.mockResolvedValue({
+      success: true,
+      subscribers: [],
+      pagination: {
+        page: 1,
+        limit: 1000,
+        total: null,
+        totalPages: null,
+        nextCursor: null,
+        hasMore: false,
+      },
+    });
+
+    const result = await handleToolCall("search_subscribers", {
+      attribute: "prem_rouge_sample_received:",
+      attributeOperator: "is_not_empty",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/subscribers?attribute=prem_rouge_sample_received%3A&attributeOperator=is_not_empty&page=1&limit=1000",
+      undefined,
+      undefined
+    );
+  });
+
+  // Attribute-filtered pulls are cursor-paged, so the server reports no count.
+  // Reporting the first page size as the total made a 1-page pull of a 2-page
+  // result look complete.
+  it("reports the fetched count as the total when the server sends none", async () => {
+    mockApiRequest.mockImplementation(async (_method, path) => {
+      if (!path.includes("cursor=")) {
+        return {
+          success: true,
+          subscribers: [{ email: "one@example.com" }],
+          pagination: {
+            page: 1,
+            limit: 1,
+            total: null,
+            totalPages: null,
+            nextCursor: "cursor-2",
+            hasMore: true,
+          },
+        };
+      }
+
+      return {
+        success: true,
+        subscribers: [{ email: "two@example.com" }],
+        pagination: {
+          page: 1,
+          limit: 1,
+          total: null,
+          totalPages: null,
+          nextCursor: null,
+          hasMore: false,
+        },
+      };
+    });
+
+    const result = await handleToolCall("search_subscribers", {
+      attribute: "plan:pro",
+    });
+
+    const payload = JSON.parse(result.content[0]?.text ?? "{}") as {
+      returned: number;
+      truncated: boolean;
+      pagination: { total: number };
+    };
+
+    expect(payload.returned).toBe(2);
+    expect(payload.pagination.total).toBe(2);
+    expect(payload.truncated).toBe(false);
+  });
+
+  it("reports truncation when a limit stops a count-less pull early", async () => {
+    mockApiRequest.mockResolvedValue({
+      success: true,
+      subscribers: [{ email: "one@example.com" }],
+      pagination: {
+        page: 1,
+        limit: 1,
+        total: null,
+        totalPages: null,
+        nextCursor: "cursor-2",
+        hasMore: true,
+      },
+    });
+
+    const result = await handleToolCall("search_subscribers", {
+      attribute: "plan:pro",
+      limit: 1,
+    });
+
+    const payload = JSON.parse(result.content[0]?.text ?? "{}") as {
+      truncated: boolean;
+      pagination: { total: number | null; totalPages: number | null };
+    };
+
+    expect(payload.truncated).toBe(true);
+    expect(payload.pagination.total).toBeNull();
+    expect(payload.pagination.totalPages).toBeNull();
+  });
+
+  // Unsupported arguments used to be dropped, so an agent's filter/sort came
+  // back as an unfiltered full-audience dump that looked like a real answer.
+  it("rejects invented filter and sort arguments on search_subscribers", async () => {
+    const result = await handleToolCall("search_subscribers", {
+      filters: [{ field: "tag", operator: "contains", value: "posted" }],
+      filterJoinOperator: "and",
+      sortBy: "createdAt",
+      sortOrder: "desc",
+    });
+
+    expect(result.isError).toBe(true);
+    const message = result.content[0]?.text ?? "";
+    expect(message).toContain(
+      "Unsupported fields: `filters`, `filterJoinOperator`, `sortBy`, `sortOrder`."
+    );
+    expect(message).toContain("create_segment");
+    expect(message).toContain("`attribute`");
+    expect(message).toContain(
+      "attribute-filtered searches are ordered by subscriber ID ascending"
+    );
+    expect(
+      tools.find((tool) => tool.name === "search_subscribers")?.description
+    ).toContain("searches with attribute use stable subscriber-ID ascending");
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
   it("builds get_subscriber_activity from the detailed subscriber response", async () => {
@@ -801,13 +1394,30 @@ describe("subscriber MCP tools", () => {
     );
   });
 
-  it("drops triggerAutomations from bulk_remove_subscriber_tags", async () => {
+  // Removing a tag never enrolls anyone, so the argument used to be dropped
+  // silently. Rejecting it tells the caller the request was not honoured.
+  it("rejects triggerAutomations on bulk_remove_subscriber_tags", async () => {
+    mockApiRequest.mockImplementation(async () => ({ success: true }));
+
+    const result = await handleToolCall("bulk_remove_subscriber_tags", {
+      tags: ["legacy-plan"],
+      subscriberIds: ["sub_1"],
+      triggerAutomations: true,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Unsupported field: `triggerAutomations`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("removes tags when only supported arguments are given", async () => {
     mockApiRequest.mockImplementation(async () => ({ success: true }));
 
     await handleToolCall("bulk_remove_subscriber_tags", {
       tags: ["legacy-plan"],
       subscriberIds: ["sub_1"],
-      triggerAutomations: true,
     });
 
     expect(mockApiRequest).toHaveBeenCalledWith(

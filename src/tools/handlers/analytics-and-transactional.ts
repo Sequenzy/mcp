@@ -331,6 +331,33 @@ export async function handleAnalyticsAndTransactionalTools(
       break;
     }
 
+    case "list_poll_responses": {
+      const companyId = args.companyId as string | undefined;
+      const campaignId = requiredString(
+        "list_poll_responses",
+        args,
+        "campaignId"
+      );
+      const params = new URLSearchParams();
+      const blockId = optionalString(args, "blockId");
+      if (blockId) params.set("blockId", blockId);
+      for (const field of ["page", "limit"] as const) {
+        if (args[field] !== undefined) {
+          params.set(field, String(args[field]));
+        }
+      }
+      const query = params.toString();
+      result = await apiRequest(
+        "GET",
+        `/api/v1/metrics/campaigns/${encodeURIComponent(campaignId)}/poll-responses${
+          query ? `?${query}` : ""
+        }`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
     case "get_transactional_stats": {
       const companyId = args.companyId as string | undefined;
       const idOrSlug = requiredString(

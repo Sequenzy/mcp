@@ -7,6 +7,7 @@ import {
   discountMergeTagsHint,
   sequenceEmailBlocksDescription,
   sequenceWaitUntilSchema,
+  sequenceWaitUntilWeekdaySchema,
   sequenceDelaySchema,
 } from "./descriptions.js";
 
@@ -434,7 +435,7 @@ export const sequenceEmailStepIdentityProperties = {
   replyToName: {
     type: "string",
     description:
-      "Display name for a newly created reply profile. Requires replyTo; omit it when using replyProfileId, which already carries its own display name.",
+      "Reply-To display name override for this step. Requires replyTo; omit it when using replyProfileId, which already carries its own display name.",
   },
 } as const;
 
@@ -545,6 +546,7 @@ export const sequencePathStepSchema = {
         "Delay in milliseconds. Useful for standalone type:'delay' steps.",
     },
     waitUntil: sequenceWaitUntilSchema,
+    waitUntilWeekday: sequenceWaitUntilWeekdaySchema,
     name: {
       type: "string",
       description: "Email template name for email steps.",
@@ -577,7 +579,7 @@ export const sequencePathStepSchema = {
     replyToName: {
       type: "string",
       description:
-        "Display name for a newly created reply profile. Requires replyTo; omit it when using replyProfileId, which already carries its own display name.",
+        "Reply-To display name override for this email step. Requires replyTo; omit it when using replyProfileId, which already carries its own display name.",
     },
     discount: {
       type: "object",

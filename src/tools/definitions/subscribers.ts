@@ -1,5 +1,6 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 
+import { SUBSCRIBER_ATTRIBUTE_FILTER_OPERATORS } from "../descriptions.js";
 import { includeMachineEngagementToolProperty } from "../internal.js";
 
 const subscriberImportRecordSchema = {
@@ -541,7 +542,7 @@ export const subscriberToolDefinitions: Tool[] = [
   {
     name: "bulk_add_subscriber_tags",
     description:
-      "Add tags to up to 500 existing subscribers in one call, identified by emails, externalIds, or subscriberIds. Built for reconciling historical or derived tags: subscribers that do not exist are reported in notFound instead of being created, and tag automations do NOT run unless triggerAutomations is true. Needs the subscribers:tag scope, which the agent_safe key preset includes; a tag name that does not exist yet also needs tags:write. Use add_subscriber or update_subscriber for single-contact changes.",
+      "Add tags to up to 500 existing subscribers in one call, identified by emails, externalIds, or subscriberIds. Built for reconciling historical or derived tags: subscribers that do not exist are reported in notFound instead of being created, and tag automations do NOT run unless triggerAutomations is true. Needs the subscribers:tag scope; a tag name that does not exist yet also needs tags:write. The agent_safe key preset includes both. Use add_subscriber or update_subscriber for single-contact changes.",
     inputSchema: {
       type: "object",
       properties: {
@@ -621,7 +622,7 @@ export const subscriberToolDefinitions: Tool[] = [
   {
     name: "search_subscribers",
     description:
-      "Search subscribers by free-text query, tags, list, or segment. If you omit limit, the tool fetches all pages and returns every match.",
+      "Search subscribers by free-text query, tags, list, segment, or custom attribute. If you omit limit, the tool fetches all pages and returns every match in one call - that is the fastest way to enumerate an audience. To walk a large audience in chunks instead, pass limit and then follow pagination.nextCursor (or pagination.nextOffset) until pagination.hasMore is false. Default searches are newest first; searches with attribute use stable subscriber-ID ascending order.",
     inputSchema: {
       type: "object",
       properties: {
@@ -662,10 +663,44 @@ export const subscriberToolDefinitions: Tool[] = [
           description:
             "Filter by subscriber status: active, unsubscribed, or bounced.",
         },
+        attribute: {
+          type: "string",
+          description:
+            'Filter by custom attribute name, e.g. "plan". Pair with attributeValue and attributeOperator. The wire form "name:value" is also accepted. Cannot be combined with segmentId - use a saved segment for compound attribute filters.',
+        },
+        attributeValue: {
+          type: "string",
+          description:
+            "Value the custom attribute is compared against. Omit only when attributeOperator is is_not_empty.",
+        },
+        attributeOperator: {
+          type: "string",
+          enum: [...SUBSCRIBER_ATTRIBUTE_FILTER_OPERATORS],
+          description:
+            "How to compare the custom attribute. Defaults to is. Use is_not_empty to match every subscriber that has the attribute set to any value. For is_not, not_contains, or is_empty, create a segment and pass segmentId instead.",
+        },
         limit: {
           type: "number",
+          minimum: 1,
           description:
             "Maximum results to return. If omitted, the tool returns all matches across pages.",
+        },
+        offset: {
+          type: "number",
+          minimum: 0,
+          maximum: 999_999,
+          description:
+            "Number of matches to skip before returning results, up to 999999. Use with limit to page through a large audience; follow pagination.nextOffset from the previous response, then switch to nextCursor for deeper pagination.",
+        },
+        page: {
+          type: "number",
+          description:
+            "1-based page number, an alternative to offset. Requires limit, which defines the page size. Cannot be combined with offset.",
+        },
+        cursor: {
+          type: "string",
+          description:
+            "pagination.nextCursor from the previous response. The cheapest way to walk a large audience in chunks, because the server does not re-scan the rows already returned. Cannot be combined with offset or page.",
         },
       },
     },

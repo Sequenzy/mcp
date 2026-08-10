@@ -104,6 +104,41 @@ export const analyticsToolDefinitions: Tool[] = [
     },
   },
   {
+    name: "list_poll_responses",
+    description:
+      "List individual Poll and NPS responses for a campaign, newest answer first, with each respondent's email, their answer and stored value, the subscriber attribute the answer was saved to, and the response time. get_campaign_stats reports the totals; this reports who answered what and when. Only each subscriber's latest answer per poll block is returned, so the counts match the campaign stats summary. Do not reconstruct respondents by scanning subscribers for the poll attribute - the attribute carries no response time and reflects the latest answer to any email. Multi-select answers list every selected option in answers/values. Results are paginated: read the returned pagination object and keep paging with page while page < totalPages.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        campaignId: {
+          type: "string",
+          description:
+            "Campaign ID. For a sequence email step, pass the step's automation node ID.",
+        },
+        blockId: {
+          type: "string",
+          description:
+            "Restrict to one poll block. Block IDs come from the polls array of get_campaign_stats. Omit to return every poll block in the email.",
+        },
+        page: {
+          type: "number",
+          description: "1-based page number. Defaults to 1.",
+        },
+        limit: {
+          type: "number",
+          description:
+            "Page size. Defaults to 100 and is capped at 500 by the server.",
+        },
+      },
+      required: ["campaignId"],
+    },
+  },
+  {
     name: "get_sequence_stats",
     description:
       "Get statistics for a sequence. The steps array is the per-step breakdown: one entry per email step in graph order with its step number, automation nodeId, subject, and its own sent, delivered, bounced, opened, clicked, replies, and unsubscribed counts plus rates - so this is where you read how many of Email 4 went out, without reconstructing anything from list_sequence_events. Step counts come from the retained event stream, not the 14-day delivery history behind list_email_sends, so they stay answerable for old sends. Also returns the aggregate funnel across every step, attributed conversions and revenue (revenueCents), product recommendation funnel metrics, per-step failed subscribers and failure reasons, and enrollmentSkipped counts for trigger matches where the contact could not be enrolled (unsubscribed/bounced). Pass period or start/end to use one explicit window for every historical metric; without them, step and aggregate counts are all-time and enrollmentSkipped defaults to the last 30 days. The enrollmentCounts field is a live snapshot of active and waiting enrollments grouped by current node, so it is not limited by period or start/end. To compare the same step across many sequences in one call, use list_email_metrics instead.",

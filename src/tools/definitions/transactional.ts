@@ -11,7 +11,7 @@ export const transactionalToolDefinitions: Tool[] = [
   {
     name: "list_transactional_emails",
     description:
-      "List transactional email templates with subjects, delivery metrics, API slugs, and dashboard URLs. Search by name, slug, or email title; filter active state; and sort by sends, opens, open rate, clicks, or CTR.",
+      "List transactional email templates with subjects, delivery metrics, API slugs, and dashboard URLs. Each item also carries `emailPreset`, the per-email Style > Format (branded or minimal, null for a standalone raw HTML email), so a chrome drift check across templates does not need one get_transactional_email call each. Search by name, slug, or email title; filter active state; and sort by sends, opens, open rate, clicks, or CTR.",
     inputSchema: {
       type: "object",
       properties: {
@@ -50,7 +50,7 @@ export const transactionalToolDefinitions: Tool[] = [
   {
     name: "get_transactional_email",
     description:
-      "Get a transactional email by ID or slug, including subject, preview text, blocks, variables, and linked dashboard URLs",
+      "Get a transactional email by ID or slug, including subject, preview text, blocks, variables, and linked dashboard URLs. `emailPreset` reports the per-email Style > Format the same way get_sequence does per step (branded or minimal; null when the whole email is standalone raw HTML), so it can be compared against sequence steps and campaigns without rendering them - minimal suppresses the company logo at render time.",
     inputSchema: {
       type: "object",
       properties: {

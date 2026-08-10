@@ -43,7 +43,7 @@ describe("formatMcpError", () => {
     expect(message).toContain('Details: {"error":"Invalid API key"}');
   });
 
-  it("formats missing write scopes with a replacement-key workflow", () => {
+  it("formats missing write scopes with the in-place widening workflow", () => {
     const message = formatMcpError(
       new McpApiError(
         "API key is missing required scope: templates:write",
@@ -56,15 +56,24 @@ describe("formatMcpError", () => {
       "Sequenzy MCP error: API key permission required"
     );
     expect(message).toContain("`templates:write`");
-    expect(message).toContain("call `get_account`");
+    expect(message).toContain("Call `get_account`");
     expect(message).toContain("`apiKeyPermissions.manageUrl`");
-    expect(message).toContain("`companies[].settingsUrl`");
+    expect(message).toContain("Account → API Keys");
+    expect(message).toContain("workspace Settings → API Keys");
     expect(message).toContain("If `get_account` also requires `account:read`");
     expect(message).toContain("https://sequenzy.com/dashboard");
-    expect(message).toContain("Existing key permissions cannot be edited");
-    expect(message).toContain("replace `SEQUENZY_API_KEY`");
-    expect(message).toContain("For hosted OAuth MCP");
-    expect(message).toContain("disconnect and reauthorize");
+    // Key permissions became editable in place, and the API refreshes them on
+    // the denied path. Telling an agent to mint a new key and restart the
+    // client turns a one-retry fix into abandoned work.
+    expect(message).toContain("no replacement key and no client restart");
+    expect(message).toContain("`update_api_key`");
+    expect(message).toContain("activeKey.type` is `company`");
+    expect(message).toContain(
+      "Personal keys cannot be changed through `update_api_key`"
+    );
+    expect(message).toContain("REPLACE the whole selection");
+    expect(message).toContain("retry the same tool call");
+    expect(message).not.toContain("cannot be edited in place");
   });
 
   it("formats multiple missing read scopes with safe preset guidance", () => {
@@ -88,7 +97,7 @@ describe("formatMcpError", () => {
 
     expect(message).toContain("`account:read`");
     expect(message).toContain("https://sequenzy.com/dashboard");
-    expect(message).toContain("MCP setup or Settings → API Keys");
+    expect(message).toContain("choose the matching API Keys page");
   });
 
   it("keeps wrong-company access failures on company guidance", () => {

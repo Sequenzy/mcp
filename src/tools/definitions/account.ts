@@ -829,6 +829,52 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
     },
   },
   {
+    name: "get_sending_status",
+    description: `Check whether company-level email sending is active, paused, or suspended, and what it takes to restore it. Call this FIRST whenever a send, test send, or sequence step fails for a reason that is not a validation error, and whenever the account reports a bounce or complaint rate problem.
+
+Returns the pause reason and reason kind, when it was paused, the automated sender-health review state, whether the one-click resume is currently available (and if not, which gate is blocking it), the enforcement counts and thresholds for permanent bounces, temporary bounces, and complaints, and ordered remediation steps.
+
+IMPORTANT - there is no rolling window and no expiry. Enforcement uses all-time totals counted from a reset watermark, so a paused rate does NOT decay over time. Waiting does not restore sending. The rate only changes as real (non-test) sends accumulate or when a resume moves the watermark. Read \`metricsWindow\` for the exact watermark timestamps rather than telling the user to wait it out.
+
+Requires the account:read scope, so a read-only key can diagnose a blocked account. Use resume_sending once the underlying problem is fixed.`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+      },
+    },
+  },
+  {
+    name: "resume_sending",
+    description: `Request that paused company-level sending be restored after fixing the cause. This is the supported remediation path for an account paused by the permanent-bounce rate limit - it is not a bypass and it never removes suppressions.
+
+Only proceed when the bad source is actually fixed (import, form, or integration) and permanent bounces remain suppressed. Call get_sending_status first: for a paused workspace, resume only restores sending when \`selfResume.canSelfResume\` is true, which requires a hard-bounce pause reason, a cleared automated sender-health review, and no admin block. A workspace that is already active succeeds as an idempotent no-op with \`resumed: false\`; any other blocked state needs a support review, and the error tells you which one.
+
+You MUST pass listSanitizationConfirmed: true, and you should only pass it after the user has confirmed the remediation - it is recorded on the account's audit trail as their statement that the list is clean. On success, sending is restored, the bounce watermark resets so the rate is recalculated from later sends, and the service attempts to requeue paused campaigns plus due sequence steps. Relay the response message: it contains support guidance if part of that queue handoff is temporarily unavailable.
+
+Requires the companies:manage scope and owner or admin access to the company.`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        listSanitizationConfirmed: {
+          type: "boolean",
+          description:
+            "Must be true. Confirms the user has fixed the source of the invalid addresses and left every permanent bounce suppressed. Recorded on the account audit trail.",
+        },
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+      },
+      required: ["listSanitizationConfirmed"],
+    },
+  },
+  {
     name: "get_tracking_settings",
     description:
       "Get the company's email tracking and signup consent configuration: open/click/unsubscribe tracking flags, opt-in strict bot filtering, default attribution window, automatic UTM tagging, the dedicated click-tracking domain and its verification status, inbound reply-tracking settings, and whether double opt-in is required for new contacts. Use this to audit measurement readiness, to explain why opens or clicks may not be recorded, and to check how contacts enter the list before investigating bot or alias signups.",
