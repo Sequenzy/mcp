@@ -664,7 +664,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "list_websites",
     description:
-      "List configured sending domains with separate DNS verification, selected home-transport readiness, and SPF, DKIM, and MAIL FROM status",
+      "List configured sending domains with separate DNS verification, selected home-transport readiness, SPF, DKIM, and MAIL FROM status, and per-transport SPF alignment (spfAlignment.warning means SES-routed sends deliver but are not SPF-aligned)",
     inputSchema: {
       type: "object",
       properties: {
@@ -684,7 +684,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "add_sending_domain",
     description:
-      "Add and configure a sending domain. Publish every cohort-specific DNS record returned, including DMARC when present, before calling verify_sending_domain.",
+      "Add and configure a sending domain. Publish every cohort-specific DNS record returned - including the SES envelope pair at envelope.<domain> (keeps SES-routed sends SPF-aligned) and DMARC when present - before calling verify_sending_domain.",
     inputSchema: {
       type: "object",
       properties: {
@@ -724,7 +724,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "check_website",
     description:
-      "Read a sending domain's separate DNS verification, selected home-transport readiness, and SPF, DKIM, MAIL FROM diagnostics. Use verify_sending_domain to run a fresh DNS check.",
+      "Read a sending domain's separate DNS verification, selected home-transport readiness, SPF, DKIM, MAIL FROM diagnostics, and spfAlignment. A spfAlignment.warning means SES-routed sends deliver but are NOT SPF-aligned; publish the sesEnvelope records to fix it. Use verify_sending_domain to run a fresh DNS check.",
     inputSchema: {
       type: "object",
       properties: {
@@ -744,7 +744,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "verify_sending_domain",
     description:
-      "Run a fresh DNS check for a configured sending domain and return DNS verification separately from selected home-transport readiness. A DNS-verified domain may still be activating in SES.",
+      "Run a fresh DNS check for a configured sending domain and return DNS verification separately from selected home-transport readiness. A DNS-verified domain may still be activating in SES, and a spfAlignment.warning means SES-routed sends are not SPF-aligned until the sesEnvelope records verify.",
     inputSchema: {
       type: "object",
       properties: {
