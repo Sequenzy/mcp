@@ -54,7 +54,7 @@ export const renderToolDefinitions: Tool[] = [
         variables: {
           type: "object",
           description:
-            "Extra merge variables layered over the contact's attributes.",
+            "Extra merge variables layered over the contact's attributes. Values are HTML-escaped; content can prefix a tag with 'html.' ({{html.subscriber.body_html}}) to render a trusted, sanitized HTML value unescaped, and this tool previews that exactly as a send would.",
           additionalProperties: true,
         },
         locale: {

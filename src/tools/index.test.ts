@@ -8125,6 +8125,170 @@ describe("cancel_sequence_enrollments tool", () => {
   });
 });
 
+describe("move_sequence_enrollments tool", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("requires sequenceId and fromNodeId and exposes the guardrail arguments", () => {
+    const tool = tools.find(
+      (candidate) => candidate.name === "move_sequence_enrollments"
+    );
+    const inputSchema = tool?.inputSchema as
+      | {
+          required?: string[];
+          additionalProperties?: boolean;
+          properties?: Record<string, unknown>;
+        }
+      | undefined;
+
+    expect(inputSchema?.required).toEqual(["sequenceId", "fromNodeId"]);
+    expect(inputSchema?.additionalProperties).toBe(false);
+    for (const key of [
+      "targetNodeId",
+      "limit",
+      "sort",
+      "subscriberIds",
+      "dailyLimit",
+      "tags",
+      "reason",
+      "dryRun",
+    ]) {
+      expect(inputSchema?.properties).toHaveProperty(key);
+    }
+  });
+
+  it("forwards the bounded release to the API", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      sequenceId: "seq_123",
+      dryRun: false,
+      movedCount: 180,
+      remainingCount: 4140,
+    });
+
+    const result = await handleToolCall("move_sequence_enrollments", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      fromNodeId: "node_delay",
+      targetNodeId: "node_email_2",
+      limit: 180,
+      sort: "wait_until_asc",
+      dailyLimit: 500,
+      tags: [" wave-3 "],
+      reason: "Wave 3 release",
+      dryRun: false,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/sequences/seq_123/enrollments/move",
+      {
+        fromNodeId: "node_delay",
+        targetNodeId: "node_email_2",
+        limit: 180,
+        dailyLimit: 500,
+        sort: "wait_until_asc",
+        tags: ["wave-3"],
+        reason: "Wave 3 release",
+        dryRun: false,
+      },
+      "comp_123"
+    );
+  });
+
+  it("omits the target so the API resolves the source step's next step", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true });
+
+    await handleToolCall("move_sequence_enrollments", {
+      sequenceId: "seq_123",
+      fromNodeId: "node_delay",
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/sequences/seq_123/enrollments/move",
+      { fromNodeId: "node_delay" },
+      undefined
+    );
+  });
+
+  it("rejects a non-integer limit before hitting the API", async () => {
+    const result = await handleToolCall("move_sequence_enrollments", {
+      sequenceId: "seq_123",
+      fromNodeId: "node_delay",
+      limit: 12.5,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("`limit` must be an integer");
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unknown sort before hitting the API", async () => {
+    const result = await handleToolCall("move_sequence_enrollments", {
+      sequenceId: "seq_123",
+      fromNodeId: "node_delay",
+      sort: "random",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("`sort` must be one of");
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("is classified as a mutating, destructive, open-world tool", () => {
+    const tool = tools.find(
+      (candidate) => candidate.name === "move_sequence_enrollments"
+    );
+
+    expect(tool?.annotations).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: true,
+      openWorldHint: true,
+    });
+  });
+
+  it("accepts the nullable fields returned by the default dry run", () => {
+    const tool = tools.find(
+      (candidate) => candidate.name === "move_sequence_enrollments"
+    );
+    if (!tool?.outputSchema) {
+      throw new Error("move_sequence_enrollments has no output schema");
+    }
+
+    const validation = new AjvJsonSchemaValidator().getValidator(
+      tool.outputSchema
+    )({
+      success: true,
+      sequenceId: "seq_123",
+      dryRun: true,
+      fromNodeId: "node_delay",
+      targetNodeId: "node_email",
+      sort: "wait_until_asc",
+      requestedLimit: 100,
+      effectiveLimit: 100,
+      matchedCount: 0,
+      movedCount: 0,
+      remainingCount: 0,
+      skippedCount: 0,
+      dailyLimit: null,
+      movedInWindow: 0,
+      dailyRemaining: null,
+      enqueuedCount: 0,
+      enqueueErrors: [],
+      tagResult: null,
+      enrollments: [],
+      hasMore: false,
+      message: "No enrollments would move.",
+    });
+
+    expect(validation.errorMessage).toBeUndefined();
+    expect(validation.valid).toBe(true);
+  });
+});
+
 describe("realign_sequence_enrollments tool", () => {
   beforeEach(() => {
     mockApiRequest.mockClear();
@@ -8554,6 +8718,29 @@ describe("create_segment tool", () => {
       }),
       "comp_123"
     );
+  });
+
+  it("rejects attribute empty checks without a value before hitting the API", async () => {
+    // The attribute name lives inside `value`, so unlike other empty checks
+    // an attribute is_not_empty filter cannot omit it. This used to pass MCP
+    // validation and 500 server-side with a raw TypeError.
+    const result = await handleToolCall("create_segment", {
+      companyId: "comp_123",
+      name: "Stripe-linked",
+      filters: [
+        {
+          field: "attribute",
+          operator: "is_not_empty",
+        },
+      ],
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.type).toBe("text");
+    expect(result.content[0]?.text).toContain(
+      'Attribute filters must include a value: "attributeName:value", or "attributeName:" for empty checks.'
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
   it("rejects invalid segment value formats before hitting the API", async () => {

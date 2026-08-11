@@ -2,7 +2,7 @@ import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 
 import {
   emailBlocksDescription,
-  rawHtmlContentWarning,
+  rawHtmlContentDescription,
   replacementEmailBlocksDescription,
 } from "../internal.js";
 
@@ -100,7 +100,7 @@ export const transactionalToolDefinitions: Tool[] = [
         },
         html: {
           type: "string",
-          description: `Email HTML content. Mutually exclusive with \`blocks\`. ${rawHtmlContentWarning}`,
+          description: `Email HTML content. Mutually exclusive with \`blocks\`. ${rawHtmlContentDescription}`,
         },
         blocks: {
           type: "array",
@@ -169,7 +169,7 @@ export const transactionalToolDefinitions: Tool[] = [
         },
         html: {
           type: "string",
-          description: `Email HTML content. Mutually exclusive with \`blocks\`. ${rawHtmlContentWarning}`,
+          description: `Email HTML content. Mutually exclusive with \`blocks\`. ${rawHtmlContentDescription}`,
         },
         blocks: {
           type: "array",

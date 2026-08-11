@@ -107,6 +107,15 @@ export function numberOutputProperty(
   };
 }
 
+export function nullableNumberOutputProperty(
+  description: string
+): OutputSchemaProperty {
+  return {
+    type: ["number", "null"],
+    description,
+  };
+}
+
 export function booleanOutputProperty(
   description: string
 ): OutputSchemaProperty {
@@ -1151,6 +1160,15 @@ export const outputPropertiesByToolName: Record<
           failedReason: nullableStringOutputProperty(
             "Why this enrollment stopped, for status `failed`. Null for every other status and for failures recorded before this field existed. A reason repeated across enrollments on the same currentNodeId points at that step's configuration or content rather than at the contacts."
           ),
+          movedFromNodeId: nullableStringOutputProperty(
+            "Step this enrollment was released from by move_sequence_enrollments, or null when it reached its current step on its own."
+          ),
+          movedAt: nullableStringOutputProperty(
+            "ISO 8601 timestamp of that release, or null when the enrollment was never moved."
+          ),
+          moveReason: nullableStringOutputProperty(
+            "Note recorded with that release, or null when none was given."
+          ),
         },
         // `failedReason` is deliberately absent, like every other field this
         // package added after the fact: clients validate structuredContent
@@ -1312,6 +1330,58 @@ export const outputPropertiesByToolName: Record<
     ),
     enrollments: resourceListOutputProperty(
       "sequence enrollment sample (up to 50)"
+    ),
+    hasMore: booleanOutputProperty(
+      "Whether more enrollments matched than the returned sample."
+    ),
+  },
+  move_sequence_enrollments: {
+    sequenceId: stringOutputProperty("Sequence ID."),
+    dryRun: booleanOutputProperty(
+      "Whether this call only reported the batch instead of moving it."
+    ),
+    fromNodeId: stringOutputProperty("Step the enrollments were taken from."),
+    targetNodeId: stringOutputProperty(
+      "Step the enrollments were moved onto, resolved from the source step's next step when not supplied."
+    ),
+    sort: stringOutputProperty("Order the batch was selected in."),
+    requestedLimit: numberOutputProperty("limit as requested."),
+    effectiveLimit: numberOutputProperty(
+      "How many this call was allowed to move after the daily guardrail was applied."
+    ),
+    matchedCount: numberOutputProperty(
+      "Movable enrollments parked on fromNodeId when the request started."
+    ),
+    movedCount: numberOutputProperty("Enrollments moved by this call."),
+    remainingCount: numberOutputProperty(
+      "Movable enrollments still on fromNodeId. Repeat the same request while this is above zero."
+    ),
+    skippedCount: numberOutputProperty(
+      "Enrollments excluded because they are active, a worker is mid-step on them, or they are parked awaiting double opt-in. Only safely parked waiting tokens can be moved."
+    ),
+    dailyLimit: nullableNumberOutputProperty(
+      "Applied daily guardrail, or null when none was requested."
+    ),
+    movedInWindow: numberOutputProperty(
+      "Moves onto targetNodeId already recorded in the rolling 24-hour window."
+    ),
+    dailyRemaining: nullableNumberOutputProperty(
+      "How many more can be moved onto targetNodeId today, or null when no dailyLimit was requested."
+    ),
+    enqueuedCount: numberOutputProperty(
+      "Moved enrollments handed to the worker queue. Zero while the sequence is not running."
+    ),
+    enqueueErrors: {
+      type: "array",
+      description:
+        "Moved enrollments whose queue handoff failed. They stay active on the target step and are recovered by the stuck-enrollment sweeper.",
+      items: objectOutputProperty("One tokenId with its enqueue error."),
+    },
+    tagResult: nullableObjectOutputProperty(
+      "Tagging outcome for the moved contacts: tags, updated, unchanged, failed, failures. Null when no tags were requested."
+    ),
+    enrollments: resourceListOutputProperty(
+      "moved (or, on a dry run, would-move) sequence enrollment sample (up to 50)"
     ),
     hasMore: booleanOutputProperty(
       "Whether more enrollments matched than the returned sample."

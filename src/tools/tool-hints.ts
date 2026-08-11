@@ -196,6 +196,7 @@ export const MUTATING_TOOL_NAMES = new Set([
   "resume_sequence_enrollments",
   "enroll_subscribers_in_sequence",
   "cancel_sequence_enrollments",
+  "move_sequence_enrollments",
   "realign_sequence_enrollments",
   "delete_sequence",
   "create_transactional_email",
@@ -240,6 +241,9 @@ export const OPEN_WORLD_TOOL_NAMES = new Set([
   "enable_sequence",
   "unarchive_sequence",
   "resume_sequence_enrollments",
+  // Releases contacts onto a live step, so the sequence starts sending to them
+  // as soon as the worker picks them up.
+  "move_sequence_enrollments",
   "send_email",
   "invite_team_member",
   "reply_to_conversation",
@@ -281,6 +285,9 @@ export const DESTRUCTIVE_TOOL_NAMES = new Set([
   "rotate_sequence_inbound_webhook_secret",
   "edit_sequence_graph",
   "cancel_sequence_enrollments",
+  // Not reversible in the way that matters: a released contact can receive the
+  // target step's email before anyone notices the batch was wrong.
+  "move_sequence_enrollments",
   "realign_sequence_enrollments",
   "delete_sequence",
   "cancel_team_invitation",
