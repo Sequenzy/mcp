@@ -775,6 +775,8 @@ directive. Custom landing page domains require a CNAME record pointing to
 | `resume_sequence_enrollments`            | Reopen new enrollments for an active sequence without changing current recipients.           |
 | `enroll_subscribers_in_sequence`         | Enroll up to 500 subscribers by email, subscriber ID, or both, optionally at a target node.  |
 | `cancel_sequence_enrollments`            | Stop active or waiting enrollments by subscriber or entry-event field values.                |
+| `realign_sequence_enrollments`           | Preview or queue moving live waits earlier to their sending-window opening.                  |
+| `get_sequence_enrollment_realignment`    | Poll an applied realignment job and read its completed result or continuation cursor.         |
 | `delete_sequence`                        | Delete a sequence.                                                                           |
 
 Sequence creation supports:
@@ -908,6 +910,14 @@ defaults.
 Use `edit_sequence_graph` with the latest `graphRevision` from `get_sequence` to restructure an existing sequence atomically. It can move a node before or after another node, reuse the normalized `sequence.edges` array for explicit reconnection or multi-node reordering, delete a node, or deep-copy a node. A/B test duplication creates independent test, variant, email, and localization records with reset statistics. Moving a node before the shared node below a branch reconnects every converging branch path through that node. Deleting a node immediately moves parked recipients to its unique surviving successor, or completes them when no successor remains; inspect `sequence.migratedRecipientCount` and `sequence.completedRecipientCount` in the result. Deletion is refused when parked recipients would have multiple surviving continuations. Stale revisions, invalid branch lanes, cycles, and unreachable nodes are also rejected. Active sequences require `confirmStructuralChange: true`.
 
 Run `cancel_sequence_enrollments` with `dryRun: true` before applying bulk cancellation.
+
+Run `realign_sequence_enrollments` after changing a live sequence's sending
+window when existing email-bound waits should move earlier to the new opening.
+It defaults to `dryRun: true`. Passing `dryRun: false` queues a background job
+and returns `jobId`; poll it with `get_sequence_enrollment_realignment`. When a
+completed result has `hasMore: true`, queue the next bounded apply with its
+`nextCursor`. Applied realignment changes live delivery times and should only be
+used after the user confirms the preview.
 
 ### Email Block Styling
 

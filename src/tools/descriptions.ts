@@ -140,7 +140,7 @@ export const emailEventTypesList = emailEventTypes.join(", ");
 export const sequenceSendingWindowSchema = {
   type: "object",
   description:
-    "Optional send window for every email step in the sequence. When set, email actions that become due outside the window wait until the next allowed local time. Omit days to allow every day.",
+    "Optional send window for every email step in the sequence. When set, email actions that become due outside the window wait until the next allowed local time. Omit days to allow every day. Changing the window does not move contacts already waiting on a delay step - they keep their existing wait time, and narrowing the window can defer them to the next allowed day. Call realign_sequence_enrollments after the change to pull those waits back to the new opening.",
   properties: {
     enabled: {
       type: "boolean",
