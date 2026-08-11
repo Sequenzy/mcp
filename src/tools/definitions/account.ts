@@ -664,7 +664,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "list_websites",
     description:
-      "List configured sending domains with separate DNS verification, selected home-transport readiness, and SPF, DKIM, and MAIL FROM status",
+      "List configured sending domains with separate DNS verification, sending readiness, and SPF, DKIM, and MAIL FROM status",
     inputSchema: {
       type: "object",
       properties: {
@@ -724,7 +724,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "check_website",
     description:
-      "Read a sending domain's separate DNS verification, selected home-transport readiness, and SPF, DKIM, MAIL FROM diagnostics. Use verify_sending_domain to run a fresh DNS check.",
+      "Read a sending domain's separate DNS verification, sending readiness, and SPF, DKIM, MAIL FROM diagnostics. Use verify_sending_domain to run a fresh DNS check.",
     inputSchema: {
       type: "object",
       properties: {
@@ -744,7 +744,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "verify_sending_domain",
     description:
-      "Run a fresh DNS check for a configured sending domain and return DNS verification separately from selected home-transport readiness. A DNS-verified domain may still be activating in SES.",
+      "Run a fresh DNS check for a configured sending domain and return DNS verification separately from sending readiness. A DNS-verified domain may still be activating; when readyToSend is false, read readiness.reason rather than the DKIM/SPF/MAIL FROM record statuses, which describe DNS only.",
     inputSchema: {
       type: "object",
       properties: {

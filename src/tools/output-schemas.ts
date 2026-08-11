@@ -322,7 +322,7 @@ export const outputPropertiesByToolName: Record<
   },
   list_websites: {
     websites: resourceListOutputProperty(
-      "sending domain, including DNS verification and readyToSend home-transport readiness"
+      "sending domain, including DNS verification and readyToSend sending readiness"
     ),
   },
   list_integrations: {
@@ -456,11 +456,14 @@ export const outputPropertiesByToolName: Record<
     syncStatus: stringOutputProperty(
       "Sync status after queueing. Poll get_integration to watch it progress."
     ),
+    syncTarget: nullableObjectOutputProperty(
+      "For Supabase, the project ref, schema, and table the backfill reads. Absent for providers whose sync has no configurable source."
+    ),
     message: messageOutputProperty,
   },
   list_sender_profiles: {
     senderProfiles: resourceListOutputProperty(
-      "sender (From) profile, including the sending domain behind it, its DNS verification status, and whether DNS plus the home transport allow the address to send"
+      "sender (From) profile, including the sending domain behind it, its DNS verification status, and whether the address is fully ready to send"
     ),
     replyProfiles: resourceListOutputProperty("reply-to profile"),
     defaultSenderProfileId: nullableStringOutputProperty(
@@ -594,17 +597,17 @@ export const outputPropertiesByToolName: Record<
   },
   check_website: {
     website: resourceOutputProperty(
-      "sending domain with separate DNS verification and readyToSend home-transport readiness"
+      "sending domain with separate DNS verification and readyToSend sending readiness; readiness.reason explains a domain that cannot send yet"
     ),
     ready: booleanOutputProperty("Whether the sender website is ready."),
     status: stringOutputProperty("Current processing or verification status."),
   },
   verify_sending_domain: {
     website: resourceOutputProperty(
-      "Sending domain with current DNS verification, readyToSend home-transport readiness, SPF, DKIM, and MAIL FROM details."
+      "Sending domain with current DNS verification, readyToSend sending readiness, SPF, DKIM, and MAIL FROM details. When readyToSend is false, readiness.reason carries why: activation runs after the DNS records are correct, so it can still be pending while dkim.status reads verified."
     ),
     verified: booleanOutputProperty(
-      "Whether the sending domain passed the fresh DNS verification check. This does not by itself mean SES or MTA is ready."
+      "Whether the sending domain passed the fresh DNS verification check. Correct DNS alone does not mean the domain can send yet."
     ),
     readyToSend: booleanOutputProperty(
       "Whether DNS and the selected home transport are both ready for sending."

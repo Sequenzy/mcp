@@ -242,7 +242,7 @@ export const integrationToolDefinitions: Tool[] = [
   {
     name: "sync_integration",
     description:
-      "Queue a manual re-sync of customers and revenue for a payment provider integration (Stripe, Polar, Paddle, Dodo, Creem, Chargebee, Whop). Returns immediately - poll get_integration to watch `syncStatus` and `lastSyncAt`. Fails with a conflict if a sync is already running, and with a clear error naming the dashboard for providers whose backfill is not API-triggerable (Shopify products, Supabase users, PostHog history, Affonso affiliates). Check `availableActions` on get_integration to see whether this is supported before calling.",
+      "Queue a manual re-sync for an integration: customers and revenue for a payment provider (Stripe, Polar, Paddle, Dodo, Creem, Chargebee, Whop), or the user backfill for Supabase. Use this for Supabase before a campaign that depends on names or plan attributes - the live trigger only sends rows that change after it was installed, so existing users have no attributes until a backfill runs. The Supabase sync reads the project, schema, and table already configured for the integration and cannot be pointed at a different table; if none is configured yet it fails saying so. Returns immediately - poll get_integration to watch `syncStatus` and `lastSyncAt`, and list_integration_activity for per-row outcomes. Fails with a conflict if a sync is already running, and with a clear error naming the dashboard for providers whose backfill is not API-triggerable (Shopify products, PostHog history, Affonso affiliates). Check `availableActions` on get_integration to see whether this is supported before calling.",
     inputSchema: {
       type: "object",
       properties: {

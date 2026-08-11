@@ -228,7 +228,8 @@ export const OPEN_WORLD_TOOL_NAMES = new Set([
   "verify_sending_domain",
   // Validates credentials against the provider's API and queues backfills.
   "connect_integration",
-  // Reaches the payment provider's API through a background sync job.
+  // Reaches the provider's API (payment provider, Supabase) through a
+  // background sync job.
   "sync_integration",
   // Both talk to the Shopify Admin API in the request: the read cannot be
   // served from our own state, and the write changes the merchant's store.
