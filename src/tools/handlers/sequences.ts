@@ -6,6 +6,7 @@ import {
   buildSequenceGraphEditBody,
   buildInsertSequenceStepBody,
   buildCancelSequenceEnrollmentBody,
+  buildRealignSequenceEnrollmentBody,
   optionalString,
   requiredString,
   buildSequenceEnrollmentBody,
@@ -625,6 +626,36 @@ export async function handleSequenceTools(
         "POST",
         `/api/v1/sequences/${args.sequenceId}/enrollments/cancel`,
         body,
+        companyId
+      );
+      break;
+    }
+
+    case "realign_sequence_enrollments": {
+      const companyId = args.companyId as string | undefined;
+      const sequenceId = requiredString(
+        "realign_sequence_enrollments",
+        args,
+        "sequenceId"
+      );
+      const body = buildRealignSequenceEnrollmentBody(args);
+      result = await apiRequest(
+        "POST",
+        `/api/v1/sequences/${encodeURIComponent(sequenceId)}/enrollments/realign-sending-window`,
+        body,
+        companyId
+      );
+      break;
+    }
+
+    case "get_sequence_enrollment_realignment": {
+      const companyId = args.companyId as string | undefined;
+      const sequenceId = requiredString(name, args, "sequenceId");
+      const jobId = requiredString(name, args, "jobId");
+      result = await apiRequest(
+        "GET",
+        `/api/v1/sequences/${encodeURIComponent(sequenceId)}/enrollments/realign-sending-window/jobs/${encodeURIComponent(jobId)}`,
+        undefined,
         companyId
       );
       break;

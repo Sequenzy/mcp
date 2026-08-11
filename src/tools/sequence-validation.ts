@@ -798,6 +798,58 @@ function normalizeCancelStringArray(
   return normalized;
 }
 
+function normalizeRealignStringArray(
+  args: Record<string, unknown>,
+  key: "nodeIds" | "subscriberIds"
+): string[] {
+  const raw = args[key];
+  if (raw === undefined) {
+    return [];
+  }
+
+  if (!Array.isArray(raw)) {
+    throw new Error(
+      `\`${key}\` must be an array when calling \`realign_sequence_enrollments\`.`
+    );
+  }
+
+  const normalized = raw
+    .map((value) => (typeof value === "string" ? value.trim() : ""))
+    .filter((value) => value.length > 0);
+
+  if (
+    raw.some((value) => typeof value !== "string") ||
+    normalized.length === 0
+  ) {
+    throw new Error(
+      `\`${key}\` must contain at least one non-empty string when calling \`realign_sequence_enrollments\`.`
+    );
+  }
+
+  return normalized;
+}
+
+export function buildRealignSequenceEnrollmentBody(
+  args: Record<string, unknown>
+): Record<string, unknown> {
+  const nodeIds = normalizeRealignStringArray(args, "nodeIds");
+  const subscriberIds = normalizeRealignStringArray(args, "subscriberIds");
+  const cursor = optionalString(args, "cursor");
+
+  if (args.dryRun !== undefined && typeof args.dryRun !== "boolean") {
+    throw new Error(
+      "`dryRun` must be a boolean when calling `realign_sequence_enrollments`."
+    );
+  }
+
+  return {
+    ...(nodeIds.length > 0 && { nodeIds }),
+    ...(subscriberIds.length > 0 && { subscriberIds }),
+    ...(cursor !== undefined && { cursor }),
+    ...(typeof args.dryRun === "boolean" && { dryRun: args.dryRun }),
+  };
+}
+
 export function buildCancelSequenceEnrollmentBody(
   args: Record<string, unknown>
 ): Record<string, unknown> {

@@ -277,7 +277,7 @@ sort options.
 | `list_integration_capabilities`      | Compare provider capabilities whether or not they are connected.                                                              |
 | `list_integration_activity`          | Read the retained integration-specific webhook and sync activity log.                                                         |
 | `set_integration_sync_enabled`       | Enable or disable bulk imports and backfills while leaving live webhooks connected.                                           |
-| `sync_integration`                   | Queue a manual payment-provider customer and revenue backfill.                                                                |
+| `sync_integration`                   | Queue a payment-provider revenue backfill or a Supabase user backfill from its saved table configuration.                    |
 | `get_integration_pixel`              | Read Shopify's live pixel/configuration state and distinguish confirmed dark events from an unknown read.                     |
 | `activate_integration_pixel`         | Install or repoint Shopify's storefront pixel; idempotent when it is already current.                                         |
 | `list_sender_profiles`               | List sender and reply-to profiles, defaults, and sending-domain readiness.                                                    |
@@ -289,6 +289,12 @@ sort options.
 `get_sending_status` keeps the Postgres-backed pause state, review gates, and
 remediation available when sender-health analytics are temporarily unavailable;
 in that degraded case `senderHealth` is `null`.
+
+For Supabase, `sync_integration` reuses the project, schema, table, list
+selection, and consent mappings saved in the dashboard. It cannot target an
+arbitrary table. Run it after installing the live database trigger to import
+users who existed before the trigger was installed, then poll `get_integration`
+and `list_integration_activity` for progress and row-level outcomes.
 
 For a new sending domain, call `add_sending_domain`, publish the DNS records in
 the returned `website.dnsRecords`, wait for DNS propagation, and then call
@@ -371,6 +377,8 @@ written consent, or `false` to opt the contact out. Changing the phone without
 | `sync_products`       | Queue a Stripe product catalog sync, optionally selecting an integration by ID.       |
 
 After a product delivery file is attached, matching purchase events include `download.url` and `download.name`, so purchase-triggered emails can use merge tags like `{{event.download.url}}`.
+
+For Stripe products, `list_products` returns every active price as a variant, with the Stripe price ID in `variantId`. Use that ID to target an exact price in a purchase sequence even when it is not the product's default price.
 
 ### Image Assets
 
@@ -772,6 +780,8 @@ directive. Custom landing page domains require a CNAME record pointing to
 | `resume_sequence_enrollments`            | Reopen new enrollments for an active sequence without changing current recipients.           |
 | `enroll_subscribers_in_sequence`         | Enroll up to 500 subscribers by email, subscriber ID, or both, optionally at a target node.  |
 | `cancel_sequence_enrollments`            | Stop active or waiting enrollments by subscriber or entry-event field values.                |
+| `realign_sequence_enrollments`           | Preview or queue moving live waits earlier to their sending-window opening.                  |
+| `get_sequence_enrollment_realignment`    | Poll an applied realignment job and read its completed result or continuation cursor.         |
 | `delete_sequence`                        | Delete a sequence.                                                                           |
 
 Sequence creation supports:
@@ -905,6 +915,14 @@ defaults.
 Use `edit_sequence_graph` with the latest `graphRevision` from `get_sequence` to restructure an existing sequence atomically. It can move a node before or after another node, reuse the normalized `sequence.edges` array for explicit reconnection or multi-node reordering, delete a node, or deep-copy a node. A/B test duplication creates independent test, variant, email, and localization records with reset statistics. Moving a node before the shared node below a branch reconnects every converging branch path through that node. Deleting a node immediately moves parked recipients to its unique surviving successor, or completes them when no successor remains; inspect `sequence.migratedRecipientCount` and `sequence.completedRecipientCount` in the result. Deletion is refused when parked recipients would have multiple surviving continuations. Stale revisions, invalid branch lanes, cycles, and unreachable nodes are also rejected. Active sequences require `confirmStructuralChange: true`.
 
 Run `cancel_sequence_enrollments` with `dryRun: true` before applying bulk cancellation.
+
+Run `realign_sequence_enrollments` after changing a live sequence's sending
+window when existing email-bound waits should move earlier to the new opening.
+It defaults to `dryRun: true`. Passing `dryRun: false` queues a background job
+and returns `jobId`; poll it with `get_sequence_enrollment_realignment`. When a
+completed result has `hasMore: true`, queue the next bounded apply with its
+`nextCursor`. Applied realignment changes live delivery times and should only be
+used after the user confirms the preview.
 
 ### Email Block Styling
 
