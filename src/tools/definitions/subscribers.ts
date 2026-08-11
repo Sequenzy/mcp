@@ -622,7 +622,7 @@ export const subscriberToolDefinitions: Tool[] = [
   {
     name: "search_subscribers",
     description:
-      "Search subscribers by free-text query, tags, list, segment, or custom attribute. If you omit limit, the tool fetches all pages and returns every match in one call - that is the fastest way to enumerate an audience. To walk a large audience in chunks instead, pass limit and then follow pagination.nextCursor (or pagination.nextOffset) until pagination.hasMore is false. Default searches are newest first; searches with attribute use stable subscriber-ID ascending order.",
+      "Search subscribers by free-text query, tags, list, segment, custom attribute, or opt-out date. Each subscriber carries unsubscribedAt, the date the contact opted out - use it rather than updatedAt, which any later tag or attribute write overwrites. If you omit limit, the tool fetches all pages and returns every match in one call - that is the fastest way to enumerate an audience. To walk a large audience in chunks instead, pass limit and then follow pagination.nextCursor (or pagination.nextOffset) until pagination.hasMore is false. Default searches are newest first; searches with attribute use stable subscriber-ID ascending order.",
     inputSchema: {
       type: "object",
       properties: {
@@ -662,6 +662,16 @@ export const subscriberToolDefinitions: Tool[] = [
           type: "string",
           description:
             "Filter by subscriber status: active, unsubscribed, or bounced.",
+        },
+        unsubscribedAfter: {
+          type: "string",
+          description:
+            "Only return contacts whose opt-out is on or after this ISO 8601 date/datetime. Bare dates use UTC midnight; datetimes must include Z or an explicit offset. Contacts with no opt-out date are excluded: active contacts, and contacts imported as already unsubscribed.",
+        },
+        unsubscribedBefore: {
+          type: "string",
+          description:
+            "Only return contacts whose recorded opt-out is on or before this ISO 8601 date/datetime. Bare dates use UTC midnight; datetimes must include Z or an explicit offset. Combine with unsubscribedAfter to audit a window of opt-outs.",
         },
         attribute: {
           type: "string",
