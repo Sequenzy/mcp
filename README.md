@@ -375,6 +375,8 @@ written consent, or `false` to opt the contact out. Changing the phone without
 
 After a product delivery file is attached, matching purchase events include `download.url` and `download.name`, so purchase-triggered emails can use merge tags like `{{event.download.url}}`.
 
+For Stripe products, `list_products` returns every active price as a variant, with the Stripe price ID in `variantId`. Use that ID to target an exact price in a purchase sequence even when it is not the product's default price.
+
 ### Image Assets
 
 | Tool                 | Description                                                                                  |
