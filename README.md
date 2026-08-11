@@ -1076,6 +1076,14 @@ content is returned as draft content for review. Use `create_sequence` to
 generate and persist a disabled sequence draft that appears in
 `list_sequences`; the deprecated `generate_sequence` alias does the same.
 
+### Product Feedback
+
+Use `submit_feedback` when a needed Sequenzy capability is missing, confusing,
+or broken. For wrong or unexpected tool outcomes, include `userIntent`, the
+ordered `toolCalls` with short argument and error summaries, `expected`,
+`actual`, and affected `resourceIds`. Do not include secrets, API keys, raw
+subscriber data, or full email bodies.
+
 ## Resources
 
 The server also exposes read-only MCP resources.

@@ -72,7 +72,15 @@ export async function handleAiAndFeedbackTools(
         message: requiredString("submit_feedback", args, "message"),
         source: "mcp",
       };
-      for (const key of ["category", "context"]) {
+      for (const key of [
+        "category",
+        "context",
+        "userIntent",
+        "toolCalls",
+        "expected",
+        "actual",
+        "resourceIds",
+      ]) {
         if (args[key] !== undefined) {
           body[key] = args[key];
         }

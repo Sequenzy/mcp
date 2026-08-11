@@ -94,6 +94,60 @@ function getPublishedToolSchemas(tool: (typeof tools)[number]) {
   ];
 }
 
+describe("feedback tools", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("publishes and forwards structured bug reproduction details", async () => {
+    const tool = tools.find(
+      (candidate) => candidate.name === "submit_feedback"
+    );
+    const properties = tool?.inputSchema.properties;
+    const toolCalls = [
+      {
+        tool: "update_campaign",
+        args: "campaignId=cmp_123",
+        error: "schedule was removed",
+      },
+    ];
+
+    expect(properties).toHaveProperty("userIntent");
+    expect(properties).toHaveProperty("toolCalls");
+    expect(properties).toHaveProperty("expected");
+    expect(properties).toHaveProperty("actual");
+    expect(properties).toHaveProperty("resourceIds");
+
+    mockApiRequest.mockResolvedValueOnce({ success: true });
+    await handleToolCall("submit_feedback", {
+      companyId: "company_123",
+      message: "Campaign update dropped its schedule",
+      category: "bug",
+      userIntent: "Reschedule the campaign",
+      toolCalls,
+      expected: "Campaign remains scheduled",
+      actual: "Campaign reverted to draft",
+      resourceIds: ["cmp_123"],
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/feedback",
+      {
+        message: "Campaign update dropped its schedule",
+        source: "mcp",
+        category: "bug",
+        userIntent: "Reschedule the campaign",
+        toolCalls,
+        expected: "Campaign remains scheduled",
+        actual: "Campaign reverted to draft",
+        resourceIds: ["cmp_123"],
+      },
+      "company_123"
+    );
+  });
+});
+
 describe("account tools", () => {
   beforeEach(() => {
     mockApiRequest.mockClear();
