@@ -279,7 +279,7 @@ sort options.
 | `list_integration_capabilities`      | Compare provider capabilities whether or not they are connected.                                                              |
 | `list_integration_activity`          | Read the retained integration-specific webhook and sync activity log.                                                         |
 | `set_integration_sync_enabled`       | Enable or disable bulk imports and backfills while leaving live webhooks connected.                                           |
-| `sync_integration`                   | Queue a payment-provider revenue backfill or a Supabase user backfill from its saved table configuration.                    |
+| `sync_integration`                   | Queue a payment-provider revenue backfill, Supabase user backfill, or retryable PostHog history import.                      |
 | `get_integration_pixel`              | Read Shopify's live pixel/configuration state and distinguish confirmed dark events from an unknown read.                     |
 | `activate_integration_pixel`         | Install or repoint Shopify's storefront pixel; idempotent when it is already current.                                         |
 | `list_sender_profiles`               | List sender and reply-to profiles, defaults, and sending-domain readiness.                                                    |
@@ -296,6 +296,10 @@ selection, and consent mappings saved in the dashboard. It cannot target an
 arbitrary table. Run it after installing the live database trigger to import
 users who existed before the trigger was installed, then poll `get_integration`
 and `list_integration_activity` for progress and row-level outcomes.
+
+For PostHog, `sync_integration` restarts the event-history import from the
+beginning with the stored personal API key. Imported events are deduplicated, so
+retrying a failed import does not create duplicates.
 
 For a new sending domain, call `add_sending_domain`, publish the DNS records in
 the returned `website.dnsRecords`, wait for DNS propagation, and then call
