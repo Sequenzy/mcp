@@ -135,6 +135,8 @@ export function buildSubscriberSearchParams(input: {
   listName?: unknown;
   segmentId?: unknown;
   status?: unknown;
+  unsubscribedAfter?: unknown;
+  unsubscribedBefore?: unknown;
   attribute?: string | undefined;
   attributeOperator?: string | undefined;
   page: number;
@@ -177,6 +179,20 @@ export function buildSubscriberSearchParams(input: {
 
   if (typeof input.status === "string" && input.status.trim() !== "") {
     params.set("status", input.status.trim());
+  }
+
+  if (
+    typeof input.unsubscribedAfter === "string" &&
+    input.unsubscribedAfter.trim() !== ""
+  ) {
+    params.set("unsubscribedAfter", input.unsubscribedAfter.trim());
+  }
+
+  if (
+    typeof input.unsubscribedBefore === "string" &&
+    input.unsubscribedBefore.trim() !== ""
+  ) {
+    params.set("unsubscribedBefore", input.unsubscribedBefore.trim());
   }
 
   if (input.attribute) {
@@ -245,6 +261,8 @@ export async function fetchAllSubscribers(
       listName: args.listName,
       segmentId: args.segmentId,
       status: args.status,
+      unsubscribedAfter: args.unsubscribedAfter,
+      unsubscribedBefore: args.unsubscribedBefore,
       attribute: attributeFilter.attribute,
       attributeOperator: attributeFilter.attributeOperator,
       page,

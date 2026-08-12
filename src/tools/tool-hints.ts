@@ -58,6 +58,7 @@ export const READ_ONLY_TOOL_NAMES = new Set([
   "list_sequences",
   "get_sequence",
   "list_sequence_enrollments",
+  "get_sequence_enrollment_realignment",
   "list_sequence_goals",
   "get_sequence_inbound_webhook",
   "list_transactional_emails",
@@ -195,6 +196,7 @@ export const MUTATING_TOOL_NAMES = new Set([
   "resume_sequence_enrollments",
   "enroll_subscribers_in_sequence",
   "cancel_sequence_enrollments",
+  "realign_sequence_enrollments",
   "delete_sequence",
   "create_transactional_email",
   "update_transactional_email",
@@ -228,7 +230,8 @@ export const OPEN_WORLD_TOOL_NAMES = new Set([
   "verify_sending_domain",
   // Validates credentials against the provider's API and queues backfills.
   "connect_integration",
-  // Reaches the payment provider's API through a background sync job.
+  // Reaches the provider's API (payment provider, Supabase) through a
+  // background sync job.
   "sync_integration",
   // Both talk to the Shopify Admin API in the request: the read cannot be
   // served from our own state, and the write changes the merchant's store.
@@ -278,6 +281,7 @@ export const DESTRUCTIVE_TOOL_NAMES = new Set([
   "rotate_sequence_inbound_webhook_secret",
   "edit_sequence_graph",
   "cancel_sequence_enrollments",
+  "realign_sequence_enrollments",
   "delete_sequence",
   "cancel_team_invitation",
   "delete_webhook",

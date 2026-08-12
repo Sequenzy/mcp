@@ -1247,6 +1247,75 @@ export const sequenceEditingToolDefinitions: Tool[] = [
     },
   },
   {
+    name: "realign_sequence_enrollments",
+    description:
+      "Pull waiting enrollments forward to the start of the sequence's sending window on the day they are already scheduled for. Use this after changing sendingWindow (or a wait-until-weekday step) on a live sequence: node and sequence updates deliberately keep existing wait timestamps, so contacts already parked on an email-bound delay keep resuming at whatever minute their delay landed on, and a narrowed window silently defers them to the NEXT allowed day. Non-email actions are never advanced by the sequence sending window. Realignment never cancels, re-enrolls, or reschedules onto a different local day, and never pushes a contact later - a wait only ever moves earlier within the day it already has, and never earlier than now. Defaults to dryRun. Passing dryRun false queues a background apply and returns jobId; call get_sequence_enrollment_realignment until it completes. Each completed job is capped: when result.hasMore is true, queue another apply with result.nextCursor as cursor.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        sequenceId: {
+          type: "string",
+          description: "Sequence ID whose waiting enrollments should realign.",
+        },
+        nodeIds: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Optional step IDs to limit realignment to. Use nodeIds from get_sequence, or currentNodeId values from list_sequence_enrollments. Defaults to every step.",
+        },
+        subscriberIds: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Optional subscriber IDs to limit realignment to (maximum 500). Defaults to every waiting contact.",
+        },
+        cursor: {
+          type: "string",
+          description:
+            "Opaque continuation cursor. When a response has hasMore true, pass its nextCursor here to continue after the enrollments already scanned.",
+        },
+        dryRun: {
+          type: "boolean",
+          description:
+            "When true (the default), reports the new wait times without writing them. Pass false to apply.",
+        },
+      },
+      required: ["sequenceId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_sequence_enrollment_realignment",
+    description:
+      "Check a queued sequence enrollment realignment. Call this with the jobId returned by realign_sequence_enrollments after applying with dryRun false. When status is completed, result contains the realignment counts, sample, and any nextCursor needed for another bounded apply call.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        sequenceId: {
+          type: "string",
+          description: "Sequence ID used when the realignment was queued.",
+        },
+        jobId: {
+          type: "string",
+          description:
+            "Realignment job ID returned by realign_sequence_enrollments.",
+        },
+      },
+      required: ["sequenceId", "jobId"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "delete_sequence",
     description: "Delete a sequence",
     inputSchema: {

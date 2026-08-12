@@ -7,7 +7,7 @@ export const productToolDefinitions: Tool[] = [
   {
     name: "list_products",
     description:
-      "List synced products (Stripe, Shopify, WooCommerce) including any attached digital delivery file. Useful before attaching a file or building a purchase sequence for a specific product. Returns one page: check pagination.total and pagination.hasMore, and page with offset to read the whole catalog.",
+      "List synced products (Stripe, Shopify, WooCommerce) including any attached digital delivery file. Useful before attaching a file or building a purchase sequence for a specific product. For Stripe products, variants are the product's active prices (variantId = Stripe price ID), so an exact price can be targeted even when it is not the default. Returns one page: check pagination.total and pagination.hasMore, and page with offset to read the whole catalog.",
     inputSchema: {
       type: "object",
       properties: {

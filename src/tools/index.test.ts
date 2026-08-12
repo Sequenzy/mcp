@@ -1185,6 +1185,38 @@ describe("nullable structured output", () => {
     expect(result.valid).toBe(true);
   });
 
+  it("accepts realignment output with no sequence-level sending window", () => {
+    const result = validateStructuredContent("realign_sequence_enrollments", {
+      success: true,
+      sequenceId: "seq_abc123",
+      dryRun: true,
+      sendingWindow: null,
+      scannedCount: 1,
+      realignedCount: 1,
+      unchangedCount: 0,
+      unchangedReasons: {},
+      requeueFailedCount: 0,
+      changes: [],
+      hasMore: false,
+    });
+
+    expect(result.errorMessage).toBeUndefined();
+    expect(result.valid).toBe(true);
+  });
+
+  it("accepts a queued applied realignment output", () => {
+    const result = validateStructuredContent("realign_sequence_enrollments", {
+      success: true,
+      sequenceId: "seq_abc123",
+      dryRun: false,
+      status: "queued",
+      jobId: "job_abc123",
+    });
+
+    expect(result.errorMessage).toBeUndefined();
+    expect(result.valid).toBe(true);
+  });
+
   it("accepts a failed enrollment carrying its reason", () => {
     const result = validateStructuredContent("list_sequence_enrollments", {
       success: true,
@@ -8094,6 +8126,137 @@ describe("cancel_sequence_enrollments tool", () => {
       "Provide exactly one target when calling `cancel_sequence_enrollments`"
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+});
+
+describe("realign_sequence_enrollments tool", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("publishes a plain object schema with sequenceId required", () => {
+    const tool = tools.find(
+      (candidate) => candidate.name === "realign_sequence_enrollments"
+    );
+    const inputSchema = tool?.inputSchema as
+      | {
+          required?: string[];
+          additionalProperties?: boolean;
+          properties?: Record<string, unknown>;
+          anyOf?: unknown;
+        }
+      | undefined;
+
+    expect(inputSchema?.required).toEqual(["sequenceId"]);
+    expect(inputSchema?.anyOf).toBeUndefined();
+    expect(inputSchema?.additionalProperties).toBe(false);
+    expect(inputSchema?.properties).toHaveProperty("nodeIds");
+    expect(inputSchema?.properties).toHaveProperty("subscriberIds");
+    expect(inputSchema?.properties).toHaveProperty("cursor");
+    expect(inputSchema?.properties).toHaveProperty("dryRun");
+  });
+
+  it("defaults to the whole sequence with no dryRun override", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      sequenceId: "seq_123",
+      dryRun: true,
+      realignedCount: 330,
+    });
+
+    const result = await handleToolCall("realign_sequence_enrollments", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/sequences/seq_123/enrollments/realign-sending-window",
+      {},
+      "comp_123"
+    );
+  });
+
+  it("forwards trimmed step and subscriber filters with dryRun false", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true });
+
+    await handleToolCall("realign_sequence_enrollments", {
+      sequenceId: "seq_123",
+      nodeIds: [" node_1 ", "node_2"],
+      subscriberIds: ["sub_1"],
+      cursor: " next-page ",
+      dryRun: false,
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/sequences/seq_123/enrollments/realign-sending-window",
+      {
+        nodeIds: ["node_1", "node_2"],
+        subscriberIds: ["sub_1"],
+        cursor: "next-page",
+        dryRun: false,
+      },
+      undefined
+    );
+  });
+
+  it("rejects a non-array nodeIds before hitting the API", async () => {
+    const result = await handleToolCall("realign_sequence_enrollments", {
+      sequenceId: "seq_123",
+      nodeIds: "node_1",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`nodeIds` must be an array when calling `realign_sequence_enrollments`"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("is annotated as mutating and destructive", () => {
+    const tool = tools.find(
+      (candidate) => candidate.name === "realign_sequence_enrollments"
+    );
+
+    expect(tool?.annotations?.readOnlyHint).toBe(false);
+    expect(tool?.annotations?.destructiveHint).toBe(true);
+  });
+
+  it("publishes and calls the read-only job status tool", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      sequenceId: "seq_123",
+      dryRun: false,
+      status: "running",
+      jobId: "job_123",
+      result: null,
+      error: null,
+    });
+
+    const tool = tools.find(
+      (candidate) => candidate.name === "get_sequence_enrollment_realignment"
+    );
+    expect(tool?.inputSchema.required).toEqual(["sequenceId", "jobId"]);
+    expect(tool?.annotations).toMatchObject({
+      readOnlyHint: true,
+      destructiveHint: false,
+    });
+
+    const result = await handleToolCall("get_sequence_enrollment_realignment", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      jobId: "job_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/sequences/seq_123/enrollments/realign-sending-window/jobs/job_123",
+      undefined,
+      "comp_123"
+    );
   });
 });
 
