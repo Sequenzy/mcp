@@ -1596,6 +1596,9 @@ describe("update_company tool validation", () => {
     expect(inputSchema?.additionalProperties).toBeUndefined();
     expect(inputSchema?.properties).toHaveProperty("primaryColor");
     expect(inputSchema?.properties).toHaveProperty("emailTheme");
+    expect(JSON.stringify(inputSchema?.properties?.["emailTheme"])).toContain(
+      '"buttonRadius"'
+    );
     expect(inputSchema?.properties).toHaveProperty("companyContext");
     expect(inputSchema?.properties).toHaveProperty("toneVoice");
     expect(inputSchema?.properties).toHaveProperty("valueProps");

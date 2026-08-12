@@ -636,7 +636,8 @@ exact profile to make default and rename.
 `emailTheme` (`presetId`, `colors`, `typography`, `layout`). Theme updates are
 partial - omitted fields keep their current value (or the preset default) and
 numeric values are clamped to supported ranges. Pass `emailTheme: null` to
-reset the company to the platform default theme.
+reset the company to the platform default theme. Layout settings can control
+the shared `baseRadius` and a separate `buttonRadius`.
 
 Reply tracking is available on the same company tools. Use
 `replyTrackingEnabled`, `replyTrackingDomainMode` (`sequenzy` or `custom`), and
