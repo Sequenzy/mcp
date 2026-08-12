@@ -146,6 +146,36 @@ export const aiGenerationToolDefinitions: Tool[] = [
     },
   },
   {
+    name: "update_sms_number_label",
+    description:
+      "Update one SMS number's settings: the user-facing label and/or its brand prefix override. Use get_sms_settings to find the number ID. Omitted fields keep their value; pass an empty string to clear one. Requires workspace-management permission.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        numberId: {
+          type: "string",
+          description: "SMS number ID returned by get_sms_settings.",
+        },
+        label: {
+          type: "string",
+          description:
+            "Label up to 100 characters, such as Marketing or Support. Pass an empty string to clear it.",
+        },
+        brandPrefix: {
+          type: "string",
+          description:
+            'Per-number brand prefix override up to 100 characters; messages go out as "{prefix}: your message". Pass an empty string to clear it back to the account-wide prefix.',
+        },
+      },
+      required: ["numberId"],
+    },
+  },
+  {
     name: "send_test_sms",
     description:
       "Send a test SMS to a phone number. IMPORTANT: sends a real text message and charges SMS credits - only call when the user explicitly asks for a test send. Requires the SMS add-on with a verified number (check get_sms_settings). Limited to 5 test sends per hour; bypasses quiet hours; excluded from step stats.",

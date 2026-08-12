@@ -10877,6 +10877,39 @@ describe("send_test_sms tool", () => {
   });
 });
 
+describe("update_sms_number_label tool", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("updates and clears an SMS number label", async () => {
+    mockApiRequest.mockResolvedValue({ success: true });
+
+    await handleToolCall("update_sms_number_label", {
+      companyId: "comp_123",
+      numberId: "num/123",
+      label: " Marketing ",
+    });
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "PATCH",
+      "/api/v1/sms/numbers/num%2F123",
+      { label: "Marketing" },
+      "comp_123"
+    );
+
+    await handleToolCall("update_sms_number_label", {
+      numberId: "num_123",
+      label: "",
+    });
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "PATCH",
+      "/api/v1/sms/numbers/num_123",
+      { label: null },
+      undefined
+    );
+  });
+});
+
 describe("recipient suppression tools", () => {
   beforeEach(() => {
     mockApiRequest.mockClear();

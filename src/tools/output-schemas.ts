@@ -975,6 +975,11 @@ export const outputPropertiesByToolName: Record<
     smsSendId: stringOutputProperty("Created test SMS send ID."),
     toPhone: stringOutputProperty("Normalized E.164 destination phone."),
   },
+  update_sms_number_label: {
+    number: resourceOutputProperty(
+      "updated SMS number (label + brandPrefix override)"
+    ),
+  },
   cancel_campaign: {
     campaign: resourceOutputProperty("campaign"),
   },
@@ -1811,7 +1816,7 @@ export const outputPropertiesByToolName: Record<
   },
   get_sms_settings: {
     sms: objectOutputProperty(
-      "SMS add-on status: enabled, planEligible, creditsBalance, brandPrefix, numbers, readyToSend (paid plan or credits plus an active number)."
+      "SMS add-on status: enabled, planEligible, creditsBalance, brandPrefix (account-wide default), numbers (each with id, e164, label tag, brandPrefix override, status), readyToSend (paid plan or credits plus an active number)."
     ),
   },
   submit_feedback: {},

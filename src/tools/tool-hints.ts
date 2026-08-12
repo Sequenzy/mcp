@@ -90,6 +90,7 @@ export const MUTATING_TOOL_NAMES = new Set([
   "update_notification_preferences",
   "update_sender_profile",
   "update_tracking_settings",
+  "update_sms_number_label",
   "resume_sending",
   "update_sync_rules",
   "update_shopify_automation_settings",

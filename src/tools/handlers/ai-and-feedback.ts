@@ -52,6 +52,47 @@ export async function handleAiAndFeedbackTools(
       break;
     }
 
+    case "update_sms_number_label": {
+      const companyId = args.companyId as string | undefined;
+      const numberId = requiredString(
+        "update_sms_number_label",
+        args,
+        "numberId"
+      );
+      if (args.label !== undefined && typeof args.label !== "string") {
+        throw new Error(
+          "update_sms_number_label `label` must be a string; pass an empty string to clear it."
+        );
+      }
+      if (
+        args.brandPrefix !== undefined &&
+        typeof args.brandPrefix !== "string"
+      ) {
+        throw new Error(
+          "update_sms_number_label `brandPrefix` must be a string; pass an empty string to clear it."
+        );
+      }
+      if (args.label === undefined && args.brandPrefix === undefined) {
+        throw new Error(
+          "update_sms_number_label requires `label` and/or `brandPrefix`."
+        );
+      }
+      result = await apiRequest(
+        "PATCH",
+        `/api/v1/sms/numbers/${encodeURIComponent(numberId)}`,
+        {
+          ...(typeof args.label === "string"
+            ? { label: args.label.trim() || null }
+            : {}),
+          ...(typeof args.brandPrefix === "string"
+            ? { brandPrefix: args.brandPrefix.trim() || null }
+            : {}),
+        },
+        companyId
+      );
+      break;
+    }
+
     case "send_test_sms": {
       const companyId = args.companyId as string | undefined;
       const body: Record<string, unknown> = {
