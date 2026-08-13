@@ -12,6 +12,9 @@ export const READ_ONLY_TOOL_NAMES = new Set([
   "get_sync_rules",
   "get_shopify_automation_settings",
   "list_api_keys",
+  // Builds a dashboard link and nothing else: no key is created, changed, or
+  // returned until the owner confirms in their own browser session.
+  "request_api_key_handoff",
   "list_websites",
   "list_integrations",
   "get_integration",
@@ -162,6 +165,10 @@ export const MUTATING_TOOL_NAMES = new Set([
   "schedule_campaign",
   "send_test_email",
   "send_test_sms",
+  "share_campaign",
+  "unshare_campaign",
+  "share_template",
+  "unshare_template",
   "unschedule_campaign",
   "cancel_campaign",
   "pause_campaign",
@@ -306,6 +313,10 @@ export const DESTRUCTIVE_TOOL_NAMES = new Set([
   "delete_webhook",
   "delete_transactional_email",
   "remove_recipient_suppression",
+  // Re-sharing mints a different URL, so every copy of the old link that was
+  // already passed around is permanently dead.
+  "unshare_campaign",
+  "unshare_template",
 ]);
 
 export function getRequiredToolHints(toolName: string): RequiredToolHints {

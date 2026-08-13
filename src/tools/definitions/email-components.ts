@@ -80,7 +80,7 @@ export const emailComponentToolDefinitions: Tool[] = [
   {
     name: "set_default_email_component",
     description:
-      "Create or replace the company's default component for a slot. This is the supported way to change the footer on every email: sequence, campaign, and AI-generated emails clone this component when they are built, instead of the generated default footer. Call get_default_email_component first and edit the blocks it returns, otherwise you replace the existing footer wholesale. A default footer always keeps its unsubscribe link enabled - transactional sends hide it at render time. Editing this does not rewrite emails that were already created.",
+      "Create or replace the company's default component for a slot. This is the supported way to change the footer on every email: sequence, campaign, and AI-generated emails built from blocks clone this component when they are built, instead of the generated default footer. Raw HTML emails are the exception - block chrome cannot be injected into raw HTML, so they keep their own markup and a generated unsubscribe footer is appended at send time unless the HTML contains {{unsubscribeUrl}}. Call get_default_email_component first and edit the blocks it returns, otherwise you replace the existing footer wholesale. A default footer always keeps its unsubscribe link enabled - transactional sends hide it at render time. Editing this does not rewrite emails that were already created.",
     inputSchema: {
       type: "object",
       properties: {

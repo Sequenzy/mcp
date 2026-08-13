@@ -3599,7 +3599,43 @@ describe("update_campaign tool validation", () => {
 
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain(
-      "Provide either `segmentId` or `targetLists` when calling `update_campaign`, not both."
+      "Provide at most one of `segmentId`, `listIds`, or `targetLists` when calling `update_campaign`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("passes the listIds shorthand through schedule_campaign", async () => {
+    mockApiRequest.mockResolvedValue({ success: true });
+
+    await handleToolCall("schedule_campaign", {
+      campaignId: "camp_123",
+      scheduledAt: "2026-06-01T14:00:00Z",
+      listIds: ["list_123"],
+      companyId: "comp_123",
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/campaigns/camp_123/schedule",
+      {
+        scheduledAt: "2026-06-01T14:00:00Z",
+        listIds: ["list_123"],
+      },
+      "comp_123"
+    );
+  });
+
+  it("rejects schedule_campaign calls that combine listIds and targetLists", async () => {
+    const result = await handleToolCall("schedule_campaign", {
+      campaignId: "camp_123",
+      scheduledAt: "2026-06-01T14:00:00Z",
+      listIds: ["list_123"],
+      targetLists: { type: "all" },
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Provide either `listIds` or `targetLists` when calling `schedule_campaign`, not both."
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
   });
@@ -3626,6 +3662,17 @@ describe("update_campaign tool validation", () => {
           | undefined
       )?.description
     ).toContain("{type:'rules'");
+    // The audience union is discoverable from the schema itself, not only the
+    // description: agents that read schemas must see the type discriminator.
+    const targetListsSchema = inputSchema?.properties?.["targetLists"] as
+      | { properties?: Record<string, unknown>; required?: string[] }
+      | undefined;
+    expect(
+      (targetListsSchema?.properties?.["type"] as { enum?: string[] })?.enum
+    ).toEqual(["all", "lists", "segment", "filtered", "rules"]);
+    expect(targetListsSchema?.required).toEqual(["type"]);
+    expect(targetListsSchema?.properties).toHaveProperty("listIds");
+    expect(inputSchema?.properties).toHaveProperty("listIds");
     expect(inputSchema?.properties).toHaveProperty("sendTimeOptimization");
     expect(inputSchema?.properties).toHaveProperty("spreadOverHours");
   });
@@ -9405,6 +9452,114 @@ describe("campaign lifecycle tools", () => {
       id: "camp_123",
       status: "draft",
     });
+  });
+
+  it("calls the campaign share-link API and returns the public URL", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      shareUrl: "https://track.example.com/view/campaign/tok_abc",
+      shareToken: "tok_abc",
+      created: true,
+    });
+
+    const result = await handleToolCall("share_campaign", {
+      companyId: "comp_123",
+      campaignId: "camp_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/campaigns/camp_123/share-link",
+      undefined,
+      "comp_123"
+    );
+    expect(result.structuredContent?.["shareUrl"]).toBe(
+      "https://track.example.com/view/campaign/tok_abc"
+    );
+    expect(result.structuredContent?.["created"]).toBe(true);
+  });
+
+  it("revokes the campaign share link", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true, revoked: true });
+
+    const result = await handleToolCall("unshare_campaign", {
+      companyId: "comp_123",
+      campaignId: "camp_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "DELETE",
+      "/api/v1/campaigns/camp_123/share-link",
+      undefined,
+      "comp_123"
+    );
+    expect(result.structuredContent?.["revoked"]).toBe(true);
+  });
+
+  it("requires campaignId when sharing a campaign", async () => {
+    const result = await handleToolCall("share_campaign", {});
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`campaignId` is required when calling `share_campaign`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("calls the template share-link API and returns the public URL", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      shareUrl: "https://track.example.com/view/email/tok_abc",
+      shareToken: "tok_abc",
+      created: true,
+    });
+
+    const result = await handleToolCall("share_template", {
+      companyId: "comp_123",
+      templateId: "order-confirmation",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/templates/order-confirmation/share-link",
+      undefined,
+      "comp_123"
+    );
+    expect(result.structuredContent?.["shareUrl"]).toBe(
+      "https://track.example.com/view/email/tok_abc"
+    );
+    expect(result.structuredContent?.["created"]).toBe(true);
+  });
+
+  it("revokes the template share link", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true, revoked: true });
+
+    const result = await handleToolCall("unshare_template", {
+      companyId: "comp_123",
+      templateId: "tmpl_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "DELETE",
+      "/api/v1/templates/tmpl_123/share-link",
+      undefined,
+      "comp_123"
+    );
+    expect(result.structuredContent?.["revoked"]).toBe(true);
+  });
+
+  it("requires templateId when sharing a template", async () => {
+    const result = await handleToolCall("share_template", {});
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`templateId` is required when calling `share_template`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
   it("requires campaignId when unscheduling a campaign", async () => {

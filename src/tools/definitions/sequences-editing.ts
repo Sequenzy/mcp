@@ -989,7 +989,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         outputFields: {
           type: "array",
           description:
-            "ai only: named values the model must return (1-10). Each key becomes a {{ai.KEY.<key>}} merge tag for later steps; fallback is used when generation fails. Combined field maxLength values must fit the step's 2000-token response budget (roughly 3 characters per token plus JSON overhead).",
+            "ai only: named values the model must return (1-10). Each key becomes a {{ai.KEY.<key>}} merge tag for later steps; fallback is used when generation fails. Combined field maxLength values must fit the step's conservative 2000-token multilingual response budget plus JSON overhead.",
           items: {
             type: "object",
             properties: {

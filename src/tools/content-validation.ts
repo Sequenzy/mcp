@@ -91,6 +91,23 @@ export function validateScheduleCampaignArgs(
     );
   }
 
+  if (args.listIds !== undefined && args.targetLists !== undefined) {
+    throw new Error(
+      "Provide either `listIds` or `targetLists` when calling `schedule_campaign`, not both."
+    );
+  }
+
+  if (
+    args.listIds !== undefined &&
+    (!Array.isArray(args.listIds) ||
+      args.listIds.length === 0 ||
+      args.listIds.some((listId) => typeof listId !== "string"))
+  ) {
+    throw new Error(
+      "`listIds` must be a non-empty array of list ID strings when calling `schedule_campaign`."
+    );
+  }
+
   if (args.sendTimeOptimization !== undefined) {
     if (typeof args.sendTimeOptimization !== "boolean") {
       throw new Error(
@@ -398,7 +415,7 @@ export const sequencePathStepConfigSchema = {
     outputFields: {
       type: "array",
       description:
-        "action_ai: named values the model must return (1-10). Each key becomes a {{ai.KEY.<key>}} merge tag for later steps. fallback is used when generation fails, so emails still send with sensible copy. Combined field maxLength values must fit the step's 2000-token response budget (roughly 3 characters per token plus JSON overhead).",
+        "action_ai: named values the model must return (1-10). Each key becomes a {{ai.KEY.<key>}} merge tag for later steps. fallback is used when generation fails, so emails still send with sensible copy. Combined field maxLength values must fit the step's conservative 2000-token multilingual response budget plus JSON overhead.",
       items: {
         type: "object",
         properties: {

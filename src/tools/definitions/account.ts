@@ -574,6 +574,44 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
     },
   },
   {
+    name: "request_api_key_handoff",
+    description:
+      "Prepare an owner-confirmed handoff link for creating or rotating an API key. Use this when key management fails because the active key is missing api_keys:manage - that scope fails closed on purpose, and this is the supported way forward instead of asking the user to reason about the dashboard themselves. Returns a URL that opens the dashboard's create-key form with the requested name and permissions already filled in. IMPORTANT: this creates nothing and never returns a key. Give the URL to the workspace owner and stop; they review the form, click Create, and copy the new key from the browser. To rotate, pass replaceApiKeyId (or the literal string 'current' for the key you are authenticated with) and the dashboard offers to revoke the predecessor after the replacement is created. Requires only account:read.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        name: {
+          type: "string",
+          description:
+            "Suggested name for the new key (e.g., 'Production sync (rotated)').",
+        },
+        preset: {
+          type: "string",
+          description:
+            "Suggested permission preset. Supported values: full_access, read_only, agent_safe, ai_drafting, data_ingest_safe, data_ingest_automations, transactional_sender, marketing_sender. Prefer agent_safe for an AI agent key.",
+        },
+        scopes: {
+          type: "array",
+          description:
+            "Suggested explicit permission scopes. Overrides preset. Unsupported scopes are rejected here rather than silently dropped from the owner's form.",
+          items: {
+            type: "string",
+          },
+        },
+        replaceApiKeyId: {
+          type: "string",
+          description:
+            "ID of the key the new one replaces, so the owner can revoke it in the same visit. Pass 'current' for the key this session is authenticated with; its ID is also in get_account under apiKeyPermissions.activeKey.id.",
+        },
+      },
+    },
+  },
+  {
     name: "list_api_keys",
     description:
       "List company-scoped API keys as non-secret metadata. Returns IDs, names, prefixes, permissions, usage timestamps, and whether each key is the active credential. It never returns a plain key or stored key hash. Use this before revoke_api_key or delete_api_key to identify the exact unused key.",

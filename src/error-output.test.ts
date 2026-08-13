@@ -90,6 +90,36 @@ describe("formatMcpError", () => {
     expect(message).toContain("Read-only or Safer agent access preset");
   });
 
+  // The key-management scope is the one gap in-place widening cannot close: the
+  // scope needed to grant it is the scope that is missing. Without this pointer
+  // an agent loops on `update_api_key`, which fails for the same reason.
+  it("points a blocked key-management call at the handoff tool", () => {
+    const message = formatMcpError(
+      new McpApiError(
+        "API key is missing required scope: api_keys:manage",
+        403,
+        '{"error":"API key is missing required scope: api_keys:manage"}'
+      )
+    );
+
+    expect(message).toContain("`request_api_key_handoff`");
+    expect(message).toContain('`replaceApiKeyId: "current"`');
+    expect(message).toContain("creates nothing and never returns a key");
+    expect(message).toContain("If the active key has `account:read`");
+    expect(message).toContain(
+      "If the handoff tool is also denied because `account:read` is missing"
+    );
+    expect(message).toContain("https://sequenzy.com/dashboard");
+  });
+
+  it("leaves the handoff pointer out of unrelated scope failures", () => {
+    const message = formatMcpError(
+      new McpApiError("API key is missing required scope: templates:write", 403)
+    );
+
+    expect(message).not.toContain("request_api_key_handoff");
+  });
+
   it("provides a dashboard fallback when account metadata is unavailable", () => {
     const message = formatMcpError(
       new McpApiError("API key is missing required scope: account:read", 403)
