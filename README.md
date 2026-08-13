@@ -261,6 +261,7 @@ sort options.
 | `update_shopify_automation_settings` | Partially update Shopify automation settings or reset an individual section to its platform defaults.                         |
 | `create_api_key`                     | Create an API key for a company, with optional permission preset or explicit scopes.                                          |
 | `list_api_keys`                      | List company API keys as non-secret metadata for safe identification and cleanup.                                             |
+| `update_api_key`                     | Rename a company API key or replace its permission preset or scopes without changing the key value.                           |
 | `revoke_api_key`                     | Permanently revoke an exact company API key by ID after checking it with `list_api_keys`.                                     |
 | `delete_api_key`                     | Compatibility alias for `revoke_api_key`.                                                                                     |
 | `list_websites`                      | List sending domains with stored aggregate, SPF, DKIM, and MAIL FROM status.                                                  |
@@ -271,13 +272,14 @@ sort options.
 | `list_integrations`                  | List connected integrations with connection and sync health, without returning credentials.                                   |
 | `get_sending_status`                 | Diagnose active, paused, or suspended sending, including enforcement denominators, review gates, and remediation steps.       |
 | `resume_sending`                     | Restore an eligible hard-bounce pause after explicitly confirming the list has been sanitized.                                |
-| `get_tracking_settings`              | Read open, click, unsubscribe, attribution, UTM, click-domain, and reply-tracking settings.                                   |
+| `get_tracking_settings`              | Read open, click, unsubscribe, attribution, UTM, click-domain, reply-tracking, and double-opt-in settings.                     |
+| `update_tracking_settings`           | Update email tracking, attribution, UTM, and account-wide double-opt-in defaults.                                             |
 | `get_integration_guide`              | Get framework-specific integration examples.                                                                                  |
 | `get_integration`                    | Inspect one connected integration, its event wiring, recent activity, and recommendations.                                    |
 | `list_integration_capabilities`      | Compare provider capabilities whether or not they are connected.                                                              |
 | `list_integration_activity`          | Read the retained integration-specific webhook and sync activity log.                                                         |
 | `set_integration_sync_enabled`       | Enable or disable bulk imports and backfills while leaving live webhooks connected.                                           |
-| `sync_integration`                   | Queue a payment-provider revenue backfill or a Supabase user backfill from its saved table configuration.                    |
+| `sync_integration`                   | Queue a payment-provider revenue backfill, Supabase user backfill, or retryable PostHog history import.                      |
 | `get_integration_pixel`              | Read Shopify's live pixel/configuration state and distinguish confirmed dark events from an unknown read.                     |
 | `activate_integration_pixel`         | Install or repoint Shopify's storefront pixel; idempotent when it is already current.                                         |
 | `list_sender_profiles`               | List sender and reply-to profiles, defaults, and sending-domain readiness.                                                    |
@@ -294,6 +296,10 @@ selection, and consent mappings saved in the dashboard. It cannot target an
 arbitrary table. Run it after installing the live database trigger to import
 users who existed before the trigger was installed, then poll `get_integration`
 and `list_integration_activity` for progress and row-level outcomes.
+
+For PostHog, `sync_integration` restarts the event-history import from the
+beginning with the stored personal API key. Imported events are deduplicated, so
+retrying a failed import does not create duplicates.
 
 For a new sending domain, call `add_sending_domain`, publish the DNS records in
 the returned `website.dnsRecords`, wait for DNS propagation, and then call
@@ -342,8 +348,8 @@ abandonment or price-drop settings. Timing values must be positive;
 | `search_subscribers`          | Search by query, tags, list, status, segment, or one custom attribute, with automatic or resumable pagination.  |
 | `trigger_subscriber_event`    | Emit one custom event exactly as an integration would, applying sync rules and matching sequence triggers.      |
 | `trigger_subscriber_events`   | Emit several ordered custom events for one subscriber.                                                          |
-| `bulk_add_subscriber_tags`    | Add tags to up to 500 existing subscribers without creating unknown contacts.                                   |
-| `bulk_remove_subscriber_tags` | Remove tags from up to 500 existing subscribers without creating unknown contacts.                              |
+| `bulk_add_subscriber_tags`    | Add tags to up to 500 existing subscribers; requires `subscribers:tag` and may also require `tags:write`.        |
+| `bulk_remove_subscriber_tags` | Remove tags from up to 500 existing subscribers; requires `subscribers:tag` or `subscribers:write`.              |
 
 Use `create_subscriber_import` for CRM onboarding instead of looping over
 `add_subscriber`. One call accepts 5,000 full records and returns an asynchronous
@@ -563,7 +569,7 @@ Use `get_ab_test` to copy the effective `settings` object and discover variant I
 | `remove_recipient_suppression`   | Remove stale bounce suppression for a company-associated recipient.                                |
 | `create_campaign`                | Create a campaign with content, data, and optional From/Reply-To identity overrides.               |
 | `update_campaign`                | Update a draft campaign, including content, data, From, Reply-To, CC, and BCC.                     |
-| `schedule_campaign`              | Schedule a draft or reschedule an existing scheduled campaign.                                     |
+| `schedule_campaign`              | Schedule or reschedule a one-off or recurring campaign after validating subject, content, and audience. |
 | `send_test_email`                | Send a test email to one address.                                                                  |
 | `render_email`                   | Render a campaign, sequence email step, or template to exact email-safe HTML without sending.      |
 | `cancel_campaign`                | Cancel a scheduled or sending campaign.                                                            |
@@ -636,7 +642,8 @@ exact profile to make default and rename.
 `emailTheme` (`presetId`, `colors`, `typography`, `layout`). Theme updates are
 partial - omitted fields keep their current value (or the preset default) and
 numeric values are clamped to supported ranges. Pass `emailTheme: null` to
-reset the company to the platform default theme.
+reset the company to the platform default theme. Layout settings can control
+the shared `baseRadius` and a separate `buttonRadius`.
 
 Reply tracking is available on the same company tools. Use
 `replyTrackingEnabled`, `replyTrackingDomainMode` (`sequenzy` or `custom`), and
@@ -692,8 +699,8 @@ spacing are pixels, weights range from 100 to 900, and text transforms are
 | Tool             | Description                                                                                                   |
 | ---------------- | ------------------------------------------------------------------------------------------------------------- |
 | `list_forms`     | List saved forms with their server-managed audience settings, content blocks, and public action URLs.         |
-| `create_form`    | Create and publish a saved form scoped to one or more lists, with optional tags, theme, and success behavior. |
-| `update_form`    | Partially update a saved form's audience, copy, theme, success behavior, or complete content block array.     |
+| `create_form`    | Create and publish a saved form with standard email/name fields, audience settings, theme, and success behavior. |
+| `update_form`    | Update a saved form, including its complete ordered block array and typed custom fields.                         |
 | `get_form_embed` | Return the public action URL, hosted JavaScript, minimal native form, and fetch example for a saved form.     |
 
 For Astro, Hugo, Jekyll, Cloudflare Pages, Netlify, GitHub Pages, or any other
@@ -708,7 +715,9 @@ When updating a form, omitted fields remain unchanged and theme fields merge
 into the current theme. Pass an empty `tagIds` array to clear tags or an empty
 `redirectUrl` to restore confirmation-message behavior. The `blocks` field is
 a complete replacement, so read the current content with `list_forms` first
-and retain exactly one email field and one submit button.
+and retain exactly one required email field and one submit button. Add custom
+inputs as `form-field` blocks with a supported `fieldType`; select, radio, and
+checkbox fields require options, while hidden defaults are enforced server-side.
 
 ### Saved Popups
 

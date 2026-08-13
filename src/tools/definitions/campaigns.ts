@@ -439,7 +439,7 @@ export const campaignToolDefinitions: Tool[] = [
   {
     name: "schedule_campaign",
     description:
-      "Schedule a draft or already scheduled campaign, as a one-off send or on a repeating weekly/monthly cadence via `recurringInterval`. Use `recurringInterval` for newsletters that go out on a fixed schedule instead of creating one campaign per issue. Returns dashboard edit and preview URLs.",
+      "Schedule a draft or already scheduled campaign as a one-off send or on a repeating weekly/monthly cadence via `recurringInterval`. The campaign must have a non-empty subject, at least one content block, and at least one audience include rule. Use `recurringInterval` for newsletters that go out on a fixed schedule instead of creating one campaign per issue. Returns dashboard edit and preview URLs; validation errors explain what must be fixed before retrying.",
     inputSchema: {
       type: "object",
       properties: {
