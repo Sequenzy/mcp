@@ -7010,6 +7010,7 @@ describe("insert_sequence_step tool", () => {
       "add_to_list",
       "remove_from_list",
       "webhook",
+      "ai",
       "condition",
       "logic_wait_for_event",
       "logic_branch",
@@ -7179,6 +7180,81 @@ describe("insert_sequence_step tool", () => {
       },
       "comp_123"
     );
+  });
+
+  it("forwards an AI step prompt, outputFields, and context selectors in a linear sequence insertion", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      sequence: {
+        id: "seq_123",
+        insertedNodeIds: ["ai_winback"],
+      },
+    });
+
+    const result = await handleToolCall("insert_sequence_step", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      type: "ai",
+      afterNodeId: "trigger_1",
+      label: "Draft winback copy",
+      prompt: "Write a winback subject for {{first_name}}.",
+      resultKey: "winback",
+      outputFields: [
+        { key: "subject_line", maxLength: 60, fallback: "We miss you" },
+      ],
+      includeEventProperties: true,
+      includeAttributes: ["plan"],
+      onError: "continue",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.structuredContent?.["insertedNodeIds"]).toEqual([
+      "ai_winback",
+    ]);
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/sequences/seq_123",
+      {
+        insertSteps: {
+          afterNodeId: "trigger_1",
+          steps: [
+            {
+              type: "ai",
+              nodeType: "action_ai",
+              config: {
+                label: "Draft winback copy",
+                prompt: "Write a winback subject for {{first_name}}.",
+                resultKey: "winback",
+                outputFields: [
+                  {
+                    key: "subject_line",
+                    maxLength: 60,
+                    fallback: "We miss you",
+                  },
+                ],
+                includeEventProperties: true,
+                includeAttributes: ["plan"],
+                onError: "continue",
+              },
+            },
+          ],
+        },
+      },
+      "comp_123"
+    );
+  });
+
+  it("rejects an AI step without outputFields before hitting the API", async () => {
+    const result = await handleToolCall("insert_sequence_step", {
+      sequenceId: "seq_123",
+      type: "ai",
+      prompt: "Write something nice.",
+      resultKey: "copy",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("outputFields");
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
   it("rejects an invalid webhook onError before hitting the API", async () => {

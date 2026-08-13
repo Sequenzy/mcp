@@ -273,7 +273,7 @@ export const subscriberUpdateConfigSchema = {
 export const sequencePathStepConfigSchema = {
   type: "object",
   description:
-    "Config for advanced nodeType steps. Required fields depend on nodeType: action_add_tag and action_remove_tag need tagId or tagName; action_add_to_list and action_remove_from_list need listId; action_update_attributes uses the Update Subscriber fields (firstName, lastName, status, customAttributeUpdates) and may use trigger-event merge tags; logic_wait_for_event needs eventName plus optional timeoutDays and timeoutAction; logic_condition needs conditionType plus that condition's resource field; action_webhook needs an HTTPS url plus optional method, headers, body, resultKey, and onError; logic_delay uses delayDays/delayHours/delayMinutes. Fields that do not apply to the node type are dropped.",
+    "Config for advanced nodeType steps. Required fields depend on nodeType: action_add_tag and action_remove_tag need tagId or tagName; action_add_to_list and action_remove_from_list need listId; action_update_attributes uses the Update Subscriber fields (firstName, lastName, status, customAttributeUpdates) and may use trigger-event merge tags; logic_wait_for_event needs eventName plus optional timeoutDays and timeoutAction; logic_condition needs conditionType plus that condition's resource field; action_webhook needs an HTTPS url plus optional method, headers, body, resultKey, and onError; action_ai needs prompt, resultKey, and outputFields plus optional includeTags, includeEventProperties, includeAttributes, and onError; logic_delay uses delayDays/delayHours/delayMinutes. Fields that do not apply to the node type are dropped.",
   properties: {
     ...subscriberUpdateConfigSchema.properties,
     tagId: {
@@ -382,13 +382,66 @@ export const sequencePathStepConfigSchema = {
     resultKey: {
       type: "string",
       description:
-        "action_webhook: when set, the HTTP response is saved and later email steps can reference it via {{webhooks.KEY.data.field}} merge tags. Must start with a letter; letters, numbers, underscores; max 64 chars.",
+        "action_webhook / action_ai: where the result is saved. Later steps reference it via {{webhooks.KEY.data.field}} (webhook) or {{ai.KEY.field}} (AI) merge tags. Required for action_ai. Must start with a letter; letters, numbers, underscores; max 64 chars.",
     },
     onError: {
       type: "string",
       enum: ["continue", "exit", "fail"],
       description:
-        "action_webhook: behavior when the request fails. continue proceeds to the next step, exit ends the sequence for the subscriber, fail marks the enrollment failed (default).",
+        "action_webhook / action_ai: behavior when the step fails. continue proceeds to the next step, exit ends the sequence for the subscriber, fail marks the enrollment failed. Defaults to fail for webhooks and continue for AI steps (fallbacks fill the output fields).",
+    },
+    prompt: {
+      type: "string",
+      description:
+        "action_ai: prompt template sent to the model, resolved per contact at execution time. Supports merge tags like {{first_name}}, {{event.plan}}, and {{webhooks.KEY.data.field}}. Max 8000 chars.",
+    },
+    outputFields: {
+      type: "array",
+      description:
+        "action_ai: named values the model must return (1-10). Each key becomes a {{ai.KEY.<key>}} merge tag for later steps. fallback is used when generation fails, so emails still send with sensible copy.",
+      items: {
+        type: "object",
+        properties: {
+          key: {
+            type: "string",
+            description:
+              "Field key, e.g. subject_line. Must start with a letter; letters, numbers, underscores; max 64 chars; unique within the step.",
+          },
+          description: {
+            type: "string",
+            description:
+              "What the model should produce for this field, e.g. 'A subject line under 50 characters'. Max 300 chars.",
+          },
+          maxLength: {
+            type: "number",
+            description:
+              "Hard cap on stored characters (1-4000). Defaults to 500. Output beyond it is cut.",
+          },
+          fallback: {
+            type: "string",
+            description:
+              "Text used verbatim when generation fails or the model omits the field.",
+          },
+        },
+        required: ["key"],
+        additionalProperties: false,
+      },
+    },
+    includeTags: {
+      type: "boolean",
+      description:
+        "action_ai: include the contact's tags in the prompt context.",
+    },
+    includeEventProperties: {
+      type: "boolean",
+      description:
+        "action_ai: include the enrollment's trigger event name and properties in the prompt context.",
+    },
+    includeAttributes: {
+      type: "array",
+      items: { type: "string" },
+      description:
+        "action_ai: custom attribute keys to include in the prompt context (max 30). Only the listed keys are sent.",
     },
     delayDays: {
       type: "number",
@@ -442,7 +495,7 @@ export const sequenceEmailStepIdentityProperties = {
 export const sequencePathStepSchema = {
   type: "object",
   description:
-    "A typed step to create inside a sequence path, including email, SMS, delay, discount, subscriber actions, conditions, waits, and webhooks.",
+    "A typed step to create inside a sequence path, including email, SMS, delay, discount, subscriber actions, conditions, waits, webhooks, and AI steps.",
   properties: {
     type: {
       type: "string",
@@ -455,6 +508,7 @@ export const sequencePathStepSchema = {
         "update_subscriber",
         "condition",
         "webhook",
+        "ai",
       ],
       description:
         "Sequence path step type. Omit for email steps; use delay for fixed/date waits or update_subscriber for action_update_attributes. For an event gate, use nodeType:'logic_wait_for_event' with an explicit config object.",
@@ -474,9 +528,10 @@ export const sequencePathStepSchema = {
         "logic_wait_for_event",
         "logic_condition",
         "action_webhook",
+        "action_ai",
       ],
       description:
-        "Advanced sequence path node type. Prefer type unless creating a non-email action. Tag, list, subscriber-update, wait, condition, and webhook node types carry their fields in config, for example nodeType:'action_add_tag' with config:{ tagName:'newsletter-confirmed' }. SMS steps still use the step-level text/imageUrls/ineligibleAction, discount steps the step-level discount fields, and delays the step-level delay/delayMs/waitUntil.",
+        "Advanced sequence path node type. Prefer type unless creating a non-email action. Tag, list, subscriber-update, wait, condition, webhook, and AI node types carry their fields in config, for example nodeType:'action_add_tag' with config:{ tagName:'newsletter-confirmed' }. SMS steps still use the step-level text/imageUrls/ineligibleAction, discount steps the step-level discount fields, and delays the step-level delay/delayMs/waitUntil.",
     },
     config: sequencePathStepConfigSchema,
     subject: {

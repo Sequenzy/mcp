@@ -223,6 +223,7 @@ export function buildInsertSequenceStepBody(
     "add_to_list",
     "remove_from_list",
     "webhook",
+    "ai",
     "logic_wait_for_event",
     "logic_branch",
   ]);
@@ -440,7 +441,8 @@ export function buildInsertSequenceStepBody(
     stepType === "remove_tag" ||
     stepType === "add_to_list" ||
     stepType === "remove_from_list" ||
-    stepType === "webhook"
+    stepType === "webhook" ||
+    stepType === "ai"
   ) {
     let step: Record<string, unknown>;
     if (stepType === "delay") {
@@ -541,6 +543,48 @@ export function buildInsertSequenceStepBody(
           ...(args.headers !== undefined ? { headers: args.headers } : {}),
           ...(body ? { body } : {}),
           ...(resultKey ? { resultKey } : {}),
+          ...(onError ? { onError } : {}),
+        },
+      };
+    } else if (stepType === "ai") {
+      const onError = optionalString(args, "onError");
+      if (onError && !["continue", "exit", "fail"].includes(onError)) {
+        throw new Error(
+          "`onError` must be `continue`, `exit`, or `fail` when inserting an ai step."
+        );
+      }
+      if (!Array.isArray(args.outputFields) || args.outputFields.length === 0) {
+        throw new Error(
+          "`outputFields` is required when inserting an ai step, e.g. [{ key: 'subject_line', fallback: 'We miss you' }]."
+        );
+      }
+      if (args.includeAttributes !== undefined) {
+        if (
+          !Array.isArray(args.includeAttributes) ||
+          args.includeAttributes.some((key) => typeof key !== "string")
+        ) {
+          throw new Error(
+            "`includeAttributes` must be an array of attribute names when inserting an ai step."
+          );
+        }
+      }
+      step = {
+        type: "ai",
+        nodeType: "action_ai",
+        config: {
+          label: optionalString(args, "label") ?? "Ask AI",
+          prompt: requiredString("insert_sequence_step", args, "prompt"),
+          resultKey: requiredString("insert_sequence_step", args, "resultKey"),
+          outputFields: args.outputFields,
+          ...(args.includeTags !== undefined
+            ? { includeTags: args.includeTags === true }
+            : {}),
+          ...(args.includeEventProperties !== undefined
+            ? { includeEventProperties: args.includeEventProperties === true }
+            : {}),
+          ...(args.includeAttributes !== undefined
+            ? { includeAttributes: args.includeAttributes }
+            : {}),
           ...(onError ? { onError } : {}),
         },
       };
