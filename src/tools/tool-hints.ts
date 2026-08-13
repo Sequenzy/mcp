@@ -37,6 +37,9 @@ export const READ_ONLY_TOOL_NAMES = new Set([
   "list_ad_accounts",
   "list_templates",
   "get_template",
+  "list_email_components",
+  "get_email_component",
+  "get_default_email_component",
   "list_ab_tests",
   "get_ab_test",
   "get_ab_test_stats",
@@ -90,6 +93,7 @@ export const MUTATING_TOOL_NAMES = new Set([
   "update_notification_preferences",
   "update_sender_profile",
   "update_tracking_settings",
+  "update_sms_number_label",
   "resume_sending",
   "update_sync_rules",
   "update_shopify_automation_settings",
@@ -141,6 +145,10 @@ export const MUTATING_TOOL_NAMES = new Set([
   "set_template_localization",
   "sync_template_localizations",
   "delete_template",
+  "create_email_component",
+  "update_email_component",
+  "set_default_email_component",
+  "delete_email_component",
   "restart_ab_test",
   "update_ab_test_variant",
   "update_ab_test",
@@ -196,6 +204,7 @@ export const MUTATING_TOOL_NAMES = new Set([
   "resume_sequence_enrollments",
   "enroll_subscribers_in_sequence",
   "cancel_sequence_enrollments",
+  "move_sequence_enrollments",
   "realign_sequence_enrollments",
   "delete_sequence",
   "create_transactional_email",
@@ -240,6 +249,9 @@ export const OPEN_WORLD_TOOL_NAMES = new Set([
   "enable_sequence",
   "unarchive_sequence",
   "resume_sequence_enrollments",
+  // Releases contacts onto a live step, so the sequence starts sending to them
+  // as soon as the worker picks them up.
+  "move_sequence_enrollments",
   "send_email",
   "invite_team_member",
   "reply_to_conversation",
@@ -264,6 +276,9 @@ export const DESTRUCTIVE_TOOL_NAMES = new Set([
   "delete_segment",
   "delete_audience_sync",
   "delete_template",
+  // Deleting the pinned default footer makes new emails fall back to the
+  // generated footer, so it changes what future sends look like.
+  "delete_email_component",
   "restart_ab_test",
   "delete_ab_test_variant",
   "delete_ab_test",
@@ -281,6 +296,9 @@ export const DESTRUCTIVE_TOOL_NAMES = new Set([
   "rotate_sequence_inbound_webhook_secret",
   "edit_sequence_graph",
   "cancel_sequence_enrollments",
+  // Not reversible in the way that matters: a released contact can receive the
+  // target step's email before anyone notices the batch was wrong.
+  "move_sequence_enrollments",
   "realign_sequence_enrollments",
   "delete_sequence",
   "cancel_team_invitation",

@@ -963,6 +963,10 @@ its API slug through the compatibility-named `templateId` field instead.
 `{ "event": { "items": [...] } }`. When the recipient matches a stored
 subscriber by external ID or email, saved first and last names fill omitted name
 variables automatically. Explicit values, including blanks, take precedence.
+The optional `attachments` array accepts up to 10 files / 7MB total. Each item
+needs `filename` and exactly one of Base64 `content` or a public HTTP(S) `path`.
+Set `contentId` to embed a CID image referenced from the HTML and optionally set
+`contentType` to override MIME detection.
 Use `trackingSettings.clickTracking: false` or
 `trackingSettings.openTracking: false` to disable link rewriting or the open
 pixel for one send. These per-send options only opt out; they cannot enable

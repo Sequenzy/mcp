@@ -889,3 +889,102 @@ export function buildCancelSequenceEnrollmentBody(
     ...(reason !== undefined && { reason }),
   };
 }
+
+const SEQUENCE_ENROLLMENT_MOVE_SORTS = [
+  "wait_until_asc",
+  "wait_until_desc",
+  "enrolled_at_asc",
+  "enrolled_at_desc",
+] as const;
+
+function optionalPositiveInteger(
+  args: Record<string, unknown>,
+  key: "limit" | "dailyLimit"
+): number | undefined {
+  const raw = args[key];
+  if (raw === undefined || raw === null) {
+    return undefined;
+  }
+
+  const value = typeof raw === "string" ? Number(raw) : raw;
+  const floor = key === "dailyLimit" ? 0 : 1;
+  if (
+    typeof value !== "number" ||
+    !Number.isSafeInteger(value) ||
+    value < floor
+  ) {
+    throw new Error(
+      `\`${key}\` must be an integer of at least ${floor} when calling \`move_sequence_enrollments\`.`
+    );
+  }
+
+  return value;
+}
+
+function optionalStringArray(
+  args: Record<string, unknown>,
+  key: "subscriberIds" | "tags"
+): string[] {
+  const raw = args[key];
+  if (raw === undefined) {
+    return [];
+  }
+
+  if (!Array.isArray(raw) || raw.some((value) => typeof value !== "string")) {
+    throw new Error(
+      `\`${key}\` must be an array of strings when calling \`move_sequence_enrollments\`.`
+    );
+  }
+
+  const normalized = raw
+    .map((value) => (value as string).trim())
+    .filter((value) => value.length > 0);
+
+  if (normalized.length === 0) {
+    throw new Error(
+      `\`${key}\` must contain at least one non-empty string when calling \`move_sequence_enrollments\`.`
+    );
+  }
+
+  return normalized;
+}
+
+export function buildMoveSequenceEnrollmentBody(
+  args: Record<string, unknown>
+): Record<string, unknown> {
+  const fromNodeId = requiredString(
+    "move_sequence_enrollments",
+    args,
+    "fromNodeId"
+  );
+  const targetNodeId = optionalString(args, "targetNodeId");
+  const reason = optionalString(args, "reason");
+  const sort = optionalString(args, "sort");
+
+  if (
+    sort !== undefined &&
+    !(SEQUENCE_ENROLLMENT_MOVE_SORTS as readonly string[]).includes(sort)
+  ) {
+    throw new Error(
+      `\`sort\` must be one of ${SEQUENCE_ENROLLMENT_MOVE_SORTS.join(", ")} when calling \`move_sequence_enrollments\`.`
+    );
+  }
+
+  const subscriberIds = optionalStringArray(args, "subscriberIds");
+  const tags = optionalStringArray(args, "tags");
+
+  const limit = optionalPositiveInteger(args, "limit");
+  const dailyLimit = optionalPositiveInteger(args, "dailyLimit");
+
+  return {
+    fromNodeId,
+    ...(targetNodeId !== undefined && { targetNodeId }),
+    ...(limit !== undefined && { limit }),
+    ...(dailyLimit !== undefined && { dailyLimit }),
+    ...(sort !== undefined && { sort }),
+    ...(subscriberIds.length > 0 && { subscriberIds }),
+    ...(tags.length > 0 && { tags }),
+    ...(reason !== undefined && { reason }),
+    ...(typeof args.dryRun === "boolean" && { dryRun: args.dryRun }),
+  };
+}

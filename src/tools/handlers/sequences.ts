@@ -6,6 +6,7 @@ import {
   buildSequenceGraphEditBody,
   buildInsertSequenceStepBody,
   buildCancelSequenceEnrollmentBody,
+  buildMoveSequenceEnrollmentBody,
   buildRealignSequenceEnrollmentBody,
   optionalString,
   requiredString,
@@ -625,6 +626,23 @@ export async function handleSequenceTools(
       result = await apiRequest(
         "POST",
         `/api/v1/sequences/${args.sequenceId}/enrollments/cancel`,
+        body,
+        companyId
+      );
+      break;
+    }
+
+    case "move_sequence_enrollments": {
+      const companyId = args.companyId as string | undefined;
+      const sequenceId = requiredString(
+        "move_sequence_enrollments",
+        args,
+        "sequenceId"
+      );
+      const body = buildMoveSequenceEnrollmentBody(args);
+      result = await apiRequest(
+        "POST",
+        `/api/v1/sequences/${encodeURIComponent(sequenceId)}/enrollments/move`,
         body,
         companyId
       );
