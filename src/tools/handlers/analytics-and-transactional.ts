@@ -201,6 +201,15 @@ export async function handleAnalyticsAndTransactionalTools(
         args.replyTo === undefined
           ? undefined
           : requiredString("send_email", args, "replyTo");
+      const idempotencyKey =
+        args.idempotencyKey === undefined
+          ? undefined
+          : requiredString("send_email", args, "idempotencyKey");
+      if (idempotencyKey && idempotencyKey.length > 255) {
+        throw new Error(
+          "`idempotencyKey` must be 255 characters or fewer when calling `send_email`."
+        );
+      }
 
       if (
         emailType !== undefined &&
@@ -271,12 +280,20 @@ export async function handleAnalyticsAndTransactionalTools(
         }).filter(([, value]) => value !== undefined)
       );
 
-      result = await apiRequest(
-        "POST",
-        "/api/v1/transactional/send",
-        sendBody,
-        companyId
-      );
+      result = idempotencyKey
+        ? await apiRequest(
+            "POST",
+            "/api/v1/transactional/send",
+            sendBody,
+            companyId,
+            { "Idempotency-Key": idempotencyKey }
+          )
+        : await apiRequest(
+            "POST",
+            "/api/v1/transactional/send",
+            sendBody,
+            companyId
+          );
       break;
     }
 

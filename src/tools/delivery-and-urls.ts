@@ -294,6 +294,7 @@ export const dashboardUrlToolNames = new Set([
   "pause_sequence_enrollments",
   "resume_sequence_enrollments",
   "cancel_sequence_enrollments",
+  "move_sequence_enrollments",
   "realign_sequence_enrollments",
   "get_sequence_enrollment_realignment",
   "list_ab_tests",

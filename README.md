@@ -596,6 +596,12 @@ dashboard `url`. Use `get_recipient_suppression` before cleanup, then
 working again. Cleanup removes bounce entries but never complaint or unsubscribe
 protections.
 
+Agents should pass a caller-owned `idempotencyKey` to `send_email` before the
+first attempt and reuse it for every retry of that same logical email. Sequenzy
+returns the original `emailSendId` for 14 days instead of creating another
+delivery. Reusing the key with different send arguments is rejected, so do not
+generate a fresh key inside a retry loop.
+
 Email blocks may use conditional display rules or `conditional-group` branches.
 Conditions support render-time variables and subscriber attributes plus live
 subscriber data such as segment/list membership, tags, events, engagement,
@@ -949,7 +955,7 @@ For compatibility with older agent prompts, top-level style keys such as `backgr
 | `get_transactional_email`    | Read a transactional email by ID or slug.                                                  |
 | `create_transactional_email` | Create a transactional template from a prompt, HTML, or blocks.                            |
 | `update_transactional_email` | Update transactional metadata or body content.                                             |
-| `send_email`                 | Send a single transactional email by template or HTML.                                     |
+| `send_email`                 | Send one email by template or HTML with an optional retry-safe idempotency key.             |
 
 Prompt-created transactional templates are generated server-side and default
 to disabled for review. Explicit HTML or block templates retain the
@@ -967,6 +973,10 @@ Use `trackingSettings.clickTracking: false` or
 `trackingSettings.openTracking: false` to disable link rewriting or the open
 pixel for one send. These per-send options only opt out; they cannot enable
 tracking that the account has disabled.
+
+For agent and workflow retries, include a stable `idempotencyKey` (up to 255
+characters) in `send_email`. Use one key per logical email and send the same
+arguments when retrying; the key remains valid for 14 days.
 
 ### Analytics
 

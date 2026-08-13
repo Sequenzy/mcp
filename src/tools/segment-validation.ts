@@ -582,7 +582,13 @@ export function getSegmentFilterValidationError(
     return `Segment filter "${field}" must include a value.`;
   }
 
-  if (field === "attribute" && typeof value === "string") {
+  if (field === "attribute") {
+    // Attribute filters carry the attribute name inside the value, so even
+    // is_empty/is_not_empty need one (`attributeName:`).
+    if (typeof value !== "string") {
+      return 'Attribute filters must include a value: "attributeName:value", or "attributeName:" for empty checks.';
+    }
+
     if (!hasSegmentAttributeName(value)) {
       return 'Attribute filters must use "attributeName:value" or "attributeName:" for empty checks.';
     }

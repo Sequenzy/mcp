@@ -275,6 +275,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
                 containerPaddingY: { type: "number" },
                 blockSpacing: { type: "number" },
                 baseRadius: { type: "number" },
+                buttonRadius: { type: "number" },
                 sectionPadding: { type: "number" },
                 buttonPaddingX: { type: "number" },
                 buttonPaddingY: { type: "number" },

@@ -1,7 +1,7 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 
 import {
-  rawHtmlContentWarning,
+  rawHtmlContentDescription,
   replacementEmailBlocksDescription,
   replyToNameDescription,
   senderFromNameDescription,
@@ -394,11 +394,11 @@ export const sequenceEditingToolDefinitions: Tool[] = [
               },
               html: {
                 type: "string",
-                description: `Updated HTML content for imported provider markup. ${rawHtmlContentWarning}`,
+                description: `Updated HTML content for imported provider markup. ${rawHtmlContentDescription}`,
               },
               htmlContent: {
                 type: "string",
-                description: `Alias for html for imported provider markup. ${rawHtmlContentWarning}`,
+                description: `Alias for html for imported provider markup. ${rawHtmlContentDescription}`,
               },
               emailPreset: {
                 type: "string",
@@ -468,11 +468,11 @@ export const sequenceEditingToolDefinitions: Tool[] = [
               },
               html: {
                 type: "string",
-                description: `Updated HTML content for imported provider markup. ${rawHtmlContentWarning}`,
+                description: `Updated HTML content for imported provider markup. ${rawHtmlContentDescription}`,
               },
               htmlContent: {
                 type: "string",
-                description: `Alias for html. ${rawHtmlContentWarning}`,
+                description: `Alias for html. ${rawHtmlContentDescription}`,
               },
               emailPreset: {
                 type: "string",
@@ -770,7 +770,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         },
         html: {
           type: "string",
-          description: `HTML content for an imported provider step. Provide either html or blocks, not both. ${rawHtmlContentWarning}`,
+          description: `HTML content for an imported provider step. Provide either html or blocks, not both. ${rawHtmlContentDescription}`,
         },
         isTransactional: {
           type: "boolean",
@@ -1243,6 +1243,80 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         },
       },
       required: ["sequenceId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "move_sequence_enrollments",
+    description:
+      "Release a bounded batch of contacts off one sequence step and onto another, keeping their existing enrollment. Use this to let the next N contacts waiting on a delay continue early instead of cancelling and re-enrolling them, which discards the enrollment's entry event properties and stop-condition snapshots. Provide sequenceId and fromNodeId; targetNodeId defaults to the source step's only next step. Defaults to dryRun, so pass dryRun false to actually move. Moved contacts become active on the target step immediately, so this sends email as soon as the worker picks them up. limit defaults to 100 and is capped at 500 per call: while remainingCount is above zero, call again to release more. Unlike enroll_subscribers_in_sequence this still works while the sequence has new enrollment paused, because the contacts are already enrolled.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        sequenceId: {
+          type: "string",
+          description: "Sequence ID whose enrollments should be moved.",
+        },
+        fromNodeId: {
+          type: "string",
+          description:
+            "Node ID the contacts are currently sitting on, such as the delay step they are waiting at. Get it from list_sequence_enrollments (currentNodeId) or get_sequence.",
+        },
+        targetNodeId: {
+          type: "string",
+          description:
+            "Node ID to move them onto. Defaults to the source step's next step, and is required when that step branches or is terminal. Cannot be the trigger node.",
+        },
+        limit: {
+          type: "number",
+          description:
+            "Maximum enrollments to move in this call. Defaults to 100, maximum 500.",
+        },
+        sort: {
+          type: "string",
+          enum: [
+            "wait_until_asc",
+            "wait_until_desc",
+            "enrolled_at_asc",
+            "enrolled_at_desc",
+          ],
+          description:
+            "Which enrollments to take first. Defaults to wait_until_asc, meaning the contacts that have been waiting longest for their next step.",
+        },
+        subscriberIds: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Optional narrowing filter: only move these subscribers, up to 500. Omit to take whichever enrollments the sort selects.",
+        },
+        dailyLimit: {
+          type: "number",
+          description:
+            "Guardrail. Refuses to move more than this many enrollments onto targetNodeId in a rolling 24 hours, counting the moves recorded by earlier calls. The response reports movedInWindow and dailyRemaining so a paced release can resume tomorrow.",
+        },
+        tags: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Tag names applied to the moved contacts so the released wave stays identifiable. The tags must already exist (create_tag). Requires the subscribers:tag scope. Applying them never enrolls contacts in tag_added sequences.",
+        },
+        reason: {
+          type: "string",
+          description:
+            "Note stored on every moved enrollment and returned by list_sequence_enrollments as moveReason.",
+        },
+        dryRun: {
+          type: "boolean",
+          description:
+            "When true (the default), reports which enrollments would move without moving them. Pass false to apply.",
+        },
+      },
+      required: ["sequenceId", "fromNodeId"],
       additionalProperties: false,
     },
   },
