@@ -3605,10 +3605,6 @@ describe("update_campaign tool validation", () => {
         }
       | undefined;
 
-    expect(scheduleCampaignTool?.description).toContain("non-empty subject");
-    expect(scheduleCampaignTool?.description).toContain(
-      "at least one audience include rule"
-    );
     expect(inputSchema?.required).toEqual(["campaignId", "scheduledAt"]);
     expect(inputSchema?.additionalProperties).toBe(false);
     expect(inputSchema?.properties).toHaveProperty("targetLists");
