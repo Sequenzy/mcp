@@ -398,7 +398,7 @@ export const sequencePathStepConfigSchema = {
     outputFields: {
       type: "array",
       description:
-        "action_ai: named values the model must return (1-10). Each key becomes a {{ai.KEY.<key>}} merge tag for later steps. fallback is used when generation fails, so emails still send with sensible copy.",
+        "action_ai: named values the model must return (1-10). Each key becomes a {{ai.KEY.<key>}} merge tag for later steps. fallback is used when generation fails, so emails still send with sensible copy. Combined field maxLength values must fit the step's 2000-token response budget (roughly 3 characters per token plus JSON overhead).",
       items: {
         type: "object",
         properties: {
