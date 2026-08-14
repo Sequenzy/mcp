@@ -313,6 +313,20 @@ export const outputPropertiesByToolName: Record<
       "Newly created API key if the API response uses the short key field."
     ),
   },
+  request_api_key_handoff: {
+    handoff: objectOutputProperty(
+      "The prepared handoff: `url` opens the dashboard create-key form prefilled with the requested `name`, `preset` or `scopes`, and `replaces` when rotating. `canSelfServe` is true when the active key already holds api_keys:manage and could create the key directly. `deliversKeyToCaller` is always false - the new key is shown in the owner's browser and never returned here."
+    ),
+    message: stringOutputProperty(
+      "What to tell the operator about this handoff."
+    ),
+    nextSteps: {
+      type: "array",
+      description:
+        "Ordered steps to finish the rotation, including verifying the replacement and revoking the predecessor.",
+      items: stringOutputProperty("One step in the handoff."),
+    },
+  },
   list_api_keys: {
     apiKeys: resourceListOutputProperty(
       "non-secret API key metadata, including ID, name, prefix, permissions, timestamps, and active-credential status"
@@ -987,6 +1001,34 @@ export const outputPropertiesByToolName: Record<
   },
   unschedule_campaign: {
     campaign: resourceOutputProperty("draft campaign"),
+  },
+  share_campaign: {
+    shareUrl: stringOutputProperty(
+      "Public anonymized view-in-browser URL for the campaign."
+    ),
+    shareToken: stringOutputProperty("Capability token embedded in the URL."),
+    created: booleanOutputProperty(
+      "False when an already-active link was returned instead of minted."
+    ),
+  },
+  unshare_campaign: {
+    revoked: booleanOutputProperty(
+      "False when the campaign had no active public link."
+    ),
+  },
+  share_template: {
+    shareUrl: stringOutputProperty(
+      "Public anonymized view-in-browser URL for the email."
+    ),
+    shareToken: stringOutputProperty("Capability token embedded in the URL."),
+    created: booleanOutputProperty(
+      "False when an already-active link was returned instead of minted."
+    ),
+  },
+  unshare_template: {
+    revoked: booleanOutputProperty(
+      "False when the email had no active public link."
+    ),
   },
   send_test_email: {
     emailSendId: stringOutputProperty("Durable test email delivery ID."),

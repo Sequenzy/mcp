@@ -91,6 +91,23 @@ export function validateScheduleCampaignArgs(
     );
   }
 
+  if (args.listIds !== undefined && args.targetLists !== undefined) {
+    throw new Error(
+      "Provide either `listIds` or `targetLists` when calling `schedule_campaign`, not both."
+    );
+  }
+
+  if (
+    args.listIds !== undefined &&
+    (!Array.isArray(args.listIds) ||
+      args.listIds.length === 0 ||
+      args.listIds.some((listId) => typeof listId !== "string"))
+  ) {
+    throw new Error(
+      "`listIds` must be a non-empty array of list ID strings when calling `schedule_campaign`."
+    );
+  }
+
   if (args.sendTimeOptimization !== undefined) {
     if (typeof args.sendTimeOptimization !== "boolean") {
       throw new Error(
