@@ -13,7 +13,7 @@ Connect Sequenzy to Claude Desktop, Claude Code, Codex, Cursor, Windsurf, VS Cod
 - Draft, update, schedule, and inspect campaigns, including resolved audience previews and From, Reply-To, CC, and BCC identities.
 - Render campaigns, sequence steps, and templates to their exact email-safe HTML without sending.
 - Add one-click Poll and NPS survey blocks to emails and inspect campaign response summaries.
-- Create and edit email sequences, including event-triggered and segment-entry automations, sending identity overrides, existing graph restructuring, and direct step test sends to internal reviewers.
+- Create and edit email sequences, including event-triggered and segment-entry automations, property-filtered post-enrollment event stop conditions, sending identity overrides, existing graph restructuring, and direct step test sends to internal reviewers.
 - Cancel, pause, resume, duplicate, or delete campaigns and enroll contacts into sequences.
 - Manage transactional email templates and send single transactional emails.
 - Supply localized template variants or queue AI translation for enabled locales.
