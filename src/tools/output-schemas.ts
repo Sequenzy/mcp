@@ -865,6 +865,27 @@ export const outputPropertiesByToolName: Record<
   delete_template: {
     templateId: stringOutputProperty("Deleted template ID."),
   },
+  list_email_components: {
+    components: resourceListOutputProperty("email component"),
+  },
+  get_email_component: {
+    component: resourceOutputProperty("email component"),
+  },
+  get_default_email_component: {
+    component: resourceOutputProperty("default email component for the slot"),
+  },
+  set_default_email_component: {
+    component: resourceOutputProperty("saved default email component"),
+  },
+  create_email_component: {
+    component: resourceOutputProperty("email component"),
+  },
+  update_email_component: {
+    component: resourceOutputProperty("email component"),
+  },
+  delete_email_component: {
+    id: stringOutputProperty("Deleted email component ID."),
+  },
   list_ab_tests: {
     abTests: resourceListOutputProperty("A/B test"),
   },

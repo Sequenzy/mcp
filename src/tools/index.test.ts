@@ -1596,6 +1596,9 @@ describe("update_company tool validation", () => {
     expect(inputSchema?.additionalProperties).toBeUndefined();
     expect(inputSchema?.properties).toHaveProperty("primaryColor");
     expect(inputSchema?.properties).toHaveProperty("emailTheme");
+    expect(JSON.stringify(inputSchema?.properties?.["emailTheme"])).toContain(
+      '"buttonRadius"'
+    );
     expect(inputSchema?.properties).toHaveProperty("companyContext");
     expect(inputSchema?.properties).toHaveProperty("toneVoice");
     expect(inputSchema?.properties).toHaveProperty("valueProps");
@@ -2923,6 +2926,7 @@ describe("transactional email tools", () => {
     expect(inputSchema?.properties).toHaveProperty("templateId");
     expect(inputSchema?.properties).toHaveProperty("emailType");
     expect(inputSchema?.properties).toHaveProperty("replyTo");
+    expect(inputSchema?.properties).toHaveProperty("attachments");
     expect(inputSchema?.properties).toHaveProperty("trackingSettings");
     const trackingSettingsSchema = properties?.["trackingSettings"] as
       | {
@@ -3003,6 +3007,43 @@ describe("transactional email tools", () => {
         slug: "welcome-email",
         variables: { firstName: "Paul" },
       },
+      undefined
+    );
+  });
+
+  it("forwards send_email inline attachments", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      emailSendId: "send_attachment_123",
+    });
+
+    await handleToolCall("send_email", {
+      to: "user@example.com",
+      subject: "Ticket",
+      html: '<img src="cid:ticket-qr">',
+      attachments: [
+        {
+          filename: "ticket.png",
+          path: "https://example.com/ticket.png",
+          contentId: "ticket-qr",
+          contentType: "image/png",
+        },
+      ],
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/transactional/send",
+      expect.objectContaining({
+        attachments: [
+          {
+            filename: "ticket.png",
+            path: "https://example.com/ticket.png",
+            contentId: "ticket-qr",
+            contentType: "image/png",
+          },
+        ],
+      }),
       undefined
     );
   });
@@ -11018,5 +11059,113 @@ describe("buildInsertSequenceStepBody webhook steps", () => {
     expect(() =>
       buildInsertSequenceStepBody({ ...baseArgs, resultKey: 7 })
     ).toThrow("`resultKey` must be a string");
+  });
+});
+
+describe("email component tools", () => {
+  beforeEach(() => {
+    mockApiRequest.mockReset();
+  });
+
+  it("reads the company's default footer", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      component: {
+        id: "cmp_1",
+        name: "Default Footer",
+        defaultSlot: "footer",
+        componentType: "footer",
+        version: 3,
+        blocks: [{ id: "b1", type: "footer", showUnsubscribe: true }],
+      },
+    });
+
+    const result = await handleToolCall("get_default_email_component", {
+      companyId: "company_123",
+      slot: "footer",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/email-components/defaults/footer",
+      undefined,
+      "company_123"
+    );
+    expect(result.structuredContent?.["component"]).toEqual(
+      expect.objectContaining({ defaultSlot: "footer" })
+    );
+  });
+
+  it("writes the default footer through the defaults route", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      component: { id: "cmp_1", defaultSlot: "footer", version: 4 },
+    });
+
+    const blocks = [{ id: "b1", type: "footer", variant: "full" }];
+    await handleToolCall("set_default_email_component", {
+      companyId: "company_123",
+      slot: "footer",
+      blocks,
+    });
+
+    // The upsert route, not a plain create: a company has exactly one default
+    // footer, and a second create would violate the unique index.
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/email-components/defaults/footer",
+      { blocks },
+      "company_123"
+    );
+  });
+
+  it("passes defaultsOnly through as a query parameter", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true, components: [] });
+
+    await handleToolCall("list_email_components", {
+      companyId: "company_123",
+      defaultsOnly: true,
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/email-components?defaultsOnly=true",
+      undefined,
+      "company_123"
+    );
+  });
+
+  it("omits blocks from an update that does not send them", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      component: { id: "cmp_1", version: 2 },
+    });
+
+    await handleToolCall("update_email_component", {
+      companyId: "company_123",
+      componentId: "cmp_1",
+      name: "Renamed",
+    });
+
+    // An absent `blocks` must not become an empty list: that would wipe the
+    // component's content on a rename.
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/email-components/cmp_1",
+      { name: "Renamed" },
+      "company_123"
+    );
+  });
+
+  it("rejects a single block object passed where a list is required", async () => {
+    const result = await handleToolCall("create_email_component", {
+      companyId: "company_123",
+      name: "Promo",
+      blocks: { id: "b1", type: "text", content: "<p>Hi</p>" },
+    });
+
+    expect(result.isError).toBe(true);
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 });
