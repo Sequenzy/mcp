@@ -224,6 +224,15 @@ the whole permission selection rather than merging, so preserve every existing
 scope that is still needed. Hosted OAuth connections can alternatively
 disconnect and reauthorize with broader permissions.
 
+When the active key itself lacks `api_keys:manage`, call
+`request_api_key_handoff` instead of retrying `update_api_key`. It requires
+`account:read` and returns an owner-review URL with the requested key name,
+permissions, and optional predecessor prefilled. It never creates or returns a
+key; the workspace owner reviews the form, creates the replacement in the
+browser, and copies it into the client. Pass `replaceApiKeyId: "current"` to
+offer revocation of the active key after the replacement is created. If the
+active key also lacks `account:read`, use the dashboard directly.
+
 The default **Safer agent access** preset includes `lists:write` and
 `tags:write`, so agents can create and update list and tag definitions, and it
 includes `subscribers:tag` for applying tags to existing contacts. It does not
@@ -238,7 +247,7 @@ build a list as well as create it. Imports that apply `listIds` also need
 
 ## Tools
 
-This server currently exposes 201 MCP tools.
+This server currently exposes 217 MCP tools.
 
 Tools reject arguments they do not declare instead of silently ignoring them.
 Errors name the unsupported fields, list the supported arguments, and provide
@@ -260,6 +269,7 @@ sort options.
 | `get_shopify_automation_settings`    | Read browse-abandonment, cart-abandonment, and price-drop settings for the connected Shopify store.                           |
 | `update_shopify_automation_settings` | Partially update Shopify automation settings or reset an individual section to its platform defaults.                         |
 | `create_api_key`                     | Create an API key for a company, with optional permission preset or explicit scopes.                                          |
+| `request_api_key_handoff`            | Prepare an owner-reviewed create/rotation URL when the active key cannot manage API keys itself.                              |
 | `list_api_keys`                      | List company API keys as non-secret metadata for safe identification and cleanup.                                             |
 | `update_api_key`                     | Rename a company API key or replace its permission preset or scopes without changing the key value.                           |
 | `revoke_api_key`                     | Permanently revoke an exact company API key by ID after checking it with `list_api_keys`.                                     |
@@ -536,6 +546,24 @@ localization workflow. It requires an enabled non-primary `locale`, a localized
 `sync_template_localizations` to ask Sequenzy to translate selected locales;
 omit `locales` to sync every enabled non-primary locale. Explicit sync works
 even when automatic on-save localization is disabled.
+
+### Reusable Email Components
+
+| Tool                          | Description                                                                    |
+| ----------------------------- | ------------------------------------------------------------------------------ |
+| `list_email_components`       | List saved sections and footers, optionally limited to pinned defaults.        |
+| `get_email_component`         | Read one component's blocks, metadata, version, and default-slot state.        |
+| `get_default_email_component` | Read the component currently pinned to a default slot such as `footer`.        |
+| `set_default_email_component` | Create or replace the company default footer used by newly built block emails. |
+| `create_email_component`      | Save a reusable section or footer from a block list.                           |
+| `update_email_component`      | Update component metadata or replace its blocks and increment its version.     |
+| `delete_email_component`      | Delete a component without changing emails that already copied its blocks.     |
+
+Components are copied into emails when those emails are built, so later edits
+affect newly built emails rather than rewriting existing content. The default
+footer keeps its unsubscribe link enabled, while transactional rendering hides
+that link. Raw HTML emails keep their own markup and do not receive block
+components; their send-time unsubscribe handling remains unchanged.
 
 ### A/B Tests
 

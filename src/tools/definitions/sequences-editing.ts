@@ -708,7 +708,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
   {
     name: "insert_sequence_step",
     description:
-      "Insert one dashboard-compatible typed step into an existing sequence: email, SMS, delay/date wait, discount (later emails print the generated code with {{discount.code}}), subscriber update, tag/list action, outbound webhook, AI step (later steps use the generated text with {{ai.KEY.field}}), condition gate, wait-for-event, or wired If/Else branch. Use get_sequence first and pass afterNodeId. Branch paths can target existing nodes, including completion. For active sequences, confirm the structural change first.",
+      "Insert one dashboard-compatible typed step into an existing sequence: email, SMS, delay/date wait, discount (later emails print the generated code with {{discount.code}}), subscriber update, tag/list action, outbound webhook, condition gate, wait-for-event, or wired If/Else branch. Use get_sequence first and pass afterNodeId. Branch paths can target existing nodes, including completion. For active sequences, confirm the structural change first.",
     inputSchema: {
       type: "object",
       properties: {
@@ -734,7 +734,6 @@ export const sequenceEditingToolDefinitions: Tool[] = [
             "add_to_list",
             "remove_from_list",
             "webhook",
-            "ai",
             "condition",
             "logic_wait_for_event",
             "logic_branch",
@@ -899,66 +898,13 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         resultKey: {
           type: "string",
           description:
-            "webhook / ai: where the result is saved. Later steps reference it via {{webhooks.KEY.data.field}} (webhook) or {{ai.KEY.field}} (ai) merge tags. Required for ai steps. Must start with a letter; letters, numbers, underscores; max 64 chars.",
+            "webhook only: when set, the HTTP response is saved and later email steps can reference it via {{webhooks.KEY.data.field}} merge tags. Must start with a letter; letters, numbers, underscores; max 64 chars.",
         },
         onError: {
           type: "string",
           enum: ["continue", "exit", "fail"],
           description:
-            "webhook / ai: behavior when the step fails. continue proceeds to the next step, exit ends the sequence for the subscriber, fail marks the enrollment failed. Defaults to fail for webhooks and continue for ai steps.",
-        },
-        prompt: {
-          type: "string",
-          description:
-            "ai only: prompt template sent to the model, resolved per contact at execution time. Supports merge tags like {{first_name}}, {{event.plan}}, and {{webhooks.KEY.data.field}}. Max 8000 chars.",
-        },
-        outputFields: {
-          type: "array",
-          description:
-            "ai only: named values the model must return (1-10). Each key becomes a {{ai.KEY.<key>}} merge tag for later steps; fallback is used when generation fails. Combined field maxLength values must fit the step's 2000-token response budget (roughly 3 characters per token plus JSON overhead).",
-          items: {
-            type: "object",
-            properties: {
-              key: {
-                type: "string",
-                description:
-                  "Field key, e.g. subject_line. Letters, numbers, underscores; must start with a letter; unique within the step.",
-              },
-              description: {
-                type: "string",
-                description:
-                  "What the model should produce for this field. Max 300 chars.",
-              },
-              maxLength: {
-                type: "number",
-                description:
-                  "Hard cap on stored characters (1-4000). Defaults to 500.",
-              },
-              fallback: {
-                type: "string",
-                description:
-                  "Text used verbatim when generation fails or the model omits the field.",
-              },
-            },
-            required: ["key"],
-            additionalProperties: false,
-          },
-        },
-        includeTags: {
-          type: "boolean",
-          description:
-            "ai only: include the contact's tags in the prompt context.",
-        },
-        includeEventProperties: {
-          type: "boolean",
-          description:
-            "ai only: include the enrollment's trigger event name and properties in the prompt context.",
-        },
-        includeAttributes: {
-          type: "array",
-          items: { type: "string" },
-          description:
-            "ai only: custom attribute keys to include in the prompt context (max 30). Only the listed keys are sent.",
+            "webhook only: behavior when the request fails. continue proceeds to the next step, exit ends the sequence for the subscriber, fail marks the enrollment failed (default).",
         },
         segmentId: {
           type: "string",
