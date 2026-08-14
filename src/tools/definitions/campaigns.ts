@@ -2,7 +2,7 @@ import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 
 import {
   emailBlocksDescription,
-  rawHtmlContentWarning,
+  rawHtmlContentDescription,
   replyToNameDescription,
   senderFromNameDescription,
 } from "../internal.js";
@@ -47,7 +47,7 @@ export const campaignToolDefinitions: Tool[] = [
   {
     name: "get_campaign",
     description:
-      "Get campaign details and stats, including rejectionComment reviewer feedback for rejected campaigns. `emailId` is the campaign's linked email body - the same record returned by the templates tools - and can be passed as templateId to create_campaign to reuse the design; it is null for SMS campaigns. `emailPreset` reports that email's Style > Format the same way get_sequence does per step (branded or minimal; null for SMS campaigns and standalone raw HTML emails), so campaign chrome can be compared against sequence steps and transactional templates without rendering them - minimal suppresses the company logo at render time. `targetLists` holds the raw audience targeting (IDs only); call get_campaign_audience for resolved list/segment names and a recipient count. Note that `computedLists` is email personalization (product lists rendered inside the email), not audience targeting.",
+      "Get campaign details and stats, including rejectionComment reviewer feedback for rejected campaigns. `emailId` is the campaign's linked email body - the same record returned by the templates tools - and can be passed as templateId to create_campaign to reuse the design; it is null for SMS campaigns. `emailPreset` reports that email's Style > Format the same way get_sequence does per step (branded or minimal; null for SMS campaigns and standalone raw HTML emails), so campaign chrome can be compared against sequence steps and transactional templates without rendering them - minimal suppresses the company logo at render time. `targetLists` holds the raw audience targeting (IDs only); call get_campaign_audience for resolved list/segment names and a recipient count. Note that `computedLists` is email personalization (product lists rendered inside the email), not audience targeting. For native sends, `sentAt` is stamped when the last recipient is handed off, so on a paced send it is the end of the delivery window; `spreadOverHours`, `sendTimeOptimization`, and `sendTimeWindowHours` report recorded pacing. Imported campaigns may not include pacing metadata from their source provider, so absent pacing fields do not prove that delivery happened all at once.",
     inputSchema: {
       type: "object",
       properties: {
@@ -226,7 +226,7 @@ export const campaignToolDefinitions: Tool[] = [
         },
         html: {
           type: "string",
-          description: `Email HTML content. Mutually exclusive with \`blocks\`. Use this for imported provider campaigns. ${rawHtmlContentWarning}`,
+          description: `Email HTML content. Mutually exclusive with \`blocks\`. Use this for imported provider campaigns. ${rawHtmlContentDescription}`,
         },
         blocks: {
           type: "array",
@@ -348,7 +348,7 @@ export const campaignToolDefinitions: Tool[] = [
         },
         html: {
           type: "string",
-          description: `Email HTML content. Mutually exclusive with \`blocks\`. Use this for imported provider campaigns. ${rawHtmlContentWarning}`,
+          description: `Email HTML content. Mutually exclusive with \`blocks\`. Use this for imported provider campaigns. ${rawHtmlContentDescription}`,
         },
         blocks: {
           type: "array",

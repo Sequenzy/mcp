@@ -13,6 +13,16 @@ export const rawHtmlContentWarning =
   "Raw HTML is stored as one opaque block. Sequenzy preserves that markup but does not add a company logo, branded native sections, or theme-driven block design. Use blocks for editor-native design, or a drafting prompt when you want Sequenzy to compose a new branded email.";
 
 /**
+ * A guessed opt-out (`| raw`, triple braces) renders escaped rather than
+ * failing, so every content-authoring surface has to state the real one.
+ */
+export const rawHtmlMergeTagHint =
+  " Merge tags resolve in this content but are always HTML-escaped; prefix a tag with 'html.' - e.g. {{html.subscriber.body_html}} - to insert a trusted subscriber attribute or variable holding prebuilt HTML unescaped. Injected HTML is sanitized (scripts, event handlers, and dangerous URLs stripped), must be final HTML, and renders raw only in HTML text position, never inside attributes.";
+
+/** For `html`-content fields: the storage warning plus the merge-tag hint. */
+export const rawHtmlContentDescription = `${rawHtmlContentWarning}${rawHtmlMergeTagHint}`;
+
+/**
  * The generated code has no discoverable name unless the schema states it, and
  * a guessed tag renders empty rather than failing, so every surface that
  * configures a create_discount step repeats this.
@@ -41,7 +51,7 @@ export const buttonColorHint =
 export const blockFieldWarningsHint =
   " Unsupported fields are discarded and reported in the response `warnings` array rather than rejected.";
 
-export const emailBlocksDescription = `Sequenzy email blocks. Use this for editor-compatible content, including conditional and repeat blocks. For provider-migrated HTML from another email platform, prefer the \`html\` field instead; Sequenzy stores it as one raw HTML block to preserve the original design. Use \`styles\` for per-block background, background opacity, text color, padding, border radius, border width, and border color. Top-level style aliases such as \`backgroundColor\`, \`backgroundOpacity\`, \`borderColor\`, \`borderWidth\`, and \`borderRadius\` are also accepted and saved under \`styles\`. Repeat blocks use { type: 'repeat', source: 'items', itemAlias: 'item', children: [...] }.${
+export const emailBlocksDescription = `Sequenzy email blocks. Use this for editor-compatible content, including conditional and repeat blocks. For provider-migrated HTML from another email platform, prefer the \`html\` field instead; Sequenzy stores it as one raw HTML block to preserve the original design. Use \`styles\` for per-block background, background opacity, text color, padding, border radius, border width, and border color. Top-level style aliases such as \`backgroundColor\`, \`backgroundOpacity\`, \`borderColor\`, \`borderWidth\`, and \`borderRadius\` are also accepted and saved under \`styles\`. Repeat blocks use { type: 'repeat', source: 'items', itemAlias: 'item', children: [...] }.${rawHtmlMergeTagHint}${
   blockConditionsHint
 }${buttonColorHint}${blockFieldWarningsHint}${pollBlockHint}${imageBlockHint}${coreEmailBlockExamples}`;
 
@@ -63,11 +73,11 @@ export const sequenceStepBlocksFormatHint =
  */
 export const sequenceStepBlocksFormatHintForNodeChanges = ` For action_email:${sequenceStepBlocksFormatHint}`;
 
-export const replacementEmailBlocksDescription = `Replacement Sequenzy email blocks. Use \`styles\` for per-block background, background opacity, text color, padding, border radius, border width, and border color. Top-level style aliases such as \`backgroundColor\`, \`backgroundOpacity\`, \`borderColor\`, \`borderWidth\`, and \`borderRadius\` are also accepted and saved under \`styles\`.${
+export const replacementEmailBlocksDescription = `Replacement Sequenzy email blocks. Use \`styles\` for per-block background, background opacity, text color, padding, border radius, border width, and border color. Top-level style aliases such as \`backgroundColor\`, \`backgroundOpacity\`, \`borderColor\`, \`borderWidth\`, and \`borderRadius\` are also accepted and saved under \`styles\`.${rawHtmlMergeTagHint}${
   blockConditionsHint
 }${buttonColorHint}${blockFieldWarningsHint}${pollBlockHint}${imageBlockHint}${coreEmailBlockExamples}`;
 
-export const sequenceEmailBlocksDescription = `Sequenzy email blocks. Provide blocks or html for email steps. For migrated provider HTML, prefer \`html\`; Sequenzy stores it as one raw HTML block and does not recreate it as native blocks. Use \`styles\` for per-block background, background opacity, text color, padding, border radius, border width, and border color. Top-level style aliases such as \`backgroundColor\`, \`backgroundOpacity\`, \`borderColor\`, \`borderWidth\`, and \`borderRadius\` are also accepted and saved under \`styles\`. Blocks can include repeat blocks over array variables such as items.${
+export const sequenceEmailBlocksDescription = `Sequenzy email blocks. Provide blocks or html for email steps. For migrated provider HTML, prefer \`html\`; Sequenzy stores it as one raw HTML block and does not recreate it as native blocks. Use \`styles\` for per-block background, background opacity, text color, padding, border radius, border width, and border color. Top-level style aliases such as \`backgroundColor\`, \`backgroundOpacity\`, \`borderColor\`, \`borderWidth\`, and \`borderRadius\` are also accepted and saved under \`styles\`. Blocks can include repeat blocks over array variables such as items.${rawHtmlMergeTagHint}${
   blockConditionsHint
 }${buttonColorHint}${blockFieldWarningsHint}${pollBlockHint}${imageBlockHint}${coreEmailBlockExamples}`;
 

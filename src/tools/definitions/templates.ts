@@ -1,6 +1,9 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 
-import { emailBlocksDescription, rawHtmlContentWarning } from "../internal.js";
+import {
+  emailBlocksDescription,
+  rawHtmlContentDescription,
+} from "../internal.js";
 
 export const templateToolDefinitions: Tool[] = [
   // ============================================================================
@@ -81,7 +84,7 @@ export const templateToolDefinitions: Tool[] = [
         },
         html: {
           type: "string",
-          description: `Email HTML content. Mutually exclusive with \`blocks\`. Use this for imported provider templates. ${rawHtmlContentWarning}`,
+          description: `Email HTML content. Mutually exclusive with \`blocks\`. Use this for imported provider templates. ${rawHtmlContentDescription}`,
         },
         blocks: {
           type: "array",
@@ -146,7 +149,7 @@ export const templateToolDefinitions: Tool[] = [
         },
         html: {
           type: "string",
-          description: `Email HTML content. Mutually exclusive with \`blocks\`. Use this for imported provider templates. ${rawHtmlContentWarning}`,
+          description: `Email HTML content. Mutually exclusive with \`blocks\`. Use this for imported provider templates. ${rawHtmlContentDescription}`,
         },
         blocks: {
           type: "array",
@@ -199,7 +202,7 @@ export const templateToolDefinitions: Tool[] = [
         },
         html: {
           type: "string",
-          description: `Localized email HTML. Mutually exclusive with \`blocks\`. ${rawHtmlContentWarning}`,
+          description: `Localized email HTML. Mutually exclusive with \`blocks\`. ${rawHtmlContentDescription}`,
         },
         blocks: {
           type: "array",

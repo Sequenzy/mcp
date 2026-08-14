@@ -2,7 +2,7 @@ import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 
 import {
   discountMergeTagsHint,
-  rawHtmlContentWarning,
+  rawHtmlContentDescription,
   replyToNameDescription,
   senderFromNameDescription,
   sequenceEmailBlocksDescription,
@@ -504,7 +504,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
               },
               html: {
                 type: "string",
-                description: `HTML content for email steps. Use this for imported provider HTML. ${rawHtmlContentWarning}`,
+                description: `HTML content for email steps. Use this for imported provider HTML. ${rawHtmlContentDescription}`,
               },
               isTransactional: {
                 type: "boolean",

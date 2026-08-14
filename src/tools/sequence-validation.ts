@@ -223,6 +223,7 @@ export function buildInsertSequenceStepBody(
     "add_to_list",
     "remove_from_list",
     "webhook",
+    "ai",
     "logic_wait_for_event",
     "logic_branch",
   ]);
@@ -440,7 +441,8 @@ export function buildInsertSequenceStepBody(
     stepType === "remove_tag" ||
     stepType === "add_to_list" ||
     stepType === "remove_from_list" ||
-    stepType === "webhook"
+    stepType === "webhook" ||
+    stepType === "ai"
   ) {
     let step: Record<string, unknown>;
     if (stepType === "delay") {
@@ -541,6 +543,48 @@ export function buildInsertSequenceStepBody(
           ...(args.headers !== undefined ? { headers: args.headers } : {}),
           ...(body ? { body } : {}),
           ...(resultKey ? { resultKey } : {}),
+          ...(onError ? { onError } : {}),
+        },
+      };
+    } else if (stepType === "ai") {
+      const onError = optionalString(args, "onError");
+      if (onError && !["continue", "exit", "fail"].includes(onError)) {
+        throw new Error(
+          "`onError` must be `continue`, `exit`, or `fail` when inserting an ai step."
+        );
+      }
+      if (!Array.isArray(args.outputFields) || args.outputFields.length === 0) {
+        throw new Error(
+          "`outputFields` is required when inserting an ai step, e.g. [{ key: 'subject_line', fallback: 'We miss you' }]."
+        );
+      }
+      if (args.includeAttributes !== undefined) {
+        if (
+          !Array.isArray(args.includeAttributes) ||
+          args.includeAttributes.some((key) => typeof key !== "string")
+        ) {
+          throw new Error(
+            "`includeAttributes` must be an array of attribute names when inserting an ai step."
+          );
+        }
+      }
+      step = {
+        type: "ai",
+        nodeType: "action_ai",
+        config: {
+          label: optionalString(args, "label") ?? "Ask AI",
+          prompt: requiredString("insert_sequence_step", args, "prompt"),
+          resultKey: requiredString("insert_sequence_step", args, "resultKey"),
+          outputFields: args.outputFields,
+          ...(args.includeTags !== undefined
+            ? { includeTags: args.includeTags === true }
+            : {}),
+          ...(args.includeEventProperties !== undefined
+            ? { includeEventProperties: args.includeEventProperties === true }
+            : {}),
+          ...(args.includeAttributes !== undefined
+            ? { includeAttributes: args.includeAttributes }
+            : {}),
           ...(onError ? { onError } : {}),
         },
       };
@@ -887,5 +931,104 @@ export function buildCancelSequenceEnrollmentBody(
     ...(fieldValues.length > 0 && { fieldValues }),
     ...(typeof args.dryRun === "boolean" && { dryRun: args.dryRun }),
     ...(reason !== undefined && { reason }),
+  };
+}
+
+const SEQUENCE_ENROLLMENT_MOVE_SORTS = [
+  "wait_until_asc",
+  "wait_until_desc",
+  "enrolled_at_asc",
+  "enrolled_at_desc",
+] as const;
+
+function optionalPositiveInteger(
+  args: Record<string, unknown>,
+  key: "limit" | "dailyLimit"
+): number | undefined {
+  const raw = args[key];
+  if (raw === undefined || raw === null) {
+    return undefined;
+  }
+
+  const value = typeof raw === "string" ? Number(raw) : raw;
+  const floor = key === "dailyLimit" ? 0 : 1;
+  if (
+    typeof value !== "number" ||
+    !Number.isSafeInteger(value) ||
+    value < floor
+  ) {
+    throw new Error(
+      `\`${key}\` must be an integer of at least ${floor} when calling \`move_sequence_enrollments\`.`
+    );
+  }
+
+  return value;
+}
+
+function optionalStringArray(
+  args: Record<string, unknown>,
+  key: "subscriberIds" | "tags"
+): string[] {
+  const raw = args[key];
+  if (raw === undefined) {
+    return [];
+  }
+
+  if (!Array.isArray(raw) || raw.some((value) => typeof value !== "string")) {
+    throw new Error(
+      `\`${key}\` must be an array of strings when calling \`move_sequence_enrollments\`.`
+    );
+  }
+
+  const normalized = raw
+    .map((value) => (value as string).trim())
+    .filter((value) => value.length > 0);
+
+  if (normalized.length === 0) {
+    throw new Error(
+      `\`${key}\` must contain at least one non-empty string when calling \`move_sequence_enrollments\`.`
+    );
+  }
+
+  return normalized;
+}
+
+export function buildMoveSequenceEnrollmentBody(
+  args: Record<string, unknown>
+): Record<string, unknown> {
+  const fromNodeId = requiredString(
+    "move_sequence_enrollments",
+    args,
+    "fromNodeId"
+  );
+  const targetNodeId = optionalString(args, "targetNodeId");
+  const reason = optionalString(args, "reason");
+  const sort = optionalString(args, "sort");
+
+  if (
+    sort !== undefined &&
+    !(SEQUENCE_ENROLLMENT_MOVE_SORTS as readonly string[]).includes(sort)
+  ) {
+    throw new Error(
+      `\`sort\` must be one of ${SEQUENCE_ENROLLMENT_MOVE_SORTS.join(", ")} when calling \`move_sequence_enrollments\`.`
+    );
+  }
+
+  const subscriberIds = optionalStringArray(args, "subscriberIds");
+  const tags = optionalStringArray(args, "tags");
+
+  const limit = optionalPositiveInteger(args, "limit");
+  const dailyLimit = optionalPositiveInteger(args, "dailyLimit");
+
+  return {
+    fromNodeId,
+    ...(targetNodeId !== undefined && { targetNodeId }),
+    ...(limit !== undefined && { limit }),
+    ...(dailyLimit !== undefined && { dailyLimit }),
+    ...(sort !== undefined && { sort }),
+    ...(subscriberIds.length > 0 && { subscriberIds }),
+    ...(tags.length > 0 && { tags }),
+    ...(reason !== undefined && { reason }),
+    ...(typeof args.dryRun === "boolean" && { dryRun: args.dryRun }),
   };
 }

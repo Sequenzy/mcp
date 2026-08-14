@@ -1,7 +1,7 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 
 import {
-  rawHtmlContentWarning,
+  rawHtmlContentDescription,
   replacementEmailBlocksDescription,
   replyToNameDescription,
   senderFromNameDescription,
@@ -394,11 +394,11 @@ export const sequenceEditingToolDefinitions: Tool[] = [
               },
               html: {
                 type: "string",
-                description: `Updated HTML content for imported provider markup. ${rawHtmlContentWarning}`,
+                description: `Updated HTML content for imported provider markup. ${rawHtmlContentDescription}`,
               },
               htmlContent: {
                 type: "string",
-                description: `Alias for html for imported provider markup. ${rawHtmlContentWarning}`,
+                description: `Alias for html for imported provider markup. ${rawHtmlContentDescription}`,
               },
               emailPreset: {
                 type: "string",
@@ -468,11 +468,11 @@ export const sequenceEditingToolDefinitions: Tool[] = [
               },
               html: {
                 type: "string",
-                description: `Updated HTML content for imported provider markup. ${rawHtmlContentWarning}`,
+                description: `Updated HTML content for imported provider markup. ${rawHtmlContentDescription}`,
               },
               htmlContent: {
                 type: "string",
-                description: `Alias for html. ${rawHtmlContentWarning}`,
+                description: `Alias for html. ${rawHtmlContentDescription}`,
               },
               emailPreset: {
                 type: "string",
@@ -708,7 +708,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
   {
     name: "insert_sequence_step",
     description:
-      "Insert one dashboard-compatible typed step into an existing sequence: email, SMS, delay/date wait, discount (later emails print the generated code with {{discount.code}}), subscriber update, tag/list action, outbound webhook, condition gate, wait-for-event, or wired If/Else branch. Use get_sequence first and pass afterNodeId. Branch paths can target existing nodes, including completion. For active sequences, confirm the structural change first.",
+      "Insert one dashboard-compatible typed step into an existing sequence: email, SMS, delay/date wait, discount (later emails print the generated code with {{discount.code}}), subscriber update, tag/list action, outbound webhook, AI step (later steps use the generated text with {{ai.KEY.field}}), condition gate, wait-for-event, or wired If/Else branch. Use get_sequence first and pass afterNodeId. Branch paths can target existing nodes, including completion. For active sequences, confirm the structural change first.",
     inputSchema: {
       type: "object",
       properties: {
@@ -734,6 +734,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
             "add_to_list",
             "remove_from_list",
             "webhook",
+            "ai",
             "condition",
             "logic_wait_for_event",
             "logic_branch",
@@ -770,7 +771,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         },
         html: {
           type: "string",
-          description: `HTML content for an imported provider step. Provide either html or blocks, not both. ${rawHtmlContentWarning}`,
+          description: `HTML content for an imported provider step. Provide either html or blocks, not both. ${rawHtmlContentDescription}`,
         },
         isTransactional: {
           type: "boolean",
@@ -898,13 +899,66 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         resultKey: {
           type: "string",
           description:
-            "webhook only: when set, the HTTP response is saved and later email steps can reference it via {{webhooks.KEY.data.field}} merge tags. Must start with a letter; letters, numbers, underscores; max 64 chars.",
+            "webhook / ai: where the result is saved. Later steps reference it via {{webhooks.KEY.data.field}} (webhook) or {{ai.KEY.field}} (ai) merge tags. Required for ai steps. Must start with a letter; letters, numbers, underscores; max 64 chars.",
         },
         onError: {
           type: "string",
           enum: ["continue", "exit", "fail"],
           description:
-            "webhook only: behavior when the request fails. continue proceeds to the next step, exit ends the sequence for the subscriber, fail marks the enrollment failed (default).",
+            "webhook / ai: behavior when the step fails. continue proceeds to the next step, exit ends the sequence for the subscriber, fail marks the enrollment failed. Defaults to fail for webhooks and continue for ai steps.",
+        },
+        prompt: {
+          type: "string",
+          description:
+            "ai only: prompt template sent to the model, resolved per contact at execution time. Supports merge tags like {{first_name}}, {{event.plan}}, and {{webhooks.KEY.data.field}}. Max 8000 chars.",
+        },
+        outputFields: {
+          type: "array",
+          description:
+            "ai only: named values the model must return (1-10). Each key becomes a {{ai.KEY.<key>}} merge tag for later steps; fallback is used when generation fails. Combined field maxLength values must fit the step's 2000-token response budget (roughly 3 characters per token plus JSON overhead).",
+          items: {
+            type: "object",
+            properties: {
+              key: {
+                type: "string",
+                description:
+                  "Field key, e.g. subject_line. Letters, numbers, underscores; must start with a letter; unique within the step.",
+              },
+              description: {
+                type: "string",
+                description:
+                  "What the model should produce for this field. Max 300 chars.",
+              },
+              maxLength: {
+                type: "number",
+                description:
+                  "Hard cap on stored characters (1-4000). Defaults to 500.",
+              },
+              fallback: {
+                type: "string",
+                description:
+                  "Text used verbatim when generation fails or the model omits the field.",
+              },
+            },
+            required: ["key"],
+            additionalProperties: false,
+          },
+        },
+        includeTags: {
+          type: "boolean",
+          description:
+            "ai only: include the contact's tags in the prompt context.",
+        },
+        includeEventProperties: {
+          type: "boolean",
+          description:
+            "ai only: include the enrollment's trigger event name and properties in the prompt context.",
+        },
+        includeAttributes: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "ai only: custom attribute keys to include in the prompt context (max 30). Only the listed keys are sent.",
         },
         segmentId: {
           type: "string",
@@ -1243,6 +1297,80 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         },
       },
       required: ["sequenceId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "move_sequence_enrollments",
+    description:
+      "Release a bounded batch of contacts off one sequence step and onto another, keeping their existing enrollment. Use this to let the next N contacts waiting on a delay continue early instead of cancelling and re-enrolling them, which discards the enrollment's entry event properties and stop-condition snapshots. Provide sequenceId and fromNodeId; targetNodeId defaults to the source step's only next step. Defaults to dryRun, so pass dryRun false to actually move. Moved contacts become active on the target step immediately, so this sends email as soon as the worker picks them up. limit defaults to 100 and is capped at 500 per call: while remainingCount is above zero, call again to release more. Unlike enroll_subscribers_in_sequence this still works while the sequence has new enrollment paused, because the contacts are already enrolled.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        sequenceId: {
+          type: "string",
+          description: "Sequence ID whose enrollments should be moved.",
+        },
+        fromNodeId: {
+          type: "string",
+          description:
+            "Node ID the contacts are currently sitting on, such as the delay step they are waiting at. Get it from list_sequence_enrollments (currentNodeId) or get_sequence.",
+        },
+        targetNodeId: {
+          type: "string",
+          description:
+            "Node ID to move them onto. Defaults to the source step's next step, and is required when that step branches or is terminal. Cannot be the trigger node.",
+        },
+        limit: {
+          type: "number",
+          description:
+            "Maximum enrollments to move in this call. Defaults to 100, maximum 500.",
+        },
+        sort: {
+          type: "string",
+          enum: [
+            "wait_until_asc",
+            "wait_until_desc",
+            "enrolled_at_asc",
+            "enrolled_at_desc",
+          ],
+          description:
+            "Which enrollments to take first. Defaults to wait_until_asc, meaning the contacts that have been waiting longest for their next step.",
+        },
+        subscriberIds: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Optional narrowing filter: only move these subscribers, up to 500. Omit to take whichever enrollments the sort selects.",
+        },
+        dailyLimit: {
+          type: "number",
+          description:
+            "Guardrail. Refuses to move more than this many enrollments onto targetNodeId in a rolling 24 hours, counting the moves recorded by earlier calls. The response reports movedInWindow and dailyRemaining so a paced release can resume tomorrow.",
+        },
+        tags: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Tag names applied to the moved contacts so the released wave stays identifiable. The tags must already exist (create_tag). Requires the subscribers:tag scope. Applying them never enrolls contacts in tag_added sequences.",
+        },
+        reason: {
+          type: "string",
+          description:
+            "Note stored on every moved enrollment and returned by list_sequence_enrollments as moveReason.",
+        },
+        dryRun: {
+          type: "boolean",
+          description:
+            "When true (the default), reports which enrollments would move without moving them. Pass false to apply.",
+        },
+      },
+      required: ["sequenceId", "fromNodeId"],
       additionalProperties: false,
     },
   },
