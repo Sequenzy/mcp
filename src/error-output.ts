@@ -134,11 +134,19 @@ function describeMcpError(error: unknown): McpErrorDescriptor {
     )
       ? "the Read-only or Safer agent access preset"
       : "Safer agent access when it covers the task, or Custom permissions";
+    // Key management is the one gap the agent cannot talk its way around: the
+    // scope needed to widen the key is the scope that is missing. Point at the
+    // handoff tool instead of leaving the operator to navigate the dashboard.
+    const keyManagementGuidance = missingApiKeyScopes.includes(
+      "api_keys:manage"
+    )
+      ? ` This operation manages API keys, so the missing scope cannot be granted through the API by the key that is missing it. If the active key has \`account:read\`, call \`request_api_key_handoff\` to get a dashboard link that opens the create-key form prefilled with the name and permissions you need, pass \`replaceApiKeyId: "current"\` when rotating, and hand the URL to the workspace owner. It creates nothing and never returns a key. If the handoff tool is also denied because \`account:read\` is missing, open ${DASHBOARD_URL} directly and choose the matching API Keys page.`
+      : "";
 
     return {
       title: "API key permission required",
       description: `The current API key is valid, but this operation requires the missing ${missingApiKeyScopes.length === 1 ? "scope" : "scopes"}: ${scopeList}.`,
-      howToFix: `Permissions can be widened on the key you are already using - no replacement key and no client restart. Call \`get_account\` to read \`apiKeyPermissions\`, then have the key owner open \`apiKeyPermissions.manageUrl\`, edit the key identified by \`apiKeyPermissions.activeKey\`, and enable ${scopeList}. The URL opens Account → API Keys for a \`personal\` key and workspace Settings → API Keys for a \`company\` key. If \`get_account\` also requires \`account:read\`, open ${DASHBOARD_URL} directly and choose the matching API Keys page. When \`apiKeyPermissions.activeKey.type\` is \`company\` and the key holds \`api_keys:manage\`, the agent can instead call \`update_api_key\` with \`apiKeyId\` from \`apiKeyPermissions.activeKey.id\`. Personal keys cannot be changed through \`update_api_key\`. \`scopes\` and \`preset\` REPLACE the whole selection, so pass every scope in \`apiKeyPermissions.scopes\` plus ${scopeList}, or a preset covering all of them (${presetGuidance}). Then retry the same tool call - the API reloads the key's permissions on a denied request, so the retry succeeds without reconnecting. Issuing a replacement key and swapping \`SEQUENZY_API_KEY\`, or reauthorizing a hosted OAuth connection with wider permissions, also works but is not required.`,
+      howToFix: `Permissions can be widened on the key you are already using - no replacement key and no client restart. Call \`get_account\` to read \`apiKeyPermissions\`, then have the key owner open \`apiKeyPermissions.manageUrl\`, edit the key identified by \`apiKeyPermissions.activeKey\`, and enable ${scopeList}. The URL opens Account → API Keys for a \`personal\` key and workspace Settings → API Keys for a \`company\` key. If \`get_account\` also requires \`account:read\`, open ${DASHBOARD_URL} directly and choose the matching API Keys page. When \`apiKeyPermissions.activeKey.type\` is \`company\` and the key holds \`api_keys:manage\`, the agent can instead call \`update_api_key\` with \`apiKeyId\` from \`apiKeyPermissions.activeKey.id\`. Personal keys cannot be changed through \`update_api_key\`. \`scopes\` and \`preset\` REPLACE the whole selection, so pass every scope in \`apiKeyPermissions.scopes\` plus ${scopeList}, or a preset covering all of them (${presetGuidance}). Then retry the same tool call - the API reloads the key's permissions on a denied request, so the retry succeeds without reconnecting. Issuing a replacement key and swapping \`SEQUENZY_API_KEY\`, or reauthorizing a hosted OAuth connection with wider permissions, also works but is not required.${keyManagementGuidance}`,
       docsUrl: MCP_DOCS_URL,
       details,
     };

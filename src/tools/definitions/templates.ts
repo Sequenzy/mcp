@@ -264,4 +264,48 @@ export const templateToolDefinitions: Tool[] = [
       required: ["templateId"],
     },
   },
+  {
+    name: "share_template",
+    description:
+      "Create (or fetch) the public view-in-browser link for an individual email - a transactional email, a sequence email, or a standalone template. Accepts an email/template ID or a transactional email's ID or slug; for a sequence email, pass the step's emailId from get_sequence. The hosted page renders an anonymized copy - sample contact, inert unsubscribe link, no open/click tracking - so the URL is safe to forward to anyone. Idempotent: if a link is already active, the same URL is returned with created=false rather than rotating it, so previously shared copies keep working. get_template reports the current link as shareUrl (null when none). Revoke with unshare_template. Campaigns have their own campaign-level link that follows the A/B winning variant - use share_campaign for those.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        templateId: {
+          type: "string",
+          description:
+            "Email/template ID, or a transactional email's ID or slug.",
+        },
+      },
+      required: ["templateId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "unshare_template",
+    description:
+      "Revoke the email's public view-in-browser link. The shared URL returns 404 immediately, and sharing again later mints a different URL - previously distributed copies stay dead. Returns revoked=false if no link was active.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        templateId: {
+          type: "string",
+          description:
+            "Email/template ID, or a transactional email's ID or slug.",
+        },
+      },
+      required: ["templateId"],
+      additionalProperties: false,
+    },
+  },
 ];

@@ -249,6 +249,30 @@ export async function handleAccountTools(
       break;
     }
 
+    case "request_api_key_handoff": {
+      const companyId = await resolveRequiredCompanyId(name, args);
+      const body: Record<string, unknown> = {};
+      if (typeof args.name === "string") {
+        body.name = args.name;
+      }
+      if (typeof args.preset === "string") {
+        body.preset = args.preset;
+      }
+      if (Array.isArray(args.scopes)) {
+        body.scopes = args.scopes;
+      }
+      if (typeof args.replaceApiKeyId === "string") {
+        body.replaceApiKeyId = args.replaceApiKeyId;
+      }
+      result = await apiRequest(
+        "POST",
+        "/api/v1/api-key-handoff",
+        body,
+        companyId
+      );
+      break;
+    }
+
     case "list_api_keys": {
       const companyId = await resolveRequiredCompanyId(name, args);
       result = await apiRequest(

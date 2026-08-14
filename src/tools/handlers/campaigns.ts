@@ -239,6 +239,30 @@ export async function handleCampaignTools(
       break;
     }
 
+    case "share_template": {
+      const companyId = args.companyId as string | undefined;
+      const templateId = requiredString("share_template", args, "templateId");
+      result = await apiRequest(
+        "POST",
+        `/api/v1/templates/${encodeURIComponent(templateId)}/share-link`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "unshare_template": {
+      const companyId = args.companyId as string | undefined;
+      const templateId = requiredString("unshare_template", args, "templateId");
+      result = await apiRequest(
+        "DELETE",
+        `/api/v1/templates/${encodeURIComponent(templateId)}/share-link`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
     // A/B Tests
     case "list_ab_tests": {
       const companyId = args.companyId as string | undefined;
@@ -898,6 +922,7 @@ export async function handleCampaignTools(
         "computedLists",
         "targetLists",
         "segmentId",
+        "listIds",
         "labels",
       ]);
       const unsupportedCampaignUpdateKeys = Object.keys(args).filter(
@@ -916,9 +941,13 @@ export async function handleCampaignTools(
       validateSendingIdentityArgs("update_campaign", args, {
         replyFirst: true,
       });
-      if (args.segmentId !== undefined && args.targetLists !== undefined) {
+      if (
+        [args.segmentId, args.listIds, args.targetLists].filter(
+          (value) => value !== undefined
+        ).length > 1
+      ) {
         throw new Error(
-          "Provide either `segmentId` or `targetLists` when calling `update_campaign`, not both."
+          "Provide at most one of `segmentId`, `listIds`, or `targetLists` when calling `update_campaign`."
         );
       }
 
@@ -938,6 +967,7 @@ export async function handleCampaignTools(
         args.computedLists === undefined &&
         args.targetLists === undefined &&
         args.segmentId === undefined &&
+        args.listIds === undefined &&
         args.labels === undefined
       ) {
         throw new Error(
@@ -961,6 +991,7 @@ export async function handleCampaignTools(
         "campaignId",
         "scheduledAt",
         "targetLists",
+        "listIds",
         "sendTimeOptimization",
         "spreadOverHours",
         "recurringInterval",
@@ -971,7 +1002,7 @@ export async function handleCampaignTools(
 
       if (unsupportedCampaignScheduleKeys.length > 0) {
         throw new Error(
-          `\`schedule_campaign\` accepts only \`campaignId\`, \`scheduledAt\`, \`targetLists\`, \`sendTimeOptimization\`, \`spreadOverHours\`, and \`recurringInterval\`. Unsupported field${unsupportedCampaignScheduleKeys.length === 1 ? "" : "s"}: ${unsupportedCampaignScheduleKeys.map((key) => `\`${key}\``).join(", ")}.`
+          `\`schedule_campaign\` accepts only \`campaignId\`, \`scheduledAt\`, \`targetLists\`, \`listIds\`, \`sendTimeOptimization\`, \`spreadOverHours\`, and \`recurringInterval\`. Unsupported field${unsupportedCampaignScheduleKeys.length === 1 ? "" : "s"}: ${unsupportedCampaignScheduleKeys.map((key) => `\`${key}\``).join(", ")}.`
         );
       }
 
@@ -984,6 +1015,9 @@ export async function handleCampaignTools(
           scheduledAt: args.scheduledAt,
           ...(args.targetLists !== undefined && {
             targetLists: args.targetLists,
+          }),
+          ...(args.listIds !== undefined && {
+            listIds: args.listIds,
           }),
           ...(args.sendTimeOptimization !== undefined && {
             sendTimeOptimization: args.sendTimeOptimization,
@@ -1017,6 +1051,30 @@ export async function handleCampaignTools(
       result = await apiRequest(
         "POST",
         `/api/v1/campaigns/${encodeURIComponent(campaignId)}/cancel`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "share_campaign": {
+      const companyId = args.companyId as string | undefined;
+      const campaignId = requiredString("share_campaign", args, "campaignId");
+      result = await apiRequest(
+        "POST",
+        `/api/v1/campaigns/${encodeURIComponent(campaignId)}/share-link`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "unshare_campaign": {
+      const companyId = args.companyId as string | undefined;
+      const campaignId = requiredString("unshare_campaign", args, "campaignId");
+      result = await apiRequest(
+        "DELETE",
+        `/api/v1/campaigns/${encodeURIComponent(campaignId)}/share-link`,
         undefined,
         companyId
       );

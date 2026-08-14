@@ -210,6 +210,62 @@ export async function handleAnalyticsAndTransactionalTools(
           "`idempotencyKey` must be 255 characters or fewer when calling `send_email`."
         );
       }
+      let attachments: Array<Record<string, string>> | undefined;
+      if (args.attachments !== undefined) {
+        if (!Array.isArray(args.attachments) || args.attachments.length > 10) {
+          throw new Error(
+            "`attachments` must be an array with at most 10 items when calling `send_email`."
+          );
+        }
+        attachments = args.attachments.map((entry, index) => {
+          if (
+            typeof entry !== "object" ||
+            entry === null ||
+            Array.isArray(entry)
+          ) {
+            throw new Error(
+              `\`attachments[${index}]\` must be an object when calling \`send_email\`.`
+            );
+          }
+          const record = entry as Record<string, unknown>;
+          const allowed = new Set([
+            "filename",
+            "content",
+            "path",
+            "contentId",
+            "contentType",
+          ]);
+          if (Object.keys(record).some((key) => !allowed.has(key))) {
+            throw new Error(
+              `\`attachments[${index}]\` contains an unsupported field when calling \`send_email\`.`
+            );
+          }
+          const parsed: Record<string, string> = {};
+          for (const field of allowed) {
+            const value = record[field];
+            if (value === undefined) continue;
+            if (typeof value !== "string") {
+              throw new Error(
+                `\`attachments[${index}].${field}\` must be a string when calling \`send_email\`.`
+              );
+            }
+            parsed[field] = value;
+          }
+          if (!parsed["filename"]) {
+            throw new Error(
+              `\`attachments[${index}].filename\` is required when calling \`send_email\`.`
+            );
+          }
+          const hasContent = parsed["content"] !== undefined;
+          const hasPath = parsed["path"] !== undefined;
+          if (hasContent === hasPath) {
+            throw new Error(
+              `\`attachments[${index}]\` must provide exactly one of \`content\` or \`path\` when calling \`send_email\`.`
+            );
+          }
+          return parsed;
+        });
+      }
 
       if (
         emailType !== undefined &&
@@ -276,6 +332,7 @@ export async function handleAnalyticsAndTransactionalTools(
           subscriberExternalId: args.subscriberExternalId,
           emailType,
           replyTo,
+          attachments,
           trackingSettings,
         }).filter(([, value]) => value !== undefined)
       );

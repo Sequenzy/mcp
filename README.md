@@ -272,14 +272,14 @@ sort options.
 | `list_integrations`                  | List connected integrations with connection and sync health, without returning credentials.                                   |
 | `get_sending_status`                 | Diagnose active, paused, or suspended sending, including enforcement denominators, review gates, and remediation steps.       |
 | `resume_sending`                     | Restore an eligible hard-bounce pause after explicitly confirming the list has been sanitized.                                |
-| `get_tracking_settings`              | Read open, click, unsubscribe, attribution, UTM, click-domain, reply-tracking, and double-opt-in settings.                     |
+| `get_tracking_settings`              | Read open, click, unsubscribe, attribution, UTM, click-domain, reply-tracking, and double-opt-in settings.                    |
 | `update_tracking_settings`           | Update email tracking, attribution, UTM, and account-wide double-opt-in defaults.                                             |
 | `get_integration_guide`              | Get framework-specific integration examples.                                                                                  |
 | `get_integration`                    | Inspect one connected integration, its event wiring, recent activity, and recommendations.                                    |
 | `list_integration_capabilities`      | Compare provider capabilities whether or not they are connected.                                                              |
 | `list_integration_activity`          | Read the retained integration-specific webhook and sync activity log.                                                         |
 | `set_integration_sync_enabled`       | Enable or disable bulk imports and backfills while leaving live webhooks connected.                                           |
-| `sync_integration`                   | Queue a payment-provider revenue backfill, Supabase user backfill, or retryable PostHog history import.                      |
+| `sync_integration`                   | Queue a payment-provider revenue backfill, Supabase user backfill, or retryable PostHog history import.                       |
 | `get_integration_pixel`              | Read Shopify's live pixel/configuration state and distinguish confirmed dark events from an unknown read.                     |
 | `activate_integration_pixel`         | Install or repoint Shopify's storefront pixel; idempotent when it is already current.                                         |
 | `list_sender_profiles`               | List sender and reply-to profiles, defaults, and sending-domain readiness.                                                    |
@@ -348,8 +348,8 @@ abandonment or price-drop settings. Timing values must be positive;
 | `search_subscribers`          | Search by query, tags, list, status, segment, or one custom attribute, with automatic or resumable pagination.  |
 | `trigger_subscriber_event`    | Emit one custom event exactly as an integration would, applying sync rules and matching sequence triggers.      |
 | `trigger_subscriber_events`   | Emit several ordered custom events for one subscriber.                                                          |
-| `bulk_add_subscriber_tags`    | Add tags to up to 500 existing subscribers; requires `subscribers:tag` and may also require `tags:write`.        |
-| `bulk_remove_subscriber_tags` | Remove tags from up to 500 existing subscribers; requires `subscribers:tag` or `subscribers:write`.              |
+| `bulk_add_subscriber_tags`    | Add tags to up to 500 existing subscribers; requires `subscribers:tag` and may also require `tags:write`.       |
+| `bulk_remove_subscriber_tags` | Remove tags from up to 500 existing subscribers; requires `subscribers:tag` or `subscribers:write`.             |
 
 Use `create_subscriber_import` for CRM onboarding instead of looping over
 `add_subscriber`. One call accepts 5,000 full records and returns an asynchronous
@@ -558,26 +558,26 @@ Use `get_ab_test` to copy the effective `settings` object and discover variant I
 
 ### Campaigns
 
-| Tool                             | Description                                                                                        |
-| -------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `list_campaigns`                 | List paginated campaigns by status or label, including reviewer feedback for rejected campaigns.   |
-| `get_campaign`                   | Get details, stats, and reviewer feedback for a rejected campaign.                                 |
-| `get_campaign_audience`          | Resolve saved targeting, missing references, a plain-language summary, and live recipient count.   |
-| `list_email_sends`               | Search recent delivery history with resource IDs and URLs, optionally scoped to one sequence step. |
-| `get_email_send`                 | Inspect a queued, test, sent, suppressed, or failed delivery by durable email-send ID.             |
-| `get_recipient_suppression`      | Check local and regional SES suppression for one exact recipient.                                  |
-| `remove_recipient_suppression`   | Remove stale bounce suppression for a company-associated recipient.                                |
-| `create_campaign`                | Create a campaign with content, data, and optional From/Reply-To identity overrides.               |
-| `update_campaign`                | Update a draft campaign, including content, data, From, Reply-To, CC, and BCC.                     |
+| Tool                             | Description                                                                                             |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `list_campaigns`                 | List paginated campaigns by status or label, including reviewer feedback for rejected campaigns.        |
+| `get_campaign`                   | Get details, stats, and reviewer feedback for a rejected campaign.                                      |
+| `get_campaign_audience`          | Resolve saved targeting, missing references, a plain-language summary, and live recipient count.        |
+| `list_email_sends`               | Search recent delivery history with resource IDs and URLs, optionally scoped to one sequence step.      |
+| `get_email_send`                 | Inspect a queued, test, sent, suppressed, or failed delivery by durable email-send ID.                  |
+| `get_recipient_suppression`      | Check local and regional SES suppression for one exact recipient.                                       |
+| `remove_recipient_suppression`   | Remove stale bounce suppression for a company-associated recipient.                                     |
+| `create_campaign`                | Create a campaign with content, data, and optional From/Reply-To identity overrides.                    |
+| `update_campaign`                | Update a draft campaign, including content, data, From, Reply-To, CC, and BCC.                          |
 | `schedule_campaign`              | Schedule or reschedule a one-off or recurring campaign after validating subject, content, and audience. |
-| `send_test_email`                | Send a test email to one address.                                                                  |
-| `render_email`                   | Render a campaign, sequence email step, or template to exact email-safe HTML without sending.      |
-| `cancel_campaign`                | Cancel a scheduled or sending campaign.                                                            |
-| `pause_campaign`                 | Pause a sending campaign.                                                                          |
-| `resume_campaign`                | Resume a paused campaign, optionally spreading delivery over time.                                 |
-| `delete_campaign`                | Delete a campaign.                                                                                 |
-| `duplicate_campaign`             | Duplicate a campaign into a new draft.                                                             |
-| `resend_campaign_to_non_openers` | Create a draft resend for the original audience members who did not open a sent campaign.          |
+| `send_test_email`                | Send a test email to one address.                                                                       |
+| `render_email`                   | Render a campaign, sequence email step, or template to exact email-safe HTML without sending.           |
+| `cancel_campaign`                | Cancel a scheduled or sending campaign.                                                                 |
+| `pause_campaign`                 | Pause a sending campaign.                                                                               |
+| `resume_campaign`                | Resume a paused campaign, optionally spreading delivery over time.                                      |
+| `delete_campaign`                | Delete a campaign.                                                                                      |
+| `duplicate_campaign`             | Duplicate a campaign into a new draft.                                                                  |
+| `resend_campaign_to_non_openers` | Create a draft resend for the original audience members who did not open a sent campaign.               |
 
 Prompt-created campaigns are generated and persisted in one API request and
 remain drafts. Use `templateId`, `blocks`, or `html` only when copying or
@@ -696,12 +696,12 @@ spacing are pixels, weights range from 100 to 900, and text transforms are
 
 ### Saved Forms
 
-| Tool             | Description                                                                                                   |
-| ---------------- | ------------------------------------------------------------------------------------------------------------- |
-| `list_forms`     | List saved forms with their server-managed audience settings, content blocks, and public action URLs.         |
+| Tool             | Description                                                                                                      |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `list_forms`     | List saved forms with their server-managed audience settings, content blocks, and public action URLs.            |
 | `create_form`    | Create and publish a saved form with standard email/name fields, audience settings, theme, and success behavior. |
 | `update_form`    | Update a saved form, including its complete ordered block array and typed custom fields.                         |
-| `get_form_embed` | Return the public action URL, hosted JavaScript, minimal native form, and fetch example for a saved form.     |
+| `get_form_embed` | Return the public action URL, hosted JavaScript, minimal native form, and fetch example for a saved form.        |
 
 For Astro, Hugo, Jekyll, Cloudflare Pages, Netlify, GitHub Pages, or any other
 static site, call `list_forms`, use `create_form` if a suitable form does not
@@ -791,7 +791,7 @@ directive. Custom landing page domains require a CNAME record pointing to
 | `enroll_subscribers_in_sequence`         | Enroll up to 500 subscribers by email, subscriber ID, or both, optionally at a target node.  |
 | `cancel_sequence_enrollments`            | Stop active or waiting enrollments by subscriber or entry-event field values.                |
 | `realign_sequence_enrollments`           | Preview or queue moving live waits earlier to their sending-window opening.                  |
-| `get_sequence_enrollment_realignment`    | Poll an applied realignment job and read its completed result or continuation cursor.         |
+| `get_sequence_enrollment_realignment`    | Poll an applied realignment job and read its completed result or continuation cursor.        |
 | `delete_sequence`                        | Delete a sequence.                                                                           |
 
 Sequence creation supports:
@@ -964,7 +964,7 @@ For compatibility with older agent prompts, top-level style keys such as `backgr
 | `get_transactional_email`    | Read a transactional email by ID or slug.                                                  |
 | `create_transactional_email` | Create a transactional template from a prompt, HTML, or blocks.                            |
 | `update_transactional_email` | Update transactional metadata or body content.                                             |
-| `send_email`                 | Send one email by template or HTML with an optional retry-safe idempotency key.             |
+| `send_email`                 | Send one email by template or HTML with an optional retry-safe idempotency key.            |
 
 Prompt-created transactional templates are generated server-side and default
 to disabled for review. Explicit HTML or block templates retain the
@@ -978,6 +978,10 @@ its API slug through the compatibility-named `templateId` field instead.
 `{ "event": { "items": [...] } }`. When the recipient matches a stored
 subscriber by external ID or email, saved first and last names fill omitted name
 variables automatically. Explicit values, including blanks, take precedence.
+The optional `attachments` array accepts up to 10 files / 7MB total. Each item
+needs `filename` and exactly one of Base64 `content` or a public HTTP(S) `path`.
+Set `contentId` to embed a CID image referenced from the HTML and optionally set
+`contentType` to override MIME detection.
 Use `trackingSettings.clickTracking: false` or
 `trackingSettings.openTracking: false` to disable link rewriting or the open
 pixel for one send. These per-send options only opt out; they cannot enable

@@ -7,6 +7,65 @@ import {
   senderFromNameDescription,
 } from "../internal.js";
 
+/**
+ * Shared JSON schema for `targetLists` arguments so agents can discover the
+ * accepted audience shapes from the schema itself instead of guessing. The
+ * value is a discriminated union on `type`; extra per-shape fields are listed
+ * as optional properties with their owning `type` named in the description.
+ */
+function buildTargetListsInputSchema(
+  description: string,
+  options?: { nullable?: boolean }
+): Record<string, unknown> {
+  return {
+    type: options?.nullable ? ["object", "null"] : "object",
+    description,
+    properties: {
+      type: {
+        type: "string",
+        enum: ["all", "lists", "segment", "filtered", "rules"],
+        description:
+          "Audience shape. all = every active subscriber; lists = subscribers on any of listIds; segment = one saved segment; filtered = ad-hoc subscriber filters; rules = combined include/exclude rules.",
+      },
+      listIds: {
+        type: "array",
+        items: { type: "string" },
+        description: "List IDs to target. Required when type is 'lists'.",
+      },
+      segmentId: {
+        type: ["string", "null"],
+        description: "Saved segment ID. Required when type is 'segment'.",
+      },
+      filters: {
+        type: "array",
+        items: { type: "object" },
+        description:
+          "Subscriber filter objects {id, field, operator, value}. Required when type is 'filtered'.",
+      },
+      filterJoinOperator: {
+        type: "string",
+        enum: ["and", "or"],
+        description:
+          "How 'filtered' filters combine. Optional, defaults to 'and'.",
+      },
+      include: {
+        type: "array",
+        items: { type: "object" },
+        description:
+          "Include rules. Required when type is 'rules'; at least one is needed to schedule. Each rule is {type:'all'} | {type:'lists', listIds:[...]} | {type:'segments', segmentIds:[...]} | {type:'filtered', filters:[...]}.",
+      },
+      exclude: {
+        type: "array",
+        items: { type: "object" },
+        description:
+          "Exclude rules for type 'rules'. Optional. Same shapes as include except {type:'all'}.",
+      },
+    },
+    required: ["type"],
+    additionalProperties: true,
+  };
+}
+
 export const campaignToolDefinitions: Tool[] = [
   // ============================================================================
   // Campaigns
@@ -67,7 +126,7 @@ export const campaignToolDefinitions: Tool[] = [
   {
     name: "get_campaign_audience",
     description:
-      "Resolve exactly who a campaign will reach. Returns the targeting kind, resolved list and segment names (flagging references that no longer exist), filter conditions, individual include/exclude adjustments, a plain-language summary, and a live recipient count. Critically, it reports whether targeting is unset - an unset campaign falls back to every active subscriber when scheduled. Use this to verify a scheduled campaign's audience before it sends.",
+      "Resolve exactly who a campaign will reach. Returns the targeting kind, resolved list and segment names (flagging references that no longer exist), filter conditions, individual include/exclude adjustments, a plain-language summary, and a live recipient count. Critically, it reports whether targeting is unset - an unset campaign falls back to every active subscriber when scheduled. Use this to verify a scheduled campaign's audience before it sends. This is a read-only resolved view, not the write shape: to change targeting, pass `targetLists` (e.g. {type:'lists', listIds:['list_123']}) or the `segmentId`/`listIds` shorthands to update_campaign or schedule_campaign.",
     inputSchema: {
       type: "object",
       properties: {
@@ -82,6 +141,48 @@ export const campaignToolDefinitions: Tool[] = [
         },
       },
       required: ["campaignId"],
+    },
+  },
+  {
+    name: "share_campaign",
+    description:
+      "Create (or fetch) the campaign's public view-in-browser link. The hosted page renders an anonymized copy - sample contact, inert unsubscribe link, no open/click tracking - so the URL is safe to forward to anyone, unlike a recipient's personal browser copy. Idempotent: if a link is already active, the same URL is returned with created=false rather than rotating it, so previously shared copies keep working. get_campaign reports the current link as shareUrl (null when none). Revoke with unshare_campaign. Email campaigns only - SMS campaigns have no browser view.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        campaignId: {
+          type: "string",
+          description: "Campaign ID to share.",
+        },
+      },
+      required: ["campaignId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "unshare_campaign",
+    description:
+      "Revoke the campaign's public view-in-browser link. The shared URL returns 404 immediately, and sharing again later mints a different URL - previously distributed copies stay dead. Returns revoked=false if no link was active.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        campaignId: {
+          type: "string",
+          description: "Campaign ID to stop sharing.",
+        },
+      },
+      required: ["campaignId"],
+      additionalProperties: false,
     },
   },
   {
@@ -257,14 +358,17 @@ export const campaignToolDefinitions: Tool[] = [
         segmentId: {
           type: "string",
           description:
-            "Shorthand for targeting one saved segment. Equivalent to targetLists {type:'segment', segmentId}. Mutually exclusive with `targetLists`.",
+            "Shorthand for targeting one saved segment. Equivalent to targetLists {type:'segment', segmentId}. Mutually exclusive with `targetLists` and `listIds`.",
         },
-        targetLists: {
-          type: "object",
+        listIds: {
+          type: "array",
+          items: { type: "string" },
           description:
-            "Campaign audience, saved on the draft. Omit to leave targeting unset and set it later with `update_campaign` or `schedule_campaign`. Examples: {type:'all'}, {type:'lists', listIds:['list_123']}, {type:'segment', segmentId:'seg_123'}, {type:'filtered', filters:[...], filterJoinOperator:'and'}, or {type:'rules', include:[{type:'lists', listIds:['list_123']}], exclude:[{type:'segments', segmentIds:['seg_123']}]}. Use this to send straight to a list without creating a segment first. Mutually exclusive with `segmentId`.",
-          additionalProperties: true,
+            "Shorthand for targeting one or more lists. Equivalent to targetLists {type:'lists', listIds}. Mutually exclusive with `targetLists` and `segmentId`.",
         },
+        targetLists: buildTargetListsInputSchema(
+          "Campaign audience, saved on the draft. Omit to leave targeting unset and set it later with `update_campaign` or `schedule_campaign`. Examples: {type:'all'}, {type:'lists', listIds:['list_123']}, {type:'segment', segmentId:'seg_123'}, {type:'filtered', filters:[...], filterJoinOperator:'and'}, or {type:'rules', include:[{type:'lists', listIds:['list_123']}], exclude:[{type:'segments', segmentIds:['seg_123']}]}. Use this to send straight to a list without creating a segment first. Mutually exclusive with `segmentId` and `listIds`."
+        ),
         fromEmail: {
           type: "string",
           description:
@@ -412,16 +516,20 @@ export const campaignToolDefinitions: Tool[] = [
             type: "object",
           },
         },
-        targetLists: {
-          type: ["object", "null"],
-          description:
-            "Replace the draft's saved audience, using the same shapes as `create_campaign`. Send null to clear it and choose the audience in `schedule_campaign` instead; omit to leave it unchanged. Mutually exclusive with `segmentId`.",
-          additionalProperties: true,
-        },
+        targetLists: buildTargetListsInputSchema(
+          "Replace the draft's saved audience, using the same shapes as `create_campaign`, e.g. {type:'lists', listIds:['list_123']}. Send null to clear it and choose the audience in `schedule_campaign` instead; omit to leave it unchanged. Mutually exclusive with `segmentId` and `listIds`.",
+          { nullable: true }
+        ),
         segmentId: {
           type: "string",
           description:
-            "Shorthand for retargeting the draft at one saved segment. Equivalent to targetLists {type:'segment', segmentId}. Mutually exclusive with `targetLists`.",
+            "Shorthand for retargeting the draft at one saved segment. Equivalent to targetLists {type:'segment', segmentId}. Mutually exclusive with `targetLists` and `listIds`.",
+        },
+        listIds: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Shorthand for retargeting the draft at one or more lists. Equivalent to targetLists {type:'lists', listIds}. Mutually exclusive with `targetLists` and `segmentId`.",
         },
         labels: {
           type: "array",
@@ -457,11 +565,14 @@ export const campaignToolDefinitions: Tool[] = [
           description:
             "Future ISO 8601 timestamp for the send, for example 2026-06-01T14:00:00Z.",
         },
-        targetLists: {
-          type: "object",
+        targetLists: buildTargetListsInputSchema(
+          "Optional campaign targeting object. Omit to use saved targeting - or, when none is saved, ALL active subscribers. Examples: {type:'all'}, {type:'lists', listIds:['list_123']}, {type:'segment', segmentId:'seg_123'}, {type:'filtered', filters:[...], filterJoinOperator:'and'}, or {type:'rules', include:[{type:'lists', listIds:['list_123']}], exclude:[{type:'segments', segmentIds:['seg_123']}]}. Rules audiences require at least one include rule. Mutually exclusive with `listIds`."
+        ),
+        listIds: {
+          type: "array",
+          items: { type: "string" },
           description:
-            "Optional campaign targeting object. Omit to use saved targeting or all active subscribers. Examples: {type:'all'}, {type:'lists', listIds:['list_123']}, {type:'segment', segmentId:'seg_123'}, {type:'filtered', filters:[...], filterJoinOperator:'and'}, or {type:'rules', include:[{type:'lists', listIds:['list_123']}], exclude:[{type:'segments', segmentIds:['seg_123']}]}. Rules audiences require at least one include rule.",
-          additionalProperties: true,
+            "Shorthand for sending to one or more lists. Equivalent to targetLists {type:'lists', listIds}. Mutually exclusive with `targetLists`.",
         },
         sendTimeOptimization: {
           type: "boolean",

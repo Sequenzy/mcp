@@ -208,7 +208,7 @@ export const transactionalToolDefinitions: Tool[] = [
   {
     name: "send_email",
     description:
-      "Queue one email using either a saved transactional email API slug (`templateId`) or direct `subject` and `html` content. Always provide a stable `idempotencyKey` when an agent or workflow may retry, and reuse it for the same logical email; Sequenzy returns the original send for 14 days and rejects different content under the same key. The default delivery policy is transactional. When the recipient matches a subscriber, saved first and last names fill omitted name variables; explicit variables take precedence. Set `emailType` to `marketing` to add subscriber suppression, a marketing footer, and RFC 8058 one-click unsubscribe. Company Reply-To defaults are inherited when no override is provided, and `{{viewInBrowserUrl}}` is replaced with a hosted copy URL. Use `trackingSettings` with `clickTracking` or `openTracking` set to `false` to disable click-link rewriting or the open-tracking pixel for this send only; these opt-out fields cannot enable tracking the account has disabled. Returns a durable emailSendId and the accepted emailType; pass the ID to get_email_send for delivery status and failure details.",
+      "Queue one email using either a saved transactional email API slug (`templateId`) or direct `subject` and `html` content. Always provide a stable `idempotencyKey` when an agent or workflow may retry, and reuse it for the same logical email; Sequenzy returns the original send for 14 days and rejects different content under the same key. The default delivery policy is transactional. When the recipient matches a subscriber, saved first and last names fill omitted name variables; explicit variables take precedence. Set `emailType` to `marketing` to add subscriber suppression, a marketing footer, and RFC 8058 one-click unsubscribe. Company Reply-To defaults are inherited when no override is provided, and `{{viewInBrowserUrl}}` is replaced with a hosted copy URL. Attach up to 10 files with Base64 `content` or a public `path`; `contentId` embeds a CID image referenced by the HTML. Use `trackingSettings` with `clickTracking` or `openTracking` set to `false` to disable click-link rewriting or the open-tracking pixel for this send only; these opt-out fields cannot enable tracking the account has disabled. Returns a durable emailSendId and the accepted emailType; pass the ID to get_email_send for delivery status and failure details.",
     inputSchema: {
       type: "object",
       properties: {
@@ -260,6 +260,24 @@ export const transactionalToolDefinitions: Tool[] = [
           type: "string",
           description:
             "Optional Reply-To address, formatted as `email@example.com` or `Name <email@example.com>`. When omitted, the saved template or company default is used.",
+        },
+        attachments: {
+          type: "array",
+          maxItems: 10,
+          description:
+            "Files to attach (7MB total). Each item needs `filename` and exactly one of Base64 `content` or public HTTP(S) `path`. Set `contentId` to embed it as a CID image referenced from HTML, and optionally set `contentType` to override MIME detection.",
+          items: {
+            type: "object",
+            properties: {
+              filename: { type: "string" },
+              content: { type: "string" },
+              path: { type: "string" },
+              contentId: { type: "string" },
+              contentType: { type: "string" },
+            },
+            required: ["filename"],
+            additionalProperties: false,
+          },
         },
         trackingSettings: {
           type: "object",
