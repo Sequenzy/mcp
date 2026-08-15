@@ -18,6 +18,7 @@ export const READ_ONLY_TOOL_NAMES = new Set([
   "get_integration_pixel",
   "list_integration_capabilities",
   "list_integration_activity",
+  "get_event_schema",
   "list_sender_profiles",
   "get_notification_preferences",
   "get_tracking_settings",

@@ -23,7 +23,7 @@ Connect Sequenzy to Claude Desktop, Claude Code, Codex, Cursor, Windsurf, VS Cod
 - Connect and verify custom domains for published landing pages.
 - Manage team invitations, inbox conversations, and outbound webhook endpoints.
 - Generate email copy, subject lines, and multi-step sequences.
-- Inspect analytics, subscriber activity, deliverability health, company-level sending pauses, integrations, sending identities, tracking settings, and dashboard URLs.
+- Inspect analytics, subscriber activity, deliverability health, company-level sending pauses, integrations, published event payload schemas, sending identities, tracking settings, and dashboard URLs.
 - Diagnose why sending is paused and restore eligible hard-bounce pauses after confirming list cleanup.
 - Inspect and clean up exact-recipient bounce suppression without exposing the shared SES suppression list.
 - Configure company product info, account-wide sending identity defaults, rename individual sender and reply-to profiles, manage sender domains, and inspect integration examples for common frameworks.
@@ -238,7 +238,7 @@ build a list as well as create it. Imports that apply `listIds` also need
 
 ## Tools
 
-This server currently exposes 201 MCP tools.
+This server currently exposes 213 MCP tools.
 
 Tools reject arguments they do not declare instead of silently ignoring them.
 Errors name the unsupported fields, list the supported arguments, and provide
@@ -275,6 +275,7 @@ sort options.
 | `get_integration_guide`              | Get framework-specific integration examples.                                                                                  |
 | `get_integration`                    | Inspect one connected integration, its event wiring, recent activity, and recommendations.                                    |
 | `list_integration_capabilities`      | Compare provider capabilities whether or not they are connected.                                                              |
+| `get_event_schema`                   | Inspect published event payload examples, property paths, types, and merge tags by provider.                                  |
 | `list_integration_activity`          | Read the retained integration-specific webhook and sync activity log.                                                         |
 | `set_integration_sync_enabled`       | Enable or disable bulk imports and backfills while leaving live webhooks connected.                                           |
 | `sync_integration`                   | Queue a payment-provider revenue backfill or a Supabase user backfill from its saved table configuration.                     |
@@ -294,6 +295,14 @@ selection, and consent mappings saved in the dashboard. It cannot target an
 arbitrary table. Run it after installing the live database trigger to import
 users who existed before the trigger was installed, then poll `get_integration`
 and `list_integration_activity` for progress and row-level outcomes.
+
+Call `get_event_schema` before writing an `{{event.*}}` merge tag or an event
+property filter. Omit `eventName` to list documented built-in events; provide
+an event name to receive provider-specific example payloads and property paths,
+and optionally filter by `provider`. Custom event names remain valid even when
+the result reports `documented: false`; that only means no reference sample is
+published. Use integration activity or sequence enrollments for actual delivery
+data because this tool returns static reference data.
 
 For a new sending domain, call `add_sending_domain`, publish the DNS records in
 the returned `website.dnsRecords`, wait for DNS propagation, and then call

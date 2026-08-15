@@ -382,6 +382,22 @@ export const outputPropertiesByToolName: Record<
       "integration provider, including category, connect method, what it syncs, every event it emits with the moment that triggers it, the subscriber attributes it writes, supported actions, availability, and caveats"
     ),
   },
+  get_event_schema: {
+    eventName: {
+      type: ["string", "null"],
+      description:
+        "Normalized name of the event described, or null when listing every documented event.",
+    },
+    events: {
+      type: "array",
+      description:
+        "One entry per event. Listing mode returns summaries only; asking for a single eventName adds `providers`, each with an `examplePayload` and a `properties` array of { path, type, description?, mergeTag? }. `documented: false` means no reference sample is published - the event name is still valid to trigger and to build a sequence on.",
+      items: objectOutputProperty(
+        "An event: eventName, documented, label, category, description, documentedProviders, and (single-event mode) providers, mergeTagPrefix, and notes."
+      ),
+    },
+    note: noteOutputProperty,
+  },
   list_integration_activity: {
     activity: resourceListOutputProperty(
       "integration activity row, including provider, action, status, event type, matched contact, message, and error. Payloads are sanitized, so no credentials appear"

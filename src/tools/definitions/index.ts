@@ -7,6 +7,7 @@ import { analyticsToolDefinitions } from "./analytics.js";
 import { audienceSyncToolDefinitions } from "./audience-syncs.js";
 import { campaignToolDefinitions } from "./campaigns.js";
 import { emailComponentToolDefinitions } from "./email-components.js";
+import { eventSchemaToolDefinitions } from "./event-schemas.js";
 import { feedbackToolDefinitions } from "./feedback.js";
 import { savedFormToolDefinitions } from "./forms.js";
 import { imageAssetToolDefinitions } from "./image-assets.js";
@@ -31,6 +32,7 @@ import { webhookToolDefinitions } from "./webhooks.js";
 export const toolDefinitions: Tool[] = [
   ...accountToolDefinitions,
   ...integrationToolDefinitions,
+  ...eventSchemaToolDefinitions,
   ...subscriberToolDefinitions,
   ...suppressionToolDefinitions,
   ...productToolDefinitions,
