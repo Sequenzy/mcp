@@ -290,7 +290,7 @@ export const subscriberUpdateConfigSchema = {
 export const sequencePathStepConfigSchema = {
   type: "object",
   description:
-    "Config for advanced nodeType steps. Required fields depend on nodeType: action_add_tag and action_remove_tag need tagId or tagName; action_add_to_list and action_remove_from_list need listId; action_update_attributes uses the Update Subscriber fields (firstName, lastName, status, customAttributeUpdates) and may use trigger-event merge tags; logic_wait_for_event needs eventName plus optional timeoutDays and timeoutAction; logic_condition needs conditionType plus that condition's resource field; action_webhook needs an HTTPS url plus optional method, headers, body, resultKey, and onError; action_ai needs prompt, resultKey, and outputFields plus optional includeTags, includeEventProperties, includeAttributes, and onError; logic_delay uses delayDays/delayHours/delayMinutes. Fields that do not apply to the node type are dropped.",
+    "Config for advanced nodeType steps. Required fields depend on nodeType: action_add_tag and action_remove_tag need tagId or tagName; action_add_to_list and action_remove_from_list need listId; action_update_attributes uses the Update Subscriber fields (firstName, lastName, status, customAttributeUpdates) and may use trigger-event merge tags; logic_wait_for_event needs eventName plus optional timeoutDays and timeoutAction; logic_condition needs conditionType plus that condition's resource field; action_webhook needs an HTTPS url plus optional method, headers, body, resultKey, and onError; action_ai generates short per-contact fragments (a sentence or two each) that later email steps insert with {{ai.KEY.field}} merge tags, not whole emails, and needs prompt, resultKey, and outputFields plus optional includeTags, includeEventProperties, includeRecentEvents, recentEventLimit, includeAttributes, and onError; logic_delay uses delayDays/delayHours/delayMinutes. Fields that do not apply to the node type are dropped.",
   properties: {
     ...subscriberUpdateConfigSchema.properties,
     tagId: {
@@ -430,7 +430,9 @@ export const sequencePathStepConfigSchema = {
               "What the model should produce for this field, e.g. 'A subject line under 50 characters'. Max 300 chars.",
           },
           maxLength: {
-            type: "number",
+            type: "integer",
+            minimum: 1,
+            maximum: 4000,
             description:
               "Hard cap on stored characters (1-4000). Defaults to 500. Output beyond it is cut.",
           },
@@ -453,6 +455,16 @@ export const sequencePathStepConfigSchema = {
       type: "boolean",
       description:
         "action_ai: include the enrollment's trigger event name and properties in the prompt context.",
+    },
+    includeRecentEvents: {
+      type: "boolean",
+      description:
+        "action_ai: include the contact's most recent custom events (newest first) in the prompt context.",
+    },
+    recentEventLimit: {
+      type: "number",
+      description:
+        "action_ai: how many recent events to include when includeRecentEvents is true (1-50, default 10).",
     },
     includeAttributes: {
       type: "array",

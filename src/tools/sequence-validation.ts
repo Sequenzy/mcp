@@ -568,6 +568,14 @@ export function buildInsertSequenceStepBody(
           );
         }
       }
+      if (
+        args.recentEventLimit !== undefined &&
+        typeof args.recentEventLimit !== "number"
+      ) {
+        throw new Error(
+          "`recentEventLimit` must be a number between 1 and 50 when inserting an ai step."
+        );
+      }
       step = {
         type: "ai",
         nodeType: "action_ai",
@@ -581,6 +589,12 @@ export function buildInsertSequenceStepBody(
             : {}),
           ...(args.includeEventProperties !== undefined
             ? { includeEventProperties: args.includeEventProperties === true }
+            : {}),
+          ...(args.includeRecentEvents !== undefined
+            ? { includeRecentEvents: args.includeRecentEvents === true }
+            : {}),
+          ...(args.recentEventLimit !== undefined
+            ? { recentEventLimit: args.recentEventLimit }
             : {}),
           ...(args.includeAttributes !== undefined
             ? { includeAttributes: args.includeAttributes }

@@ -984,7 +984,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         prompt: {
           type: "string",
           description:
-            "ai only: prompt template sent to the model, resolved per contact at execution time. Supports merge tags like {{first_name}}, {{event.plan}}, and {{webhooks.KEY.data.field}}. Max 8000 chars.",
+            "ai only: prompt template sent to the model, resolved per contact at execution time. Ask for the short per-contact fragments the output fields name (a sentence or two each), never a whole email - the email around them is authored separately. Supports merge tags like {{first_name}}, {{event.plan}}, and {{webhooks.KEY.data.field}}. Max 8000 chars.",
         },
         outputFields: {
           type: "array",
@@ -1004,7 +1004,9 @@ export const sequenceEditingToolDefinitions: Tool[] = [
                   "What the model should produce for this field. Max 300 chars.",
               },
               maxLength: {
-                type: "number",
+                type: "integer",
+                minimum: 1,
+                maximum: 4000,
                 description:
                   "Hard cap on stored characters (1-4000). Defaults to 500.",
               },
@@ -1027,6 +1029,16 @@ export const sequenceEditingToolDefinitions: Tool[] = [
           type: "boolean",
           description:
             "ai only: include the enrollment's trigger event name and properties in the prompt context.",
+        },
+        includeRecentEvents: {
+          type: "boolean",
+          description:
+            "ai only: include the contact's most recent custom events (newest first) in the prompt context.",
+        },
+        recentEventLimit: {
+          type: "number",
+          description:
+            "ai only: how many recent events to include when includeRecentEvents is true (1-50, default 10).",
         },
         includeAttributes: {
           type: "array",

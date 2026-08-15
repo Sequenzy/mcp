@@ -521,7 +521,7 @@ describe("tool schema compatibility", () => {
     expect(conditionType?.enum).toContain("does_not_have_tag");
   });
 
-  it("publishes the same webhook step fields on insertSteps as insert_sequence_step", () => {
+  it("publishes webhook fields and bounded AI output lengths on insertSteps", () => {
     const updateSequenceTool = tools.find(
       (tool) => tool.name === "update_sequence"
     );
@@ -567,6 +567,18 @@ describe("tool schema compatibility", () => {
       "exit",
       "fail",
     ]);
+    const outputFields = configProperties?.["outputFields"];
+    const outputFieldItems = outputFields?.["items"] as
+      | Record<string, unknown>
+      | undefined;
+    const outputFieldProperties = outputFieldItems?.["properties"] as
+      | Record<string, Record<string, unknown>>
+      | undefined;
+    expect(outputFieldProperties?.["maxLength"]).toMatchObject({
+      type: "integer",
+      minimum: 1,
+      maximum: 4000,
+    });
   });
 });
 
@@ -7043,6 +7055,20 @@ describe("insert_sequence_step tool", () => {
     expect(inputSchema?.properties).toHaveProperty("branches");
     expect(inputSchema?.properties).toHaveProperty("elseSteps");
     expect(inputSchema?.properties).toHaveProperty("elseTargetNodeId");
+    const outputFields = inputSchema?.properties?.["outputFields"] as
+      | Record<string, unknown>
+      | undefined;
+    const outputFieldItems = outputFields?.["items"] as
+      | Record<string, unknown>
+      | undefined;
+    const outputFieldProperties = outputFieldItems?.["properties"] as
+      | Record<string, Record<string, unknown>>
+      | undefined;
+    expect(outputFieldProperties?.["maxLength"]).toMatchObject({
+      type: "integer",
+      minimum: 1,
+      maximum: 4000,
+    });
     const typeSchema = inputSchema?.properties?.["type"] as
       | { enum?: string[] }
       | undefined;
