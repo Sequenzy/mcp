@@ -112,7 +112,7 @@ describe("block authoring guidance in tool schemas", () => {
         '{"type":"list","variant":"numbered","items":[{"content":"First"}]}'
       );
       expect(description).toContain(
-        '{"type":"steps","variant":"numbered","items":[{"title":"Step one","description":"What happens"}]}'
+        '{"type":"steps","variant":"numbered","items":[{"title":"Step one","description":"What happens"},{"title":"Step two","description":"What happens next"}]}'
       );
       expect(description).toContain("get_email_block_schema");
     }
