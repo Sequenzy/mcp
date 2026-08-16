@@ -928,7 +928,18 @@ completed result has `hasMore: true`, queue the next bounded apply with its
 `nextCursor`. Applied realignment changes live delivery times and should only be
 used after the user confirms the preview.
 
-### Email Block Styling
+### Email Blocks
+
+| Tool                     | Description                                                                                               |
+| ------------------------ | --------------------------------------------------------------------------------------------------------- |
+| `get_email_block_schema` | List every email block type or inspect one type's required fields, enum values, item shapes, and example. |
+
+Call `get_email_block_schema` before hand-authoring a block type you have not
+used before. Omit `blockType` to list every type, pass a type such as `list` or
+`steps` for its complete reference, or pass `creatableOnly: true` to hide types
+managed by the editor. Lists are their own block type rather than a `text`
+variant: `list` items use `content`, while `steps` items use `title` and an
+optional `description`.
 
 Tools that accept `blocks` persist per-block visual styling under a block's `styles` object:
 
@@ -1127,6 +1138,7 @@ The server also exposes read-only MCP resources.
 | `sequenzy://segments`            | Saved segments with subscriber counts.         |
 | `sequenzy://tags`                | Tags with usage counts.                        |
 | `sequenzy://health`              | Deliverability metrics and health status.      |
+| `sequenzy://email-blocks`        | Field reference for every email block type.    |
 | `sequenzy://app-routes`          | Dashboard route templates and settings tabs.   |
 
 ## Example Prompts

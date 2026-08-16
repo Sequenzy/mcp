@@ -396,6 +396,19 @@ export const outputPropertiesByToolName: Record<
       "integration provider, including category, connect method, what it syncs, every event it emits with the moment that triggers it, the subscriber attributes it writes, supported actions, availability, and caveats"
     ),
   },
+  get_email_block_schema: {
+    blockTypes: {
+      type: "array",
+      description:
+        "Listing mode: one entry per block type, each with `type`, `creatable`, `required`, `optional`, and a `fields` array of { name, required, type, values?, itemFields? }. `values` holds an enum field's allowed values; `itemFields` holds the shape of one entry in an array field, which is where `list` (items carry `content`) and `steps` (items carry `title`) differ.",
+      items: objectOutputProperty(
+        "A block type reference: type, creatable, required, optional, fields, and - when the type is one an author should hand-create - a minimal valid `example` and authoring `notes`."
+      ),
+    },
+    blockType: objectOutputProperty(
+      "Single-type mode: the full reference for the requested type, including a minimal valid `example` and authoring `notes`."
+    ),
+  },
   get_event_schema: {
     eventName: {
       type: ["string", "null"],

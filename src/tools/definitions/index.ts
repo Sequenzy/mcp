@@ -6,6 +6,7 @@ import { aiGenerationToolDefinitions } from "./ai-generation.js";
 import { analyticsToolDefinitions } from "./analytics.js";
 import { audienceSyncToolDefinitions } from "./audience-syncs.js";
 import { campaignToolDefinitions } from "./campaigns.js";
+import { emailBlockToolDefinitions } from "./email-blocks.js";
 import { emailComponentToolDefinitions } from "./email-components.js";
 import { eventSchemaToolDefinitions } from "./event-schemas.js";
 import { feedbackToolDefinitions } from "./feedback.js";
@@ -39,6 +40,7 @@ export const toolDefinitions: Tool[] = [
   ...tagListSegmentToolDefinitions,
   ...audienceSyncToolDefinitions,
   ...templateToolDefinitions,
+  ...emailBlockToolDefinitions,
   ...emailComponentToolDefinitions,
   ...abTestToolDefinitions,
   ...campaignToolDefinitions,
