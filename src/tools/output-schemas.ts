@@ -513,6 +513,38 @@ export const outputPropertiesByToolName: Record<
     ),
     message: messageOutputProperty,
   },
+  list_web_tracking_keys: {
+    success: successOutputProperty,
+    keys: {
+      type: "array",
+      description:
+        "Publishable keys for the browser tracking SDK, newest first. A key with lastUsedAt null was created but never deployed, which is the usual reason on-site tracking is silently dark.",
+      items: objectOutputProperty(
+        "One key: id, name, publicKey, allowedOrigins, isActive, unrestricted, lastUsedAt, installSnippet, endpoint, and warning when unrestricted."
+      ),
+    },
+  },
+  get_web_tracking_key: {
+    success: successOutputProperty,
+    key: objectOutputProperty(
+      "The key, including the paste-ready installSnippet and the ingest endpoint."
+    ),
+  },
+  create_web_tracking_key: {
+    success: successOutputProperty,
+    key: objectOutputProperty(
+      "The created key. installSnippet is the exact <script> tag to paste into every page; it embeds both the publishable key and the workspace id."
+    ),
+    message: messageOutputProperty,
+  },
+  update_web_tracking_key: {
+    success: successOutputProperty,
+    key: objectOutputProperty("The key after the update."),
+  },
+  delete_web_tracking_key: {
+    success: successOutputProperty,
+    message: messageOutputProperty,
+  },
   list_sender_profiles: {
     senderProfiles: resourceListOutputProperty(
       "sender (From) profile, including the sending domain behind it, its DNS verification status, and whether the address is fully ready to send"
@@ -709,7 +741,22 @@ export const outputPropertiesByToolName: Record<
   trigger_subscriber_event: {
     subscriber: resourceOutputProperty("subscriber"),
     event: resourceOutputProperty(
-      "recorded event with its name and whether the event definition was created"
+      "Live event with its name and whether the event definition was created. Historical responses use `events` instead."
+    ),
+    duplicate: booleanOutputProperty(
+      "Present and true for a repeated live eventId. Nothing was written and no side effects ran; `event` is the existing event. Historical responses report skipped rows in `duplicates` instead."
+    ),
+    historical: booleanOutputProperty(
+      "Present and true when occurredAt selected the historical import path."
+    ),
+    events: resourceListOutputProperty(
+      "Historical events, each with id, name, and occurredAt."
+    ),
+    inserted: numberOutputProperty(
+      "Historical event rows inserted by this request."
+    ),
+    duplicates: numberOutputProperty(
+      "Historical event rows skipped because their idempotency receipt already existed."
     ),
     sideEffectFailures: {
       type: "array",
@@ -1337,7 +1384,7 @@ export const outputPropertiesByToolName: Record<
       "New logic_branch node ID when the inserted step is a branch."
     ),
     addedBranchPathNodeIds: objectOutputProperty(
-      "Created path node IDs keyed by branch ID, plus else. Directly wired paths have empty arrays."
+      "Created path node IDs keyed by branch ID, plus else, in path order. Directly wired paths have empty arrays. Use a path's last node ID as afterNodeId to insert a nested branch on that path."
     ),
   },
   // enable/disable answer with the sequence's new state inline rather than a

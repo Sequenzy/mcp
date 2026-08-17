@@ -238,7 +238,7 @@ build a list as well as create it. Imports that apply `listIds` also need
 
 ## Tools
 
-This server currently exposes 213 MCP tools.
+This server currently exposes 218 MCP tools.
 
 Tools reject arguments they do not declare instead of silently ignoring them.
 Errors name the unsupported fields, list the supported arguments, and provide
@@ -281,6 +281,11 @@ sort options.
 | `sync_integration`                   | Queue a payment-provider revenue backfill or a Supabase user backfill from its saved table configuration.                     |
 | `get_integration_pixel`              | Read Shopify's live pixel/configuration state and distinguish confirmed dark events from an unknown read.                     |
 | `activate_integration_pixel`         | Install or repoint Shopify's storefront pixel; idempotent when it is already current.                                         |
+| `list_web_tracking_keys`             | List publishable website-tracking keys, origin restrictions, usage state, and install snippets.                               |
+| `get_web_tracking_key`               | Get one website-tracking key with its exact install snippet and ingest endpoint.                                              |
+| `create_web_tracking_key`            | Create a publishable tracking key for a non-Shopify storefront or website.                                                    |
+| `update_web_tracking_key`            | Rename, restrict, revoke, or re-enable a website-tracking key.                                                                |
+| `delete_web_tracking_key`            | Permanently delete a website-tracking key after its snippet has been removed.                                                 |
 | `list_sender_profiles`               | List sender and reply-to profiles, defaults, and sending-domain readiness.                                                    |
 | `update_sender_profile`              | Rename one sender or reply-to profile without changing the account defaults.                                                  |
 | `get_notification_preferences`       | Read the current user's per-company account notification settings and supported modes.                                        |
@@ -319,6 +324,12 @@ Shopify because merchants can remove the pixel independently. If
 arrive; call `activate_integration_pixel` to install or repoint the pixel.
 Activation is idempotent, and events begin on the next storefront visit rather
 than being backfilled.
+
+For custom, headless, ticketing, or SaaS websites, use
+`list_web_tracking_keys` before relying on product-view or cart triggers. Create
+a key with an explicit origin allowlist, install the returned `installSnippet`,
+and call `sequenzy.identify(email)` at sign-in or checkout. Prefer revoking a
+key with `update_web_tracking_key` before permanently deleting it.
 
 New companies start with no sync rules. The inherited preset remains available
 for SaaS/ecommerce companies by passing `null` to `update_sync_rules`; services

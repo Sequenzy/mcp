@@ -205,7 +205,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
         senderProfileId: {
           type: "string",
           description:
-            "Existing sender profile ID (see list_sender_profiles). It already supplies both the From address and display name, so send it on its own and omit fromEmail and fromName.",
+            "Existing sender profile ID (see list_sender_profiles). It already supplies both the From address and display name, so send it on its own and omit fromEmail and fromName. To keep this profile under a different display name, set fromName on the email steps instead, where it is a per-step override.",
         },
         replyTo: {
           type: "string",

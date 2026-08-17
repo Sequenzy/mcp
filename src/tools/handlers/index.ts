@@ -17,6 +17,7 @@ import { handleSequenceTools } from "./sequences.js";
 import { handleSubscriberTools } from "./subscribers.js";
 import { handleSuppressionTools } from "./suppressions.js";
 import { handleTeamInboxWebhookTools } from "./team-inbox-webhooks.js";
+import { handleWebTrackingTools } from "./web-tracking.js";
 
 export const toolHandlers = [
   handleAccountTools,
@@ -37,5 +38,6 @@ export const toolHandlers = [
   handleSequenceTools,
   handleAnalyticsAndTransactionalTools,
   handleTeamInboxWebhookTools,
+  handleWebTrackingTools,
   handleAiAndFeedbackTools,
 ];

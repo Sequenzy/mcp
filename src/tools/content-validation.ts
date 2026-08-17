@@ -540,7 +540,7 @@ export const sequencePathStepSchema = {
         "ai",
       ],
       description:
-        "Sequence path step type. Omit for email steps; use delay for fixed/date waits or update_subscriber for action_update_attributes. For an event gate, use nodeType:'logic_wait_for_event' with an explicit config object.",
+        "Sequence path step type. Omit for email steps; use delay for fixed/date waits or update_subscriber for action_update_attributes. For an event gate, use nodeType:'logic_wait_for_event' with an explicit config object. A path is one linear chain, so it cannot contain a nested 'logic_branch' step: end the path with the step the nested branch should follow, then insert that branch with its own insert_sequence_step call using an afterNodeId from addedBranchPathNodeIds.",
     },
     nodeType: {
       type: "string",
@@ -732,7 +732,7 @@ export const sequenceBranchConditionSchema = {
         "sms_subscribed",
       ],
       description:
-        "Condition for this path. has_phone and sms_subscribed need no resource fields.",
+        "Condition for this path. has_phone and sms_subscribed need no resource fields. Required unless the branch sets splitMode 'random', where paths are chosen by percentage and this field must be omitted.",
     },
     tagName: {
       type: "string",
@@ -790,8 +790,26 @@ export const sequenceBranchConditionSchema = {
       items: sequencePathStepSchema,
     },
   },
-  required: ["conditionType"],
+  // conditionType cannot be listed here because random splits legitimately omit
+  // it; the write path rejects a condition split that leaves it out.
   additionalProperties: false,
+} as const;
+
+export const sequenceBranchesDescription =
+  "Branch paths. On the default condition split they are evaluated in order and an else fallback is created automatically. On a random split (splitMode 'random') each entry is a weighted variant, conditionType and condition-specific fields are omitted, and there is no else path. Each path can create steps, route directly to an existing targetNodeId, or do both.";
+
+export const sequenceBranchSplitModeSchema = {
+  type: "string",
+  enum: ["condition", "random"],
+  description:
+    "How subscribers are routed. 'condition' (default) evaluates each branch's conditionType in order. 'random' assigns each subscriber a path by percentage when they reach the node, which is how you build a concurrent A/B split inside a sequence - for example testing two abandoned-cart offers against each other at the same time instead of running them one after another. Random splits require randomPercentages, omit conditionType and condition-specific fields on every branch, and must not define an else path. To A/B test the content of a single existing email step instead of branching the flow, use create_ab_test with automationNodeId, which tracks variants and picks a winner for you.",
+} as const;
+
+export const sequenceBranchRandomPercentagesSchema = {
+  type: "array",
+  items: { type: "number" },
+  description:
+    "Required when splitMode is 'random': one non-negative percentage per entry in branches, in the same order, summing to 100. For an even two-way test use [50, 50].",
 } as const;
 
 export function extractResultError(result: unknown): Error | null {

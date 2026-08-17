@@ -91,7 +91,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "create_company",
     description:
-      "Create a new company/brand. This will parse your website to extract brand information. The tool polls every 20 seconds until the company is fully processed (typically 30-60 seconds).",
+      "Create a new company/brand. Requires a personal account key (seq_user_...); a company/workspace-scoped key (seq_live_.../ek_...) is bound to its one company and is rejected, because it could never access the company it created. This will parse your website to extract brand information. The tool polls every 20 seconds until the company is fully processed (typically 30-60 seconds).",
     inputSchema: {
       type: "object",
       properties: {
@@ -190,6 +190,11 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
           description:
             "Basic product/company knowledge AI should use when writing emails.",
         },
+        emailDesignPrompt: {
+          type: "string",
+          description:
+            "Art direction for AI-designed emails: layout, density, which sections belong in an email, imagery, CTA prominence, reference brands. Steers design; toneVoice steers copy. Overrides the default composition rules. When empty, the next email generation prefills it with the direction derived from the brand, so read the current value from get_company before editing. Pass an empty string to reset - the next generation refills it.",
+        },
         emailLengthPreference: {
           type: "string",
           description:
@@ -249,6 +254,11 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
                 heading: { type: "string" },
                 border: { type: "string" },
                 link: { type: "string" },
+                buttonText: {
+                  type: "string",
+                  description:
+                    "Label color for solid buttons. Omit to auto-derive a readable color from the button background.",
+                },
               },
               additionalProperties: false,
             },
@@ -263,8 +273,32 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
                 heading2Size: { type: "number" },
                 heading3Size: { type: "number" },
                 buttonFontSize: { type: "number" },
+                buttonFontWeight: {
+                  type: "number",
+                  description: "CTA label weight, 400-800.",
+                },
+                headingFontWeight: {
+                  type: "number",
+                  description:
+                    "Heading weight applied to all heading levels, 300-900. Omit for the per-level defaults.",
+                },
+                headingFontFamily: {
+                  type: "string",
+                  description:
+                    "Font stack for headings when it differs from the email body font. Omit so headings inherit the email font.",
+                },
+                headingLetterSpacing: {
+                  type: "number",
+                  description:
+                    "Heading letter spacing in pixels (negative = tighter), clamped to -2..4. Omit for natural tracking.",
+                },
               },
               additionalProperties: false,
+            },
+            buttonStyle: {
+              type: "string",
+              description:
+                'How primary buttons are filled: "solid" (default) or "outline" (transparent fill with a brand-color border).',
             },
             layout: {
               type: "object",

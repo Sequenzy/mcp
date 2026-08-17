@@ -28,6 +28,7 @@ import { tagListSegmentToolDefinitions } from "./tags-lists-segments.js";
 import { teamToolDefinitions } from "./team.js";
 import { templateToolDefinitions } from "./templates.js";
 import { transactionalToolDefinitions } from "./transactional.js";
+import { webTrackingToolDefinitions } from "./web-tracking.js";
 import { webhookToolDefinitions } from "./webhooks.js";
 
 export const toolDefinitions: Tool[] = [
@@ -57,6 +58,7 @@ export const toolDefinitions: Tool[] = [
   ...analyticsToolDefinitions,
   ...teamToolDefinitions,
   ...inboxToolDefinitions,
+  ...webTrackingToolDefinitions,
   ...webhookToolDefinitions,
   ...aiGenerationToolDefinitions,
   ...feedbackToolDefinitions,

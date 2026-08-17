@@ -471,7 +471,7 @@ export const subscriberToolDefinitions: Tool[] = [
         eventId: {
           type: "string",
           description:
-            "Your own id for this event. Makes a historical import idempotent: re-sending the same eventId writes nothing new.",
+            "Your own id for this event, used as an idempotency key on both paths. For a live event, re-sending an id this contact already has for this event name writes nothing, runs no side effects, and returns the existing event with duplicate: true. For a historical event, the response remains historical: true and reports the skipped row in duplicates instead. Live deduplication is best-effort for calls sent within about a second of each other, so a producer that needs a strict guarantee should also keep its own ledger.",
         },
       },
       required: ["event"],
@@ -520,7 +520,7 @@ export const subscriberToolDefinitions: Tool[] = [
               eventId: {
                 type: "string",
                 description:
-                  "Your own id for this event, making a re-run idempotent.",
+                  "Your own id for this event, making a re-run idempotent on both the live and historical paths.",
               },
             },
             required: ["name"],
@@ -633,7 +633,8 @@ export const subscriberToolDefinitions: Tool[] = [
         },
         query: {
           type: "string",
-          description: "Search query (email or name)",
+          description:
+            "Search query. A whole email address is matched exactly against the contact's email or external ID; anything shorter is a substring search across email, external ID, name, and tags. Prefer a whole address when you know it - it is an indexed lookup, while a partial term has to examine the entire audience.",
         },
         tags: {
           type: "array",

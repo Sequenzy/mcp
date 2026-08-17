@@ -15,6 +15,9 @@ import {
   sequenceNodeUpdateItemSchema,
   subscriberUpdateConfigSchema,
   sequenceBranchConditionSchema,
+  sequenceBranchesDescription,
+  sequenceBranchRandomPercentagesSchema,
+  sequenceBranchSplitModeSchema,
   sequenceEmailStepIdentityProperties,
   sequencePathStepSchema,
 } from "../internal.js";
@@ -208,7 +211,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         senderProfileId: {
           type: "string",
           description:
-            "Set an existing sender profile (see list_sender_profiles). It already supplies both the From address and display name, so send it on its own and omit fromEmail and fromName.",
+            "Set an existing sender profile (see list_sender_profiles). It already supplies both the From address and display name, so send it on its own and omit fromEmail and fromName. To keep this profile under a different display name, set fromName on the email steps instead, where it is a per-step override.",
         },
         replyTo: {
           type: "string",
@@ -394,15 +397,17 @@ export const sequenceEditingToolDefinitions: Tool[] = [
               type: "string",
               description: "Optional branch node label.",
             },
+            splitMode: sequenceBranchSplitModeSchema,
+            randomPercentages: sequenceBranchRandomPercentagesSchema,
             branches: {
               type: "array",
-              description:
-                "Conditional branches evaluated in order. Each path can create steps, route directly to an existing targetNodeId, or do both. An else fallback is created automatically.",
+              description: sequenceBranchesDescription,
               items: sequenceBranchConditionSchema,
             },
             elseSteps: {
               type: "array",
-              description: "Optional new steps inside the else fallback path.",
+              description:
+                "Optional new steps inside the else fallback path. Not valid on a random split.",
               items: sequencePathStepSchema,
             },
             elseTargetNodeId: {
@@ -782,7 +787,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
   {
     name: "insert_sequence_step",
     description:
-      "Insert one dashboard-compatible typed step into an existing sequence: email, SMS, delay/date wait, discount (later emails print the generated code with {{discount.code}}), subscriber update, tag/list action, outbound webhook, AI step (later steps use the generated text with {{ai.KEY.field}}), condition gate, wait-for-event, or wired If/Else branch. Use get_sequence first and pass afterNodeId. Branch paths can target existing nodes, including completion. For active sequences, confirm the structural change first.",
+      "Insert one dashboard-compatible typed step into an existing sequence: email, SMS, delay/date wait, discount (later emails print the generated code with {{discount.code}}), subscriber update, tag/list action, outbound webhook, AI step (later steps use the generated text with {{ai.KEY.field}}), condition gate, wait-for-event, or wired If/Else branch. Use get_sequence first and pass afterNodeId. Branch paths can target existing nodes, including completion. To nest a branch inside a branch path, end that path with the step the nested branch should follow, then call insert_sequence_step again with type 'logic_branch' and afterNodeId set to that path node - addedBranchPathNodeIds in the response lists each path's node IDs in order, and the nested paths reconnect to the shared steps that already followed it. A logic_branch with splitMode 'random' plus randomPercentages is a weighted split rather than an If/Else, so it runs a concurrent A/B test inside the flow - use it to compare two offers in the same abandoned-cart sequence instead of running duplicate sequences one after another. To A/B test the content of one existing email step and have a winner picked automatically, use create_ab_test with automationNodeId instead. For active sequences, confirm the structural change first.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1125,16 +1130,17 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         lockToSubscriber: { type: "boolean" },
         expiresAt: { type: "string" },
         expiresInHours: { type: "number" },
+        splitMode: sequenceBranchSplitModeSchema,
+        randomPercentages: sequenceBranchRandomPercentagesSchema,
         branches: {
           type: "array",
-          description:
-            "logic_branch only: ordered conditional paths. Each path may provide targetNodeId, steps, or both.",
+          description: `logic_branch only: ${sequenceBranchesDescription}`,
           items: sequenceBranchConditionSchema,
         },
         elseSteps: {
           type: "array",
           description:
-            "logic_branch only: optional new steps for the else path.",
+            "logic_branch only: optional new steps for the else path. Not valid on a random split.",
           items: sequencePathStepSchema,
         },
         elseTargetNodeId: {
