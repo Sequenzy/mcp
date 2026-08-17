@@ -533,7 +533,7 @@ export const outputPropertiesByToolName: Record<
   create_web_tracking_key: {
     success: successOutputProperty,
     key: objectOutputProperty(
-      "The created key. installSnippet is the exact <script> tag to paste into every page; it embeds both the publishable key and the workspace id."
+      "The created key. installSnippet is the exact HTML snippet to paste into every page; it embeds both the publishable key and the workspace id and queues calls made while the async SDK loads."
     ),
     message: messageOutputProperty,
   },

@@ -332,8 +332,10 @@ then have the customer's authenticated backend mint a short-lived proof through
 `POST /api/v1/web-tracking-identities` and call
 `sequenzy.identify(email, identityToken)` at sign-in or checkout. A publishable
 key alone only records anonymous activity and cannot trigger subscriber
-automation. Prefer revoking a key with `update_web_tracking_key` before
-permanently deleting it.
+automation. The returned snippet installs synchronous method stubs before its
+async loader, so identity and event calls made during page bootstrap are queued
+until the SDK is ready. Prefer revoking a key with `update_web_tracking_key`
+before permanently deleting it.
 
 New companies start with no sync rules. The inherited preset remains available
 for SaaS/ecommerce companies by passing `null` to `update_sync_rules`; services
