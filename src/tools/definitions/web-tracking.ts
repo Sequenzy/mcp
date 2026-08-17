@@ -35,7 +35,7 @@ export const webTrackingToolDefinitions: Tool[] = [
   {
     name: "create_web_tracking_key",
     description:
-      "Create a publishable key for the browser tracking SDK and return the install snippet. This is what turns on product views, cart activity, and browse abandonment for a site that is NOT Shopify or WooCommerce (custom storefronts, headless shops, ticketing, SaaS marketing sites). Events start flowing once the snippet is deployed and nothing is backfilled for the period before that, so create and install it BEFORE building the sequence that depends on it. Always pass allowedOrigins: a key with none accepts events from any site on the internet, since the key is readable in the customer's page source by design. After installing, the site must call `sequenzy.identify(email)` at sign-in and checkout - until a visitor identifies, their events are buffered in their browser and replayed only once they do.",
+      "Create a publishable key for the browser tracking SDK and return the install snippet. This is what turns on product views, cart activity, and browse abandonment for a site that is NOT Shopify or WooCommerce (custom storefronts, headless shops, marketplaces, SaaS marketing sites). Events start flowing once the snippet is deployed and nothing is backfilled for the period before that, so create and install it BEFORE building the sequence that depends on it. Always pass allowedOrigins: a key with none accepts anonymous events from any site. Identified events require a short-lived token minted by the customer's authenticated backend through POST /api/v1/web-tracking-identities, then `sequenzy.identify(email, identityToken)`; a publishable key alone can never trigger subscriber automation.",
     inputSchema: {
       type: "object",
       properties: {
@@ -86,7 +86,7 @@ export const webTrackingToolDefinitions: Tool[] = [
   {
     name: "delete_web_tracking_key",
     description:
-      "Permanently delete a web tracking key. Any site still running the snippet stops sending events immediately and its requests start being rejected, so remove the snippet from the site as well. Prefer update_web_tracking_key with isActive: false when the key might be needed again.",
+      "Permanently delete a web tracking key. Cached authorization expires within one minute, after which requests from any remaining snippet are rejected; remove the snippet from the site as well. Prefer update_web_tracking_key with isActive: false when the key might be needed again.",
     inputSchema: {
       type: "object",
       properties: {

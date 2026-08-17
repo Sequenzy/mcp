@@ -443,6 +443,13 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
               description:
                 "Minimum hours between cart-abandoned events per subscriber (default 24).",
             },
+            expireAfterHours: {
+              type: "number",
+              exclusiveMinimum: 0,
+              maximum: 720,
+              description:
+                "Hours after which an untouched tracked cart is dropped instead of being emailed about or merged into by a later add (default 72). A store can empty a cart without sending a removal - a session or reservation timing out, an inventory hold releasing, checkout finishing on another device - and past this window the cart is no longer treated as evidence the shopper still has those items. Set it below delayHours for stores whose carts expire faster than the abandonment delay; those carts are then intentionally never emailed about.",
+            },
           },
           additionalProperties: false,
         },

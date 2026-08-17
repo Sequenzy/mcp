@@ -328,8 +328,12 @@ than being backfilled.
 For custom, headless, ticketing, or SaaS websites, use
 `list_web_tracking_keys` before relying on product-view or cart triggers. Create
 a key with an explicit origin allowlist, install the returned `installSnippet`,
-and call `sequenzy.identify(email)` at sign-in or checkout. Prefer revoking a
-key with `update_web_tracking_key` before permanently deleting it.
+then have the customer's authenticated backend mint a short-lived proof through
+`POST /api/v1/web-tracking-identities` and call
+`sequenzy.identify(email, identityToken)` at sign-in or checkout. A publishable
+key alone only records anonymous activity and cannot trigger subscriber
+automation. Prefer revoking a key with `update_web_tracking_key` before
+permanently deleting it.
 
 New companies start with no sync rules. The inherited preset remains available
 for SaaS/ecommerce companies by passing `null` to `update_sync_rules`; services
