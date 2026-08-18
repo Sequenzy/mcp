@@ -994,6 +994,8 @@ export async function handleCampaignTools(
         "listIds",
         "sendTimeOptimization",
         "spreadOverHours",
+        "sendInRecipientTimezone",
+        "scheduledTimezone",
         "recurringInterval",
       ]);
       const unsupportedCampaignScheduleKeys = Object.keys(args).filter(
@@ -1002,7 +1004,7 @@ export async function handleCampaignTools(
 
       if (unsupportedCampaignScheduleKeys.length > 0) {
         throw new Error(
-          `\`schedule_campaign\` accepts only \`campaignId\`, \`scheduledAt\`, \`targetLists\`, \`listIds\`, \`sendTimeOptimization\`, \`spreadOverHours\`, and \`recurringInterval\`. Unsupported field${unsupportedCampaignScheduleKeys.length === 1 ? "" : "s"}: ${unsupportedCampaignScheduleKeys.map((key) => `\`${key}\``).join(", ")}.`
+          `\`schedule_campaign\` accepts only \`campaignId\`, \`scheduledAt\`, \`targetLists\`, \`listIds\`, \`sendTimeOptimization\`, \`spreadOverHours\`, \`sendInRecipientTimezone\`, \`scheduledTimezone\`, and \`recurringInterval\`. Unsupported field${unsupportedCampaignScheduleKeys.length === 1 ? "" : "s"}: ${unsupportedCampaignScheduleKeys.map((key) => `\`${key}\``).join(", ")}.`
         );
       }
 
@@ -1024,6 +1026,12 @@ export async function handleCampaignTools(
           }),
           ...(args.spreadOverHours !== undefined && {
             spreadOverHours: args.spreadOverHours,
+          }),
+          ...(args.sendInRecipientTimezone !== undefined && {
+            sendInRecipientTimezone: args.sendInRecipientTimezone,
+          }),
+          ...(args.scheduledTimezone !== undefined && {
+            scheduledTimezone: args.scheduledTimezone,
           }),
           ...(args.recurringInterval !== undefined && {
             recurringInterval: args.recurringInterval,

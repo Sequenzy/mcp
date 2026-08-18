@@ -173,6 +173,7 @@ export const COMPANY_UPDATE_FIELDS = [
   "testimonials",
   "toneVoice",
   "companyContext",
+  "emailDesignPrompt",
   "emailLengthPreference",
   "socialLinks",
   "privacyPolicyUrl",
@@ -253,6 +254,7 @@ export function buildUpdateCompanyBody(
     "primaryColor",
     "toneVoice",
     "companyContext",
+    "emailDesignPrompt",
     "emailLengthPreference",
     "privacyPolicyUrl",
     "termsUrl",
@@ -472,11 +474,30 @@ const REPLY_IDENTITY_PAIR: SendingIdentityPair = {
 };
 
 /**
+ * The remedy the caller wanted. Rejecting a name that sits beside a profile is
+ * only half an answer: the caller asked for a display name, and telling them to
+ * drop `senderProfileId` trades away an already-resolved, send-ready profile to
+ * get one. A sequence keeps a display-name override on every email step, so
+ * there the name moves down a level and the profile stays. Campaigns and
+ * account defaults have no such slot, so they keep the address-swap remedy.
+ */
+function getSendingIdentityRemedy(input: {
+  pair: SendingIdentityPair;
+  nameHasStepOverride?: boolean | undefined;
+}): string {
+  const { profileKey, emailKey, nameKey } = input.pair;
+  if (input.nameHasStepOverride) {
+    return `To keep \`${profileKey}\` and still change the display name, send \`${profileKey}\` on its own and set \`${nameKey}\` on each email step, where it applies as a per-step display-name override. To change the address instead, omit \`${profileKey}\` and send \`${emailKey}\` (optionally with \`${nameKey}\`).`;
+  }
+  return `To use a different address or display name, omit \`${profileKey}\` and send \`${emailKey}\` (optionally with \`${nameKey}\`) instead.`;
+}
+
+/**
  * A saved profile carries both the address and the display name, so pairing it
  * with the address/name fields has no meaning. Callers used to learn that one
  * rejection at a time - `senderProfileId` plus `fromName` asked for
  * `fromEmail`, and supplying `fromEmail` then said not to send both - so every
- * rejection here states the whole rule.
+ * rejection here states the whole rule and how to get the intended result.
  */
 function validateSendingIdentityPair(input: {
   toolName: string;
@@ -487,6 +508,12 @@ function validateSendingIdentityPair(input: {
   profileFirst?: boolean | undefined;
   /** Sequence steps keep the name as a per-step override, not profile data. */
   nameIsOverride?: boolean | undefined;
+  /**
+   * Set by sequence-level tools, whose email steps accept `nameKey` as a
+   * per-step override. It changes only the suggested remedy, never what is
+   * accepted here.
+   */
+  nameHasStepOverride?: boolean | undefined;
 }): void {
   const { profileKey, emailKey, nameKey, addressLabel } = input.pair;
   const hasProfile = input.args[profileKey] !== undefined;
@@ -498,23 +525,34 @@ function validateSendingIdentityPair(input: {
   const profileRule = `\`${profileKey}\` already sets both the ${addressLabel} address and the display name, so send it without \`${emailKey}\`${
     input.nameIsOverride ? "" : ` and \`${nameKey}\``
   }.`;
+  const remedy = getSendingIdentityRemedy({
+    pair: input.pair,
+    nameHasStepOverride: input.nameHasStepOverride,
+  });
+  const stepOverrideHint = `For a per-email display name, set \`${nameKey}\` on the email steps instead.`;
 
   if (hasProfile && hasEmail) {
     const [first, second] = input.profileFirst
       ? [profileKey, emailKey]
       : [emailKey, profileKey];
+    // A caller who also sent the name is one retry away from the name conflict
+    // below, so answer both halves now rather than one rejection at a time.
+    const nameHint =
+      hasName && input.nameHasStepOverride ? ` ${stepOverrideHint}` : "";
     throw new Error(
-      `Provide either \`${first}\` or \`${second}\` ${callSuffix}, not both. ${profileRule}`
+      `Provide either \`${first}\` or \`${second}\` ${callSuffix}, not both. ${profileRule}${nameHint}`
     );
   }
   if (hasProfile && hasName && !input.nameIsOverride) {
     throw new Error(
-      `\`${nameKey}\` cannot be combined with \`${profileKey}\` ${callSuffix}. ${profileRule}`
+      `\`${nameKey}\` cannot be combined with \`${profileKey}\` ${callSuffix}. ${profileRule} ${remedy}`
     );
   }
   if (hasName && !hasEmail && !input.nameIsOverride) {
     throw new Error(
-      `\`${nameKey}\` requires \`${emailKey}\` ${callSuffix}. Send \`${nameKey}\` with the \`${emailKey}\` it names, or send \`${profileKey}\` on its own to use an existing profile's address and name.`
+      `\`${nameKey}\` requires \`${emailKey}\` ${callSuffix}. Send \`${nameKey}\` with the \`${emailKey}\` it names, or send \`${profileKey}\` on its own to use an existing profile's address and name.${
+        input.nameHasStepOverride ? ` ${stepOverrideHint}` : ""
+      }`
     );
   }
 }
@@ -526,14 +564,28 @@ function validateSendingIdentityPair(input: {
 export function validateSendingIdentityArgs(
   toolName: string,
   args: Record<string, unknown>,
-  /** `replyFirst` keeps `update_campaign` reporting reply conflicts first. */
-  options?: { replyFirst?: boolean }
+  options?: {
+    /** `replyFirst` keeps `update_campaign` reporting reply conflicts first. */
+    replyFirst?: boolean;
+    /**
+     * Set by sequence tools so a rejected `fromName` points at the per-step
+     * override. Only the sender pair has one; an address carries a single
+     * Reply-To name company-wide, so `replyToName` has nowhere to go.
+     */
+    hasEmailSteps?: boolean;
+  }
 ): void {
   const pairs = options?.replyFirst
     ? [REPLY_IDENTITY_PAIR, SENDER_IDENTITY_PAIR]
     : [SENDER_IDENTITY_PAIR, REPLY_IDENTITY_PAIR];
   for (const pair of pairs) {
-    validateSendingIdentityPair({ toolName, args, pair });
+    validateSendingIdentityPair({
+      toolName,
+      args,
+      pair,
+      nameHasStepOverride:
+        options?.hasEmailSteps === true && pair === SENDER_IDENTITY_PAIR,
+    });
   }
 }
 
@@ -707,7 +759,7 @@ export function buildUpdateSequenceBody(
       "Provide `trigger` when replacing sequence trigger configuration with `update_sequence`."
     );
   }
-  validateSendingIdentityArgs("update_sequence", args);
+  validateSendingIdentityArgs("update_sequence", args, { hasEmailSteps: true });
   if (
     args.clearEnrollmentFieldPath === true &&
     args.enrollmentFieldPath !== undefined

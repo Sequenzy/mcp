@@ -15,6 +15,9 @@ import {
   sequenceNodeUpdateItemSchema,
   subscriberUpdateConfigSchema,
   sequenceBranchConditionSchema,
+  sequenceBranchesDescription,
+  sequenceBranchRandomPercentagesSchema,
+  sequenceBranchSplitModeSchema,
   sequenceEmailStepIdentityProperties,
   sequencePathStepSchema,
 } from "../internal.js";
@@ -208,7 +211,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         senderProfileId: {
           type: "string",
           description:
-            "Set an existing sender profile (see list_sender_profiles). It already supplies both the From address and display name, so send it on its own and omit fromEmail and fromName.",
+            "Set an existing sender profile (see list_sender_profiles). It already supplies both the From address and display name, so send it on its own and omit fromEmail and fromName. To keep this profile under a different display name, set fromName on the email steps instead, where it is a per-step override.",
         },
         replyTo: {
           type: "string",
@@ -290,7 +293,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
                 "event_received",
               ],
               description:
-                "Stop condition type. has_tag, added_to_list, entered_segment, field_changed, and event_received stop the run once the thing happens. does_not_have_tag and removed_from_list stop the run whenever the subscriber lacks that tag or list membership, so they act as a required-tag or required-list allowlist for everyone the trigger enrolls.",
+                "Stop condition type. has_tag, added_to_list, entered_segment, field_changed, and event_received stop the run once the thing happens. event_received only counts events received after enrollment - the enrolling event and earlier history never satisfy the stop. does_not_have_tag and removed_from_list stop the run whenever the subscriber lacks that tag or list membership, so they act as a required-tag or required-list allowlist for everyone the trigger enrolls.",
             },
             value: {
               type: ["string", "null"],
@@ -300,7 +303,81 @@ export const sequenceEditingToolDefinitions: Tool[] = [
             matchConfig: {
               type: ["object", "null"],
               description:
-                "Optional event_property or field_value match config used by dashboard stop-condition matching.",
+                "Optional stop-condition matching, three shapes keyed by mode. (1) For type 'event_received', { mode: 'event_property_filter', propertyFilters: [{ path: 'quota_used', operator: 'greater_than', value: 1 }] } stops only when an event received AFTER enrollment matches every filter (operators: exists, not_exists, equals, not_equals, one_of, contains, greater_than, less_than - same shape as trigger propertyFilters). Use this when a later occurrence must satisfy specific criteria, e.g. enroll on quota_used=1 and stop when quota_used is greater than 1. Without propertyFilters, a same-name event stop fires on any later occurrence. (2) For type 'event_received', { mode: 'event_property', rules: [{ entryFieldPath: 'orderId', eventFieldPath: 'orderId' }] } stops only when the stop event's field equals the same field captured on the enrolling event (requires an event-based trigger). (3) For type 'field_changed', { mode: 'field_value', operator: 'equals', value: 'pro' } stops only when the field changes to a matching value (operators: equals, not_equals, greater_than, less_than, contains, not_contains). Pass null to clear. Note: event_received stops only match events received after enrollment; the enrolling event itself never satisfies the stop.",
+              properties: {
+                mode: {
+                  type: "string",
+                  enum: [
+                    "event_property_filter",
+                    "event_property",
+                    "field_value",
+                  ],
+                  description:
+                    "Which matching shape the config uses. Defaults to event_property_filter when omitted and propertyFilters is present.",
+                },
+                propertyFilters: {
+                  type: "array",
+                  description:
+                    "event_property_filter mode: filters a stop event must all match, e.g. [{ path: 'quota_used', operator: 'greater_than', value: 1 }].",
+                  items: {
+                    type: "object",
+                    properties: {
+                      path: {
+                        type: "string",
+                        description:
+                          "Dot-path into the stop event's properties, e.g. 'quota_used' or 'order.total'.",
+                      },
+                      operator: {
+                        type: "string",
+                        enum: [
+                          "exists",
+                          "not_exists",
+                          "equals",
+                          "not_equals",
+                          "one_of",
+                          "contains",
+                          "greater_than",
+                          "less_than",
+                        ],
+                      },
+                      value: {
+                        description:
+                          "Comparison value (string, number, or boolean; array of values for one_of). Omit for exists/not_exists.",
+                      },
+                    },
+                    required: ["path", "operator"],
+                  },
+                },
+                rules: {
+                  type: "array",
+                  description:
+                    "event_property mode: entry-vs-stop-event field equality rules, e.g. [{ entryFieldPath: 'orderId', eventFieldPath: 'orderId' }].",
+                  items: {
+                    type: "object",
+                    properties: {
+                      entryFieldPath: { type: "string" },
+                      eventFieldPath: { type: "string" },
+                    },
+                    required: ["entryFieldPath", "eventFieldPath"],
+                  },
+                },
+                operator: {
+                  type: "string",
+                  enum: [
+                    "equals",
+                    "not_equals",
+                    "greater_than",
+                    "less_than",
+                    "contains",
+                    "not_contains",
+                  ],
+                  description: "field_value mode comparison operator.",
+                },
+                value: {
+                  type: "string",
+                  description: "field_value mode comparison value.",
+                },
+              },
               additionalProperties: true,
             },
           },
@@ -320,15 +397,17 @@ export const sequenceEditingToolDefinitions: Tool[] = [
               type: "string",
               description: "Optional branch node label.",
             },
+            splitMode: sequenceBranchSplitModeSchema,
+            randomPercentages: sequenceBranchRandomPercentagesSchema,
             branches: {
               type: "array",
-              description:
-                "Conditional branches evaluated in order. Each path can create steps, route directly to an existing targetNodeId, or do both. An else fallback is created automatically.",
+              description: sequenceBranchesDescription,
               items: sequenceBranchConditionSchema,
             },
             elseSteps: {
               type: "array",
-              description: "Optional new steps inside the else fallback path.",
+              description:
+                "Optional new steps inside the else fallback path. Not valid on a random split.",
               items: sequencePathStepSchema,
             },
             elseTargetNodeId: {
@@ -708,7 +787,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
   {
     name: "insert_sequence_step",
     description:
-      "Insert one dashboard-compatible typed step into an existing sequence: email, SMS, delay/date wait, discount (later emails print the generated code with {{discount.code}}), subscriber update, tag/list action, outbound webhook, condition gate, wait-for-event, or wired If/Else branch. Use get_sequence first and pass afterNodeId. Branch paths can target existing nodes, including completion. For active sequences, confirm the structural change first.",
+      "Insert one dashboard-compatible typed step into an existing sequence: email, SMS, delay/date wait, discount (later emails print the generated code with {{discount.code}}), subscriber update, tag/list action, outbound webhook, AI step (later steps use the generated text with {{ai.KEY.field}}), condition gate, wait-for-event, or wired If/Else branch. Use get_sequence first and pass afterNodeId. Branch paths can target existing nodes, including completion. To nest a branch inside a branch path, end that path with the step the nested branch should follow, then call insert_sequence_step again with type 'logic_branch' and afterNodeId set to that path node - addedBranchPathNodeIds in the response lists each path's node IDs in order, and the nested paths reconnect to the shared steps that already followed it. A logic_branch with splitMode 'random' plus randomPercentages is a weighted split rather than an If/Else, so it runs a concurrent A/B test inside the flow - use it to compare two offers in the same abandoned-cart sequence instead of running duplicate sequences one after another. To A/B test the content of one existing email step and have a winner picked automatically, use create_ab_test with automationNodeId instead. For active sequences, confirm the structural change first.",
     inputSchema: {
       type: "object",
       properties: {
@@ -734,6 +813,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
             "add_to_list",
             "remove_from_list",
             "webhook",
+            "ai",
             "condition",
             "logic_wait_for_event",
             "logic_branch",
@@ -898,13 +978,78 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         resultKey: {
           type: "string",
           description:
-            "webhook only: when set, the HTTP response is saved and later email steps can reference it via {{webhooks.KEY.data.field}} merge tags. Must start with a letter; letters, numbers, underscores; max 64 chars.",
+            "webhook / ai: where the result is saved. Later steps reference it via {{webhooks.KEY.data.field}} (webhook) or {{ai.KEY.field}} (ai) merge tags. Required for ai steps. Must start with a letter; letters, numbers, underscores; max 64 chars.",
         },
         onError: {
           type: "string",
           enum: ["continue", "exit", "fail"],
           description:
-            "webhook only: behavior when the request fails. continue proceeds to the next step, exit ends the sequence for the subscriber, fail marks the enrollment failed (default).",
+            "webhook / ai: behavior when the step fails. continue proceeds to the next step, exit ends the sequence for the subscriber, fail marks the enrollment failed. Defaults to fail for webhooks and continue for ai steps.",
+        },
+        prompt: {
+          type: "string",
+          description:
+            "ai only: prompt template sent to the model, resolved per contact at execution time. Ask for the short per-contact fragments the output fields name (a sentence or two each), never a whole email - the email around them is authored separately. Supports merge tags like {{first_name}}, {{event.plan}}, and {{webhooks.KEY.data.field}}. Max 8000 chars.",
+        },
+        outputFields: {
+          type: "array",
+          description:
+            "ai only: named values the model must return (1-10). Each key becomes a {{ai.KEY.<key>}} merge tag for later steps; fallback is used when generation fails. Combined field maxLength values must fit the step's conservative 2000-token multilingual response budget plus JSON overhead.",
+          items: {
+            type: "object",
+            properties: {
+              key: {
+                type: "string",
+                description:
+                  "Field key, e.g. subject_line. Letters, numbers, underscores; must start with a letter; unique within the step.",
+              },
+              description: {
+                type: "string",
+                description:
+                  "What the model should produce for this field. Max 300 chars.",
+              },
+              maxLength: {
+                type: "integer",
+                minimum: 1,
+                maximum: 4000,
+                description:
+                  "Hard cap on stored characters (1-4000). Defaults to 500.",
+              },
+              fallback: {
+                type: "string",
+                description:
+                  "Text used verbatim when generation fails or the model omits the field.",
+              },
+            },
+            required: ["key"],
+            additionalProperties: false,
+          },
+        },
+        includeTags: {
+          type: "boolean",
+          description:
+            "ai only: include the contact's tags in the prompt context.",
+        },
+        includeEventProperties: {
+          type: "boolean",
+          description:
+            "ai only: include the enrollment's trigger event name and properties in the prompt context.",
+        },
+        includeRecentEvents: {
+          type: "boolean",
+          description:
+            "ai only: include the contact's most recent custom events (newest first) in the prompt context.",
+        },
+        recentEventLimit: {
+          type: "number",
+          description:
+            "ai only: how many recent events to include when includeRecentEvents is true (1-50, default 10).",
+        },
+        includeAttributes: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "ai only: custom attribute keys to include in the prompt context (max 30). Only the listed keys are sent.",
         },
         segmentId: {
           type: "string",
@@ -985,16 +1130,17 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         lockToSubscriber: { type: "boolean" },
         expiresAt: { type: "string" },
         expiresInHours: { type: "number" },
+        splitMode: sequenceBranchSplitModeSchema,
+        randomPercentages: sequenceBranchRandomPercentagesSchema,
         branches: {
           type: "array",
-          description:
-            "logic_branch only: ordered conditional paths. Each path may provide targetNodeId, steps, or both.",
+          description: `logic_branch only: ${sequenceBranchesDescription}`,
           items: sequenceBranchConditionSchema,
         },
         elseSteps: {
           type: "array",
           description:
-            "logic_branch only: optional new steps for the else path.",
+            "logic_branch only: optional new steps for the else path. Not valid on a random split.",
           items: sequencePathStepSchema,
         },
         elseTargetNodeId: {

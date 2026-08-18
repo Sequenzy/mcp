@@ -194,7 +194,9 @@ export async function handleSequenceTools(
     case "create_sequence": {
       const companyId = args.companyId as string | undefined;
       validateLabelsArg("create_sequence", args);
-      validateSendingIdentityArgs("create_sequence", args);
+      validateSendingIdentityArgs("create_sequence", args, {
+        hasEmailSteps: true,
+      });
       const hasExplicitSteps = Array.isArray(args.steps);
       const createsBlankDraft =
         args.goal === undefined && args.steps === undefined;

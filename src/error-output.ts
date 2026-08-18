@@ -124,6 +124,18 @@ function describeMcpError(error: unknown): McpErrorDescriptor {
     };
   }
 
+  if (normalized.code === "COMPANY_CREATE_REQUIRES_PERSONAL_KEY") {
+    return {
+      title: "Personal account key required",
+      description:
+        "Company creation is account-level and cannot be performed with a company/workspace-scoped API key.",
+      howToFix:
+        "Create or use a personal account key beginning with `seq_user_` from Account → API Keys, replace `SEQUENZY_API_KEY`, reconnect the MCP client, and retry `create_company`; alternatively, create the company in the Sequenzy dashboard. Widening the current company key or selecting another company will not fix this restriction.",
+      docsUrl: AUTH_DOCS_URL,
+      details,
+    };
+  }
+
   const missingApiKeyScopes = extractMissingApiKeyScopes(message);
   if (missingApiKeyScopes.length > 0) {
     const scopeList = missingApiKeyScopes

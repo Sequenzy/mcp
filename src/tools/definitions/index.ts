@@ -6,7 +6,9 @@ import { aiGenerationToolDefinitions } from "./ai-generation.js";
 import { analyticsToolDefinitions } from "./analytics.js";
 import { audienceSyncToolDefinitions } from "./audience-syncs.js";
 import { campaignToolDefinitions } from "./campaigns.js";
+import { emailBlockToolDefinitions } from "./email-blocks.js";
 import { emailComponentToolDefinitions } from "./email-components.js";
+import { eventSchemaToolDefinitions } from "./event-schemas.js";
 import { feedbackToolDefinitions } from "./feedback.js";
 import { savedFormToolDefinitions } from "./forms.js";
 import { imageAssetToolDefinitions } from "./image-assets.js";
@@ -26,17 +28,20 @@ import { tagListSegmentToolDefinitions } from "./tags-lists-segments.js";
 import { teamToolDefinitions } from "./team.js";
 import { templateToolDefinitions } from "./templates.js";
 import { transactionalToolDefinitions } from "./transactional.js";
+import { webTrackingToolDefinitions } from "./web-tracking.js";
 import { webhookToolDefinitions } from "./webhooks.js";
 
 export const toolDefinitions: Tool[] = [
   ...accountToolDefinitions,
   ...integrationToolDefinitions,
+  ...eventSchemaToolDefinitions,
   ...subscriberToolDefinitions,
   ...suppressionToolDefinitions,
   ...productToolDefinitions,
   ...tagListSegmentToolDefinitions,
   ...audienceSyncToolDefinitions,
   ...templateToolDefinitions,
+  ...emailBlockToolDefinitions,
   ...emailComponentToolDefinitions,
   ...abTestToolDefinitions,
   ...campaignToolDefinitions,
@@ -53,6 +58,7 @@ export const toolDefinitions: Tool[] = [
   ...analyticsToolDefinitions,
   ...teamToolDefinitions,
   ...inboxToolDefinitions,
+  ...webTrackingToolDefinitions,
   ...webhookToolDefinitions,
   ...aiGenerationToolDefinitions,
   ...feedbackToolDefinitions,

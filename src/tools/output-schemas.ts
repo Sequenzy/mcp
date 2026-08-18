@@ -396,6 +396,35 @@ export const outputPropertiesByToolName: Record<
       "integration provider, including category, connect method, what it syncs, every event it emits with the moment that triggers it, the subscriber attributes it writes, supported actions, availability, and caveats"
     ),
   },
+  get_email_block_schema: {
+    blockTypes: {
+      type: "array",
+      description:
+        "Listing mode: one entry per block type, each with `type`, `creatable`, `required`, `optional`, and a `fields` array of { name, required, type, values?, itemFields? }. `values` holds an enum field's allowed values; `itemFields` holds the shape of one entry in an array field, which is where `list` (items carry `content`) and `steps` (items carry `title`) differ.",
+      items: objectOutputProperty(
+        "A block type reference: type, creatable, required, optional, fields, and - when the type is one an author should hand-create - a minimal valid `example` and authoring `notes`."
+      ),
+    },
+    blockType: objectOutputProperty(
+      "Single-type mode: the full reference for the requested type, including a minimal valid `example` and authoring `notes`."
+    ),
+  },
+  get_event_schema: {
+    eventName: {
+      type: ["string", "null"],
+      description:
+        "Normalized name of the event described, or null when listing every documented event.",
+    },
+    events: {
+      type: "array",
+      description:
+        "One entry per event. Listing mode returns summaries only; asking for a single eventName adds `providers`, each with an `examplePayload` and a `properties` array of { path, type, description?, mergeTag? }. `documented: false` means no reference sample is published - the event name is still valid to trigger and to build a sequence on.",
+      items: objectOutputProperty(
+        "An event: eventName, documented, label, category, description, documentedProviders, and (single-event mode) providers, mergeTagPrefix, and notes."
+      ),
+    },
+    note: noteOutputProperty,
+  },
   list_integration_activity: {
     activity: resourceListOutputProperty(
       "integration activity row, including provider, action, status, event type, matched contact, message, and error. Payloads are sanitized, so no credentials appear"
@@ -482,6 +511,38 @@ export const outputPropertiesByToolName: Record<
     syncTarget: nullableObjectOutputProperty(
       "For Supabase, the project ref, schema, and table the backfill reads. Absent for providers whose sync has no configurable source."
     ),
+    message: messageOutputProperty,
+  },
+  list_web_tracking_keys: {
+    success: successOutputProperty,
+    keys: {
+      type: "array",
+      description:
+        "Publishable keys for the browser tracking SDK, newest first. A key with lastUsedAt null has not successfully authenticated an event yet; check deployment, instrumentation or traffic, and the origin allowlist.",
+      items: objectOutputProperty(
+        "One key: id, name, publicKey, allowedOrigins, isActive, unrestricted, lastUsedAt, installSnippet, endpoint, and warning when unrestricted."
+      ),
+    },
+  },
+  get_web_tracking_key: {
+    success: successOutputProperty,
+    key: objectOutputProperty(
+      "The key, including the paste-ready installSnippet and the ingest endpoint."
+    ),
+  },
+  create_web_tracking_key: {
+    success: successOutputProperty,
+    key: objectOutputProperty(
+      "The created key. installSnippet is the exact HTML snippet to paste into every page; it embeds both the publishable key and the workspace id and queues calls made while the async SDK loads."
+    ),
+    message: messageOutputProperty,
+  },
+  update_web_tracking_key: {
+    success: successOutputProperty,
+    key: objectOutputProperty("The key after the update."),
+  },
+  delete_web_tracking_key: {
+    success: successOutputProperty,
     message: messageOutputProperty,
   },
   list_sender_profiles: {
@@ -680,7 +741,22 @@ export const outputPropertiesByToolName: Record<
   trigger_subscriber_event: {
     subscriber: resourceOutputProperty("subscriber"),
     event: resourceOutputProperty(
-      "recorded event with its name and whether the event definition was created"
+      "Live event with its name and whether the event definition was created. Historical responses use `events` instead."
+    ),
+    duplicate: booleanOutputProperty(
+      "Present and true for a repeated live eventId. Nothing was written and no side effects ran; `event` is the existing event. Historical responses report skipped rows in `duplicates` instead."
+    ),
+    historical: booleanOutputProperty(
+      "Present and true when occurredAt selected the historical import path."
+    ),
+    events: resourceListOutputProperty(
+      "Historical events, each with id, name, and occurredAt."
+    ),
+    inserted: numberOutputProperty(
+      "Historical event rows inserted by this request."
+    ),
+    duplicates: numberOutputProperty(
+      "Historical event rows skipped because their idempotency receipt already existed."
     ),
     sideEffectFailures: {
       type: "array",
@@ -1308,7 +1384,7 @@ export const outputPropertiesByToolName: Record<
       "New logic_branch node ID when the inserted step is a branch."
     ),
     addedBranchPathNodeIds: objectOutputProperty(
-      "Created path node IDs keyed by branch ID, plus else. Directly wired paths have empty arrays."
+      "Created path node IDs keyed by branch ID, plus else, in path order. Directly wired paths have empty arrays. Use a path's last node ID as afterNodeId to insert a nested branch on that path."
     ),
   },
   // enable/disable answer with the sequence's new state inline rather than a

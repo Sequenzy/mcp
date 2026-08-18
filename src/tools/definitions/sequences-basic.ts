@@ -205,7 +205,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
         senderProfileId: {
           type: "string",
           description:
-            "Existing sender profile ID (see list_sender_profiles). It already supplies both the From address and display name, so send it on its own and omit fromEmail and fromName.",
+            "Existing sender profile ID (see list_sender_profiles). It already supplies both the From address and display name, so send it on its own and omit fromEmail and fromName. To keep this profile under a different display name, set fromName on the email steps instead, where it is a per-step override.",
         },
         replyTo: {
           type: "string",
@@ -442,7 +442,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
                 "event_received",
               ],
               description:
-                "Stop condition type. has_tag, added_to_list, entered_segment, field_changed, and event_received stop the run once the thing happens. does_not_have_tag and removed_from_list stop the run whenever the subscriber lacks that tag or list membership, so they act as a required-tag or required-list allowlist for everyone the trigger enrolls.",
+                "Stop condition type. has_tag, added_to_list, entered_segment, field_changed, and event_received stop the run once the thing happens. event_received only counts events received after enrollment - the enrolling event and earlier history never satisfy the stop. does_not_have_tag and removed_from_list stop the run whenever the subscriber lacks that tag or list membership, so they act as a required-tag or required-list allowlist for everyone the trigger enrolls.",
             },
             value: {
               type: ["string", "null"],
@@ -452,7 +452,75 @@ export const sequenceBasicToolDefinitions: Tool[] = [
             matchConfig: {
               type: ["object", "null"],
               description:
-                "Optional dashboard-compatible match config: event_property with rules[{entryFieldPath,eventFieldPath}] for event_received, or field_value with operator/value for field_changed.",
+                "Optional stop-condition matching. For type 'event_received': { mode: 'event_property_filter', propertyFilters: [{ path: 'quota_used', operator: 'greater_than', value: 1 }] } stops only when an event received after enrollment matches every filter (operators: exists, not_exists, equals, not_equals, one_of, contains, greater_than, less_than), or { mode: 'event_property', rules: [{ entryFieldPath: 'orderId', eventFieldPath: 'orderId' }] } stops only when the stop event's field equals the same field on the enrolling event. For type 'field_changed': { mode: 'field_value', operator: 'equals', value: 'pro' } stops only when the field changes to a matching value. event_received stops only match events received after enrollment, so a stop on the trigger's own event name is safe when combined with propertyFilters.",
+              properties: {
+                mode: {
+                  type: "string",
+                  enum: [
+                    "event_property_filter",
+                    "event_property",
+                    "field_value",
+                  ],
+                },
+                propertyFilters: {
+                  type: "array",
+                  description:
+                    "event_property_filter mode: filters the stop event must all match; same shape as trigger propertyFilters.",
+                  items: {
+                    type: "object",
+                    properties: {
+                      path: { type: "string" },
+                      operator: {
+                        type: "string",
+                        enum: [
+                          "exists",
+                          "not_exists",
+                          "equals",
+                          "not_equals",
+                          "one_of",
+                          "contains",
+                          "greater_than",
+                          "less_than",
+                        ],
+                      },
+                      value: {
+                        description:
+                          "Comparison value (string, number, or boolean; array for one_of). Omit for exists/not_exists.",
+                      },
+                    },
+                    required: ["path", "operator"],
+                  },
+                },
+                rules: {
+                  type: "array",
+                  description:
+                    "event_property mode: entry-vs-stop-event field equality rules.",
+                  items: {
+                    type: "object",
+                    properties: {
+                      entryFieldPath: { type: "string" },
+                      eventFieldPath: { type: "string" },
+                    },
+                    required: ["entryFieldPath", "eventFieldPath"],
+                  },
+                },
+                operator: {
+                  type: "string",
+                  enum: [
+                    "equals",
+                    "not_equals",
+                    "greater_than",
+                    "less_than",
+                    "contains",
+                    "not_contains",
+                  ],
+                  description: "field_value mode comparison operator.",
+                },
+                value: {
+                  type: "string",
+                  description: "field_value mode comparison value.",
+                },
+              },
               additionalProperties: true,
             },
           },

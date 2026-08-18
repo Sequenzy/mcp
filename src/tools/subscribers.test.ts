@@ -1325,6 +1325,20 @@ describe("subscriber MCP tools", () => {
     );
   });
 
+  it("publishes both live and historical event response fields", () => {
+    const tool = tools.find(
+      (candidate) => candidate.name === "trigger_subscriber_event"
+    );
+    const properties = tool?.outputSchema?.properties;
+
+    expect(properties).toHaveProperty("event");
+    expect(properties).toHaveProperty("duplicate");
+    expect(properties).toHaveProperty("historical");
+    expect(properties).toHaveProperty("events");
+    expect(properties).toHaveProperty("inserted");
+    expect(properties).toHaveProperty("duplicates");
+  });
+
   it("rejects trigger_subscriber_event without a subscriber identifier", async () => {
     const result = await handleToolCall("trigger_subscriber_event", {
       event: "invoice.paid",

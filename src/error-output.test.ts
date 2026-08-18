@@ -140,6 +140,28 @@ describe("formatMcpError", () => {
     expect(message).not.toContain("API key permission required");
   });
 
+  it("formats company creation key-type failures with personal-key guidance", () => {
+    const message = formatMcpError(
+      new McpApiError(
+        "This API key is scoped to a single company, so it cannot create another one.",
+        403,
+        '{"error":"company key cannot create companies"}',
+        "COMPANY_CREATE_REQUIRES_PERSONAL_KEY"
+      )
+    );
+
+    expect(message).toContain(
+      "Sequenzy MCP error: Personal account key required"
+    );
+    expect(message).toContain("`seq_user_`");
+    expect(message).toContain("Account → API Keys");
+    expect(message).toContain("replace `SEQUENZY_API_KEY`");
+    expect(message).toContain("reconnect the MCP client");
+    expect(message).toContain("create the company in the Sequenzy dashboard");
+    expect(message).toContain("selecting another company will not fix");
+    expect(message).not.toContain("select a company the key can access");
+  });
+
   it("formats structured API conflicts with API-provided recovery guidance", () => {
     const message = formatMcpError(
       new McpApiError(

@@ -583,6 +583,16 @@ export const campaignToolDefinitions: Tool[] = [
           description:
             "Spread delivery over an integer number of hours from 1 to 72. When set, spread delivery takes precedence over send-time optimization.",
         },
+        sendInRecipientTimezone: {
+          type: "boolean",
+          description:
+            "Deliver at scheduledAt's wall-clock time in each recipient's own timezone ('send when it's 8pm for the customer'). Requires `scheduledTimezone`; contacts without a stored timezone receive the campaign at scheduledAt itself. Not combinable with `recurringInterval` or `spreadOverHours`.",
+        },
+        scheduledTimezone: {
+          type: "string",
+          description:
+            "IANA timezone the scheduledAt wall-clock time refers to, for example America/New_York. Required with `sendInRecipientTimezone`.",
+        },
         recurringInterval: {
           type: "string",
           enum: ["weekly", "monthly"],

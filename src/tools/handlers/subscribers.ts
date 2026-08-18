@@ -123,6 +123,9 @@ export async function handleSubscriberTools(
           }),
           ...(args.firstName !== undefined && { firstName: args.firstName }),
           ...(args.lastName !== undefined && { lastName: args.lastName }),
+          ...(typeof args.timezone === "string" && {
+            timezone: args.timezone.trim() || null,
+          }),
           customAttributes: args.attributes,
           tags: args.tags,
           lists: args.listIds,
@@ -283,6 +286,10 @@ export async function handleSubscriberTools(
       }
       if (args.lastName !== undefined) {
         body.lastName = args.lastName;
+      }
+      // "" clears the stored timezone; the API validates IANA identifiers.
+      if (typeof args.timezone === "string") {
+        body.timezone = args.timezone.trim() || null;
       }
       // Phone and phoneCountry are native profile fields. They are forwarded
       // verbatim (including "" to clear the phone) so the API stays the single
