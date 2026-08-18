@@ -5,7 +5,8 @@ type ApiRequestMock = (
   method: string,
   path: string,
   body?: unknown,
-  companyIdOverride?: string
+  companyIdOverride?: string,
+  requestHeaders?: Readonly<Record<string, string>>
 ) => Promise<unknown>;
 
 const mockApiRequest = mock<ApiRequestMock>(async () => {
@@ -2957,6 +2958,7 @@ describe("transactional email tools", () => {
     expect(inputSchema?.properties).toHaveProperty("templateId");
     expect(inputSchema?.properties).toHaveProperty("emailType");
     expect(inputSchema?.properties).toHaveProperty("replyTo");
+    expect(inputSchema?.properties).toHaveProperty("idempotencyKey");
     expect(inputSchema?.properties).toHaveProperty("attachments");
     expect(inputSchema?.properties).toHaveProperty("trackingSettings");
     const trackingSettingsSchema = properties?.["trackingSettings"] as
@@ -3039,6 +3041,31 @@ describe("transactional email tools", () => {
         variables: { firstName: "Paul" },
       },
       undefined
+    );
+  });
+
+  it("forwards send_email idempotencyKey as the retry header", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      emailSendId: "send_retry_safe_123",
+    });
+
+    await handleToolCall("send_email", {
+      companyId: "company_123",
+      to: "user@example.com",
+      templateId: "receipt",
+      idempotencyKey: "order-123-receipt",
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/transactional/send",
+      {
+        to: "user@example.com",
+        slug: "receipt",
+      },
+      "company_123",
+      { "Idempotency-Key": "order-123-receipt" }
     );
   });
 
