@@ -453,7 +453,7 @@ export const outputPropertiesByToolName: Record<
     history: {
       type: "object",
       description:
-        "PostHog only: outcome of the optional history import request ({ requested, queued, error }). The webhook connection succeeds even if queueing the import failed.",
+        "PostHog and Segment only: outcome of the optional history import request ({ requested, queued, error }). The webhook connection succeeds even if queueing the import failed.",
     },
   },
   set_integration_sync_enabled: {

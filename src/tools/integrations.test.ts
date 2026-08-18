@@ -107,6 +107,33 @@ describe("integration tool definitions", () => {
       byName.get("list_integration_capabilities")?.inputSchema.required
     ).toBeUndefined();
   });
+
+  it("publishes Segment connect and history contracts", () => {
+    const connectTool = tools.find(
+      (tool) => tool.name === "connect_integration"
+    );
+    const providerSchema = connectTool?.inputSchema.properties?.["provider"] as
+      | { enum?: string[] }
+      | undefined;
+    const historyInput = connectTool?.inputSchema.properties?.[
+      "historyImport"
+    ] as
+      | {
+          properties?: Record<string, unknown>;
+          required?: string[];
+        }
+      | undefined;
+    const historyOutput = connectTool?.outputSchema?.properties?.["history"] as
+      | { description?: string }
+      | undefined;
+
+    expect(providerSchema?.enum).toContain("segment");
+    expect(historyInput?.properties).toHaveProperty("region");
+    expect(historyInput?.properties).toHaveProperty("spaceId");
+    expect(historyInput?.properties).toHaveProperty("profileApiToken");
+    expect(historyInput?.required).toEqual(["region"]);
+    expect(historyOutput?.description).toContain("PostHog and Segment");
+  });
 });
 
 describe("integration tool routing", () => {
@@ -277,6 +304,27 @@ describe("integration tool routing", () => {
       region: "us",
       projectId: "123",
       personalApiKey: "phx",
+    });
+  });
+
+  it("passes the Segment history import through on connect", async () => {
+    await handleToolCall("connect_integration", {
+      provider: "segment",
+      webhookSecret: "segment-shared-secret",
+      historyImport: {
+        region: "eu",
+        spaceId: "spa_segment",
+        profileApiToken: "segment-profile-token",
+      },
+    });
+
+    const body = mockApiRequest.mock.calls[0]?.[2] as {
+      historyImport?: unknown;
+    };
+    expect(body.historyImport).toEqual({
+      region: "eu",
+      spaceId: "spa_segment",
+      profileApiToken: "segment-profile-token",
     });
   });
 
