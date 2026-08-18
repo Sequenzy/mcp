@@ -130,6 +130,34 @@ export function validateScheduleCampaignArgs(
   }
 
   if (
+    args.sendInRecipientTimezone !== undefined &&
+    typeof args.sendInRecipientTimezone !== "boolean"
+  ) {
+    throw new Error(
+      "`sendInRecipientTimezone` must be a boolean when calling `schedule_campaign`."
+    );
+  }
+
+  if (
+    args.scheduledTimezone !== undefined &&
+    (typeof args.scheduledTimezone !== "string" ||
+      args.scheduledTimezone.trim() === "")
+  ) {
+    throw new Error(
+      "`scheduledTimezone` must be a non-empty IANA timezone string (e.g. America/New_York) when calling `schedule_campaign`."
+    );
+  }
+
+  if (
+    args.sendInRecipientTimezone === true &&
+    args.scheduledTimezone === undefined
+  ) {
+    throw new Error(
+      "`scheduledTimezone` is required when `sendInRecipientTimezone` is true - it is the IANA zone the scheduledAt wall-clock time refers to."
+    );
+  }
+
+  if (
     args.recurringInterval !== undefined &&
     args.recurringInterval !== "weekly" &&
     args.recurringInterval !== "monthly"

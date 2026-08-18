@@ -388,6 +388,12 @@ not a custom attribute. Pass `smsConsent: true` only after verifying express
 written consent, or `false` to opt the contact out. Changing the phone without
 `smsConsent` resets SMS consent because consent belongs to the old number.
 
+`add_subscriber`, `update_subscriber`, and `create_subscriber_import` accept an
+IANA `timezone` such as `America/New_York`. The value is stored on the native
+contact profile and enables recipient-local campaign delivery. Pass an empty
+timezone to `update_subscriber` to clear it; invalid import-row values are
+ignored without rejecting the rest of the import.
+
 ### Products & Digital Delivery
 
 | Tool                  | Description                                                                           |
@@ -603,6 +609,13 @@ Prompt-created campaigns are generated and persisted in one API request and
 remain drafts. Use `templateId`, `blocks`, or `html` only when copying or
 preserving existing content rather than asking the agent to author it. Omit all
 content fields to create an empty draft for later editing.
+
+To deliver at the same wall-clock time in every recipient's own timezone, call
+`schedule_campaign` with `sendInRecipientTimezone: true` and an IANA
+`scheduledTimezone` that identifies the wall clock represented by
+`scheduledAt`. Contacts without a stored timezone receive the campaign at the
+`scheduledAt` instant. This mode cannot be combined with recurring or spread
+delivery.
 
 For campaign- and sequence-level identities, `fromEmail` plus `fromName`
 selects the sender identity with that display name on the mailbox, creating it

@@ -17,6 +17,11 @@ const subscriberImportRecordSchema = {
     },
     firstName: { type: "string" as const },
     lastName: { type: "string" as const },
+    timezone: {
+      type: "string" as const,
+      description:
+        "IANA timezone identifier (e.g. America/New_York) used for recipient-local campaign delivery. Rows with an invalid value import without it.",
+    },
     phone: {
       type: "string" as const,
       description:
@@ -93,6 +98,11 @@ export const subscriberToolDefinitions: Tool[] = [
           type: "string",
           description:
             "Subscriber last name, stored as a native profile field.",
+        },
+        timezone: {
+          type: "string",
+          description:
+            "IANA timezone identifier (e.g. America/New_York), stored as a native profile field. Enables recipient-local campaign delivery for this contact.",
         },
         attributes: {
           type: "object",
@@ -243,6 +253,11 @@ export const subscriberToolDefinitions: Tool[] = [
           type: "string",
           description:
             "New last name, stored as a native profile field. Pass an empty string to clear it.",
+        },
+        timezone: {
+          type: "string",
+          description:
+            "New IANA timezone identifier (e.g. America/New_York), stored as a native profile field. Pass an empty string to clear it. Enables recipient-local campaign delivery for this contact.",
         },
         phone: {
           type: "string",
