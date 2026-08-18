@@ -518,7 +518,7 @@ export const outputPropertiesByToolName: Record<
     keys: {
       type: "array",
       description:
-        "Publishable keys for the browser tracking SDK, newest first. A key with lastUsedAt null was created but never deployed, which is the usual reason on-site tracking is silently dark.",
+        "Publishable keys for the browser tracking SDK, newest first. A key with lastUsedAt null has not successfully authenticated an event yet; check deployment, instrumentation or traffic, and the origin allowlist.",
       items: objectOutputProperty(
         "One key: id, name, publicKey, allowedOrigins, isActive, unrestricted, lastUsedAt, installSnippet, endpoint, and warning when unrestricted."
       ),
