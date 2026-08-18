@@ -30,6 +30,25 @@ await mock.module("../runtime.js", () => ({
 
 const { handleToolCall, tools } = await import("./index.js");
 
+describe("web tracking MCP tools", () => {
+  beforeEach(() => {
+    mockApiRequest.mockReset();
+  });
+
+  it("rejects a key update without an editable field", async () => {
+    const result = await handleToolCall("update_web_tracking_key", {
+      id: "tracking-key-1",
+      companyId: "company-1",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Provide at least one of `name`, `allowedOrigins`, or `isActive`"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+});
+
 function collectSchemaKeywordPaths(
   value: unknown,
   keyword: string,
@@ -521,7 +540,7 @@ describe("tool schema compatibility", () => {
     expect(conditionType?.enum).toContain("does_not_have_tag");
   });
 
-  it("publishes the same webhook step fields on insertSteps as insert_sequence_step", () => {
+  it("publishes webhook fields and bounded AI output lengths on insertSteps", () => {
     const updateSequenceTool = tools.find(
       (tool) => tool.name === "update_sequence"
     );
@@ -567,6 +586,18 @@ describe("tool schema compatibility", () => {
       "exit",
       "fail",
     ]);
+    const outputFields = configProperties?.["outputFields"];
+    const outputFieldItems = outputFields?.["items"] as
+      | Record<string, unknown>
+      | undefined;
+    const outputFieldProperties = outputFieldItems?.["properties"] as
+      | Record<string, Record<string, unknown>>
+      | undefined;
+    expect(outputFieldProperties?.["maxLength"]).toMatchObject({
+      type: "integer",
+      minimum: 1,
+      maximum: 4000,
+    });
   });
 });
 
@@ -3758,6 +3789,70 @@ describe("update_campaign tool validation", () => {
     expect(result.content[0]?.text).toContain(
       "send `senderProfileId` on its own"
     );
+    // A campaign has no email steps, so it must not be sent to a step override
+    // that does not exist there.
+    expect(result.content[0]?.text).not.toContain("on the email steps");
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  // Reported from production: an agent drafting a trial-onboarding sequence
+  // paired senderProfileId with fromName. The rule was stated, but the only
+  // remedy offered was dropping the profile - so point at the per-step
+  // override, which keeps the verified sender and still renames it.
+  it("offers the per-step display-name override when a sequence rejects fromName", async () => {
+    const result = await handleToolCall("create_sequence", {
+      name: "Trial onboarding",
+      trigger: "event_received",
+      eventName: "trial.started",
+      senderProfileId: "sender_123",
+      fromName: "Brennon at TradeTally",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`fromName` cannot be combined with `senderProfileId` when calling `create_sequence`."
+    );
+    expect(result.content[0]?.text).toContain(
+      "set `fromName` on each email step"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("names both the address and the display-name fix in one sequence rejection", async () => {
+    // senderProfileId + fromEmail + fromName used to report only the address
+    // conflict, so the retry that dropped fromEmail hit the name conflict next.
+    const result = await handleToolCall("update_sequence", {
+      sequenceId: "seq_123",
+      senderProfileId: "sender_123",
+      fromEmail: "hello@example.com",
+      fromName: "Brennon at TradeTally",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Provide either `fromEmail` or `senderProfileId` when calling `update_sequence`, not both."
+    );
+    expect(result.content[0]?.text).toContain(
+      "set `fromName` on the email steps instead"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("keeps replyToName out of the per-step remedy", async () => {
+    // An address carries one Reply-To name company-wide, so there is no
+    // per-step override to point at.
+    const result = await handleToolCall("create_sequence", {
+      name: "Trial onboarding",
+      trigger: "contact_added",
+      replyProfileId: "reply_123",
+      replyToName: "Outlex Support",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`replyToName` cannot be combined with `replyProfileId` when calling `create_sequence`."
+    );
+    expect(result.content[0]?.text).not.toContain("on each email step");
     expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
@@ -7047,6 +7142,20 @@ describe("insert_sequence_step tool", () => {
     expect(inputSchema?.properties).toHaveProperty("branches");
     expect(inputSchema?.properties).toHaveProperty("elseSteps");
     expect(inputSchema?.properties).toHaveProperty("elseTargetNodeId");
+    const outputFields = inputSchema?.properties?.["outputFields"] as
+      | Record<string, unknown>
+      | undefined;
+    const outputFieldItems = outputFields?.["items"] as
+      | Record<string, unknown>
+      | undefined;
+    const outputFieldProperties = outputFieldItems?.["properties"] as
+      | Record<string, Record<string, unknown>>
+      | undefined;
+    expect(outputFieldProperties?.["maxLength"]).toMatchObject({
+      type: "integer",
+      minimum: 1,
+      maximum: 4000,
+    });
     const typeSchema = inputSchema?.properties?.["type"] as
       | { enum?: string[] }
       | undefined;
@@ -7061,6 +7170,7 @@ describe("insert_sequence_step tool", () => {
       "add_to_list",
       "remove_from_list",
       "webhook",
+      "ai",
       "condition",
       "logic_wait_for_event",
       "logic_branch",
@@ -11218,6 +11328,162 @@ describe("buildInsertSequenceStepBody webhook steps", () => {
     expect(() =>
       buildInsertSequenceStepBody({ ...baseArgs, resultKey: 7 })
     ).toThrow("`resultKey` must be a string");
+  });
+});
+
+describe("buildInsertSequenceStepBody random split branches", () => {
+  const randomSplitArgs = {
+    sequenceId: "seq_1",
+    type: "logic_branch",
+    afterNodeId: "node_wait",
+    splitMode: "random",
+    randomPercentages: [50, 50],
+    branches: [
+      {
+        id: "discount",
+        label: "10% off",
+        steps: [{ subject: "Here is 10% off", html: "<p>Come back</p>" }],
+      },
+      {
+        id: "bonus",
+        label: "Free shipping",
+        steps: [{ subject: "Free shipping", html: "<p>Come back</p>" }],
+      },
+    ],
+  };
+
+  it("builds a weighted split without requiring conditionType", async () => {
+    const { buildInsertSequenceStepBody } = await import(
+      "./sequence-validation"
+    );
+
+    const body = buildInsertSequenceStepBody(randomSplitArgs);
+    const branch = (body as { branch: Record<string, unknown> }).branch;
+
+    expect(branch["splitMode"]).toBe("random");
+    expect(branch["randomPercentages"]).toEqual([50, 50]);
+    expect(branch["branches"]).toEqual([
+      {
+        id: "discount",
+        label: "10% off",
+        steps: [{ subject: "Here is 10% off", html: "<p>Come back</p>" }],
+      },
+      {
+        id: "bonus",
+        label: "Free shipping",
+        steps: [{ subject: "Free shipping", html: "<p>Come back</p>" }],
+      },
+    ]);
+  });
+
+  it("rejects percentages that do not sum to 100", async () => {
+    const { buildInsertSequenceStepBody } = await import(
+      "./sequence-validation"
+    );
+
+    expect(() =>
+      buildInsertSequenceStepBody({
+        ...randomSplitArgs,
+        randomPercentages: [50, 40],
+      })
+    ).toThrow("must sum to 100");
+  });
+
+  it("rejects a percentage count that does not match the branches", async () => {
+    const { buildInsertSequenceStepBody } = await import(
+      "./sequence-validation"
+    );
+
+    expect(() =>
+      buildInsertSequenceStepBody({
+        ...randomSplitArgs,
+        randomPercentages: [100],
+      })
+    ).toThrow("one percentage per entry in `branches`");
+  });
+
+  it("rejects an else path, which a random split can never reach", async () => {
+    const { buildInsertSequenceStepBody } = await import(
+      "./sequence-validation"
+    );
+
+    expect(() =>
+      buildInsertSequenceStepBody({
+        ...randomSplitArgs,
+        elseSteps: [{ subject: "Fallback", html: "<p>Fallback</p>" }],
+      })
+    ).toThrow("not valid when `splitMode` is `random`");
+  });
+
+  it("rejects a conditionType on a random branch", async () => {
+    const { buildInsertSequenceStepBody } = await import(
+      "./sequence-validation"
+    );
+
+    expect(() =>
+      buildInsertSequenceStepBody({
+        ...randomSplitArgs,
+        branches: [
+          { id: "a", conditionType: "has_tag", tagName: "vip", steps: [] },
+          { id: "b", steps: [] },
+        ],
+      })
+    ).toThrow("must be omitted when `splitMode` is `random`");
+  });
+
+  it("rejects condition resource fields on a random branch", async () => {
+    const { buildInsertSequenceStepBody } = await import(
+      "./sequence-validation"
+    );
+
+    expect(() =>
+      buildInsertSequenceStepBody({
+        ...randomSplitArgs,
+        branches: [
+          { id: "a", tagName: "vip", steps: [] },
+          { id: "b", steps: [] },
+        ],
+      })
+    ).toThrow("`branches[0].tagName` must be omitted");
+  });
+
+  it("rejects randomPercentages on a condition split", async () => {
+    const { buildInsertSequenceStepBody } = await import(
+      "./sequence-validation"
+    );
+
+    expect(() =>
+      buildInsertSequenceStepBody({
+        sequenceId: "seq_1",
+        type: "logic_branch",
+        afterNodeId: "node_wait",
+        randomPercentages: [50, 50],
+        branches: [
+          {
+            conditionType: "has_tag",
+            tagName: "vip",
+            steps: [{ subject: "VIP", html: "<p>VIP</p>" }],
+          },
+        ],
+        elseSteps: [{ subject: "Standard", html: "<p>Standard</p>" }],
+      })
+    ).toThrow("only valid when `splitMode` is `random`");
+  });
+
+  it("still requires conditionType on a condition split", async () => {
+    const { buildInsertSequenceStepBody } = await import(
+      "./sequence-validation"
+    );
+
+    expect(() =>
+      buildInsertSequenceStepBody({
+        sequenceId: "seq_1",
+        type: "logic_branch",
+        afterNodeId: "node_wait",
+        branches: [{ id: "a", steps: [{ subject: "A", html: "<p>A</p>" }] }],
+        elseSteps: [{ subject: "B", html: "<p>B</p>" }],
+      })
+    ).toThrow("conditionType");
   });
 });
 

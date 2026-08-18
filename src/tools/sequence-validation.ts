@@ -207,6 +207,63 @@ export function buildSequenceGraphEditBody(
   };
 }
 
+function validateBranchConditionFields(
+  conditionType: string,
+  value: Record<string, unknown>,
+  pathLabel: string
+): void {
+  if (
+    (conditionType === "has_tag" || conditionType === "does_not_have_tag") &&
+    !optionalString(value, "tagId") &&
+    !optionalString(value, "tagName")
+  ) {
+    throw new Error(
+      `\`${pathLabel}\` must provide \`tagId\` or \`tagName\` for ${conditionType} when calling \`insert_sequence_step\`.`
+    );
+  }
+  if (conditionType === "in_list" && !optionalString(value, "listId")) {
+    throw new Error(
+      `\`${pathLabel}.listId\` is required for in_list when calling \`insert_sequence_step\`.`
+    );
+  }
+  if (conditionType === "in_segment" && !optionalString(value, "segmentId")) {
+    throw new Error(
+      `\`${pathLabel}.segmentId\` is required for in_segment when calling \`insert_sequence_step\`.`
+    );
+  }
+  if (
+    conditionType === "event_received" &&
+    !optionalString(value, "eventName")
+  ) {
+    throw new Error(
+      `\`${pathLabel}.eventName\` is required for event_received when calling \`insert_sequence_step\`.`
+    );
+  }
+  if (
+    conditionType.startsWith("field_") &&
+    (!optionalString(value, "fieldName") ||
+      !optionalString(value, "fieldValue"))
+  ) {
+    throw new Error(
+      `\`${pathLabel}\` must provide \`fieldName\` and \`fieldValue\` for ${conditionType} when calling \`insert_sequence_step\`.`
+    );
+  }
+}
+
+const RANDOM_SPLIT_CONDITION_FIELDS = [
+  "conditionType",
+  "tagId",
+  "tagName",
+  "listId",
+  "segmentId",
+  "segmentName",
+  "eventName",
+  "linkUrl",
+  "activityScope",
+  "fieldName",
+  "fieldValue",
+] as const;
+
 export function buildInsertSequenceStepBody(
   args: Record<string, unknown>
 ): Record<string, unknown> {
@@ -223,6 +280,7 @@ export function buildInsertSequenceStepBody(
     "add_to_list",
     "remove_from_list",
     "webhook",
+    "ai",
     "logic_wait_for_event",
     "logic_branch",
   ]);
@@ -305,6 +363,56 @@ export function buildInsertSequenceStepBody(
       "has_phone",
       "sms_subscribed",
     ]);
+    const splitMode = optionalString(args, "splitMode") ?? "condition";
+    if (splitMode !== "condition" && splitMode !== "random") {
+      throw new Error(
+        "`splitMode` must be `condition` or `random` when inserting `logic_branch` with `insert_sequence_step`."
+      );
+    }
+    const isRandomSplit = splitMode === "random";
+
+    if (isRandomSplit) {
+      if (
+        !Array.isArray(args.randomPercentages) ||
+        args.randomPercentages.length !== args.branches.length
+      ) {
+        throw new Error(
+          "`randomPercentages` must contain one percentage per entry in `branches` when `splitMode` is `random`."
+        );
+      }
+      if (
+        args.randomPercentages.some(
+          (value) =>
+            typeof value !== "number" || !Number.isFinite(value) || value < 0
+        )
+      ) {
+        throw new Error(
+          "`randomPercentages` must contain non-negative numbers when `splitMode` is `random`."
+        );
+      }
+      const total = args.randomPercentages.reduce<number>(
+        (sum, value) => sum + (value as number),
+        0
+      );
+      if (Math.abs(total - 100) > 0.001) {
+        throw new Error(
+          `\`randomPercentages\` must sum to 100 when \`splitMode\` is \`random\`, received ${total}.`
+        );
+      }
+      if (
+        (Array.isArray(args.elseSteps) && args.elseSteps.length > 0) ||
+        optionalString(args, "elseTargetNodeId")
+      ) {
+        throw new Error(
+          "`elseSteps` and `elseTargetNodeId` are not valid when `splitMode` is `random`. Every path is weighted by `randomPercentages`, so add another entry to `branches` instead."
+        );
+      }
+    } else if (args.randomPercentages !== undefined) {
+      throw new Error(
+        "`randomPercentages` is only valid when `splitMode` is `random`."
+      );
+    }
+
     const branchKeys = [
       "id",
       "label",
@@ -329,56 +437,28 @@ export function buildInsertSequenceStepBody(
           `\`branches[${index}]\` must be an object when calling \`insert_sequence_step\`.`
         );
       }
-      const conditionType = requiredString(
-        "insert_sequence_step",
-        value,
-        "conditionType"
-      );
-      if (!conditionTypes.has(conditionType)) {
-        throw new Error(
-          `\`branches[${index}].conditionType\` is not supported when calling \`insert_sequence_step\`.`
-        );
-      }
       const pathLabel = `branches[${index}]`;
-      if (
-        (conditionType === "has_tag" ||
-          conditionType === "does_not_have_tag") &&
-        !optionalString(value, "tagId") &&
-        !optionalString(value, "tagName")
-      ) {
-        throw new Error(
-          `\`${pathLabel}\` must provide \`tagId\` or \`tagName\` for ${conditionType} when calling \`insert_sequence_step\`.`
+      if (isRandomSplit) {
+        const conditionField = RANDOM_SPLIT_CONDITION_FIELDS.find(
+          (field) => value[field] !== undefined
         );
-      }
-      if (conditionType === "in_list" && !optionalString(value, "listId")) {
-        throw new Error(
-          `\`${pathLabel}.listId\` is required for in_list when calling \`insert_sequence_step\`.`
+        if (conditionField) {
+          throw new Error(
+            `\`${pathLabel}.${conditionField}\` must be omitted when \`splitMode\` is \`random\`, because the path is chosen by percentage rather than by evaluating the subscriber.`
+          );
+        }
+      } else {
+        const conditionType = requiredString(
+          "insert_sequence_step",
+          value,
+          "conditionType"
         );
-      }
-      if (
-        conditionType === "in_segment" &&
-        !optionalString(value, "segmentId")
-      ) {
-        throw new Error(
-          `\`${pathLabel}.segmentId\` is required for in_segment when calling \`insert_sequence_step\`.`
-        );
-      }
-      if (
-        conditionType === "event_received" &&
-        !optionalString(value, "eventName")
-      ) {
-        throw new Error(
-          `\`${pathLabel}.eventName\` is required for event_received when calling \`insert_sequence_step\`.`
-        );
-      }
-      if (
-        conditionType.startsWith("field_") &&
-        (!optionalString(value, "fieldName") ||
-          !optionalString(value, "fieldValue"))
-      ) {
-        throw new Error(
-          `\`${pathLabel}\` must provide \`fieldName\` and \`fieldValue\` for ${conditionType} when calling \`insert_sequence_step\`.`
-        );
+        if (!conditionTypes.has(conditionType)) {
+          throw new Error(
+            `\`branches[${index}].conditionType\` is not supported when calling \`insert_sequence_step\`.`
+          );
+        }
+        validateBranchConditionFields(conditionType, value, pathLabel);
       }
       if (value.steps !== undefined && !Array.isArray(value.steps)) {
         throw new Error(
@@ -408,7 +488,13 @@ export function buildInsertSequenceStepBody(
     const elseTargetNodeId = optionalString(args, "elseTargetNodeId");
     const hasElseSteps =
       Array.isArray(args.elseSteps) && args.elseSteps.length > 0;
-    if (!elseTargetNodeId && !hasElseSteps && !allowEmptyPaths) {
+    // A random split has no else lane, so there is nothing to require here.
+    if (
+      !isRandomSplit &&
+      !elseTargetNodeId &&
+      !hasElseSteps &&
+      !allowEmptyPaths
+    ) {
       throw new Error(
         "Provide `elseTargetNodeId` or non-empty `elseSteps` when inserting `logic_branch` with `insert_sequence_step`."
       );
@@ -422,6 +508,9 @@ export function buildInsertSequenceStepBody(
         afterNodeId,
         ...(optionalString(args, "label")
           ? { label: optionalString(args, "label") }
+          : {}),
+        ...(isRandomSplit
+          ? { splitMode, randomPercentages: args.randomPercentages }
           : {}),
         branches,
         ...(Array.isArray(args.elseSteps) ? { elseSteps: args.elseSteps } : {}),
@@ -440,7 +529,8 @@ export function buildInsertSequenceStepBody(
     stepType === "remove_tag" ||
     stepType === "add_to_list" ||
     stepType === "remove_from_list" ||
-    stepType === "webhook"
+    stepType === "webhook" ||
+    stepType === "ai"
   ) {
     let step: Record<string, unknown>;
     if (stepType === "delay") {
@@ -541,6 +631,62 @@ export function buildInsertSequenceStepBody(
           ...(args.headers !== undefined ? { headers: args.headers } : {}),
           ...(body ? { body } : {}),
           ...(resultKey ? { resultKey } : {}),
+          ...(onError ? { onError } : {}),
+        },
+      };
+    } else if (stepType === "ai") {
+      const onError = optionalString(args, "onError");
+      if (onError && !["continue", "exit", "fail"].includes(onError)) {
+        throw new Error(
+          "`onError` must be `continue`, `exit`, or `fail` when inserting an ai step."
+        );
+      }
+      if (!Array.isArray(args.outputFields) || args.outputFields.length === 0) {
+        throw new Error(
+          "`outputFields` is required when inserting an ai step, e.g. [{ key: 'subject_line', fallback: 'We miss you' }]."
+        );
+      }
+      if (args.includeAttributes !== undefined) {
+        if (
+          !Array.isArray(args.includeAttributes) ||
+          args.includeAttributes.some((key) => typeof key !== "string")
+        ) {
+          throw new Error(
+            "`includeAttributes` must be an array of attribute names when inserting an ai step."
+          );
+        }
+      }
+      if (
+        args.recentEventLimit !== undefined &&
+        typeof args.recentEventLimit !== "number"
+      ) {
+        throw new Error(
+          "`recentEventLimit` must be a number between 1 and 50 when inserting an ai step."
+        );
+      }
+      step = {
+        type: "ai",
+        nodeType: "action_ai",
+        config: {
+          label: optionalString(args, "label") ?? "Ask AI",
+          prompt: requiredString("insert_sequence_step", args, "prompt"),
+          resultKey: requiredString("insert_sequence_step", args, "resultKey"),
+          outputFields: args.outputFields,
+          ...(args.includeTags !== undefined
+            ? { includeTags: args.includeTags === true }
+            : {}),
+          ...(args.includeEventProperties !== undefined
+            ? { includeEventProperties: args.includeEventProperties === true }
+            : {}),
+          ...(args.includeRecentEvents !== undefined
+            ? { includeRecentEvents: args.includeRecentEvents === true }
+            : {}),
+          ...(args.recentEventLimit !== undefined
+            ? { recentEventLimit: args.recentEventLimit }
+            : {}),
+          ...(args.includeAttributes !== undefined
+            ? { includeAttributes: args.includeAttributes }
+            : {}),
           ...(onError ? { onError } : {}),
         },
       };
