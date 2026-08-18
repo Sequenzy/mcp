@@ -13,7 +13,7 @@ Connect Sequenzy to Claude Desktop, Claude Code, Codex, Cursor, Windsurf, VS Cod
 - Draft, update, schedule, and inspect campaigns, including resolved audience previews and From, Reply-To, CC, and BCC identities.
 - Render campaigns, sequence steps, and templates to their exact email-safe HTML without sending.
 - Add one-click Poll and NPS survey blocks to emails and inspect campaign response summaries.
-- Create and edit email sequences, including event-triggered and segment-entry automations, sending identity overrides, existing graph restructuring, and direct step test sends to internal reviewers.
+- Create and edit email sequences, including event-triggered and segment-entry automations, property-filtered post-enrollment event stop conditions, sending identity overrides, existing graph restructuring, and direct step test sends to internal reviewers.
 - Cancel, pause, resume, duplicate, or delete campaigns and enroll contacts into sequences.
 - Manage transactional email templates and send single transactional emails.
 - Supply localized template variants or queue AI translation for enabled locales.
@@ -23,7 +23,7 @@ Connect Sequenzy to Claude Desktop, Claude Code, Codex, Cursor, Windsurf, VS Cod
 - Connect and verify custom domains for published landing pages.
 - Manage team invitations, inbox conversations, and outbound webhook endpoints.
 - Generate email copy, subject lines, and multi-step sequences.
-- Inspect analytics, subscriber activity, deliverability health, company-level sending pauses, integrations, sending identities, tracking settings, and dashboard URLs.
+- Inspect analytics, subscriber activity, deliverability health, company-level sending pauses, integrations, published event payload schemas, sending identities, tracking settings, and dashboard URLs.
 - Diagnose why sending is paused and restore eligible hard-bounce pauses after confirming list cleanup.
 - Inspect exact-recipient bounce, complaint, and email-hygiene suppression and clean up removable bounces without exposing the shared SES suppression list.
 - Configure company product info, account-wide sending identity defaults, rename individual sender and reply-to profiles, manage sender domains, and inspect integration examples for common frameworks.
@@ -224,6 +224,15 @@ the whole permission selection rather than merging, so preserve every existing
 scope that is still needed. Hosted OAuth connections can alternatively
 disconnect and reauthorize with broader permissions.
 
+When the active key itself lacks `api_keys:manage`, call
+`request_api_key_handoff` instead of retrying `update_api_key`. It requires
+`account:read` and returns an owner-review URL with the requested key name,
+permissions, and optional predecessor prefilled. It never creates or returns a
+key; the workspace owner reviews the form, creates the replacement in the
+browser, and copies it into the client. Pass `replaceApiKeyId: "current"` to
+offer revocation of the active key after the replacement is created. If the
+active key also lacks `account:read`, use the dashboard directly.
+
 The default **Safer agent access** preset includes `lists:write` and
 `tags:write`, so agents can create and update list and tag definitions, and it
 includes `subscribers:tag` for applying tags to existing contacts. It does not
@@ -238,7 +247,7 @@ build a list as well as create it. Imports that apply `listIds` also need
 
 ## Tools
 
-This server currently exposes 201 MCP tools.
+This server currently exposes 224 MCP tools.
 
 Tools reject arguments they do not declare instead of silently ignoring them.
 Errors name the unsupported fields, list the supported arguments, and provide
@@ -260,7 +269,9 @@ sort options.
 | `get_shopify_automation_settings`    | Read browse-abandonment, cart-abandonment, and price-drop settings for the connected Shopify store.                           |
 | `update_shopify_automation_settings` | Partially update Shopify automation settings or reset an individual section to its platform defaults.                         |
 | `create_api_key`                     | Create an API key for a company, with optional permission preset or explicit scopes.                                          |
+| `request_api_key_handoff`            | Prepare an owner-reviewed create/rotation URL when the active key cannot manage API keys itself.                              |
 | `list_api_keys`                      | List company API keys as non-secret metadata for safe identification and cleanup.                                             |
+| `update_api_key`                     | Rename a company API key or replace its permission preset or scopes without changing the key value.                           |
 | `revoke_api_key`                     | Permanently revoke an exact company API key by ID after checking it with `list_api_keys`.                                     |
 | `delete_api_key`                     | Compatibility alias for `revoke_api_key`.                                                                                     |
 | `list_websites`                      | List sending domains with stored aggregate, SPF, DKIM, and MAIL FROM status.                                                  |
@@ -271,15 +282,22 @@ sort options.
 | `list_integrations`                  | List connected integrations with connection and sync health, without returning credentials.                                   |
 | `get_sending_status`                 | Diagnose active, paused, or suspended sending, including enforcement denominators, review gates, and remediation steps.       |
 | `resume_sending`                     | Restore an eligible hard-bounce pause after explicitly confirming the list has been sanitized.                                |
-| `get_tracking_settings`              | Read open, click, unsubscribe, attribution, UTM, click-domain, and reply-tracking settings.                                   |
+| `get_tracking_settings`              | Read open, click, unsubscribe, attribution, UTM, click-domain, reply-tracking, and double-opt-in settings.                     |
+| `update_tracking_settings`           | Update email tracking, attribution, UTM, and account-wide double-opt-in defaults.                                             |
 | `get_integration_guide`              | Get framework-specific integration examples.                                                                                  |
 | `get_integration`                    | Inspect one connected integration, its event wiring, recent activity, and recommendations.                                    |
 | `list_integration_capabilities`      | Compare provider capabilities whether or not they are connected.                                                              |
+| `get_event_schema`                   | Inspect published event payload examples, property paths, types, and merge tags by provider.                                  |
 | `list_integration_activity`          | Read the retained integration-specific webhook and sync activity log.                                                         |
 | `set_integration_sync_enabled`       | Enable or disable bulk imports and backfills while leaving live webhooks connected.                                           |
-| `sync_integration`                   | Queue a payment-provider revenue backfill or a Supabase user backfill from its saved table configuration.                    |
+| `sync_integration`                   | Queue a payment-provider revenue backfill, configured Supabase user backfill, or retryable PostHog history import.             |
 | `get_integration_pixel`              | Read Shopify's live pixel/configuration state and distinguish confirmed dark events from an unknown read.                     |
 | `activate_integration_pixel`         | Install or repoint Shopify's storefront pixel; idempotent when it is already current.                                         |
+| `list_web_tracking_keys`             | List publishable website-tracking keys, origin restrictions, usage state, and install snippets.                               |
+| `get_web_tracking_key`               | Get one website-tracking key with its exact install snippet and ingest endpoint.                                              |
+| `create_web_tracking_key`            | Create a publishable tracking key for a non-Shopify storefront or website.                                                    |
+| `update_web_tracking_key`            | Rename, restrict, revoke, or re-enable a website-tracking key.                                                                |
+| `delete_web_tracking_key`            | Permanently delete a website-tracking key after its snippet has been removed.                                                 |
 | `list_sender_profiles`               | List sender and reply-to profiles, defaults, and sending-domain readiness.                                                    |
 | `update_sender_profile`              | Rename one sender or reply-to profile without changing the account defaults.                                                  |
 | `get_notification_preferences`       | Read the current user's per-company account notification settings and supported modes.                                        |
@@ -296,6 +314,18 @@ arbitrary table. Run it after installing the live database trigger to import
 users who existed before the trigger was installed, then poll `get_integration`
 and `list_integration_activity` for progress and row-level outcomes.
 
+For PostHog, `sync_integration` restarts the event-history import from the
+beginning with the stored personal API key. Imported events are deduplicated, so
+retrying a failed import does not create duplicates.
+
+Call `get_event_schema` before writing an `{{event.*}}` merge tag or an event
+property filter. Omit `eventName` to list documented built-in events; provide
+an event name to receive provider-specific example payloads and property paths,
+and optionally filter by `provider`. Custom event names remain valid even when
+the result reports `documented: false`; that only means no reference sample is
+published. Use integration activity or sequence enrollments for actual delivery
+data because this tool returns static reference data.
+
 For a new sending domain, call `add_sending_domain`, publish the DNS records in
 the returned `website.dnsRecords`, wait for DNS propagation, and then call
 `verify_sending_domain`. Publish every returned record instead of assuming a
@@ -311,6 +341,18 @@ Shopify because merchants can remove the pixel independently. If
 arrive; call `activate_integration_pixel` to install or repoint the pixel.
 Activation is idempotent, and events begin on the next storefront visit rather
 than being backfilled.
+
+For custom, headless, ticketing, or SaaS websites, use
+`list_web_tracking_keys` before relying on product-view or cart triggers. Create
+a key with an explicit origin allowlist, install the returned `installSnippet`,
+then have the customer's authenticated backend mint a short-lived proof through
+`POST /api/v1/web-tracking-identities` and call
+`sequenzy.identify(email, identityToken)` at sign-in or checkout. A publishable
+key alone only records anonymous activity and cannot trigger subscriber
+automation. The returned snippet installs synchronous method stubs before its
+async loader, so identity and event calls made during page bootstrap are queued
+until the SDK is ready. Prefer revoking a key with `update_web_tracking_key`
+before permanently deleting it.
 
 New companies start with no sync rules. The inherited preset remains available
 for SaaS/ecommerce companies by passing `null` to `update_sync_rules`; services
@@ -343,8 +385,8 @@ abandonment or price-drop settings. Timing values must be positive;
 | `search_subscribers`          | Search by query, tags, list, status, segment, or one custom attribute, with automatic or resumable pagination.  |
 | `trigger_subscriber_event`    | Emit one custom event exactly as an integration would, applying sync rules and matching sequence triggers.      |
 | `trigger_subscriber_events`   | Emit several ordered custom events for one subscriber.                                                          |
-| `bulk_add_subscriber_tags`    | Add tags to up to 500 existing subscribers without creating unknown contacts.                                   |
-| `bulk_remove_subscriber_tags` | Remove tags from up to 500 existing subscribers without creating unknown contacts.                              |
+| `bulk_add_subscriber_tags`    | Add tags to up to 500 existing subscribers; requires `subscribers:tag` and may also require `tags:write`.        |
+| `bulk_remove_subscriber_tags` | Remove tags from up to 500 existing subscribers; requires `subscribers:tag` or `subscribers:write`.              |
 
 Use `create_subscriber_import` for CRM onboarding instead of looping over
 `add_subscriber`. One call accepts 5,000 full records and returns an asynchronous
@@ -364,6 +406,12 @@ reported as an error.
 not a custom attribute. Pass `smsConsent: true` only after verifying express
 written consent, or `false` to opt the contact out. Changing the phone without
 `smsConsent` resets SMS consent because consent belongs to the old number.
+
+`add_subscriber`, `update_subscriber`, and `create_subscriber_import` accept an
+IANA `timezone` such as `America/New_York`. The value is stored on the native
+contact profile and enables recipient-local campaign delivery. Pass an empty
+timezone to `update_subscriber` to clear it; invalid import-row values are
+ignored without rejecting the rest of the import.
 
 ### Products & Digital Delivery
 
@@ -534,6 +582,24 @@ localization workflow. It requires an enabled non-primary `locale`, a localized
 omit `locales` to sync every enabled non-primary locale. Explicit sync works
 even when automatic on-save localization is disabled.
 
+### Reusable Email Components
+
+| Tool                          | Description                                                                    |
+| ----------------------------- | ------------------------------------------------------------------------------ |
+| `list_email_components`       | List saved sections and footers, optionally limited to pinned defaults.        |
+| `get_email_component`         | Read one component's blocks, metadata, version, and default-slot state.        |
+| `get_default_email_component` | Read the component currently pinned to a default slot such as `footer`.        |
+| `set_default_email_component` | Create or replace the company default footer used by newly built block emails. |
+| `create_email_component`      | Save a reusable section or footer from a block list.                           |
+| `update_email_component`      | Update component metadata or replace its blocks and increment its version.     |
+| `delete_email_component`      | Delete a component without changing emails that already copied its blocks.     |
+
+Components are copied into emails when those emails are built, so later edits
+affect newly built emails rather than rewriting existing content. The default
+footer keeps its unsubscribe link enabled, while transactional rendering hides
+that link. Raw HTML emails keep their own markup and do not receive block
+components; their send-time unsubscribe handling remains unchanged.
+
 ### A/B Tests
 
 | Tool                     | Description                                                    |
@@ -566,7 +632,7 @@ Use `get_ab_test` to copy the effective `settings` object and discover variant I
 | `remove_recipient_suppression`   | Remove stale bounce suppression while preserving complaint, unsubscribe, and hygiene protections.  |
 | `create_campaign`                | Create a campaign with content, data, and optional From/Reply-To identity overrides.               |
 | `update_campaign`                | Update a draft campaign, including content, data, From, Reply-To, CC, and BCC.                     |
-| `schedule_campaign`              | Schedule a draft or reschedule an existing scheduled campaign.                                     |
+| `schedule_campaign`              | Schedule or reschedule a one-off or recurring campaign after validating subject, content, and audience. |
 | `send_test_email`                | Send a test email to one address.                                                                  |
 | `render_email`                   | Render a campaign, sequence email step, or template to exact email-safe HTML without sending.      |
 | `cancel_campaign`                | Cancel a scheduled or sending campaign.                                                            |
@@ -580,6 +646,13 @@ Prompt-created campaigns are generated and persisted in one API request and
 remain drafts. Use `templateId`, `blocks`, or `html` only when copying or
 preserving existing content rather than asking the agent to author it. Omit all
 content fields to create an empty draft for later editing.
+
+To deliver at the same wall-clock time in every recipient's own timezone, call
+`schedule_campaign` with `sendInRecipientTimezone: true` and an IANA
+`scheduledTimezone` that identifies the wall clock represented by
+`scheduledAt`. Contacts without a stored timezone receive the campaign at the
+`scheduledAt` instant. This mode cannot be combined with recurring or spread
+delivery.
 
 For campaign- and sequence-level identities, `fromEmail` plus `fromName`
 selects the sender identity with that display name on the mailbox, creating it
@@ -635,7 +708,8 @@ exact profile to make default and rename.
 `emailTheme` (`presetId`, `colors`, `typography`, `layout`). Theme updates are
 partial - omitted fields keep their current value (or the preset default) and
 numeric values are clamped to supported ranges. Pass `emailTheme: null` to
-reset the company to the platform default theme.
+reset the company to the platform default theme. Layout settings can control
+the shared `baseRadius` and a separate `buttonRadius`.
 
 Reply tracking is available on the same company tools. Use
 `replyTrackingEnabled`, `replyTrackingDomainMode` (`sequenzy` or `custom`), and
@@ -691,8 +765,8 @@ spacing are pixels, weights range from 100 to 900, and text transforms are
 | Tool             | Description                                                                                                   |
 | ---------------- | ------------------------------------------------------------------------------------------------------------- |
 | `list_forms`     | List saved forms with their server-managed audience settings, content blocks, and public action URLs.         |
-| `create_form`    | Create and publish a saved form scoped to one or more lists, with optional tags, theme, and success behavior. |
-| `update_form`    | Partially update a saved form's audience, copy, theme, success behavior, or complete content block array.     |
+| `create_form`    | Create and publish a saved form with standard email/name fields, audience settings, theme, and success behavior. |
+| `update_form`    | Update a saved form, including its complete ordered block array and typed custom fields.                         |
 | `get_form_embed` | Return the public action URL, hosted JavaScript, minimal native form, and fetch example for a saved form.     |
 
 For Astro, Hugo, Jekyll, Cloudflare Pages, Netlify, GitHub Pages, or any other
@@ -707,7 +781,9 @@ When updating a form, omitted fields remain unchanged and theme fields merge
 into the current theme. Pass an empty `tagIds` array to clear tags or an empty
 `redirectUrl` to restore confirmation-message behavior. The `blocks` field is
 a complete replacement, so read the current content with `list_forms` first
-and retain exactly one email field and one submit button.
+and retain exactly one required email field and one submit button. Add custom
+inputs as `form-field` blocks with a supported `fieldType`; select, radio, and
+checkbox fields require options, while hidden defaults are enforced server-side.
 
 ### Saved Popups
 
@@ -752,37 +828,37 @@ directive. Custom landing page domains require a CNAME record pointing to
 
 ### Sequences
 
-| Tool                                     | Description                                                                                  |
-| ---------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `list_sequences`                         | List sequences with dashboard status, search, label, limit, and offset filters.              |
-| `get_sequence`                           | Get sequence details, including nodes, edges, linked emails, blocks, and per-email format.   |
-| `list_sequence_enrollments`              | List contact enrollments by node, status, subscriber, or email with pagination.              |
-| `send_sequence_test_email`               | Send one saved email step to 1-10 reviewers and return a durable delivery ID for each.       |
-| `create_sequence`                        | Create a blank dashboard draft or an AI-generated/explicit-step sequence.                    |
-| `update_sequence`                        | Update identity, settings, enrollment, existing steps, branch logic, or insert linear steps. |
-| `update_sequence_node`                   | Type-aware patch of one existing sequence node.                                              |
-| `update_sequence_nodes`                  | Atomically patch multiple existing sequence nodes.                                           |
-| `insert_sequence_step`                   | Insert any typed dashboard step, including outbound webhooks, waits, and wired branches.     |
-| `edit_sequence_graph`                    | Move, reconnect, delete, or duplicate graph nodes; reports recipients moved or completed.    |
-| `enable_sequence`                        | Activate a sequence.                                                                         |
-| `disable_sequence`                       | Freeze a sequence, blocking new enrollments and holding current recipients.                  |
-| `duplicate_sequence`                     | Create an independent draft copy of the graph, emails, and sequence A/B tests.               |
-| `archive_sequence`                       | Move a sequence into the dashboard archive and stop new enrollments.                         |
-| `unarchive_sequence`                     | Restore an archived sequence as a disabled draft.                                            |
-| `list_sequence_goals`                    | List the conversion goals persisted for a sequence.                                          |
-| `create_sequence_goal`                   | Add an event or subscriber-attribute conversion goal.                                        |
-| `update_sequence_goal`                   | Update a persisted sequence conversion goal.                                                 |
-| `delete_sequence_goal`                   | Delete a persisted sequence conversion goal.                                                 |
-| `get_sequence_inbound_webhook`           | Read the endpoint and setup state for an inbound-webhook sequence.                           |
-| `configure_sequence_inbound_webhook`     | Configure field mapping, sample payload, and integration metadata.                           |
-| `rotate_sequence_inbound_webhook_secret` | Rotate an inbound sequence endpoint's secret path.                                           |
-| `pause_sequence_enrollments`             | Stop new enrollments for an active sequence while current recipients continue.               |
-| `resume_sequence_enrollments`            | Reopen new enrollments for an active sequence without changing current recipients.           |
-| `enroll_subscribers_in_sequence`         | Enroll up to 500 subscribers by email, subscriber ID, or both, optionally at a target node.  |
-| `cancel_sequence_enrollments`            | Stop active or waiting enrollments by subscriber or entry-event field values.                |
-| `realign_sequence_enrollments`           | Preview or queue moving live waits earlier to their sending-window opening.                  |
-| `get_sequence_enrollment_realignment`    | Poll an applied realignment job and read its completed result or continuation cursor.         |
-| `delete_sequence`                        | Delete a sequence.                                                                           |
+| Tool                                     | Description                                                                                             |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `list_sequences`                         | List sequences with dashboard status, search, label, limit, and offset filters.                         |
+| `get_sequence`                           | Get sequence details, including nodes, edges, linked emails, blocks, and per-email format.              |
+| `list_sequence_enrollments`              | List contact enrollments by node, status, subscriber, or email with pagination.                         |
+| `send_sequence_test_email`               | Send one saved email step to 1-10 reviewers and return a durable delivery ID for each.                  |
+| `create_sequence`                        | Create a blank dashboard draft or an AI-generated/explicit-step sequence.                               |
+| `update_sequence`                        | Update identity, settings, enrollment, existing steps, branch logic, or insert linear steps.            |
+| `update_sequence_node`                   | Type-aware patch of one existing sequence node.                                                         |
+| `update_sequence_nodes`                  | Atomically patch multiple existing sequence nodes.                                                      |
+| `insert_sequence_step`                   | Insert any typed dashboard step, including AI generation, outbound webhooks, waits, and wired branches. |
+| `edit_sequence_graph`                    | Move, reconnect, delete, or duplicate graph nodes; reports recipients moved or completed.               |
+| `enable_sequence`                        | Activate a sequence.                                                                                    |
+| `disable_sequence`                       | Freeze a sequence, blocking new enrollments and holding current recipients.                             |
+| `duplicate_sequence`                     | Create an independent draft copy of the graph, emails, and sequence A/B tests.                          |
+| `archive_sequence`                       | Move a sequence into the dashboard archive and stop new enrollments.                                    |
+| `unarchive_sequence`                     | Restore an archived sequence as a disabled draft.                                                       |
+| `list_sequence_goals`                    | List the conversion goals persisted for a sequence.                                                     |
+| `create_sequence_goal`                   | Add an event or subscriber-attribute conversion goal.                                                   |
+| `update_sequence_goal`                   | Update a persisted sequence conversion goal.                                                            |
+| `delete_sequence_goal`                   | Delete a persisted sequence conversion goal.                                                            |
+| `get_sequence_inbound_webhook`           | Read the endpoint and setup state for an inbound-webhook sequence.                                      |
+| `configure_sequence_inbound_webhook`     | Configure field mapping, sample payload, and integration metadata.                                      |
+| `rotate_sequence_inbound_webhook_secret` | Rotate an inbound sequence endpoint's secret path.                                                      |
+| `pause_sequence_enrollments`             | Stop new enrollments for an active sequence while current recipients continue.                          |
+| `resume_sequence_enrollments`            | Reopen new enrollments for an active sequence without changing current recipients.                      |
+| `enroll_subscribers_in_sequence`         | Enroll up to 500 subscribers by email, subscriber ID, or both, optionally at a target node.             |
+| `cancel_sequence_enrollments`            | Stop active or waiting enrollments by subscriber or entry-event field values.                           |
+| `realign_sequence_enrollments`           | Preview or queue moving live waits earlier to their sending-window opening.                             |
+| `get_sequence_enrollment_realignment`    | Poll an applied realignment job and read its completed result or continuation cursor.                   |
+| `delete_sequence`                        | Delete a sequence.                                                                                      |
 
 Sequence creation supports:
 
@@ -850,9 +926,9 @@ Number and boolean values must be literals or one standalone merge tag. Use
 `update_sequence.subscriberUpdateSteps` with an `action_update_attributes`
 node ID from `get_sequence` to replace an existing step's config.
 
-Sequence updates support `insertSteps` for adding new linear steps after a `nodeId` returned by `get_sequence`. Omit `afterNodeId` only when appending to a sequence with exactly one linear tail. `insertSteps` supports addable steps that do not require companion records, such as email, delay, tag/list actions, attribute updates, discounts, conditions, wait-for-event steps, and webhooks. Use `branch` for multi-path if/else branches; provide either `branch` or `insertSteps`, not both. Branch conditions support tag presence and absence checks with `has_tag` and `does_not_have_tag`, plus lists, saved segments, events, clicked links, and field comparisons. Each branch path may provide new `steps`, an existing `targetNodeId`, or both; the fallback uses `elseSteps` and/or `elseTargetNodeId`. A target can be the completion node returned by `get_sequence`, so one atomic request can route replies to completion and Else to an existing follow-up. The `emails` and `steps` arrays only edit existing email steps by `nodeId`, `emailId`, or array order; use `insertSteps` to create new steps and include a step-level `delay`, `delayMs`, `waitUntil`, or `waitUntilWeekday` when the inserted email needs a timer. `waitUntil` accepts a date field from the trigger event plus optional `offset`, `direction` (`before` or `after`), and `missingAction` (`continue` or `exit`). `waitUntilWeekday` accepts `day` or `days`, `startTime`, optional `endTime` (default `24:00`), and an IANA `timezone`; contacts already inside the window continue immediately. For active sequences, pass `confirmStructuralChange: true` with `insertSteps` or `branch` only after confirming the live-flow impact.
+Sequence updates support `insertSteps` for adding new linear steps after a `nodeId` returned by `get_sequence`. Omit `afterNodeId` only when appending to a sequence with exactly one linear tail. `insertSteps` supports addable steps that do not require companion records, such as email, delay, tag/list actions, attribute updates, discounts, conditions, wait-for-event steps, outbound webhooks, and AI steps. An `action_ai` step requires a merge-tag `prompt`, unique `resultKey`, and one or more `outputFields`; later steps read generated or fallback text with `{{ai.KEY.field}}`. Combined output-field limits must fit the step's 2000-token response budget. Use `includeTags`, `includeEventProperties`, or `includeAttributes` to opt specific contact context into generation, and `onError` (`continue`, `exit`, or `fail`) to choose failure behavior. Use `branch` for multi-path if/else branches; provide either `branch` or `insertSteps`, not both. Branch conditions support tag presence and absence checks with `has_tag` and `does_not_have_tag`, plus lists, saved segments, events, clicked links, and field comparisons. Each branch path may provide new `steps`, an existing `targetNodeId`, or both; the fallback uses `elseSteps` and/or `elseTargetNodeId`. A target can be the completion node returned by `get_sequence`, so one atomic request can route replies to completion and Else to an existing follow-up. The `emails` and `steps` arrays only edit existing email steps by `nodeId`, `emailId`, or array order; use `insertSteps` to create new steps and include a step-level `delay`, `delayMs`, `waitUntil`, or `waitUntilWeekday` when the inserted email needs a timer. `waitUntil` accepts a date field from the trigger event plus optional `offset`, `direction` (`before` or `after`), and `missingAction` (`continue` or `exit`). `waitUntilWeekday` accepts `day` or `days`, `startTime`, optional `endTime` (default `24:00`), and an IANA `timezone`; contacts already inside the window continue immediately. For active sequences, pass `confirmStructuralChange: true` with `insertSteps` or `branch` only after confirming the live-flow impact.
 
-`insert_sequence_step` exposes every companion-record-free dashboard step directly: email, SMS, delay, discount, subscriber update, tag/list action, outbound webhook, condition, wait, and branch. Outbound webhooks accept `url`, `method` (`POST` or `GET`), and string-valued `headers`. Email steps support transactional mode, per-step identity, and CC/BCC delivery settings. For a wait gate, set
+`insert_sequence_step` exposes every companion-record-free dashboard step directly: email, SMS, delay, discount, subscriber update, tag/list action, outbound webhook, AI generation, condition, wait, and branch. Set `type: "ai"` with `prompt`, `resultKey`, and `outputFields` to generate per-contact text for later `{{ai.KEY.field}}` merge tags. Outbound webhooks accept `url`, `method` (`POST` or `GET`), and string-valued `headers`. Email steps support transactional mode, per-step identity, and CC/BCC delivery settings. For a wait gate, set
 `type: "logic_wait_for_event"` with `eventName`, optional `timeoutDays` (1-365),
 and `timeoutAction` (`continue` or `exit`). For a branch, set
 `type: "logic_branch"`, provide typed `branches`, and wire their targets:
@@ -924,7 +1000,18 @@ completed result has `hasMore: true`, queue the next bounded apply with its
 `nextCursor`. Applied realignment changes live delivery times and should only be
 used after the user confirms the preview.
 
-### Email Block Styling
+### Email Blocks
+
+| Tool                     | Description                                                                                               |
+| ------------------------ | --------------------------------------------------------------------------------------------------------- |
+| `get_email_block_schema` | List every email block type or inspect one type's required fields, enum values, item shapes, and example. |
+
+Call `get_email_block_schema` before hand-authoring a block type you have not
+used before. Omit `blockType` to list every type, pass a type such as `list` or
+`steps` for its complete reference, or pass `creatableOnly: true` to hide types
+managed by the editor. Lists are their own block type rather than a `text`
+variant: `list` items use `content`, while `steps` items use `title` and an
+optional `description`.
 
 Tools that accept `blocks` persist per-block visual styling under a block's `styles` object:
 
@@ -1123,6 +1210,7 @@ The server also exposes read-only MCP resources.
 | `sequenzy://segments`            | Saved segments with subscriber counts.         |
 | `sequenzy://tags`                | Tags with usage counts.                        |
 | `sequenzy://health`              | Deliverability metrics and health status.      |
+| `sequenzy://email-blocks`        | Field reference for every email block type.    |
 | `sequenzy://app-routes`          | Dashboard route templates and settings tabs.   |
 
 ## Example Prompts

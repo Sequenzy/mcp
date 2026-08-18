@@ -130,6 +130,34 @@ export function validateScheduleCampaignArgs(
   }
 
   if (
+    args.sendInRecipientTimezone !== undefined &&
+    typeof args.sendInRecipientTimezone !== "boolean"
+  ) {
+    throw new Error(
+      "`sendInRecipientTimezone` must be a boolean when calling `schedule_campaign`."
+    );
+  }
+
+  if (
+    args.scheduledTimezone !== undefined &&
+    (typeof args.scheduledTimezone !== "string" ||
+      args.scheduledTimezone.trim() === "")
+  ) {
+    throw new Error(
+      "`scheduledTimezone` must be a non-empty IANA timezone string (e.g. America/New_York) when calling `schedule_campaign`."
+    );
+  }
+
+  if (
+    args.sendInRecipientTimezone === true &&
+    args.scheduledTimezone === undefined
+  ) {
+    throw new Error(
+      "`scheduledTimezone` is required when `sendInRecipientTimezone` is true - it is the IANA zone the scheduledAt wall-clock time refers to."
+    );
+  }
+
+  if (
     args.recurringInterval !== undefined &&
     args.recurringInterval !== "weekly" &&
     args.recurringInterval !== "monthly"
@@ -290,7 +318,7 @@ export const subscriberUpdateConfigSchema = {
 export const sequencePathStepConfigSchema = {
   type: "object",
   description:
-    "Config for advanced nodeType steps. Required fields depend on nodeType: action_add_tag and action_remove_tag need tagId or tagName; action_add_to_list and action_remove_from_list need listId; action_update_attributes uses the Update Subscriber fields (firstName, lastName, status, customAttributeUpdates) and may use trigger-event merge tags; logic_wait_for_event needs eventName plus optional timeoutDays and timeoutAction; logic_condition needs conditionType plus that condition's resource field; action_webhook needs an HTTPS url plus optional method, headers, body, resultKey, and onError; logic_delay uses delayDays/delayHours/delayMinutes. Fields that do not apply to the node type are dropped.",
+    "Config for advanced nodeType steps. Required fields depend on nodeType: action_add_tag and action_remove_tag need tagId or tagName; action_add_to_list and action_remove_from_list need listId; action_update_attributes uses the Update Subscriber fields (firstName, lastName, status, customAttributeUpdates) and may use trigger-event merge tags; logic_wait_for_event needs eventName plus optional timeoutDays and timeoutAction; logic_condition needs conditionType plus that condition's resource field; action_webhook needs an HTTPS url plus optional method, headers, body, resultKey, and onError; action_ai generates short per-contact fragments (a sentence or two each) that later email steps insert with {{ai.KEY.field}} merge tags, not whole emails, and needs prompt, resultKey, and outputFields plus optional includeTags, includeEventProperties, includeRecentEvents, recentEventLimit, includeAttributes, and onError; logic_delay uses delayDays/delayHours/delayMinutes. Fields that do not apply to the node type are dropped.",
   properties: {
     ...subscriberUpdateConfigSchema.properties,
     tagId: {
@@ -399,13 +427,78 @@ export const sequencePathStepConfigSchema = {
     resultKey: {
       type: "string",
       description:
-        "action_webhook: when set, the HTTP response is saved and later email steps can reference it via {{webhooks.KEY.data.field}} merge tags. Must start with a letter; letters, numbers, underscores; max 64 chars.",
+        "action_webhook / action_ai: where the result is saved. Later steps reference it via {{webhooks.KEY.data.field}} (webhook) or {{ai.KEY.field}} (AI) merge tags. Required for action_ai. Must start with a letter; letters, numbers, underscores; max 64 chars.",
     },
     onError: {
       type: "string",
       enum: ["continue", "exit", "fail"],
       description:
-        "action_webhook: behavior when the request fails. continue proceeds to the next step, exit ends the sequence for the subscriber, fail marks the enrollment failed (default).",
+        "action_webhook / action_ai: behavior when the step fails. continue proceeds to the next step, exit ends the sequence for the subscriber, fail marks the enrollment failed. Defaults to fail for webhooks and continue for AI steps (fallbacks fill the output fields).",
+    },
+    prompt: {
+      type: "string",
+      description:
+        "action_ai: prompt template sent to the model, resolved per contact at execution time. Supports merge tags like {{first_name}}, {{event.plan}}, and {{webhooks.KEY.data.field}}. Max 8000 chars.",
+    },
+    outputFields: {
+      type: "array",
+      description:
+        "action_ai: named values the model must return (1-10). Each key becomes a {{ai.KEY.<key>}} merge tag for later steps. fallback is used when generation fails, so emails still send with sensible copy. Combined field maxLength values must fit the step's conservative 2000-token multilingual response budget plus JSON overhead.",
+      items: {
+        type: "object",
+        properties: {
+          key: {
+            type: "string",
+            description:
+              "Field key, e.g. subject_line. Must start with a letter; letters, numbers, underscores; max 64 chars; unique within the step.",
+          },
+          description: {
+            type: "string",
+            description:
+              "What the model should produce for this field, e.g. 'A subject line under 50 characters'. Max 300 chars.",
+          },
+          maxLength: {
+            type: "integer",
+            minimum: 1,
+            maximum: 4000,
+            description:
+              "Hard cap on stored characters (1-4000). Defaults to 500. Output beyond it is cut.",
+          },
+          fallback: {
+            type: "string",
+            description:
+              "Text used verbatim when generation fails or the model omits the field.",
+          },
+        },
+        required: ["key"],
+        additionalProperties: false,
+      },
+    },
+    includeTags: {
+      type: "boolean",
+      description:
+        "action_ai: include the contact's tags in the prompt context.",
+    },
+    includeEventProperties: {
+      type: "boolean",
+      description:
+        "action_ai: include the enrollment's trigger event name and properties in the prompt context.",
+    },
+    includeRecentEvents: {
+      type: "boolean",
+      description:
+        "action_ai: include the contact's most recent custom events (newest first) in the prompt context.",
+    },
+    recentEventLimit: {
+      type: "number",
+      description:
+        "action_ai: how many recent events to include when includeRecentEvents is true (1-50, default 10).",
+    },
+    includeAttributes: {
+      type: "array",
+      items: { type: "string" },
+      description:
+        "action_ai: custom attribute keys to include in the prompt context (max 30). Only the listed keys are sent.",
     },
     delayDays: {
       type: "number",
@@ -459,7 +552,7 @@ export const sequenceEmailStepIdentityProperties = {
 export const sequencePathStepSchema = {
   type: "object",
   description:
-    "A typed step to create inside a sequence path, including email, SMS, delay, discount, subscriber actions, conditions, waits, and webhooks.",
+    "A typed step to create inside a sequence path, including email, SMS, delay, discount, subscriber actions, conditions, waits, webhooks, and AI steps.",
   properties: {
     type: {
       type: "string",
@@ -472,9 +565,10 @@ export const sequencePathStepSchema = {
         "update_subscriber",
         "condition",
         "webhook",
+        "ai",
       ],
       description:
-        "Sequence path step type. Omit for email steps; use delay for fixed/date waits or update_subscriber for action_update_attributes. For an event gate, use nodeType:'logic_wait_for_event' with an explicit config object.",
+        "Sequence path step type. Omit for email steps; use delay for fixed/date waits or update_subscriber for action_update_attributes. For an event gate, use nodeType:'logic_wait_for_event' with an explicit config object. A path is one linear chain, so it cannot contain a nested 'logic_branch' step: end the path with the step the nested branch should follow, then insert that branch with its own insert_sequence_step call using an afterNodeId from addedBranchPathNodeIds.",
     },
     nodeType: {
       type: "string",
@@ -491,9 +585,10 @@ export const sequencePathStepSchema = {
         "logic_wait_for_event",
         "logic_condition",
         "action_webhook",
+        "action_ai",
       ],
       description:
-        "Advanced sequence path node type. Prefer type unless creating a non-email action. Tag, list, subscriber-update, wait, condition, and webhook node types carry their fields in config, for example nodeType:'action_add_tag' with config:{ tagName:'newsletter-confirmed' }. SMS steps still use the step-level text/imageUrls/ineligibleAction, discount steps the step-level discount fields, and delays the step-level delay/delayMs/waitUntil.",
+        "Advanced sequence path node type. Prefer type unless creating a non-email action. Tag, list, subscriber-update, wait, condition, webhook, and AI node types carry their fields in config, for example nodeType:'action_add_tag' with config:{ tagName:'newsletter-confirmed' }. SMS steps still use the step-level text/imageUrls/ineligibleAction, discount steps the step-level discount fields, and delays the step-level delay/delayMs/waitUntil.",
     },
     config: sequencePathStepConfigSchema,
     subject: {
@@ -665,7 +760,7 @@ export const sequenceBranchConditionSchema = {
         "sms_subscribed",
       ],
       description:
-        "Condition for this path. has_phone and sms_subscribed need no resource fields.",
+        "Condition for this path. has_phone and sms_subscribed need no resource fields. Required unless the branch sets splitMode 'random', where paths are chosen by percentage and this field must be omitted.",
     },
     tagName: {
       type: "string",
@@ -723,8 +818,26 @@ export const sequenceBranchConditionSchema = {
       items: sequencePathStepSchema,
     },
   },
-  required: ["conditionType"],
+  // conditionType cannot be listed here because random splits legitimately omit
+  // it; the write path rejects a condition split that leaves it out.
   additionalProperties: false,
+} as const;
+
+export const sequenceBranchesDescription =
+  "Branch paths. On the default condition split they are evaluated in order and an else fallback is created automatically. On a random split (splitMode 'random') each entry is a weighted variant, conditionType and condition-specific fields are omitted, and there is no else path. Each path can create steps, route directly to an existing targetNodeId, or do both.";
+
+export const sequenceBranchSplitModeSchema = {
+  type: "string",
+  enum: ["condition", "random"],
+  description:
+    "How subscribers are routed. 'condition' (default) evaluates each branch's conditionType in order. 'random' assigns each subscriber a path by percentage when they reach the node, which is how you build a concurrent A/B split inside a sequence - for example testing two abandoned-cart offers against each other at the same time instead of running them one after another. Random splits require randomPercentages, omit conditionType and condition-specific fields on every branch, and must not define an else path. To A/B test the content of a single existing email step instead of branching the flow, use create_ab_test with automationNodeId, which tracks variants and picks a winner for you.",
+} as const;
+
+export const sequenceBranchRandomPercentagesSchema = {
+  type: "array",
+  items: { type: "number" },
+  description:
+    "Required when splitMode is 'random': one non-negative percentage per entry in branches, in the same order, summing to 100. For an even two-way test use [50, 50].",
 } as const;
 
 export function extractResultError(result: unknown): Error | null {

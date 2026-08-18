@@ -68,6 +68,13 @@ export const resources: Resource[] = [
     mimeType: "application/json",
   },
   {
+    uri: "sequenzy://email-blocks",
+    name: "Email Block Reference",
+    description:
+      "Required and optional fields, enum values, and item shapes for every email block type accepted by the blocks parameter",
+    mimeType: "application/json",
+  },
+  {
     uri: "sequenzy://app-routes",
     name: "Dashboard URL Routes",
     description:
@@ -140,6 +147,10 @@ export async function handleResourceRead(uri: string): Promise<{
 
       case "sequenzy://health":
         data = await apiRequest("GET", "/api/v1/health/deliverability");
+        break;
+
+      case "sequenzy://email-blocks":
+        data = await apiRequest("GET", "/api/v1/email-blocks");
         break;
 
       case "sequenzy://app-routes":

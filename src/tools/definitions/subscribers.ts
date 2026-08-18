@@ -17,6 +17,11 @@ const subscriberImportRecordSchema = {
     },
     firstName: { type: "string" as const },
     lastName: { type: "string" as const },
+    timezone: {
+      type: "string" as const,
+      description:
+        "IANA timezone identifier (e.g. America/New_York) used for recipient-local campaign delivery. Rows with an invalid value import without it.",
+    },
     phone: {
       type: "string" as const,
       description:
@@ -93,6 +98,11 @@ export const subscriberToolDefinitions: Tool[] = [
           type: "string",
           description:
             "Subscriber last name, stored as a native profile field.",
+        },
+        timezone: {
+          type: "string",
+          description:
+            "IANA timezone identifier (e.g. America/New_York), stored as a native profile field. Enables recipient-local campaign delivery for this contact.",
         },
         attributes: {
           type: "object",
@@ -243,6 +253,11 @@ export const subscriberToolDefinitions: Tool[] = [
           type: "string",
           description:
             "New last name, stored as a native profile field. Pass an empty string to clear it.",
+        },
+        timezone: {
+          type: "string",
+          description:
+            "New IANA timezone identifier (e.g. America/New_York), stored as a native profile field. Pass an empty string to clear it. Enables recipient-local campaign delivery for this contact.",
         },
         phone: {
           type: "string",
@@ -471,7 +486,7 @@ export const subscriberToolDefinitions: Tool[] = [
         eventId: {
           type: "string",
           description:
-            "Your own id for this event. Makes a historical import idempotent: re-sending the same eventId writes nothing new.",
+            "Your own id for this event, used as an idempotency key on both paths. For a live event, re-sending an id this contact already has for this event name writes nothing, runs no side effects, and returns the existing event with duplicate: true. For a historical event, the response remains historical: true and reports the skipped row in duplicates instead. Live deduplication is best-effort for calls sent within about a second of each other, so a producer that needs a strict guarantee should also keep its own ledger.",
         },
       },
       required: ["event"],
@@ -520,7 +535,7 @@ export const subscriberToolDefinitions: Tool[] = [
               eventId: {
                 type: "string",
                 description:
-                  "Your own id for this event, making a re-run idempotent.",
+                  "Your own id for this event, making a re-run idempotent on both the live and historical paths.",
               },
             },
             required: ["name"],
@@ -633,7 +648,8 @@ export const subscriberToolDefinitions: Tool[] = [
         },
         query: {
           type: "string",
-          description: "Search query (email or name)",
+          description:
+            "Search query. A whole email address is matched exactly against the contact's email or external ID; anything shorter is a substring search across email, external ID, name, and tags. Prefer a whole address when you know it - it is an indexed lookup, while a partial term has to examine the entire audience.",
         },
         tags: {
           type: "array",

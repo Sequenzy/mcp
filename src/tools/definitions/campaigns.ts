@@ -547,7 +547,7 @@ export const campaignToolDefinitions: Tool[] = [
   {
     name: "schedule_campaign",
     description:
-      "Schedule a draft or already scheduled campaign, as a one-off send or on a repeating weekly/monthly cadence via `recurringInterval`. Use `recurringInterval` for newsletters that go out on a fixed schedule instead of creating one campaign per issue. Returns dashboard edit and preview URLs.",
+      "Schedule a draft or already scheduled campaign as a one-off send or on a repeating weekly/monthly cadence via `recurringInterval`. The campaign must have a non-empty subject, at least one content block, and at least one audience include rule. Use `recurringInterval` for newsletters that go out on a fixed schedule instead of creating one campaign per issue. Returns dashboard edit and preview URLs; validation errors explain what must be fixed before retrying.",
     inputSchema: {
       type: "object",
       properties: {
@@ -582,6 +582,16 @@ export const campaignToolDefinitions: Tool[] = [
           type: "number",
           description:
             "Spread delivery over an integer number of hours from 1 to 72. When set, spread delivery takes precedence over send-time optimization.",
+        },
+        sendInRecipientTimezone: {
+          type: "boolean",
+          description:
+            "Deliver at scheduledAt's wall-clock time in each recipient's own timezone ('send when it's 8pm for the customer'). Requires `scheduledTimezone`; contacts without a stored timezone receive the campaign at scheduledAt itself. Not combinable with `recurringInterval` or `spreadOverHours`.",
+        },
+        scheduledTimezone: {
+          type: "string",
+          description:
+            "IANA timezone the scheduledAt wall-clock time refers to, for example America/New_York. Required with `sendInRecipientTimezone`.",
         },
         recurringInterval: {
           type: "string",
