@@ -125,6 +125,35 @@ export function booleanOutputProperty(
   };
 }
 
+/**
+ * For boolean fields where "not determined" is a distinct third state from
+ * false, and must not be collapsed into it.
+ */
+export function nullableBooleanOutputProperty(
+  description: string
+): OutputSchemaProperty {
+  return {
+    type: ["boolean", "null"],
+    description,
+  };
+}
+
+/**
+ * For array fields where null is a distinct state from an empty array - an
+ * unset selection versus an explicitly empty one. Collapsing them in the schema
+ * makes the SDK reject the very response that reports "unset".
+ */
+export function nullableArrayOutputProperty(
+  description: string,
+  items: OutputSchemaProperty
+): OutputSchemaProperty {
+  return {
+    type: ["array", "null"],
+    description,
+    items,
+  };
+}
+
 export function resourceOutputProperty(
   resourceName: string
 ): OutputSchemaProperty {
@@ -378,6 +407,9 @@ export const outputPropertiesByToolName: Record<
     activity: objectOutputProperty(
       "Webhook and sync activity over the last 24 hours: totals by status, stalled count, last activity time, and recent failures."
     ),
+    ingestion: objectOutputProperty(
+      "What this integration does to the contact list: bulkSyncEnabled, supportsListTargeting, listTargeting (`company_default`, `none`, `specific`, or null when the provider ignores targeting), listIds (null means the workspace default lists), lists with their names, missingListIds for configured lists that have since been deleted and are therefore skipped, and a one-sentence summary. Neither setting stops the provider's live webhook creating contacts."
+    ),
     pixel: nullableObjectOutputProperty(
       "Shopify only: live storefront pixel state (installed, endpoint, endpointCurrent, configurationCurrent, healthy, error, dependentEvents). Null for providers without a pixel. When error is null and healthy is false, every dependentEvent is confirmed dark; an error means Shopify could not confirm the state."
     ),
@@ -453,16 +485,53 @@ export const outputPropertiesByToolName: Record<
     history: {
       type: "object",
       description:
-        "PostHog and Segment only: outcome of the optional history import request ({ requested, queued, error }). The webhook connection succeeds even if queueing the import failed.",
+        "PostHog only: outcome of the optional history import request ({ requested, queued, error }). The webhook connection succeeds even if queueing the import failed.",
     },
   },
   set_integration_sync_enabled: {
     integrationId: stringOutputProperty("The integration that was updated."),
     provider: stringOutputProperty("Provider of the updated integration."),
-    syncEnabled: booleanOutputProperty("Sync state after the update."),
+    syncEnabled: booleanOutputProperty(
+      "Bulk import and backfill state after the update. This is not the provider's live webhook, which keeps creating contacts either way."
+    ),
+    listTargeting: nullableStringOutputProperty(
+      "Where contacts created by this integration land: `company_default`, `none`, or `specific`. Null for providers that ignore per-integration list targeting."
+    ),
+    listIds: nullableArrayOutputProperty(
+      "Configured target lists. Null means new contacts follow the workspace default lists.",
+      stringOutputProperty("List ID.")
+    ),
     changed: booleanOutputProperty(
       "False when the integration was already in the requested state."
     ),
+    changedFields: {
+      type: "array",
+      description: "Which controls actually moved.",
+      items: stringOutputProperty("Field name."),
+    },
+    message: messageOutputProperty,
+  },
+  set_integration_list_targeting: {
+    integrationId: stringOutputProperty("The integration that was updated."),
+    provider: stringOutputProperty("Provider of the updated integration."),
+    syncEnabled: booleanOutputProperty(
+      "Bulk import and backfill state. Unchanged by this tool."
+    ),
+    listTargeting: nullableStringOutputProperty(
+      "Where contacts created by this integration land after the update: `company_default`, `none`, or `specific`. Null for providers that ignore per-integration list targeting."
+    ),
+    listIds: nullableArrayOutputProperty(
+      "Configured target lists after the update. Null means new contacts follow the workspace default lists.",
+      stringOutputProperty("List ID.")
+    ),
+    changed: booleanOutputProperty(
+      "False when the integration was already in the requested state."
+    ),
+    changedFields: {
+      type: "array",
+      description: "Which controls actually moved.",
+      items: stringOutputProperty("Field name."),
+    },
     message: messageOutputProperty,
   },
   get_integration_pixel: {
@@ -1246,6 +1315,12 @@ export const outputPropertiesByToolName: Record<
         "Enrollment statuses included in this response. Defaults to active and waiting.",
       items: { type: "string", description: "Enrollment status." },
     },
+    stopCondition: objectOutputProperty(
+      "The sequence's single configured stop condition: `type` (`none` when unset), `value`, and nullable `matchConfig` containing any event-property filters or field comparison. A sequence holds exactly one, so a stop event with any other name never applies. Stop conditions are re-evaluated when an enrollment next runs a step, not when their event arrives."
+    ),
+    stopConditionMatchEvaluatedCount: numberOutputProperty(
+      "How many enrollments in this page were actually evaluated for a current stop-condition match. 0 when stopConditionMatch was not requested, the sequence has no stop condition, or no returned enrollment was still active or waiting."
+    ),
     enrollments: {
       type: "array",
       description:
@@ -1312,6 +1387,12 @@ export const outputPropertiesByToolName: Record<
           ),
           moveReason: nullableStringOutputProperty(
             "Note recorded with that release, or null when none was given."
+          ),
+          stopConditionMatches: nullableBooleanOutputProperty(
+            "Whether the sequence's stop condition matches for this contact right now. Null when it was not determined: stopConditionMatch was not requested, the sequence has no stop condition, this enrollment is no longer active or waiting, or it fell outside the evaluated window. Null never means `does not match`. This is a non-atomic snapshot: the worker re-checks before a future step, but the condition can change and a step already past its stop check may still finish."
+          ),
+          stopConditionMatchReason: nullableStringOutputProperty(
+            "Human-readable reason the stop condition matches, such as the stop event or tag that satisfied it. Null when stopConditionMatches is not true."
           ),
         },
         // `failedReason` is deliberately absent, like every other field this

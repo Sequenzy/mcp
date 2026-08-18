@@ -25,6 +25,7 @@ const INTEGRATION_TOOL_NAMES = [
   "list_integration_capabilities",
   "list_integration_activity",
   "set_integration_sync_enabled",
+  "set_integration_list_targeting",
   "sync_integration",
   "get_integration_pixel",
   "activate_integration_pixel",
@@ -81,6 +82,68 @@ describe("integration tool definitions", () => {
     expect(
       byName.get("activate_integration_pixel")?.annotations?.destructiveHint
     ).toBe(false);
+    // Retargeting silently changes who future contacts get mailed as, and
+    // contacts created under the old targeting are not moved.
+    expect(
+      byName.get("set_integration_list_targeting")?.annotations?.readOnlyHint
+    ).toBe(false);
+    expect(
+      byName.get("set_integration_list_targeting")?.annotations?.destructiveHint
+    ).toBe(true);
+  });
+
+  // An agent asked to stop an integration dumping contacts must not be steered
+  // to the bulk-sync toggle, which leaves the live webhook writing.
+  it("points the sync toggle at list targeting rather than implying it stops ingestion", () => {
+    const byName = new Map(tools.map((tool) => [tool.name, tool]));
+    const syncDescription =
+      byName.get("set_integration_sync_enabled")?.description ?? "";
+
+    expect(syncDescription).toContain("DOES NOT STOP");
+    expect(syncDescription).toContain("set_integration_list_targeting");
+  });
+
+  // Retargeting lists is easy to over-read as a full stop; the description has
+  // to say what it leaves running, or an agent will report the wrong outcome.
+  it("states what list targeting does not stop", () => {
+    const byName = new Map(tools.map((tool) => [tool.name, tool]));
+    const description =
+      byName.get("set_integration_list_targeting")?.description ?? "";
+
+    expect(description).toContain("does not stop contacts being created");
+    expect(description).toContain("contact_added");
+  });
+
+  // Existing-contact behavior differs by provider, so the tool must not give
+  // agents a blanket promise in either direction.
+  it("documents provider-specific existing-contact targeting", () => {
+    const byName = new Map(tools.map((tool) => [tool.name, tool]));
+    const description =
+      byName.get("set_integration_list_targeting")?.description ?? "";
+
+    expect(description).toContain("existing contact to the new target lists");
+    expect(description).toContain(
+      "Stripe applies targeting only when its webhook creates a subscriber"
+    );
+    // What does still hold, and is worth stating alongside it.
+    expect(description).toContain("Nobody is ever removed from a list");
+    expect(description).toContain("retroactively");
+  });
+
+  it("documents the scope agent-safe keys lack on both write tools", () => {
+    const byName = new Map(tools.map((tool) => [tool.name, tool]));
+
+    for (const name of [
+      "set_integration_sync_enabled",
+      "set_integration_list_targeting",
+    ]) {
+      expect({
+        name,
+        documented: (byName.get(name)?.description ?? "").includes(
+          "integrations:manage"
+        ),
+      }).toEqual({ name, documented: true });
+    }
   });
 
   it("requires the arguments each tool cannot work without", () => {
@@ -107,40 +170,109 @@ describe("integration tool definitions", () => {
       byName.get("list_integration_capabilities")?.inputSchema.required
     ).toBeUndefined();
   });
+});
 
-  it("publishes Segment connect and history contracts", () => {
-    const connectTool = tools.find(
-      (tool) => tool.name === "connect_integration"
+/**
+ * Minimal stand-in for the ajv validation MCP clients run over
+ * `structuredContent`. Only the top-level type check matters for the bug this
+ * guards: a field the API returns as null while the schema says `"string"` or
+ * `"array"` fails validation, and the whole tool call is rejected even though
+ * the call succeeded.
+ */
+function findSchemaTypeViolations(
+  schema: { properties?: Record<string, unknown> } | undefined,
+  payload: Record<string, unknown>
+): string[] {
+  const properties = schema?.properties ?? {};
+  const violations: string[] = [];
+
+  for (const [key, value] of Object.entries(payload)) {
+    const declared = properties[key] as { type?: unknown } | undefined;
+    const declaredType = declared?.type;
+    if (declaredType === undefined) continue;
+
+    const allowed = Array.isArray(declaredType) ? declaredType : [declaredType];
+    const actual =
+      value === null ? "null" : Array.isArray(value) ? "array" : typeof value;
+
+    if (!allowed.includes(actual)) {
+      violations.push(
+        `${key}: got ${actual}, schema allows ${allowed.join("|")}`
+      );
+    }
+  }
+
+  return violations;
+}
+
+describe("integration tool output schemas", () => {
+  const byName = new Map(tools.map((tool) => [tool.name, tool]));
+
+  // A clear-to-default call genuinely returns listIds: null, and the sync
+  // toggle returns listTargeting: null for a provider without list targeting.
+  // Both are successful responses that a non-nullable schema would reject.
+  it("accepts a cleared list targeting response", () => {
+    const violations = findSchemaTypeViolations(
+      byName.get("set_integration_list_targeting")?.outputSchema,
+      {
+        success: true,
+        integrationId: "int_123",
+        provider: "supabase",
+        syncEnabled: true,
+        listTargeting: "company_default",
+        listIds: null,
+        changed: true,
+        changedFields: ["listIds"],
+        message: "New contacts join the workspace default lists.",
+      }
     );
-    const providerSchema = connectTool?.inputSchema.properties?.["provider"] as
-      | { enum?: string[] }
-      | undefined;
-    const historyInput = connectTool?.inputSchema.properties?.[
-      "historyImport"
-    ] as
-      | {
-          properties?: Record<string, unknown>;
-          required?: string[];
-        }
-      | undefined;
-    const historyOutput = connectTool?.outputSchema?.properties?.["history"] as
-      | { description?: string }
-      | undefined;
-    const settingsInput = connectTool?.inputSchema.properties?.["settings"] as
-      | { description?: string }
-      | undefined;
-    const webhookSecretInput = connectTool?.inputSchema.properties?.[
-      "webhookSecret"
-    ] as { description?: string } | undefined;
 
-    expect(providerSchema?.enum).toContain("segment");
-    expect(historyInput?.properties).toHaveProperty("region");
-    expect(historyInput?.properties).toHaveProperty("spaceId");
-    expect(historyInput?.properties).toHaveProperty("profileApiToken");
-    expect(historyInput?.required).toEqual(["region"]);
-    expect(historyOutput?.description).toContain("PostHog and Segment");
-    expect(settingsInput?.description).toContain("skip automatic page/screen");
-    expect(webhookSecretInput?.description).toContain("16-153 UTF-8 bytes");
+    expect(violations).toEqual([]);
+  });
+
+  it("accepts a sync toggle response from a provider without list targeting", () => {
+    const violations = findSchemaTypeViolations(
+      byName.get("set_integration_sync_enabled")?.outputSchema,
+      {
+        success: true,
+        integrationId: "int_123",
+        provider: "polar",
+        syncEnabled: false,
+        listTargeting: null,
+        listIds: null,
+        changed: true,
+        changedFields: ["syncEnabled"],
+        message: "Sync disabled for Polar.",
+      }
+    );
+
+    expect(violations).toEqual([]);
+  });
+
+  // The list-targeting tool's description tells agents to read
+  // `get_integration.ingestion` first, so it has to be discoverable in that
+  // tool's schema rather than only surviving via additionalProperties.
+  it("declares the ingestion block on get_integration", () => {
+    const properties = byName.get("get_integration")?.outputSchema?.properties;
+    const ingestion = properties?.["ingestion"] as
+      | { description?: string }
+      | undefined;
+
+    expect(properties).toHaveProperty("ingestion");
+    expect(ingestion?.description).toContain("listTargeting");
+    expect(ingestion?.description).toContain("missingListIds");
+  });
+
+  it("still rejects a genuinely wrong type", () => {
+    const violations = findSchemaTypeViolations(
+      byName.get("set_integration_list_targeting")?.outputSchema,
+      {
+        integrationId: 42,
+        listIds: "list_a",
+      }
+    );
+
+    expect(violations.length).toBe(2);
   });
 });
 
@@ -265,6 +397,66 @@ describe("integration tool routing", () => {
     );
   });
 
+  it("sends list targeting, including the clear-to-default null", async () => {
+    await handleToolCall("set_integration_list_targeting", {
+      integrationId: "int_123",
+      listIds: ["list_a", "list_b"],
+    });
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "PATCH",
+      "/api/v1/integrations/int_123",
+      { listIds: ["list_a", "list_b"] },
+      undefined
+    );
+
+    // `null` must reach the API rather than being treated as "no change",
+    // because it is the only way to ask for the workspace default lists.
+    await handleToolCall("set_integration_list_targeting", {
+      integrationId: "int_123",
+      listIds: null,
+    });
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "PATCH",
+      "/api/v1/integrations/int_123",
+      { listIds: null },
+      undefined
+    );
+
+    // An empty array means "join no list" and must not collapse into null.
+    await handleToolCall("set_integration_list_targeting", {
+      integrationId: "int_123",
+      listIds: [],
+    });
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "PATCH",
+      "/api/v1/integrations/int_123",
+      { listIds: [] },
+      undefined
+    );
+  });
+
+  // An omitted listIds must not be read as "clear to the workspace default":
+  // that would silently widen targeting on a call meant to do nothing.
+  it("rejects a targeting call with no listIds", async () => {
+    const result = await handleToolCall("set_integration_list_targeting", {
+      integrationId: "int_123",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("`listIds` is required");
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects a malformed listIds", async () => {
+    const result = await handleToolCall("set_integration_list_targeting", {
+      integrationId: "int_123",
+      listIds: "list_a",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
   it("rejects a missing syncEnabled instead of disabling sync", async () => {
     const result = await handleToolCall("set_integration_sync_enabled", {
       integrationId: "int_123",
@@ -312,27 +504,6 @@ describe("integration tool routing", () => {
       region: "us",
       projectId: "123",
       personalApiKey: "phx",
-    });
-  });
-
-  it("passes the Segment history import through on connect", async () => {
-    await handleToolCall("connect_integration", {
-      provider: "segment",
-      webhookSecret: "segment-shared-secret",
-      historyImport: {
-        region: "eu",
-        spaceId: "spa_segment",
-        profileApiToken: "segment-profile-token",
-      },
-    });
-
-    const body = mockApiRequest.mock.calls[0]?.[2] as {
-      historyImport?: unknown;
-    };
-    expect(body.historyImport).toEqual({
-      region: "eu",
-      spaceId: "spa_segment",
-      profileApiToken: "segment-profile-token",
     });
   });
 

@@ -164,7 +164,13 @@ export async function handleSequenceTools(
           query.set(field, String(value));
         }
       }
-      for (const field of ["email", "sort", "limit", "offset"] as const) {
+      for (const field of [
+        "email",
+        "sort",
+        "limit",
+        "offset",
+        "stopConditionMatch",
+      ] as const) {
         if (args[field] !== undefined) query.set(field, String(args[field]));
       }
       const suffix = query.size > 0 ? `?${query.toString()}` : "";

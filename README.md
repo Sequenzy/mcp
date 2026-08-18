@@ -275,12 +275,13 @@ sort options.
 | `get_tracking_settings`              | Read open, click, unsubscribe, attribution, UTM, click-domain, reply-tracking, and double-opt-in settings.                    |
 | `update_tracking_settings`           | Update email tracking, attribution, UTM, and account-wide double-opt-in defaults.                                             |
 | `get_integration_guide`              | Get framework-specific integration examples.                                                                                  |
-| `get_integration`                    | Inspect one connected integration, its event wiring, recent activity, and recommendations.                                    |
+| `get_integration`                    | Inspect one connected integration, its event wiring, list targeting, recent activity, and recommendations.                    |
 | `list_integration_capabilities`      | Compare provider capabilities whether or not they are connected.                                                              |
 | `connect_integration`                | Connect supported API-key or webhook-secret providers, including Segment and optional PostHog/Segment history import.         |
 | `get_event_schema`                   | Inspect published event payload examples, property paths, types, and merge tags by provider.                                  |
 | `list_integration_activity`          | Read the retained integration-specific webhook and sync activity log.                                                         |
 | `set_integration_sync_enabled`       | Enable or disable bulk imports and backfills while leaving live webhooks connected.                                           |
+| `set_integration_list_targeting`     | Choose which lists contacts created by a supported integration join on future provider writes.                                |
 | `sync_integration`                   | Queue payment revenue, Supabase users, or a PostHog/Segment event-history import using the saved integration configuration.   |
 | `get_integration_pixel`              | Read Shopify's live pixel/configuration state and distinguish confirmed dark events from an unknown read.                     |
 | `activate_integration_pixel`         | Install or repoint Shopify's storefront pixel; idempotent when it is already current.                                         |
@@ -303,6 +304,13 @@ selection, and consent mappings saved in the dashboard. It cannot target an
 arbitrary table. Run it after installing the live database trigger to import
 users who existed before the trigger was installed, then poll `get_integration`
 and `list_integration_activity` for progress and row-level outcomes.
+
+`set_integration_sync_enabled` controls bulk imports and backfills only; it
+does not stop a provider's live webhook from creating contacts. Use
+`set_integration_list_targeting` to choose their future list memberships:
+`null` follows workspace defaults, `[]` joins no list, and a populated array
+targets those lists. The change is not retroactive and never removes existing
+memberships. Supabase, Stripe, Shopify, Wix, and Webflow support this control.
 
 For PostHog, `sync_integration` restarts the event-history import from the
 beginning with the stored personal API key. Imported events are deduplicated, so

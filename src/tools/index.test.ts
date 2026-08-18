@@ -1185,6 +1185,15 @@ describe("nullable structured output", () => {
       sequenceId: "seq_abc123",
       sequenceName: "Onboarding",
       statuses: ["active", "waiting"],
+      stopCondition: {
+        type: "event_received",
+        value: "onboarding.completed",
+        matchConfig: {
+          mode: "event_property_filter",
+          propertyFilters: [{ path: "plan", operator: "equals", value: "pro" }],
+        },
+      },
+      stopConditionMatchEvaluatedCount: 1,
       enrollments: [
         {
           enrollmentId: "tok_abc123",
@@ -1202,6 +1211,8 @@ describe("nullable structured output", () => {
           waitUntil: null,
           lastUpdatedAt: "2026-01-01T00:00:00.000Z",
           failedReason: null,
+          stopConditionMatches: true,
+          stopConditionMatchReason: "Subscriber received a matching stop event",
         },
       ],
       pagination: {
@@ -3710,6 +3721,10 @@ describe("update_campaign tool validation", () => {
         }
       | undefined;
 
+    expect(scheduleCampaignTool?.description).toContain("non-empty subject");
+    expect(scheduleCampaignTool?.description).toContain(
+      "at least one audience include rule"
+    );
     expect(inputSchema?.required).toEqual(["campaignId", "scheduledAt"]);
     expect(inputSchema?.additionalProperties).toBe(false);
     expect(inputSchema?.properties).toHaveProperty("targetLists");

@@ -106,6 +106,7 @@ export const MUTATING_TOOL_NAMES = new Set([
   "update_shopify_automation_settings",
   "connect_integration",
   "set_integration_sync_enabled",
+  "set_integration_list_targeting",
   "sync_integration",
   // Writes a web pixel to the merchant's Shopify store.
   "activate_integration_pixel",
@@ -305,6 +306,10 @@ export const DESTRUCTIVE_TOOL_NAMES = new Set([
   // Disabling sync stops an integration feeding the account, in the same way
   // disabling a sequence stops it running. Reversible, but worth a confirm.
   "set_integration_sync_enabled",
+  // Retargeting changes which lists an integration's future contacts join, so
+  // it silently changes who gets mailed. Reversible, but contacts created
+  // under the old targeting are not retroactively moved - worth a confirm.
+  "set_integration_list_targeting",
   "disable_sequence",
   "archive_sequence",
   "delete_sequence_goal",

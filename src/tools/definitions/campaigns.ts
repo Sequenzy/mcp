@@ -547,7 +547,7 @@ export const campaignToolDefinitions: Tool[] = [
   {
     name: "schedule_campaign",
     description:
-      "Schedule a draft or already scheduled campaign, as a one-off send or on a repeating weekly/monthly cadence via `recurringInterval`. Use `recurringInterval` for newsletters that go out on a fixed schedule instead of creating one campaign per issue. Returns dashboard edit and preview URLs.",
+      "Schedule a draft or already scheduled campaign as a one-off send or on a repeating weekly/monthly cadence via `recurringInterval`. The campaign must have a non-empty subject, at least one content block, and at least one audience include rule. Use `recurringInterval` for newsletters that go out on a fixed schedule instead of creating one campaign per issue. Returns dashboard edit and preview URLs; validation errors explain what must be fixed before retrying.",
     inputSchema: {
       type: "object",
       properties: {
@@ -767,7 +767,7 @@ export const campaignToolDefinitions: Tool[] = [
   {
     name: "resend_campaign_to_non_openers",
     description:
-      "Create a draft that resends a sent campaign to everyone in the same audience who didn't open it. Copies the campaign email and reuses the original audience with a 'didn't open this campaign' rule added. Only available 6 hours after the campaign finishes sending. The draft must be scheduled or sent separately. Returns the new draft and an estimate of how many subscribers haven't opened the original.",
+      "Create a draft that resends a sent campaign to everyone in the same audience who didn't open it. Copies the campaign email and reuses the original audience with a 'didn't open this campaign' rule added. Only available 6 hours after the campaign finishes sending, and never for imported already-sent campaigns (Sequenzy has no opens for a send it did not deliver). The draft must be scheduled or sent separately. Returns the new draft and an estimate of how many subscribers haven't opened the original.",
     inputSchema: {
       type: "object",
       properties: {
