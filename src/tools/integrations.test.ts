@@ -126,6 +126,12 @@ describe("integration tool definitions", () => {
     const historyOutput = connectTool?.outputSchema?.properties?.["history"] as
       | { description?: string }
       | undefined;
+    const settingsInput = connectTool?.inputSchema.properties?.["settings"] as
+      | { description?: string }
+      | undefined;
+    const webhookSecretInput = connectTool?.inputSchema.properties?.[
+      "webhookSecret"
+    ] as { description?: string } | undefined;
 
     expect(providerSchema?.enum).toContain("segment");
     expect(historyInput?.properties).toHaveProperty("region");
@@ -133,6 +139,8 @@ describe("integration tool definitions", () => {
     expect(historyInput?.properties).toHaveProperty("profileApiToken");
     expect(historyInput?.required).toEqual(["region"]);
     expect(historyOutput?.description).toContain("PostHog and Segment");
+    expect(settingsInput?.description).toContain("skip automatic page/screen");
+    expect(webhookSecretInput?.description).toContain("16-153 UTF-8 bytes");
   });
 });
 

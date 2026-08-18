@@ -279,7 +279,7 @@ sort options.
 | `get_event_schema`                   | Inspect published event payload examples, property paths, types, and merge tags by provider.                                  |
 | `list_integration_activity`          | Read the retained integration-specific webhook and sync activity log.                                                         |
 | `set_integration_sync_enabled`       | Enable or disable bulk imports and backfills while leaving live webhooks connected.                                           |
-| `sync_integration`                   | Queue payment revenue, Supabase users, or a PostHog/Segment event-history import using the saved integration configuration.    |
+| `sync_integration`                   | Queue payment revenue, Supabase users, or a PostHog/Segment event-history import using the saved integration configuration.   |
 | `get_integration_pixel`              | Read Shopify's live pixel/configuration state and distinguish confirmed dark events from an unknown read.                     |
 | `activate_integration_pixel`         | Install or repoint Shopify's storefront pixel; idempotent when it is already current.                                         |
 | `list_web_tracking_keys`             | List publishable website-tracking keys, origin restrictions, usage state, and install snippets.                               |
@@ -306,7 +306,9 @@ For Segment, `connect_integration` can optionally import recent event history
 from Unify after the live webhook is connected. The import walks existing
 contacts through the Profile API, covers the API's most recent 14 days, skips
 contacts without a matching profile, and safely deduplicates retries and live
-webhook overlap. Use `sync_integration` to retry with the saved credentials.
+webhook overlap. New connections skip automatic page/screen calls unless those
+names are explicitly allowlisted. Segment webhook secrets must be 16-153 UTF-8
+bytes. Use `sync_integration` to retry with the saved credentials.
 
 Call `get_event_schema` before writing an `{{event.*}}` merge tag or an event
 property filter. Omit `eventName` to list documented built-in events; provide

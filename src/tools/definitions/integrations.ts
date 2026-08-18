@@ -41,7 +41,7 @@ export const integrationToolDefinitions: Tool[] = [
         webhookSecret: {
           type: "string",
           description:
-            "Signing secret of the webhook you create at the provider, pointed at the returned webhookUrl. Required for every provider. For Chargebee, pass the webhook's basic-auth credentials as username:password. For segment, the secret is your own choice and must be at least 16 characters.",
+            "Signing secret of the webhook you create at the provider, pointed at the returned webhookUrl. Required for every provider. For Chargebee, pass the webhook's basic-auth credentials as username:password. For segment, the secret is your own choice and must be 16-153 UTF-8 bytes.",
         },
         providerAccountId: {
           type: "string",
@@ -51,7 +51,7 @@ export const integrationToolDefinitions: Tool[] = [
         settings: {
           type: "object",
           description:
-            "PostHog and Segment only: event delivery scope. Defaults to syncing all non-internal events.",
+            "PostHog and Segment only: event delivery scope. PostHog defaults to syncing every non-internal event. New Segment connections sync track and identify calls but skip automatic page/screen calls unless those names are explicitly allowlisted.",
           properties: {
             syncAllEvents: {
               type: "boolean",
