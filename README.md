@@ -391,27 +391,28 @@ abandonment or price-drop settings. Timing values must be positive;
 
 ### Subscribers
 
-| Tool                          | Description                                                                                                     |
-| ----------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `add_subscriber`              | Add one subscriber; status is creation-only, so use `update_subscriber` for an existing contact.                |
+| Tool                          | Description                                                                                                    |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `add_subscriber`              | Add one subscriber; status is creation-only, so use `update_subscriber` for an existing contact.               |
 | `create_subscriber_import`    | Queue up to 5,000 full CRM records; enabled email-hygiene checks continue separately after ingestion.          |
-| `get_subscriber_import`       | Read progress, row outcome counts, and failure summaries for a queued import.                                   |
-| `update_subscriber`           | Update native profile and phone fields, SMS consent, attributes, tags, or global status.                        |
-| `remove_subscriber`           | Unsubscribe while preserving suppression history, or permanently delete only with `hardDelete: true`.           |
-| `get_subscriber`              | Fetch subscriber details by email or external ID.                                                               |
-| `search_subscribers`          | Search by query, tags, list, status, segment, or one custom attribute, with automatic or resumable pagination.  |
-| `trigger_subscriber_event`    | Emit one custom event exactly as an integration would, applying sync rules and matching sequence triggers.      |
-| `trigger_subscriber_events`   | Emit several ordered custom events for one subscriber.                                                          |
-| `bulk_add_subscriber_tags`    | Add tags to up to 500 existing subscribers; requires `subscribers:tag` and may also require `tags:write`.       |
-| `bulk_remove_subscriber_tags` | Remove tags from up to 500 existing subscribers; requires `subscribers:tag` or `subscribers:write`.             |
+| `get_subscriber_import`       | Read progress, row outcome counts, and failure summaries for a queued import.                                  |
+| `update_subscriber`           | Update native profile and phone fields, SMS consent, attributes, tags, or global status.                       |
+| `remove_subscriber`           | Unsubscribe while preserving suppression history, or permanently delete only with `hardDelete: true`.          |
+| `get_subscriber`              | Fetch subscriber details by email or external ID.                                                              |
+| `search_subscribers`          | Search by query, tags, list, status, segment, or one custom attribute, with automatic or resumable pagination. |
+| `trigger_subscriber_event`    | Emit one custom event exactly as an integration would, applying sync rules and matching sequence triggers.     |
+| `trigger_subscriber_events`   | Emit several ordered custom events for one subscriber.                                                         |
+| `bulk_add_subscriber_tags`    | Add tags to up to 500 existing subscribers; requires `subscribers:tag` and may also require `tags:write`.      |
+| `bulk_remove_subscriber_tags` | Remove tags from up to 500 existing subscribers; requires `subscribers:tag` or `subscribers:write`.            |
 
 Use `create_subscriber_import` for CRM onboarding instead of looping over
 `add_subscriber`. One call accepts 5,000 full records and returns an asynchronous
 import ID; poll it with `get_subscriber_import`. A `completed` import can still
-contain row failures, so inspect `failedCount` and `failedReasons`. Email rows
-are checked automatically; status includes checked, valid, risky, invalid, and
-temporarily unavailable counts, and invalid addresses are suppressed from
-sends. Use `optInMode: "confirmed"` only when consent was already verified.
+contain row failures, so inspect `failedCount` and `failedReasons`. When email
+hygiene is enabled, deliverability checks continue separately after ingestion
+and results appear in List health; import status does not wait for or include
+those verdicts. Invalid verdicts are suppressed from later sends. Use
+`optInMode: "confirmed"` only when consent was already verified.
 
 For compliance suppression, call `update_subscriber` with
 `status: "unsubscribed"` (or use `remove_subscriber` without `hardDelete`). Do
@@ -645,7 +646,7 @@ Use `get_ab_test` to copy the effective `settings` object and discover variant I
 | `get_campaign_audience`          | Resolve saved targeting, missing references, a plain-language summary, and live recipient count.        |
 | `list_email_sends`               | Search recent delivery history with resource IDs and URLs, optionally scoped to one sequence step.      |
 | `get_email_send`                 | Inspect a queued, test, sent, suppressed, or failed delivery by durable email-send ID.                  |
-| `get_recipient_suppression`      | Check local bounce, complaint, email-hygiene, and regional SES suppression for one exact recipient.      |
+| `get_recipient_suppression`      | Check local bounce, complaint, email-hygiene, and regional SES suppression for one exact recipient.     |
 | `remove_recipient_suppression`   | Remove stale bounce suppression while preserving complaint, unsubscribe, and email-hygiene protections. |
 | `create_campaign`                | Create a campaign with content, data, and optional From/Reply-To identity overrides.                    |
 | `update_campaign`                | Update a draft campaign, including content, data, From, Reply-To, CC, and BCC.                          |
