@@ -122,6 +122,36 @@ export async function handleIntegrationTools(
       break;
     }
 
+    case "set_integration_list_targeting": {
+      const integrationId = requiredString(
+        "set_integration_list_targeting",
+        args,
+        "integrationId"
+      );
+
+      // `null` is a real instruction here (fall back to the workspace default
+      // lists), so it must survive both the missing-argument check and the
+      // check that rejects a malformed value.
+      if (args.listIds === undefined) {
+        throw new Error(
+          "`listIds` is required when calling `set_integration_list_targeting`. Pass an array of list IDs, `[]` to join no list, or null to fall back to the workspace default lists."
+        );
+      }
+      if (args.listIds !== null && !Array.isArray(args.listIds)) {
+        throw new Error(
+          "`listIds` must be an array of list IDs, or null to fall back to the workspace default lists."
+        );
+      }
+
+      result = await apiRequest(
+        "PATCH",
+        `/api/v1/integrations/${encodeURIComponent(integrationId)}`,
+        { listIds: args.listIds },
+        companyId
+      );
+      break;
+    }
+
     case "get_integration_pixel": {
       const integrationId = requiredString(
         "get_integration_pixel",

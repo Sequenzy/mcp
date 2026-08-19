@@ -211,14 +211,19 @@ export function buildLandingPageUpdateBody(
 export function buildLandingPageDomainSettingsBody(
   args: Record<string, unknown>
 ): Record<string, unknown> {
-  const allowedKeys = new Set(["companyId", "domain", "verify"]);
+  const allowedKeys = new Set([
+    "companyId",
+    "domain",
+    "landingPageId",
+    "verify",
+  ]);
   const unsupportedKeys = Object.keys(args).filter(
     (key) => !allowedKeys.has(key)
   );
 
   if (unsupportedKeys.length > 0) {
     throw new Error(
-      `\`update_landing_page_domain_settings\` accepts only \`domain\` and \`verify\`. Unsupported field${unsupportedKeys.length === 1 ? "" : "s"}: ${unsupportedKeys.map((key) => `\`${key}\``).join(", ")}.`
+      `\`update_landing_page_domain_settings\` accepts only \`landingPageId\`, \`domain\`, and \`verify\`. Unsupported field${unsupportedKeys.length === 1 ? "" : "s"}: ${unsupportedKeys.map((key) => `\`${key}\``).join(", ")}.`
     );
   }
 

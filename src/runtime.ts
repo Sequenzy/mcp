@@ -79,7 +79,8 @@ function getApiKey(): string | undefined {
 
 function buildApiHeaders(
   contentType: string,
-  companyIdOverride?: string
+  companyIdOverride?: string,
+  requestHeaders?: Readonly<Record<string, string>>
 ): Record<string, string> {
   const apiKey = getApiKey();
   if (!apiKey) {
@@ -99,6 +100,7 @@ function buildApiHeaders(
   if (effectiveCompanyId) {
     headers["x-company-id"] = effectiveCompanyId;
   }
+  Object.assign(headers, requestHeaders);
   return headers;
 }
 
@@ -226,9 +228,14 @@ export async function apiRequest<T>(
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
   path: string,
   body?: unknown,
-  companyIdOverride?: string
+  companyIdOverride?: string,
+  requestHeaders?: Readonly<Record<string, string>>
 ): Promise<T> {
-  const headers = buildApiHeaders("application/json", companyIdOverride);
+  const headers = buildApiHeaders(
+    "application/json",
+    companyIdOverride,
+    requestHeaders
+  );
 
   let response: Response;
 

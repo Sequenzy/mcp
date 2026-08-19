@@ -82,7 +82,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
   {
     name: "list_sequence_enrollments",
     description:
-      "List the individual contacts currently enrolled in a sequence, with the node each one is sitting on. Use this when get_sequence_stats gives you enrollmentCounts and you need the actual subscribers behind a number, such as everyone waiting at one step. Filter by currentNodeId (take the ID from get_sequence_stats enrollmentCounts.byCurrentNode or get_sequence nodes), status, subscriberId, or email, and page with limit/offset to export the full list.",
+      "List the individual contacts currently enrolled in a sequence, with the node each one is sitting on. Use this when get_sequence_stats gives you enrollmentCounts and you need the actual subscribers behind a number, such as everyone waiting at one step. Filter by currentNodeId (take the ID from get_sequence_stats enrollmentCounts.byCurrentNode or get_sequence nodes), status, subscriberId, or email, and page with limit/offset to export the full list. The response always echoes the sequence's single configured stopCondition, including matchConfig filters or comparisons. A stop condition does not cancel a waiting enrollment when its event arrives: it is re-evaluated when the enrollment next runs a step, so an enrollment parked on a delay keeps reporting `waiting` until that delay expires. Pass stopConditionMatch true to see whether each in-flight enrollment's stop condition matches right now. This is a non-atomic snapshot: a step already past its stop check may still finish.",
     inputSchema: {
       type: "object",
       properties: {
@@ -132,10 +132,15 @@ export const sequenceBasicToolDefinitions: Tool[] = [
           description:
             "Result order. Defaults to enrolled_at_desc (most recently enrolled first). Use wait_until_asc to see who resumes next.",
         },
+        stopConditionMatch: {
+          type: "boolean",
+          description:
+            "Annotate each returned active or waiting enrollment with whether the sequence's stop condition matches for that contact right now, using the same evaluation the worker runs before each step. Use this to confirm a stop event, tag, or field change registered without waiting out the current delay: a matching enrollment can still report `waiting`, so status alone cannot tell you. This is a non-atomic snapshot, not a promise of a future exit: the condition can change, a paused sequence may not run on schedule, and a step already past its stop check may still finish. Each annotated enrollment costs an evaluation, so this caps the page at 100 regardless of limit; stopConditionMatchEvaluatedCount reports how many were actually evaluated. Defaults to false.",
+        },
         limit: {
           type: "number",
           description:
-            "Enrollments per page, 1-500. Defaults to 50. Use the maximum when exporting.",
+            "Enrollments per page, 1-500. Defaults to 50. Use the maximum when exporting. Capped at 100 when stopConditionMatch is true.",
         },
         offset: {
           type: "number",

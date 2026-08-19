@@ -12,14 +12,14 @@ export const integrationToolDefinitions: Tool[] = [
   {
     name: "connect_integration",
     description:
-      "Connect an API-key / webhook-secret integration: polar, paddle, dodo, whop, creem, chargebee, clerk, posthog, or affonso. Check list_integration_capabilities first - each connectable provider lists its exact connectFields there. Credentials are validated against the provider where possible, stored encrypted, and never returned; payment providers queue their initial revenue backfill automatically. The response includes the webhookUrl the user must configure at the provider with the same secret - always relay it. Reconnecting an already-connected provider replaces its stored credentials. OAuth and app-install providers (Stripe, Shopify, Supabase, GitHub, WooCommerce, Meta) are rejected with guidance: their flows need a human in the dashboard. SECURITY: only pass credentials the user explicitly provided for this purpose; suggest the CLI (`sequenzy integrations connect`) or dashboard when the user prefers keeping secrets out of the conversation.",
+      "Connect an API-key / webhook-secret integration: polar, paddle, dodo, whop, creem, chargebee, clerk, posthog, segment, or affonso. Check list_integration_capabilities first - each connectable provider lists its exact connectFields there. Credentials are validated against the provider where possible, stored encrypted, and never returned; payment providers queue their initial revenue backfill automatically. The response includes the webhookUrl the user must configure at the provider with the same secret - always relay it. Reconnecting an already-connected provider replaces its stored credentials. OAuth and app-install providers (Stripe, Shopify, Supabase, GitHub, WooCommerce, Meta) are rejected with guidance: their flows need a human in the dashboard. SECURITY: only pass credentials the user explicitly provided for this purpose; suggest the CLI (`sequenzy integrations connect`) or dashboard when the user prefers keeping secrets out of the conversation.",
     inputSchema: {
       type: "object",
       properties: {
         provider: {
           type: "string",
           description:
-            "Provider to connect: polar, paddle, dodo, whop, creem, chargebee, clerk, posthog, or affonso.",
+            "Provider to connect: polar, paddle, dodo, whop, creem, chargebee, clerk, posthog, segment, or affonso.",
           enum: [
             "polar",
             "paddle",
@@ -29,61 +29,72 @@ export const integrationToolDefinitions: Tool[] = [
             "chargebee",
             "clerk",
             "posthog",
+            "segment",
             "affonso",
           ],
         },
         apiKey: {
           type: "string",
           description:
-            "Provider API key. Required for every provider except clerk and posthog.",
+            "Provider API key. Required for every provider except clerk, posthog, and segment.",
         },
         webhookSecret: {
           type: "string",
           description:
-            "Signing secret of the webhook you create at the provider, pointed at the returned webhookUrl. Required for every provider. For Chargebee, pass the webhook's basic-auth credentials as username:password.",
+            "Signing secret of the webhook you create at the provider, pointed at the returned webhookUrl. Required for every provider. For Chargebee, pass the webhook's basic-auth credentials as username:password. For segment, the secret is your own choice and must be 16-153 UTF-8 bytes.",
         },
         providerAccountId: {
           type: "string",
           description:
-            "Provider account id, required for paddle (seller ID), dodo (business ID), whop (company ID, biz_...), creem (store ID), and chargebee (site name). Polar resolves it from the API key; clerk, posthog, and affonso do not use one.",
+            "Provider account id, required for paddle (seller ID), dodo (business ID), whop (company ID, biz_...), creem (store ID), and chargebee (site name). Polar resolves it from the API key; clerk, posthog, segment, and affonso do not use one.",
         },
         settings: {
           type: "object",
           description:
-            "PostHog only: event delivery scope. Defaults to syncing all non-internal events.",
+            "PostHog and Segment only: event delivery scope. PostHog defaults to syncing every non-internal event. New Segment connections sync track and identify calls but skip automatic page/screen calls unless those names are explicitly allowlisted.",
           properties: {
             syncAllEvents: {
               type: "boolean",
-              description: "Sync every event PostHog delivers.",
+              description: "Sync every event the provider delivers.",
             },
             eventAllowlist: {
               type: "array",
               items: { type: "string" },
               description:
-                "Only sync these PostHog event names. Set syncAllEvents to false when using this.",
+                "Only sync these event names. Set syncAllEvents to false when using this.",
             },
           },
         },
         historyImport: {
           type: "object",
           description:
-            "PostHog only: import the project's event history after connecting. Needs a personal API key with query read access.",
+            "PostHog and Segment only: import event history after connecting. PostHog needs region + projectId + personalApiKey (query read access) and imports the project archive. Segment needs region + spaceId + profileApiToken (Unify Profile API) and imports each existing contact's recent profile history - the Profile API serves at most the last 14 days, and contacts without a Unify profile are skipped.",
           properties: {
             region: {
               type: "string",
               enum: ["us", "eu"],
-              description: "PostHog Cloud region hosting the project.",
+              description:
+                "Region hosting the data: the PostHog Cloud region, or the Segment workspace's deployment.",
             },
             projectId: {
               type: "string",
-              description: "Numeric PostHog project ID.",
+              description: "PostHog only: numeric PostHog project ID.",
             },
             personalApiKey: {
               type: "string",
-              description: "PostHog personal API key (phx_...).",
+              description: "PostHog only: personal API key (phx_...).",
+            },
+            spaceId: {
+              type: "string",
+              description: "Segment only: Unify space ID (spa_...).",
+            },
+            profileApiToken: {
+              type: "string",
+              description:
+                "Segment only: Profile API access token for the space.",
             },
           },
-          required: ["region", "projectId", "personalApiKey"],
+          required: ["region"],
         },
         companyId: {
           type: "string",
@@ -176,7 +187,7 @@ export const integrationToolDefinitions: Tool[] = [
   {
     name: "set_integration_sync_enabled",
     description:
-      "Turn a supported payment integration's future bulk imports and backfills on or off. Check get_integration.availableActions first; providers without enable_sync or disable_sync are dashboard-managed. Disabling keeps the connection, credentials, and live webhook delivery active, and requires any in-flight sync to finish first. It does not disconnect the integration. Idempotent: setting the current state succeeds with `changed: false`.",
+      "Turn a supported integration's future bulk imports and backfills on or off. THIS DOES NOT STOP AN INTEGRATION CREATING CONTACTS: disabling sync only pauses full imports and backfills, while the provider's live webhook keeps writing every new signup or customer as it happens. To change where those contacts land, use set_integration_list_targeting; to stop them arriving at all, the integration has to be disconnected from the dashboard. Check get_integration.availableActions first; providers without enable_sync or disable_sync are dashboard-managed. Disabling keeps the connection, credentials, and live webhook delivery active, and requires any in-flight sync to finish first. It does not disconnect the integration. Idempotent: setting the current state succeeds with `changed: false`. Requires an API key with the `integrations:manage` scope, which agent-safe keys deliberately do not carry - without it, report the dashboard path (Settings -> Integrations) instead of retrying.",
     inputSchema: {
       type: "object",
       properties: {
@@ -195,6 +206,32 @@ export const integrationToolDefinitions: Tool[] = [
         },
       },
       required: ["integrationId", "syncEnabled"],
+    },
+  },
+  {
+    name: "set_integration_list_targeting",
+    description:
+      "Choose which lists the contacts a connected integration creates join. This is the tool for 'stop this integration adding people to my marketing lists' - set_integration_sync_enabled only pauses bulk backfills and leaves the provider's live webhook writing. IMPORTANT SCOPE: this changes list membership only, and it takes effect on future provider writes. It does not stop contacts being created, does not stop their attributes syncing, does not stop sync-rule tags, and does not stop `contact_added` sequences that trigger on any list. Nobody is ever removed from a list and nothing is applied retroactively. Provider behavior for existing contacts differs: Wix or Webflow submissions, Shopify customer updates, and Supabase resubscriptions can add an existing contact to the new target lists; Stripe applies targeting only when its webhook creates a subscriber. If the goal is to stop enrollments too, pair it with pause_sequence_enrollments on the affected sequences. Check get_integration first - `ingestion` reports the current targeting with list names, and `availableActions` says whether this provider honors set_list_targeting. Supported for Supabase, Stripe, Shopify, Wix, and Webflow. Idempotent: asking for the current state succeeds with `changed: false`. Requires an API key with the `integrations:manage` scope, which agent-safe keys deliberately do not carry - without it, report the dashboard path (Settings -> Integrations) instead of retrying.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        integrationId: {
+          type: "string",
+          description: "Integration ID from list_integrations.",
+        },
+        listIds: {
+          type: ["array", "null"],
+          items: { type: "string" },
+          description:
+            "Lists that contacts created by this integration join from now on. `null` clears the choice so they follow the workspace default lists; `[]` means they join no list at all; a populated array means exactly those lists. Every ID must belong to this company.",
+        },
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+      },
+      required: ["integrationId", "listIds"],
     },
   },
   {
@@ -242,7 +279,7 @@ export const integrationToolDefinitions: Tool[] = [
   {
     name: "sync_integration",
     description:
-      "Queue a manual re-sync for an integration: customers and revenue for a payment provider (Stripe, Polar, Paddle, Dodo, Creem, Chargebee, Whop), the user backfill for Supabase, or the event-history import for PostHog. Use this for Supabase before a campaign that depends on names or plan attributes - the live trigger only sends rows that change after it was installed, so existing users have no attributes until a backfill runs. The Supabase sync reads the project, schema, and table already configured for the integration and cannot be pointed at a different table; if none is configured yet it fails saying so. This is also the supported way to retry a failed PostHog history import: it restarts from the beginning using the stored personal API key, and already-imported events dedupe, so a re-run cannot duplicate them. Returns immediately - poll get_integration to watch `syncStatus` and `lastSyncAt`, and list_integration_activity for per-row outcomes. Fails with a conflict if a sync is already queued or running; terminal BullMQ failures release PostHog imports for retry. Providers whose backfill is not API-triggerable (Shopify products, Affonso affiliates) return a clear error naming the dashboard. Check `availableActions` on get_integration to see whether this is supported before calling.",
+      "Queue a manual re-sync for an integration: customers and revenue for a payment provider (Stripe, Polar, Paddle, Dodo, Creem, Chargebee, Whop), the user backfill for Supabase, or the event-history import for PostHog and Segment. Use this for Supabase before a campaign that depends on names or plan attributes - the live trigger only sends rows that change after it was installed, so existing users have no attributes until a backfill runs. The Supabase sync reads the project, schema, and table already configured for the integration and cannot be pointed at a different table; if none is configured yet it fails saying so. This is also the supported way to retry a failed PostHog or Segment history import: it restarts from the beginning using the stored credentials, and already-imported events dedupe, so a re-run cannot duplicate them. Returns immediately - poll get_integration to watch `syncStatus` and `lastSyncAt`, and list_integration_activity for per-row outcomes. Fails with a conflict if a sync is already queued or running; terminal BullMQ failures release history imports for retry. Providers whose backfill is not API-triggerable (Shopify products, Affonso affiliates) return a clear error naming the dashboard. Check `availableActions` on get_integration to see whether this is supported before calling.",
     inputSchema: {
       type: "object",
       properties: {

@@ -236,7 +236,7 @@ export const landingPageToolDefinitions: Tool[] = [
   {
     name: "connect_landing_page_domain",
     description:
-      "Connect a custom domain for published landing pages. Returns the DNS target and verification records.",
+      "Connect a custom domain. Omit landingPageId for the legacy workspace-wide domain, or provide it to dedicate the hostname to one page at the domain root. Returns DNS and verification details.",
     inputSchema: {
       type: "object",
       properties: {
@@ -249,6 +249,11 @@ export const landingPageToolDefinitions: Tool[] = [
           type: "string",
           description: "Custom domain, for example pages.example.com.",
         },
+        landingPageId: {
+          type: "string",
+          description:
+            "Optional landing page ID. When provided, the domain serves only this page from the hostname root.",
+        },
       },
       required: ["domain"],
       additionalProperties: false,
@@ -257,7 +262,7 @@ export const landingPageToolDefinitions: Tool[] = [
   {
     name: "update_landing_page_domain_settings",
     description:
-      "Update landing page domain settings. Provide domain to replace the custom domain, verify true to refresh verification, or both.",
+      "Update or verify landing page domain settings. Omit landingPageId for the workspace domain, or provide it for a dedicated page domain. Dedicated domains must be removed explicitly before replacement.",
     inputSchema: {
       type: "object",
       properties: {
@@ -274,7 +279,32 @@ export const landingPageToolDefinitions: Tool[] = [
           type: "boolean",
           description: "Refresh domain verification after any domain update.",
         },
+        landingPageId: {
+          type: "string",
+          description: "Optional dedicated landing page domain target.",
+        },
       },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "remove_landing_page_domain",
+    description:
+      "Remove the dedicated custom domain from one landing page. The page keeps its workspace and Sequenzy fallback URLs.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        landingPageId: {
+          type: "string",
+          description: "Landing page whose dedicated domain should be removed.",
+        },
+      },
+      required: ["landingPageId"],
       additionalProperties: false,
     },
   },
