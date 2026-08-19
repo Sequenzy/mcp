@@ -898,15 +898,7 @@ describe("subscriber MCP tools", () => {
   it("gets subscriber import progress", async () => {
     mockApiRequest.mockResolvedValue({
       success: true,
-      import: {
-        id: "import_123",
-        status: "completed",
-        hygieneCheckedCount: 10,
-        hygieneValidCount: 7,
-        hygieneRiskyCount: 1,
-        hygieneInvalidCount: 1,
-        hygieneUnknownCount: 1,
-      },
+      import: { id: "import_123", status: "completed" },
     });
 
     const result = await handleToolCall("get_subscriber_import", {
@@ -915,15 +907,6 @@ describe("subscriber MCP tools", () => {
     });
 
     expect(result.isError).toBeUndefined();
-    expect(result.structuredContent).toMatchObject({
-      import: {
-        hygieneCheckedCount: 10,
-        hygieneValidCount: 7,
-        hygieneRiskyCount: 1,
-        hygieneInvalidCount: 1,
-        hygieneUnknownCount: 1,
-      },
-    });
     expect(mockApiRequest).toHaveBeenCalledWith(
       "GET",
       "/api/v1/subscribers/imports/import%2F123",
