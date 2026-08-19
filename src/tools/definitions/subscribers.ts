@@ -143,7 +143,7 @@ export const subscriberToolDefinitions: Tool[] = [
   {
     name: "create_subscriber_import",
     description:
-      "Queue one CRM-grade subscriber import with up to 5,000 full contact records. Supports names, external IDs, phones, statuses, tags, lists, and custom attributes. Email addresses are automatically checked for deliverability, and invalid addresses are suppressed from sends. Prefer this over repeated add_subscriber calls. Returns an import ID for get_subscriber_import. Use optInMode='confirmed' only when the contacts already gave verified email consent.",
+      "Queue one CRM-grade subscriber import with up to 5,000 full contact records. Supports names, external IDs, phones, statuses, tags, lists, and custom attributes. When email hygiene is enabled, deliverability checks are queued separately after import so they do not delay contact ingestion; invalid verdicts are suppressed from later sends. Prefer this over repeated add_subscriber calls. Returns an import ID for get_subscriber_import. Use optInMode='confirmed' only when the contacts already gave verified email consent.",
     inputSchema: {
       type: "object",
       properties: {
@@ -204,7 +204,7 @@ export const subscriberToolDefinitions: Tool[] = [
   {
     name: "get_subscriber_import",
     description:
-      "Get progress, row outcomes, email-hygiene counts (checked, valid, risky, invalid, and unavailable), skipped reasons, and failure summaries for a queued subscriber import.",
+      "Get progress, row outcomes, skipped reasons, and failure summaries for a queued subscriber import.",
     inputSchema: {
       type: "object",
       properties: {

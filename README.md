@@ -25,7 +25,7 @@ Connect Sequenzy to Claude Desktop, Claude Code, Codex, Cursor, Windsurf, VS Cod
 - Generate email copy, subject lines, and multi-step sequences.
 - Inspect analytics, subscriber activity, deliverability health, company-level sending pauses, integrations, published event payload schemas, sending identities, tracking settings, and dashboard URLs.
 - Diagnose why sending is paused and restore eligible hard-bounce pauses after confirming list cleanup.
-- Inspect exact-recipient bounce, complaint, and email-hygiene suppression and clean up removable bounces without exposing the shared SES suppression list.
+- Inspect exact-recipient bounce, complaint, and email-hygiene suppression, and clean up eligible stale bounces without exposing the shared SES suppression list.
 - Configure company product info, account-wide sending identity defaults, rename individual sender and reply-to profiles, manage sender domains, and inspect integration examples for common frameworks.
 
 Every published MCP tool includes explicit `readOnlyHint`, `destructiveHint`, and `openWorldHint` annotations so compatible clients can display accurate tool-use affordances. Tools also publish `outputSchema` definitions and return `structuredContent`, giving clients and models machine-readable result shapes for follow-up calls.
@@ -394,8 +394,8 @@ abandonment or price-drop settings. Timing values must be positive;
 | Tool                          | Description                                                                                                     |
 | ----------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | `add_subscriber`              | Add one subscriber; status is creation-only, so use `update_subscriber` for an existing contact.                |
-| `create_subscriber_import`    | Queue up to 5,000 full CRM records and automatically check email deliverability.                                |
-| `get_subscriber_import`       | Read progress, row outcomes, hygiene counts, and failure summaries for a queued import.                         |
+| `create_subscriber_import`    | Queue up to 5,000 full CRM records; enabled email-hygiene checks continue separately after ingestion.          |
+| `get_subscriber_import`       | Read progress, row outcome counts, and failure summaries for a queued import.                                   |
 | `update_subscriber`           | Update native profile and phone fields, SMS consent, attributes, tags, or global status.                        |
 | `remove_subscriber`           | Unsubscribe while preserving suppression history, or permanently delete only with `hardDelete: true`.           |
 | `get_subscriber`              | Fetch subscriber details by email or external ID.                                                               |
@@ -645,8 +645,8 @@ Use `get_ab_test` to copy the effective `settings` object and discover variant I
 | `get_campaign_audience`          | Resolve saved targeting, missing references, a plain-language summary, and live recipient count.        |
 | `list_email_sends`               | Search recent delivery history with resource IDs and URLs, optionally scoped to one sequence step.      |
 | `get_email_send`                 | Inspect a queued, test, sent, suppressed, or failed delivery by durable email-send ID.                  |
-| `get_recipient_suppression`      | Check local email-hygiene, bounce, complaint, and regional SES suppression for one recipient.            |
-| `remove_recipient_suppression`   | Remove stale bounce suppression while preserving complaint, unsubscribe, and hygiene protections.       |
+| `get_recipient_suppression`      | Check local bounce, complaint, email-hygiene, and regional SES suppression for one exact recipient.      |
+| `remove_recipient_suppression`   | Remove stale bounce suppression while preserving complaint, unsubscribe, and email-hygiene protections. |
 | `create_campaign`                | Create a campaign with content, data, and optional From/Reply-To identity overrides.                    |
 | `update_campaign`                | Update a draft campaign, including content, data, From, Reply-To, CC, and BCC.                          |
 | `schedule_campaign`              | Schedule or reschedule a one-off or recurring campaign after validating subject, content, and audience. |
