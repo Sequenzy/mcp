@@ -304,11 +304,18 @@ sort options.
 | `update_sender_profile`              | Rename one sender or reply-to profile without changing the account defaults.                                                  |
 | `get_notification_preferences`       | Read the current user's per-company account notification settings and supported modes.                                        |
 | `update_notification_preferences`    | Update the current user's account notification delivery modes without affecting teammates.                                    |
-| `render_email`                       | Render email blocks or HTML into final email-safe HTML without sending.                                                       |
+| `render_email`                       | Render final email-safe HTML and diagnose unresolved merge tags, including typos hidden by defaults.                          |
 
 `get_sending_status` keeps the Postgres-backed pause state, review gates, and
 remediation available when sender-health analytics are temporarily unavailable;
 in that degraded case `senderHealth` is `null`.
+
+`render_email` returns `unresolvedMergeTags` so callers can distinguish an
+unknown name from a recognized tag that is merely blank for the previewed
+contact. Unknown names are reported even when a `default` filter supplied text:
+for example, `{{ subscriber.frstName | default: "there" }}` renders a plausible
+greeting for every contact while bypassing stored first names. A recognized
+name that is blank for one contact is not reported when its default is used.
 
 For Supabase, `sync_integration` reuses the project, schema, table, list
 selection, and consent mappings saved in the dashboard. It cannot target an
@@ -652,7 +659,7 @@ Use `get_ab_test` to copy the effective `settings` object and discover variant I
 | `update_campaign`                | Update a draft campaign, including content, data, From, Reply-To, CC, and BCC.                          |
 | `schedule_campaign`              | Schedule or reschedule a one-off or recurring campaign after validating subject, content, and audience. |
 | `send_test_email`                | Send a test email to one address.                                                                       |
-| `render_email`                   | Render a campaign, sequence email step, or template to exact email-safe HTML without sending.           |
+| `render_email`                   | Render exact email-safe HTML and report unresolved tags, including typos hidden by defaults.            |
 | `cancel_campaign`                | Cancel a scheduled or sending campaign.                                                                 |
 | `pause_campaign`                 | Pause a sending campaign.                                                                               |
 | `resume_campaign`                | Resume a paused campaign, optionally spreading delivery over time.                                      |
