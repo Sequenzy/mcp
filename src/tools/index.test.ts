@@ -2012,6 +2012,7 @@ describe("A/B test tools", () => {
     expect(toolNames).toContain("get_ab_test");
     expect(toolNames).toContain("get_ab_test_stats");
     expect(toolNames).toContain("restart_ab_test");
+    expect(toolNames).toContain("select_ab_test_winner");
     expect(toolNames).toContain("update_ab_test");
     expect(toolNames).toContain("update_ab_test_variant");
     expect(inputSchema?.required).toEqual(["abTestId", "variantId"]);
@@ -2816,6 +2817,26 @@ describe("A/B test tools", () => {
         winnerThreshold: 120,
         variantCount: 3,
       },
+      "company_123"
+    );
+  });
+
+  it("selects a campaign A/B winner through the public API", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      abTest: { id: "ab_123", winningVariantId: "var_b" },
+    });
+
+    await handleToolCall("select_ab_test_winner", {
+      companyId: "company_123",
+      abTestId: "ab_123",
+      variantId: "var_b",
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/ab-tests/ab_123/select-winner",
+      { variantId: "var_b" },
       "company_123"
     );
   });

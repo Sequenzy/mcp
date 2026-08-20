@@ -123,6 +123,25 @@ export const abTestToolDefinitions: Tool[] = [
     },
   },
   {
+    name: "select_ab_test_winner",
+    description:
+      "Select a winner for a campaign A/B test that is currently testing and queue the winning variant for the remaining audience. This starts external email delivery.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        abTestId: { type: "string", description: "Campaign A/B test ID" },
+        variantId: { type: "string", description: "Winning variant ID" },
+      },
+      required: ["abTestId", "variantId"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "update_ab_test_variant",
     description:
       "Update an A/B test variant. Campaign variants are editable only in draft. Sequence variants can be edited after activity with confirmLiveChange, but earlier sends stay unchanged and combined results may no longer be accurate. Provide at least one of subject, previewText, html, or blocks. Use either html or blocks, not both.",

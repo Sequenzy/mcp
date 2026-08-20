@@ -633,6 +633,7 @@ components; their send-time unsubscribe handling remains unchanged.
 | `get_ab_test`            | Get effective settings, variants, and localization status.     |
 | `get_ab_test_stats`      | Get aggregate and per-variant stats.                           |
 | `restart_ab_test`        | Restart a stopped or completed A/B test.                       |
+| `select_ab_test_winner`  | Select a campaign test winner and queue remaining delivery.    |
 | `update_ab_test`         | Update campaign or sequence winner-selection settings.         |
 | `update_ab_test_variant` | Update a draft variant subject, preview text, HTML, or blocks. |
 | `create_ab_test`         | Create a campaign or sequence A/B test.                        |
@@ -640,7 +641,7 @@ components; their send-time unsubscribe handling remains unchanged.
 | `delete_ab_test_variant` | Delete a draft A/B test variant.                               |
 | `delete_ab_test`         | Delete an A/B test.                                            |
 
-Use `get_ab_test` to copy the effective `settings` object and discover variant IDs before editing. Campaign settings use `testPercentage`, `testDurationMinutes`, and `winnerCriteria`; sequence settings use `testType`, `winnerThreshold`, and `winnerCriteria`. The legacy sequence values `testPercentage: 100` and `testDurationMinutes: 0` are compatibility sentinels, not runtime settings. `update_ab_test` changes the appropriate settings model and requires `confirmLiveChange: true` when sequence settings affect an active or already-used test. Variant updates accept either `html` or `blocks`, not both.
+Use `get_ab_test` to copy the effective `settings` object and discover variant IDs before editing. Campaign settings use `testPercentage`, `testDurationMinutes`, and `winnerCriteria`; sequence settings use `testType`, `winnerThreshold`, and `winnerCriteria`. The legacy sequence values `testPercentage: 100` and `testDurationMinutes: 0` are compatibility sentinels, not runtime settings. `select_ab_test_winner` applies only to a campaign test that is currently testing and immediately queues the winning variant for the remaining audience. `update_ab_test` changes the appropriate settings model and requires `confirmLiveChange: true` when sequence settings affect an active or already-used test. Variant updates accept either `html` or `blocks`, not both.
 
 `create_ab_test` accepts exactly one of `campaignId` or `automationNodeId`; the latter requires one to four extra variants and converts a sequence email node into `action_ab_test`. An explicit sequence `winnerCriteria` overrides the `testType` default, so content variants can still be judged by opens. Pass `confirmLiveChange: true` when converting a node in an active sequence. Together with control A, an A/B test supports at most five variants. Sequence variants receive independent email templates and can be edited, added, or removed while the test is a draft; when the parent sequence is active, `update_ab_test_variant`, `add_ab_test_variant`, and `delete_ab_test_variant` also require `confirmLiveChange: true` because they immediately change the live rotation.
 
