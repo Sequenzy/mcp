@@ -25,7 +25,7 @@ Connect Sequenzy to Claude Desktop, Claude Code, Codex, Cursor, Windsurf, VS Cod
 - Generate email copy, subject lines, and multi-step sequences.
 - Inspect analytics, subscriber activity, deliverability health, company-level sending pauses, integrations, published event payload schemas, sending identities, tracking settings, and dashboard URLs.
 - Diagnose why sending is paused and restore eligible hard-bounce pauses after confirming list cleanup.
-- Inspect and clean up exact-recipient bounce suppression without exposing the shared SES suppression list.
+- Inspect exact-recipient bounce, complaint, and email-hygiene suppression, and clean up eligible stale bounces without exposing the shared SES suppression list.
 - Configure company product info, account-wide sending identity defaults, rename individual sender and reply-to profiles, manage sender domains, and inspect integration examples for common frameworks.
 
 Every published MCP tool includes explicit `readOnlyHint`, `destructiveHint`, and `openWorldHint` annotations so compatible clients can display accurate tool-use affordances. Tools also publish `outputSchema` definitions and return `structuredContent`, giving clients and models machine-readable result shapes for follow-up calls.
@@ -224,6 +224,15 @@ the whole permission selection rather than merging, so preserve every existing
 scope that is still needed. Hosted OAuth connections can alternatively
 disconnect and reauthorize with broader permissions.
 
+When the active key itself lacks `api_keys:manage`, call
+`request_api_key_handoff` instead of retrying `update_api_key`. It requires
+`account:read` and returns an owner-review URL with the requested key name,
+permissions, and optional predecessor prefilled. It never creates or returns a
+key; the workspace owner reviews the form, creates the replacement in the
+browser, and copies it into the client. Pass `replaceApiKeyId: "current"` to
+offer revocation of the active key after the replacement is created. If the
+active key also lacks `account:read`, use the dashboard directly.
+
 The default **Safer agent access** preset includes `lists:write` and
 `tags:write`, so agents can create and update list and tag definitions, and it
 includes `subscribers:tag` for applying tags to existing contacts. It does not
@@ -238,7 +247,7 @@ build a list as well as create it. Imports that apply `listIds` also need
 
 ## Tools
 
-This server currently exposes 218 MCP tools.
+This server currently exposes 224 MCP tools.
 
 Tools reject arguments they do not declare instead of silently ignoring them.
 Errors name the unsupported fields, list the supported arguments, and provide
@@ -260,6 +269,7 @@ sort options.
 | `get_shopify_automation_settings`    | Read browse-abandonment, cart-abandonment, and price-drop settings for the connected Shopify store.                           |
 | `update_shopify_automation_settings` | Partially update Shopify automation settings or reset an individual section to its platform defaults.                         |
 | `create_api_key`                     | Create an API key for a company, with optional permission preset or explicit scopes.                                          |
+| `request_api_key_handoff`            | Prepare an owner-reviewed create/rotation URL when the active key cannot manage API keys itself.                              |
 | `list_api_keys`                      | List company API keys as non-secret metadata for safe identification and cleanup.                                             |
 | `update_api_key`                     | Rename a company API key or replace its permission preset or scopes without changing the key value.                           |
 | `revoke_api_key`                     | Permanently revoke an exact company API key by ID after checking it with `list_api_keys`.                                     |
@@ -275,12 +285,13 @@ sort options.
 | `get_tracking_settings`              | Read open, click, unsubscribe, attribution, UTM, click-domain, reply-tracking, and double-opt-in settings.                    |
 | `update_tracking_settings`           | Update email tracking, attribution, UTM, and account-wide double-opt-in defaults.                                             |
 | `get_integration_guide`              | Get framework-specific integration examples.                                                                                  |
-| `get_integration`                    | Inspect one connected integration, its event wiring, recent activity, and recommendations.                                    |
+| `get_integration`                    | Inspect one connected integration, its event wiring, list targeting, recent activity, and recommendations.                    |
 | `list_integration_capabilities`      | Compare provider capabilities whether or not they are connected.                                                              |
 | `connect_integration`                | Connect supported API-key or webhook-secret providers, including Segment and optional PostHog/Segment history import.         |
 | `get_event_schema`                   | Inspect published event payload examples, property paths, types, and merge tags by provider.                                  |
 | `list_integration_activity`          | Read the retained integration-specific webhook and sync activity log.                                                         |
 | `set_integration_sync_enabled`       | Enable or disable bulk imports and backfills while leaving live webhooks connected.                                           |
+| `set_integration_list_targeting`     | Choose which lists contacts created by a supported integration join on future provider writes.                                |
 | `sync_integration`                   | Queue payment revenue, Supabase users, or a PostHog/Segment event-history import using the saved integration configuration.   |
 | `get_integration_pixel`              | Read Shopify's live pixel/configuration state and distinguish confirmed dark events from an unknown read.                     |
 | `activate_integration_pixel`         | Install or repoint Shopify's storefront pixel; idempotent when it is already current.                                         |
@@ -293,16 +304,31 @@ sort options.
 | `update_sender_profile`              | Rename one sender or reply-to profile without changing the account defaults.                                                  |
 | `get_notification_preferences`       | Read the current user's per-company account notification settings and supported modes.                                        |
 | `update_notification_preferences`    | Update the current user's account notification delivery modes without affecting teammates.                                    |
+| `render_email`                       | Render final email-safe HTML and diagnose unresolved merge tags, including typos hidden by defaults.                          |
 
 `get_sending_status` keeps the Postgres-backed pause state, review gates, and
 remediation available when sender-health analytics are temporarily unavailable;
 in that degraded case `senderHealth` is `null`.
+
+`render_email` returns `unresolvedMergeTags` so callers can distinguish an
+unknown name from a recognized tag that is merely blank for the previewed
+contact. Unknown names are reported even when a `default` filter supplied text:
+for example, `{{ subscriber.frstName | default: "there" }}` renders a plausible
+greeting for every contact while bypassing stored first names. A recognized
+name that is blank for one contact is not reported when its default is used.
 
 For Supabase, `sync_integration` reuses the project, schema, table, list
 selection, and consent mappings saved in the dashboard. It cannot target an
 arbitrary table. Run it after installing the live database trigger to import
 users who existed before the trigger was installed, then poll `get_integration`
 and `list_integration_activity` for progress and row-level outcomes.
+
+`set_integration_sync_enabled` controls bulk imports and backfills only; it
+does not stop a provider's live webhook from creating contacts. Use
+`set_integration_list_targeting` to choose their future list memberships:
+`null` follows workspace defaults, `[]` joins no list, and a populated array
+targets those lists. The change is not retroactive and never removes existing
+memberships. Supabase, Stripe, Shopify, Wix, and Webflow support this control.
 
 For PostHog, `sync_integration` restarts the event-history import from the
 beginning with the stored personal API key. Imported events are deduplicated, so
@@ -372,24 +398,27 @@ abandonment or price-drop settings. Timing values must be positive;
 
 ### Subscribers
 
-| Tool                          | Description                                                                                                     |
-| ----------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `add_subscriber`              | Add one subscriber; status is creation-only, so use `update_subscriber` for an existing contact.                |
-| `create_subscriber_import`    | Queue up to 5,000 full CRM records with names, IDs, phones, statuses, tags, lists, and typed custom attributes. |
-| `get_subscriber_import`       | Read progress, row outcome counts, and failure summaries for a queued import.                                   |
-| `update_subscriber`           | Update native profile and phone fields, SMS consent, attributes, tags, or global status.                        |
-| `remove_subscriber`           | Unsubscribe while preserving suppression history, or permanently delete only with `hardDelete: true`.           |
-| `get_subscriber`              | Fetch subscriber details by email or external ID.                                                               |
-| `search_subscribers`          | Search by query, tags, list, status, segment, or one custom attribute, with automatic or resumable pagination.  |
-| `trigger_subscriber_event`    | Emit one custom event exactly as an integration would, applying sync rules and matching sequence triggers.      |
-| `trigger_subscriber_events`   | Emit several ordered custom events for one subscriber.                                                          |
-| `bulk_add_subscriber_tags`    | Add tags to up to 500 existing subscribers; requires `subscribers:tag` and may also require `tags:write`.       |
-| `bulk_remove_subscriber_tags` | Remove tags from up to 500 existing subscribers; requires `subscribers:tag` or `subscribers:write`.             |
+| Tool                          | Description                                                                                                    |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `add_subscriber`              | Add one subscriber; status is creation-only, so use `update_subscriber` for an existing contact.               |
+| `create_subscriber_import`    | Queue up to 5,000 full CRM records; enabled email-hygiene checks continue separately after ingestion.          |
+| `get_subscriber_import`       | Read progress, row outcome counts, and failure summaries for a queued import.                                  |
+| `update_subscriber`           | Update native profile and phone fields, SMS consent, attributes, tags, or global status.                       |
+| `remove_subscriber`           | Unsubscribe while preserving suppression history, or permanently delete only with `hardDelete: true`.          |
+| `get_subscriber`              | Fetch subscriber details by email or external ID.                                                              |
+| `search_subscribers`          | Search by query, tags, list, status, segment, or one custom attribute, with automatic or resumable pagination. |
+| `trigger_subscriber_event`    | Emit one custom event exactly as an integration would, applying sync rules and matching sequence triggers.     |
+| `trigger_subscriber_events`   | Emit several ordered custom events for one subscriber.                                                         |
+| `bulk_add_subscriber_tags`    | Add tags to up to 500 existing subscribers; requires `subscribers:tag` and may also require `tags:write`.      |
+| `bulk_remove_subscriber_tags` | Remove tags from up to 500 existing subscribers; requires `subscribers:tag` or `subscribers:write`.            |
 
 Use `create_subscriber_import` for CRM onboarding instead of looping over
 `add_subscriber`. One call accepts 5,000 full records and returns an asynchronous
 import ID; poll it with `get_subscriber_import`. A `completed` import can still
-contain row failures, so inspect `failedCount` and `failedReasons`. Use
+contain row failures, so inspect `failedCount` and `failedReasons`. When email
+hygiene is enabled, deliverability checks continue separately after ingestion
+and results appear in List health; import status does not wait for or include
+those verdicts. Invalid verdicts are suppressed from later sends. Use
 `optInMode: "confirmed"` only when consent was already verified.
 
 For compliance suppression, call `update_subscriber` with
@@ -578,6 +607,24 @@ localization workflow. It requires an enabled non-primary `locale`, a localized
 omit `locales` to sync every enabled non-primary locale. Explicit sync works
 even when automatic on-save localization is disabled.
 
+### Reusable Email Components
+
+| Tool                          | Description                                                                    |
+| ----------------------------- | ------------------------------------------------------------------------------ |
+| `list_email_components`       | List saved sections and footers, optionally limited to pinned defaults.        |
+| `get_email_component`         | Read one component's blocks, metadata, version, and default-slot state.        |
+| `get_default_email_component` | Read the component currently pinned to a default slot such as `footer`.        |
+| `set_default_email_component` | Create or replace the company default footer used by newly built block emails. |
+| `create_email_component`      | Save a reusable section or footer from a block list.                           |
+| `update_email_component`      | Update component metadata or replace its blocks and increment its version.     |
+| `delete_email_component`      | Delete a component without changing emails that already copied its blocks.     |
+
+Components are copied into emails when those emails are built, so later edits
+affect newly built emails rather than rewriting existing content. The default
+footer keeps its unsubscribe link enabled, while transactional rendering hides
+that link. Raw HTML emails keep their own markup and do not receive block
+components; their send-time unsubscribe handling remains unchanged.
+
 ### A/B Tests
 
 | Tool                     | Description                                                    |
@@ -606,13 +653,13 @@ Use `get_ab_test` to copy the effective `settings` object and discover variant I
 | `get_campaign_audience`          | Resolve saved targeting, missing references, a plain-language summary, and live recipient count.        |
 | `list_email_sends`               | Search recent delivery history with resource IDs and URLs, optionally scoped to one sequence step.      |
 | `get_email_send`                 | Inspect a queued, test, sent, suppressed, or failed delivery by durable email-send ID.                  |
-| `get_recipient_suppression`      | Check local and regional SES suppression for one exact recipient.                                       |
-| `remove_recipient_suppression`   | Remove stale bounce suppression for a company-associated recipient.                                     |
+| `get_recipient_suppression`      | Check local bounce, complaint, email-hygiene, and regional SES suppression for one exact recipient.     |
+| `remove_recipient_suppression`   | Remove stale bounce suppression while preserving complaint, unsubscribe, and email-hygiene protections. |
 | `create_campaign`                | Create a campaign with content, data, and optional From/Reply-To identity overrides.                    |
 | `update_campaign`                | Update a draft campaign, including content, data, From, Reply-To, CC, and BCC.                          |
 | `schedule_campaign`              | Schedule or reschedule a one-off or recurring campaign after validating subject, content, and audience. |
 | `send_test_email`                | Send a test email to one address.                                                                       |
-| `render_email`                   | Render a campaign, sequence email step, or template to exact email-safe HTML without sending.           |
+| `render_email`                   | Render exact email-safe HTML and report unresolved tags, including typos hidden by defaults.            |
 | `cancel_campaign`                | Cancel a scheduled or sending campaign.                                                                 |
 | `pause_campaign`                 | Pause a sending campaign.                                                                               |
 | `resume_campaign`                | Resume a paused campaign, optionally spreading delivery over time.                                      |
@@ -648,7 +695,9 @@ are not exposed through the MCP contract. Every returned delivery has a direct
 dashboard `url`. Use `get_recipient_suppression` before cleanup, then
 `remove_recipient_suppression` only after confirming a hard-bounced mailbox is
 working again. Cleanup removes bounce entries but never complaint or unsubscribe
-protections.
+or email-hygiene protections. A local hygiene result uses the `bounced` reason
+with `email_hygiene` as its source without changing the subscriber's consent
+status.
 
 Agents should pass a caller-owned `idempotencyKey` to `send_email` before the
 first attempt and reuse it for every retry of that same logical email. Sequenzy

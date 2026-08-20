@@ -135,9 +135,12 @@ export async function handleLandingPageTools(
 
     case "connect_landing_page_domain": {
       const companyId = args.companyId as string | undefined;
+      const landingPageId = args.landingPageId as string | undefined;
       result = await apiRequest(
         "POST",
-        "/api/v1/landing-pages/domain",
+        landingPageId
+          ? `/api/v1/landing-pages/${encodeURIComponent(landingPageId)}/domain`
+          : "/api/v1/landing-pages/domain",
         { domain: args.domain },
         companyId
       );
@@ -147,10 +150,45 @@ export async function handleLandingPageTools(
     case "update_landing_page_domain_settings": {
       const companyId = args.companyId as string | undefined;
       const body = buildLandingPageDomainSettingsBody(args);
+      const landingPageId = args.landingPageId as string | undefined;
+
+      if (!landingPageId) {
+        result = await apiRequest(
+          "PUT",
+          "/api/v1/landing-pages/domain",
+          body,
+          companyId
+        );
+        break;
+      }
+
+      const domainPath = `/api/v1/landing-pages/${encodeURIComponent(landingPageId)}/domain`;
+      if (args.domain !== undefined) {
+        result = await apiRequest(
+          "POST",
+          domainPath,
+          { domain: args.domain },
+          companyId
+        );
+      }
+      if (args.verify === true) {
+        result = await apiRequest(
+          "POST",
+          `${domainPath}/verify`,
+          undefined,
+          companyId
+        );
+      }
+      break;
+    }
+
+    case "remove_landing_page_domain": {
+      const companyId = args.companyId as string | undefined;
+      const landingPageId = args.landingPageId as string;
       result = await apiRequest(
-        "PUT",
-        "/api/v1/landing-pages/domain",
-        body,
+        "DELETE",
+        `/api/v1/landing-pages/${encodeURIComponent(landingPageId)}/domain`,
+        undefined,
         companyId
       );
       break;

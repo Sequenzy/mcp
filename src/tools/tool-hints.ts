@@ -106,6 +106,7 @@ export const MUTATING_TOOL_NAMES = new Set([
   "update_shopify_automation_settings",
   "connect_integration",
   "set_integration_sync_enabled",
+  "set_integration_list_targeting",
   "sync_integration",
   // Writes a web pixel to the merchant's Shopify store.
   "activate_integration_pixel",
@@ -196,6 +197,7 @@ export const MUTATING_TOOL_NAMES = new Set([
   "unpublish_landing_page",
   "connect_landing_page_domain",
   "update_landing_page_domain_settings",
+  "remove_landing_page_domain",
   "create_sequence",
   "generate_sequence",
   "send_sequence_test_email",
@@ -248,6 +250,7 @@ export const OPEN_WORLD_TOOL_NAMES = new Set([
   "publish_landing_page",
   "connect_landing_page_domain",
   "update_landing_page_domain_settings",
+  "remove_landing_page_domain",
   "add_sending_domain",
   "add_website",
   "verify_sending_domain",
@@ -300,11 +303,16 @@ export const DESTRUCTIVE_TOOL_NAMES = new Set([
   "cancel_campaign",
   "delete_campaign",
   "delete_landing_page",
+  "remove_landing_page_domain",
   "unpublish_landing_page",
   "delete_popup",
   // Disabling sync stops an integration feeding the account, in the same way
   // disabling a sequence stops it running. Reversible, but worth a confirm.
   "set_integration_sync_enabled",
+  // Retargeting changes which lists an integration's future contacts join, so
+  // it silently changes who gets mailed. Reversible, but contacts created
+  // under the old targeting are not retroactively moved - worth a confirm.
+  "set_integration_list_targeting",
   "disable_sequence",
   "archive_sequence",
   "delete_sequence_goal",

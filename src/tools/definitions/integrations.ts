@@ -187,7 +187,7 @@ export const integrationToolDefinitions: Tool[] = [
   {
     name: "set_integration_sync_enabled",
     description:
-      "Turn a supported payment integration's future bulk imports and backfills on or off. Check get_integration.availableActions first; providers without enable_sync or disable_sync are dashboard-managed. Disabling keeps the connection, credentials, and live webhook delivery active, and requires any in-flight sync to finish first. It does not disconnect the integration. Idempotent: setting the current state succeeds with `changed: false`.",
+      "Turn a supported integration's future bulk imports and backfills on or off. THIS DOES NOT STOP AN INTEGRATION CREATING CONTACTS: disabling sync only pauses full imports and backfills, while the provider's live webhook keeps writing every new signup or customer as it happens. To change where those contacts land, use set_integration_list_targeting; to stop them arriving at all, the integration has to be disconnected from the dashboard. Check get_integration.availableActions first; providers without enable_sync or disable_sync are dashboard-managed. Disabling keeps the connection, credentials, and live webhook delivery active, and requires any in-flight sync to finish first. It does not disconnect the integration. Idempotent: setting the current state succeeds with `changed: false`. Requires an API key with the `integrations:manage` scope, which agent-safe keys deliberately do not carry - without it, report the dashboard path (Settings -> Integrations) instead of retrying.",
     inputSchema: {
       type: "object",
       properties: {
@@ -206,6 +206,32 @@ export const integrationToolDefinitions: Tool[] = [
         },
       },
       required: ["integrationId", "syncEnabled"],
+    },
+  },
+  {
+    name: "set_integration_list_targeting",
+    description:
+      "Choose which lists the contacts a connected integration creates join. This is the tool for 'stop this integration adding people to my marketing lists' - set_integration_sync_enabled only pauses bulk backfills and leaves the provider's live webhook writing. IMPORTANT SCOPE: this changes list membership only, and it takes effect on future provider writes. It does not stop contacts being created, does not stop their attributes syncing, does not stop sync-rule tags, and does not stop `contact_added` sequences that trigger on any list. Nobody is ever removed from a list and nothing is applied retroactively. Provider behavior for existing contacts differs: Wix or Webflow submissions, Shopify customer updates, and Supabase resubscriptions can add an existing contact to the new target lists; Stripe applies targeting only when its webhook creates a subscriber. If the goal is to stop enrollments too, pair it with pause_sequence_enrollments on the affected sequences. Check get_integration first - `ingestion` reports the current targeting with list names, and `availableActions` says whether this provider honors set_list_targeting. Supported for Supabase, Stripe, Shopify, Wix, and Webflow. Idempotent: asking for the current state succeeds with `changed: false`. Requires an API key with the `integrations:manage` scope, which agent-safe keys deliberately do not carry - without it, report the dashboard path (Settings -> Integrations) instead of retrying.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        integrationId: {
+          type: "string",
+          description: "Integration ID from list_integrations.",
+        },
+        listIds: {
+          type: ["array", "null"],
+          items: { type: "string" },
+          description:
+            "Lists that contacts created by this integration join from now on. `null` clears the choice so they follow the workspace default lists; `[]` means they join no list at all; a populated array means exactly those lists. Every ID must belong to this company.",
+        },
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+      },
+      required: ["integrationId", "listIds"],
     },
   },
   {

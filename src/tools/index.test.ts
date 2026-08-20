@@ -1185,6 +1185,15 @@ describe("nullable structured output", () => {
       sequenceId: "seq_abc123",
       sequenceName: "Onboarding",
       statuses: ["active", "waiting"],
+      stopCondition: {
+        type: "event_received",
+        value: "onboarding.completed",
+        matchConfig: {
+          mode: "event_property_filter",
+          propertyFilters: [{ path: "plan", operator: "equals", value: "pro" }],
+        },
+      },
+      stopConditionMatchEvaluatedCount: 1,
       enrollments: [
         {
           enrollmentId: "tok_abc123",
@@ -1202,6 +1211,8 @@ describe("nullable structured output", () => {
           waitUntil: null,
           lastUpdatedAt: "2026-01-01T00:00:00.000Z",
           failedReason: null,
+          stopConditionMatches: true,
+          stopConditionMatchReason: "Subscriber received a matching stop event",
         },
       ],
       pagination: {
@@ -3710,6 +3721,10 @@ describe("update_campaign tool validation", () => {
         }
       | undefined;
 
+    expect(scheduleCampaignTool?.description).toContain("non-empty subject");
+    expect(scheduleCampaignTool?.description).toContain(
+      "at least one audience include rule"
+    );
     expect(inputSchema?.required).toEqual(["campaignId", "scheduledAt"]);
     expect(inputSchema?.additionalProperties).toBe(false);
     expect(inputSchema?.properties).toHaveProperty("targetLists");
@@ -4974,6 +4989,9 @@ describe("landing page tools", () => {
     const domainTool = tools.find(
       (tool) => tool.name === "update_landing_page_domain_settings"
     );
+    const removeDomainTool = tools.find(
+      (tool) => tool.name === "remove_landing_page_domain"
+    );
     const createSchema = createTool?.inputSchema as
       | {
           additionalProperties?: boolean;
@@ -4997,6 +5015,13 @@ describe("landing page tools", () => {
     const contentSchema = createSchema?.properties?.["content"] as
       | { description?: string }
       | undefined;
+    const removeDomainSchema = removeDomainTool?.inputSchema as
+      | {
+          additionalProperties?: boolean;
+          properties?: Record<string, unknown>;
+          required?: string[];
+        }
+      | undefined;
 
     expect(toolNames).toContain("list_landing_pages");
     expect(toolNames).toContain("get_landing_page");
@@ -5008,6 +5033,7 @@ describe("landing page tools", () => {
     expect(toolNames).toContain("unpublish_landing_page");
     expect(toolNames).toContain("connect_landing_page_domain");
     expect(toolNames).toContain("update_landing_page_domain_settings");
+    expect(toolNames).toContain("remove_landing_page_domain");
     expect(createSchema?.additionalProperties).toBe(false);
     expect(createSchema?.required).toBeUndefined();
     expect(contentSchema?.description).toContain("`top`");
@@ -5020,7 +5046,10 @@ describe("landing page tools", () => {
     expect(updateSchema?.properties).toHaveProperty("content");
     expect(domainSchema?.additionalProperties).toBe(false);
     expect(domainSchema?.properties).toHaveProperty("domain");
+    expect(domainSchema?.properties).toHaveProperty("landingPageId");
     expect(domainSchema?.properties).toHaveProperty("verify");
+    expect(removeDomainSchema?.required).toEqual(["landingPageId"]);
+    expect(removeDomainSchema?.additionalProperties).toBe(false);
   });
 
   it("routes list_landing_pages to the landing page API", async () => {
@@ -5186,6 +5215,68 @@ describe("landing page tools", () => {
     expect(emptyUpdateResult.isError).toBe(true);
     expect(emptyUpdateResult.content[0]?.text).toContain(
       "Provide `domain` or `verify: true`"
+    );
+  });
+
+  it("routes dedicated page domain setup and verification to page-scoped endpoints", async () => {
+    mockApiRequest
+      .mockResolvedValueOnce({
+        success: true,
+        domain: { domain: "offer.example.com" },
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        domain: { domain: "offer.example.com", domainStatus: "verified" },
+      });
+
+    await handleToolCall("connect_landing_page_domain", {
+      companyId: "comp_123",
+      landingPageId: "lp_123",
+      domain: "offer.example.com",
+    });
+    await handleToolCall("update_landing_page_domain_settings", {
+      companyId: "comp_123",
+      landingPageId: "lp_123",
+      verify: true,
+    });
+
+    expect(mockApiRequest).toHaveBeenNthCalledWith(
+      1,
+      "POST",
+      "/api/v1/landing-pages/lp_123/domain",
+      { domain: "offer.example.com" },
+      "comp_123"
+    );
+    expect(mockApiRequest).toHaveBeenNthCalledWith(
+      2,
+      "POST",
+      "/api/v1/landing-pages/lp_123/domain/verify",
+      undefined,
+      "comp_123"
+    );
+  });
+
+  it("removes a dedicated landing page domain", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      domain: {
+        domain: null,
+        landingPageId: "lp/123",
+        fallbackDomain: "pages.example.com",
+      },
+    });
+
+    const result = await handleToolCall("remove_landing_page_domain", {
+      companyId: "comp_123",
+      landingPageId: "lp/123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "DELETE",
+      "/api/v1/landing-pages/lp%2F123/domain",
+      undefined,
+      "comp_123"
     );
   });
 });
