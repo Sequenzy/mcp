@@ -18,8 +18,11 @@ Connect Sequenzy to Claude Desktop, Claude Code, Codex, Cursor, Windsurf, VS Cod
 - Manage transactional email templates and send single transactional emails.
 - Supply localized template variants or queue AI translation for enabled locales.
 - Create, edit, publish, unpublish, and delete landing pages.
-- Create list-scoped saved signup forms and return client-safe static-site embeds.
-- Create, target, publish, duplicate, and deploy saved signup popups.
+- Create list-scoped saved signup forms with responsive stack, row, grid, and
+  single-image overlay block groups (including foreground gap controls), then
+  return client-safe static-site embeds.
+- Create, target, publish, duplicate, and deploy saved signup popups with the
+  same recursive block layouts.
 - Connect and verify custom domains for published landing pages.
 - Manage team invitations, inbox conversations, and outbound webhook endpoints.
 - Generate email copy, subject lines, and multi-step sequences.
