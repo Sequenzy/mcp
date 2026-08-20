@@ -4994,6 +4994,9 @@ describe("landing page tools", () => {
           properties?: Record<string, unknown>;
         }
       | undefined;
+    const contentSchema = createSchema?.properties?.["content"] as
+      | { description?: string }
+      | undefined;
 
     expect(toolNames).toContain("list_landing_pages");
     expect(toolNames).toContain("get_landing_page");
@@ -5007,6 +5010,9 @@ describe("landing page tools", () => {
     expect(toolNames).toContain("update_landing_page_domain_settings");
     expect(createSchema?.additionalProperties).toBe(false);
     expect(createSchema?.required).toBeUndefined();
+    expect(contentSchema?.description).toContain("`top`");
+    expect(contentSchema?.description).toContain("`#form`");
+    expect(contentSchema?.description).toContain("`sectionAnimation`");
     expect(createSchema?.properties).toHaveProperty("content");
     expect(createSchema?.properties).toHaveProperty("template");
     expect(updateSchema?.required).toEqual(["landingPageId"]);

@@ -804,9 +804,16 @@ retaining exactly one required email field and one submit button. Setting
 Landing page content uses Sequenzy's editor-compatible JSON schema with
 `version`, `template`, `seo`, `theme`, and `blocks`. SEO settings include
 `faviconUrl` and `hideFromSearchEngines`; hidden pages publish a `noindex`
-directive. Custom landing page domains require a CNAME record pointing to
-`pages.sequenzydns.com`; call `update_landing_page_domain_settings` with
-`verify: true` after DNS changes propagate.
+directive. Blocks render in slot order: `top`, `hero`, `form`, `body`, then
+`footer`; use `top` for a full-width announcement or banner above the hero.
+Button and pricing CTA URLs accept external HTTPS destinations or in-page
+anchors such as `#form`, `#section-<sectionId>`, `#block-<blockId>`, and
+`#top`. Set `theme.sectionAnimation` to `none`, `fade`, `slide-up`, or
+`zoom-in`, with `theme.sectionAnimationSpeed` set to `slow`, `normal`, or
+`fast`, to control published scroll reveals. Custom landing page domains
+require a CNAME record pointing to `pages.sequenzydns.com`; call
+`update_landing_page_domain_settings` with `verify: true` after DNS changes
+propagate.
 
 ### Sequences
 
