@@ -15,7 +15,7 @@ Connect Sequenzy to Claude Desktop, Claude Code, Codex, Cursor, Windsurf, VS Cod
 - Add one-click Poll and NPS survey blocks to emails and inspect campaign response summaries.
 - Create and edit email sequences, including event-triggered and segment-entry automations, property-filtered post-enrollment event stop conditions, sending identity overrides, existing graph restructuring, and direct step test sends to internal reviewers.
 - Cancel, pause, resume, duplicate, or delete campaigns and enroll contacts into sequences.
-- Manage transactional email templates and send single transactional emails.
+- Manage transactional email templates and send transactional emails to shared To, Cc, and Bcc recipient lists.
 - Supply localized template variants or queue AI translation for enabled locales.
 - Create, edit, publish, unpublish, and delete landing pages.
 - Create list-scoped saved signup forms and return client-safe static-site embeds.
@@ -1089,7 +1089,7 @@ For compatibility with older agent prompts, top-level style keys such as `backgr
 | `get_transactional_email`    | Read a transactional email by ID or slug.                                                  |
 | `create_transactional_email` | Create a transactional template from a prompt, HTML, or blocks.                            |
 | `update_transactional_email` | Update transactional metadata or body content.                                             |
-| `send_email`                 | Send one email by template or HTML with an optional retry-safe idempotency key.            |
+| `send_email`                 | Send one email by template or HTML to shared To, Cc, and Bcc recipients.                   |
 
 Prompt-created transactional templates are generated server-side and default
 to disabled for review. Explicit HTML or block templates retain the
@@ -1099,6 +1099,11 @@ default.
 For a direct send, pass `to`, `subject`, and `html`; the MCP server maps `html`
 to the transactional API's `body` field. For a saved transactional email, pass
 its API slug through the compatibility-named `templateId` field instead.
+For transactional sends, `to`, `cc`, and `bcc` each accept one address or an
+array of up to 50. The API sends one email with a shared recipient list and
+removes cross-field duplicates in `to`, then `cc`, then `bcc` priority order.
+Marketing sends still require exactly one accepted `to` address and do not
+support additional recipients.
 `send_email` variables support nested arrays for repeat blocks, such as
 `{ "event": { "items": [...] } }`. When the recipient matches a stored
 subscriber by external ID or email, saved first and last names fill omitted name

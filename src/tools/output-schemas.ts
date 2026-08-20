@@ -1695,6 +1695,26 @@ export const outputPropertiesByToolName: Record<
       enum: ["marketing", "transactional"],
       description: "Delivery policy accepted for the queued email.",
     },
+    to: {
+      // A single recipient echoes back as the bare string that was sent, so the
+      // shape follows the request rather than always widening to an array.
+      type: ["string", "array"],
+      items: stringOutputProperty("One accepted To address."),
+      description:
+        "Accepted primary recipients, lowercased. A string for a single-recipient send, an array when several addresses share the email.",
+    },
+    cc: {
+      type: "array",
+      items: stringOutputProperty("One accepted Cc address."),
+      description:
+        "Accepted carbon-copy recipients, lowercased, with addresses already in `to` removed. Present only when the send has cc recipients.",
+    },
+    bcc: {
+      type: "array",
+      items: stringOutputProperty("One accepted Bcc address."),
+      description:
+        "Accepted blind-carbon-copy recipients, lowercased, with addresses already in `to` or `cc` removed. Present only when the send has bcc recipients.",
+    },
     transactional: resourceOutputProperty("transactional email"),
   },
   get_stats: {

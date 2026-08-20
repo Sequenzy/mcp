@@ -10,6 +10,9 @@ import {
   optionalStringArray,
   optionalAllowedString,
   optionalIntegerInRange,
+  parseSendRecipients,
+  dedupeSendRecipientFields,
+  assertSendRecipientPolicy,
 } from "../internal.js";
 
 export async function handleAnalyticsAndTransactionalTools(
@@ -180,7 +183,16 @@ export async function handleAnalyticsAndTransactionalTools(
 
     case "send_email": {
       const companyId = args.companyId as string | undefined;
-      const to = requiredString("send_email", args, "to");
+      const parsedTo = parseSendRecipients(args, "to");
+      if (parsedTo === undefined) {
+        throw new Error("`to` is required when calling `send_email`.");
+      }
+      const recipients = dedupeSendRecipientFields({
+        to: parsedTo,
+        cc: parseSendRecipients(args, "cc"),
+        bcc: parseSendRecipients(args, "bcc"),
+      });
+      const { to, cc, bcc } = recipients;
       const templateId =
         args.templateId === undefined
           ? undefined
@@ -205,6 +217,10 @@ export async function handleAnalyticsAndTransactionalTools(
         args.idempotencyKey === undefined
           ? undefined
           : requiredString("send_email", args, "idempotencyKey");
+      const subscriberExternalId =
+        typeof args.subscriberExternalId === "string"
+          ? optionalString(args, "subscriberExternalId")
+          : args.subscriberExternalId;
       if (idempotencyKey && idempotencyKey.length > 255) {
         throw new Error(
           "`idempotencyKey` must be 255 characters or fewer when calling `send_email`."
@@ -295,6 +311,14 @@ export async function handleAnalyticsAndTransactionalTools(
         );
       }
 
+      assertSendRecipientPolicy({
+        emailType,
+        to,
+        cc,
+        bcc,
+        subscriberExternalId,
+      });
+
       let trackingSettings:
         | { clickTracking?: boolean; openTracking?: boolean }
         | undefined;
@@ -325,11 +349,13 @@ export async function handleAnalyticsAndTransactionalTools(
       const sendBody = Object.fromEntries(
         Object.entries({
           to,
+          cc,
+          bcc,
           slug: templateId,
           subject,
           body: html,
           variables: args.variables,
-          subscriberExternalId: args.subscriberExternalId,
+          subscriberExternalId,
           emailType,
           replyTo,
           attachments,

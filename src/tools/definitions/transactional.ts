@@ -208,7 +208,7 @@ export const transactionalToolDefinitions: Tool[] = [
   {
     name: "send_email",
     description:
-      "Queue one email using either a saved transactional email API slug (`templateId`) or direct `subject` and `html` content. Always provide a stable `idempotencyKey` when an agent or workflow may retry, and reuse it for the same logical email; Sequenzy returns the original send for 14 days and rejects different content under the same key. The default delivery policy is transactional. When the recipient matches a subscriber, saved first and last names fill omitted name variables; explicit variables take precedence. Set `emailType` to `marketing` to add subscriber suppression, a marketing footer, and RFC 8058 one-click unsubscribe. Company Reply-To defaults are inherited when no override is provided, and `{{viewInBrowserUrl}}` is replaced with a hosted copy URL. Attach up to 10 files with Base64 `content` or a public `path`; `contentId` embeds a CID image referenced by the HTML. Use `trackingSettings` with `clickTracking` or `openTracking` set to `false` to disable click-link rewriting or the open-tracking pixel for this send only; these opt-out fields cannot enable tracking the account has disabled. Returns a durable emailSendId and the accepted emailType; pass the ID to get_email_send for delivery status and failure details.",
+      "Queue one email using either a saved transactional email API slug (`templateId`) or direct `subject` and `html` content. Always provide a stable `idempotencyKey` when an agent or workflow may retry, and reuse it for the same logical email; Sequenzy returns the original send for 14 days and rejects different content under the same key. The default delivery policy is transactional. A transactional send delivers one email to several people at once: `to` takes up to 50 addresses and `cc`/`bcc` take up to 50 each, so everyone sees the same shared recipient list instead of receiving separate copies. Addresses repeated across the fields are dropped from the lower-priority one (to beats cc beats bcc). When the recipient matches a subscriber, saved first and last names fill omitted name variables; explicit variables take precedence. Set `emailType` to `marketing` to add subscriber suppression, a marketing footer, and RFC 8058 one-click unsubscribe; marketing sends take exactly one `to` recipient and no `cc` or `bcc`. Company Reply-To defaults are inherited when no override is provided, and `{{viewInBrowserUrl}}` is replaced with a hosted copy URL. Attach up to 10 files with Base64 `content` or a public `path`; `contentId` embeds a CID image referenced by the HTML. Use `trackingSettings` with `clickTracking` or `openTracking` set to `false` to disable click-link rewriting or the open-tracking pixel for this send only; these opt-out fields cannot enable tracking the account has disabled. Returns a durable emailSendId, the accepted emailType, and the deduplicated recipient lists; pass the ID to get_email_send for delivery status and failure details.",
     inputSchema: {
       type: "object",
       properties: {
@@ -218,8 +218,26 @@ export const transactionalToolDefinitions: Tool[] = [
             "Company ID. If not provided, uses the currently selected company.",
         },
         to: {
-          type: "string",
-          description: "Recipient email address",
+          type: ["string", "array"],
+          items: { type: "string" },
+          minItems: 1,
+          maxItems: 50,
+          description:
+            "Primary recipient email address, or an array of up to 50 addresses that share one email and see each other in the To header. Marketing sends accept exactly one address.",
+        },
+        cc: {
+          type: ["string", "array"],
+          items: { type: "string" },
+          maxItems: 50,
+          description:
+            "Carbon-copy email address, or an array of up to 50, visible to every recipient. Transactional sends only. Addresses already in `to` are dropped.",
+        },
+        bcc: {
+          type: ["string", "array"],
+          items: { type: "string" },
+          maxItems: 50,
+          description:
+            "Blind-carbon-copy email address, or an array of up to 50, hidden from the other recipients. Transactional sends only. Addresses already in `to` or `cc` are dropped.",
         },
         idempotencyKey: {
           type: "string",
@@ -254,7 +272,7 @@ export const transactionalToolDefinitions: Tool[] = [
         emailType: {
           type: "string",
           description:
-            "Delivery policy: `transactional` (default) or `marketing`. Marketing mode supports exactly one recipient and automatically applies subscriber suppression, the standard unsubscribe footer, and RFC 8058 headers.",
+            "Delivery policy: `transactional` (default) or `marketing`. Marketing mode supports exactly one `to` recipient, rejects `cc` and `bcc`, and automatically applies subscriber suppression, the standard unsubscribe footer, and RFC 8058 headers.",
         },
         replyTo: {
           type: "string",
