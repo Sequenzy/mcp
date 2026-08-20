@@ -15,9 +15,11 @@ import {
   emailBlocksDescription,
   pollBlockHint,
   rawHtmlContentWarning,
+  companyEmailThemeSchema,
   sequenceNodeChangesSchema,
   sequenceStepBlocksFormatHint,
   sequenceStepBlocksFormatHintForNodeChanges,
+  sequenceStepEmailThemeSchema,
 } from "./descriptions";
 
 describe("blockConditionsHint", () => {
@@ -208,6 +210,46 @@ describe("sequence step block format hint", () => {
     expect(sequenceStepBlocksFormatHintForNodeChanges).toStartWith(
       " For action_email:"
     );
+  });
+});
+
+describe("sequence step emailTheme schema", () => {
+  it("advertises the same theme fields as the company-wide theme", () => {
+    // The two surfaces write the same stored shape. If they drift, an agent
+    // that learned the keys from update_company sends a per-email patch whose
+    // fields are silently rejected as unsupported.
+    expect(Object.keys(sequenceStepEmailThemeSchema.properties)).toEqual(
+      Object.keys(companyEmailThemeSchema.properties)
+    );
+    expect(sequenceStepEmailThemeSchema.type).toEqual(["object", "null"]);
+    expect(JSON.stringify(sequenceStepEmailThemeSchema.properties)).toContain(
+      '"background"'
+    );
+  });
+
+  it("states that the patch is per-email and that null clears it", () => {
+    const description = sequenceStepEmailThemeSchema.description;
+    expect(description).toContain("company-wide default is left untouched");
+    expect(description).toContain("null");
+    expect(sequenceNodeChangesSchema.properties.emailTheme).toBe(
+      sequenceStepEmailThemeSchema
+    );
+  });
+
+  it("offers emailTheme on every sequence email step update surface", () => {
+    const stepArrays = ["emails", "steps"] as const;
+    const updateSequence = sequenceEditingToolDefinitions.find(
+      (tool) => tool.name === "update_sequence"
+    );
+    for (const key of stepArrays) {
+      const arraySchema = (
+        updateSequence?.inputSchema.properties as Record<
+          string,
+          { items?: { properties?: Record<string, unknown> } }
+        >
+      )[key];
+      expect(arraySchema?.items?.properties).toHaveProperty("emailTheme");
+    }
   });
 });
 

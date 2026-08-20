@@ -1650,6 +1650,76 @@ describe("update_company tool validation", () => {
     expect(inputSchema?.properties).toHaveProperty("replyTrackingEnabled");
     expect(inputSchema?.properties).toHaveProperty("replyTrackingDomainMode");
     expect(inputSchema?.properties).toHaveProperty("forwardReplies");
+    expect(inputSchema?.properties).toHaveProperty("defaultSubscriberListIds");
+  });
+
+  // The workspace default lists were previously unreachable from MCP, so an
+  // agent could see that an integration's contacts "follow the workspace
+  // default lists" and still have no way to read or change them.
+  it("passes defaultSubscriberListIds through to the company PATCH API", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      company: { id: "company_123", defaultSubscriberListIds: ["list_abc"] },
+    });
+
+    const result = await handleToolCall("update_company", {
+      companyId: "company_123",
+      defaultSubscriberListIds: ["list_abc"],
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/companies/company_123",
+      { defaultSubscriberListIds: ["list_abc"] }
+    );
+  });
+
+  it("keeps null and [] distinct for defaultSubscriberListIds", async () => {
+    // null = every current and future list. It must survive as an explicit
+    // null rather than being dropped as "no value supplied".
+    mockApiRequest.mockResolvedValueOnce({ success: true, company: {} });
+    await handleToolCall("update_company", {
+      companyId: "company_123",
+      defaultSubscriberListIds: null,
+    });
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "PATCH",
+      "/api/v1/companies/company_123",
+      { defaultSubscriberListIds: null }
+    );
+
+    // [] = no list at all, which is the opposite of null.
+    mockApiRequest.mockResolvedValueOnce({ success: true, company: {} });
+    await handleToolCall("update_company", {
+      companyId: "company_123",
+      defaultSubscriberListIds: [],
+    });
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "PATCH",
+      "/api/v1/companies/company_123",
+      { defaultSubscriberListIds: [] }
+    );
+  });
+
+  it("rejects malformed defaultSubscriberListIds values", async () => {
+    const notAnArray = await handleToolCall("update_company", {
+      companyId: "company_123",
+      defaultSubscriberListIds: "list_abc",
+    });
+    expect(notAnArray.isError).toBe(true);
+    expect(notAnArray.content[0]?.text).toContain(
+      "must be an array of list IDs"
+    );
+
+    const blankEntry = await handleToolCall("update_company", {
+      companyId: "company_123",
+      defaultSubscriberListIds: ["list_abc", "  "],
+    });
+    expect(blankEntry.isError).toBe(true);
+    expect(blankEntry.content[0]?.text).toContain("non-empty list IDs");
+
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
   it("calls the company PATCH API with editable fields", async () => {
@@ -2012,7 +2082,6 @@ describe("A/B test tools", () => {
     expect(toolNames).toContain("get_ab_test");
     expect(toolNames).toContain("get_ab_test_stats");
     expect(toolNames).toContain("restart_ab_test");
-    expect(toolNames).toContain("select_ab_test_winner");
     expect(toolNames).toContain("update_ab_test");
     expect(toolNames).toContain("update_ab_test_variant");
     expect(inputSchema?.required).toEqual(["abTestId", "variantId"]);
@@ -2817,26 +2886,6 @@ describe("A/B test tools", () => {
         winnerThreshold: 120,
         variantCount: 3,
       },
-      "company_123"
-    );
-  });
-
-  it("selects a campaign A/B winner through the public API", async () => {
-    mockApiRequest.mockResolvedValueOnce({
-      success: true,
-      abTest: { id: "ab_123", winningVariantId: "var_b" },
-    });
-
-    await handleToolCall("select_ab_test_winner", {
-      companyId: "company_123",
-      abTestId: "ab_123",
-      variantId: "var_b",
-    });
-
-    expect(mockApiRequest).toHaveBeenCalledWith(
-      "POST",
-      "/api/v1/ab-tests/ab_123/select-winner",
-      { variantId: "var_b" },
       "company_123"
     );
   });
@@ -5033,15 +5082,15 @@ describe("landing page tools", () => {
           properties?: Record<string, unknown>;
         }
       | undefined;
-    const contentSchema = createSchema?.properties?.["content"] as
-      | { description?: string }
-      | undefined;
     const removeDomainSchema = removeDomainTool?.inputSchema as
       | {
           additionalProperties?: boolean;
           properties?: Record<string, unknown>;
           required?: string[];
         }
+      | undefined;
+    const contentSchema = createSchema?.properties?.["content"] as
+      | { description?: string }
       | undefined;
 
     expect(toolNames).toContain("list_landing_pages");
@@ -5060,6 +5109,10 @@ describe("landing page tools", () => {
     expect(contentSchema?.description).toContain("`top`");
     expect(contentSchema?.description).toContain("`#form`");
     expect(contentSchema?.description).toContain("`sectionAnimation`");
+    expect(contentSchema?.description).toContain("`video`");
+    expect(contentSchema?.description).toContain("YouTube URL");
+    expect(contentSchema?.description).not.toContain("Vimeo");
+    expect(contentSchema?.description).not.toContain("Loom");
     expect(createSchema?.properties).toHaveProperty("content");
     expect(createSchema?.properties).toHaveProperty("template");
     expect(updateSchema?.required).toEqual(["landingPageId"]);
@@ -6930,12 +6983,22 @@ describe("sequence node update tools", () => {
     expect(singleSchema?.properties).toHaveProperty("expectedUpdatedAt");
     expect(singleSchema?.properties).toHaveProperty("confirmLiveChange");
     const changesSchema = singleSchema?.properties?.["changes"] as
-      | { properties?: Record<string, unknown> }
+      | { description?: string; properties?: Record<string, unknown> }
       | undefined;
     expect(changesSchema?.properties?.["emailPreset"]).toMatchObject({
       type: "string",
       enum: ["branded", "minimal"],
     });
+    // A per-email theme lever has to be visible on the changes schema, not
+    // only accepted by the API: an agent that cannot see the field falls back
+    // to moving the whole account's theme with update_company.
+    expect(changesSchema?.properties?.["emailTheme"]).toMatchObject({
+      type: ["object", "null"],
+    });
+    expect(JSON.stringify(changesSchema?.properties?.["emailTheme"])).toContain(
+      '"background"'
+    );
+    expect(changesSchema?.description).toContain("emailTheme");
     expect(batchSchema?.required).toEqual(["sequenceId", "updates"]);
     expect(batchSchema?.additionalProperties).toBe(false);
     expect(singleTool?.description).toContain(
@@ -7013,6 +7076,41 @@ describe("sequence node update tools", () => {
     expect(result.structuredContent?.["sequence"]).toMatchObject({
       emails: [{ nodeId: "email_1", emailPreset: "minimal" }],
     });
+  });
+
+  it("forwards a per-email theme patch as an action_email node change", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      sequence: {
+        id: "seq_123",
+        updatedNodeCount: 1,
+        updatedNodes: [{ id: "email_1", nodeType: "action_email" }],
+      },
+    });
+
+    const result = await handleToolCall("update_sequence_node", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      nodeId: "email_1",
+      changes: { emailTheme: { colors: { background: "#ffffff" } } },
+      expectedUpdatedAt: "2026-07-14T10:00:00.000Z",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/sequences/seq_123",
+      {
+        nodeUpdates: [
+          {
+            nodeId: "email_1",
+            changes: { emailTheme: { colors: { background: "#ffffff" } } },
+            expectedUpdatedAt: "2026-07-14T10:00:00.000Z",
+          },
+        ],
+      },
+      "comp_123"
+    );
   });
 
   it("maps one delay patch to the sequence nodeUpdates API", async () => {

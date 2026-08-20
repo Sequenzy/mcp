@@ -161,7 +161,6 @@ export const MUTATING_TOOL_NAMES = new Set([
   "set_default_email_component",
   "delete_email_component",
   "restart_ab_test",
-  "select_ab_test_winner",
   "update_ab_test_variant",
   "update_ab_test",
   "create_ab_test",
@@ -271,7 +270,6 @@ export const OPEN_WORLD_TOOL_NAMES = new Set([
   // as soon as the worker picks them up.
   "move_sequence_enrollments",
   "send_email",
-  "select_ab_test_winner",
   "invite_team_member",
   "reply_to_conversation",
   "create_webhook",

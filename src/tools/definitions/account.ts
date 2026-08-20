@@ -1,5 +1,7 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 
+import { emailThemePatchProperties } from "../internal.js";
+
 export const accountToolDefinitions: Tool[] = [
   // ============================================================================
   // Account & Setup
@@ -111,7 +113,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "get_company",
     description:
-      "Get company details, processing status, product info, brand colors, AI writing context, reply-tracking settings, and effective email localization settings",
+      "Get company details, processing status, product info, brand colors, AI writing context, reply-tracking settings, effective email localization settings, and defaultSubscriberListIds - the workspace default lists new contacts join when nothing targets them explicitly (null means every list, [] means none). Read defaultSubscriberListIds before connecting an integration whose provider has no per-integration list targeting, because its contacts land there.",
     inputSchema: {
       type: "object",
       properties: {
@@ -126,7 +128,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "update_company",
     description:
-      "Edit company product info, brand context, the default email theme, reply-tracking settings, and account-wide sending identity defaults. fromEmail must use a verified sending domain; replyTo may be any valid mailbox. Missing sender/reply profiles are created automatically. Send fromName/replyToName on their own to rename the display name of the existing default profile without changing its address, or pair them with senderProfileId/replyProfileId (from list_sender_profiles) to rename a specific profile. Provide at least one editable field. Profile, branding, and AI-context fields need the company_profile:manage scope; the sending identity and reply-tracking fields additionally need companies:manage.",
+      "Edit company product info, brand context, the default email theme, reply-tracking settings, and account-wide sending identity defaults. fromEmail must use a verified sending domain; replyTo may be any valid mailbox. Missing sender/reply profiles are created automatically. Send fromName/replyToName on their own to rename the display name of the existing default profile without changing its address, or pair them with senderProfileId/replyProfileId (from list_sender_profiles) to rename a specific profile. Provide at least one editable field. Profile, branding, and AI-context fields need the company_profile:manage scope; the sending identity, reply-tracking, and defaultSubscriberListIds fields additionally need companies:manage.",
     inputSchema: {
       type: "object",
       properties: {
@@ -235,89 +237,8 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
         emailTheme: {
           type: ["object", "null"],
           description:
-            "Default email theme applied to campaigns, sequences, and transactional email. Partial update: omitted fields keep their current value (or the preset default). Pass null to reset to the platform default theme. Numeric values are clamped to supported ranges.",
-          properties: {
-            presetId: {
-              type: "string",
-              description:
-                "Theme preset to base the theme on: default, soft, editorial, or bold.",
-            },
-            colors: {
-              type: "object",
-              description: "6-digit hex colors.",
-              properties: {
-                primary: { type: "string" },
-                background: { type: "string" },
-                surface: { type: "string" },
-                text: { type: "string" },
-                mutedText: { type: "string" },
-                heading: { type: "string" },
-                border: { type: "string" },
-                link: { type: "string" },
-                buttonText: {
-                  type: "string",
-                  description:
-                    "Label color for solid buttons. Omit to auto-derive a readable color from the button background.",
-                },
-              },
-              additionalProperties: false,
-            },
-            typography: {
-              type: "object",
-              description: "Numeric type settings.",
-              properties: {
-                baseFontSize: { type: "number" },
-                leadFontSize: { type: "number" },
-                baseLineHeight: { type: "number" },
-                heading1Size: { type: "number" },
-                heading2Size: { type: "number" },
-                heading3Size: { type: "number" },
-                buttonFontSize: { type: "number" },
-                buttonFontWeight: {
-                  type: "number",
-                  description: "CTA label weight, 400-800.",
-                },
-                headingFontWeight: {
-                  type: "number",
-                  description:
-                    "Heading weight applied to all heading levels, 300-900. Omit for the per-level defaults.",
-                },
-                headingFontFamily: {
-                  type: "string",
-                  description:
-                    "Font stack for headings when it differs from the email body font. Omit so headings inherit the email font.",
-                },
-                headingLetterSpacing: {
-                  type: "number",
-                  description:
-                    "Heading letter spacing in pixels (negative = tighter), clamped to -2..4. Omit for natural tracking.",
-                },
-              },
-              additionalProperties: false,
-            },
-            buttonStyle: {
-              type: "string",
-              description:
-                'How primary buttons are filled: "solid" (default) or "outline" (transparent fill with a brand-color border).',
-            },
-            layout: {
-              type: "object",
-              description: "Numeric layout settings.",
-              properties: {
-                contentWidth: { type: "number" },
-                containerPaddingX: { type: "number" },
-                containerPaddingY: { type: "number" },
-                blockSpacing: { type: "number" },
-                baseRadius: { type: "number" },
-                buttonRadius: { type: "number" },
-                sectionPadding: { type: "number" },
-                buttonPaddingX: { type: "number" },
-                buttonPaddingY: { type: "number" },
-                borderedBlockPadding: { type: "number" },
-              },
-              additionalProperties: false,
-            },
-          },
+            "Default email theme applied to campaigns, sequences, and transactional email. Partial update: omitted fields keep their current value (or the preset default). Pass null to reset to the platform default theme. Numeric values are clamped to supported ranges. To restyle one sequence email instead, patch that step's emailTheme with update_sequence_node.",
+          properties: emailThemePatchProperties,
           additionalProperties: false,
         },
         emailDirection: {
@@ -368,6 +289,12 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
           type: "boolean",
           description:
             "Enable or disable forwarding captured replies to the configured mailbox.",
+        },
+        defaultSubscriberListIds: {
+          type: ["array", "null"],
+          items: { type: "string" },
+          description:
+            "Which lists new contacts join when something creates a subscriber without explicit list targeting - forms, API writes, events, tag actions, imports, and every integration that does not carry its own targeting. The three states are distinct: null means every current and future list, [] means no list at all, and a populated array means exactly those lists. Repointing this changes only later writes; nobody is moved or removed retroactively. This is the setting that decides where an integration's backfill lands when the provider has no per-integration targeting of its own, so check it with get_company before connecting a store. Unknown list IDs are rejected. In the dashboard it lives under Contacts -> Lists -> Default Lists. Requires the companies:manage scope.",
         },
       },
     },

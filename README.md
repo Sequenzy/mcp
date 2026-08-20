@@ -870,7 +870,7 @@ propagate.
 | Tool                                     | Description                                                                                             |
 | ---------------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | `list_sequences`                         | List sequences with dashboard status, search, label, limit, and offset filters.                         |
-| `get_sequence`                           | Get sequence details, including nodes, edges, linked emails, blocks, and per-email format.              |
+| `get_sequence`                           | Get sequence details, including nodes, edges, linked emails, blocks, and per-email format/theme.        |
 | `list_sequence_enrollments`              | List contact enrollments by node, status, subscriber, or email with pagination.                         |
 | `send_sequence_test_email`               | Send one saved email step to 1-10 reviewers and return a durable delivery ID for each.                  |
 | `create_sequence`                        | Create a blank dashboard draft or an AI-generated/explicit-step sequence.                               |
@@ -1000,6 +1000,15 @@ custom HTML blocks. Emails stored entirely as one standalone raw HTML block
 return `null` for `emailPreset` and do not support format changes.
 `emailPreset` cannot be combined with `html` or `htmlContent` because those
 fields replace the entire email with standalone raw HTML.
+
+Each linked email also returns its stored `emailTheme` override, or `null` when
+it follows the company theme. Set `emailTheme` on an `emails`/`steps` item or in
+an `action_email` node's `changes` to restyle only that step. Theme updates are
+partial patches, so `changes: { "emailTheme": { "colors": {
+"background": "#ffffff" } } }` changes the background while retaining the
+email's other colors, typography, and layout. Pass `emailTheme: null` to drop
+the override and follow the company theme again. Use `update_company` only when
+the account-wide default should change.
 
 Use `update_sequence_node` for a focused in-place edit, or
 `update_sequence_nodes` when several node patches must commit atomically. Call

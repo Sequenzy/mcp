@@ -1058,9 +1058,6 @@ export const outputPropertiesByToolName: Record<
   restart_ab_test: {
     abTest: resourceOutputProperty("A/B test"),
   },
-  select_ab_test_winner: {
-    abTest: resourceOutputProperty("A/B test with the selected winner"),
-  },
   update_ab_test_variant: {
     abTest: resourceOutputProperty("A/B test"),
     variant: resourceOutputProperty("A/B test variant"),
