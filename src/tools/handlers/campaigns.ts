@@ -385,6 +385,27 @@ export async function handleCampaignTools(
       break;
     }
 
+    case "select_ab_test_winner": {
+      const companyId = args.companyId as string | undefined;
+      const abTestId = requiredString(
+        "select_ab_test_winner",
+        args,
+        "abTestId"
+      );
+      const variantId = requiredString(
+        "select_ab_test_winner",
+        args,
+        "variantId"
+      );
+      result = await apiRequest(
+        "POST",
+        `/api/v1/ab-tests/${abTestId}/select-winner`,
+        { variantId },
+        companyId
+      );
+      break;
+    }
+
     case "update_ab_test_variant": {
       const companyId = args.companyId as string | undefined;
       const allowedAbTestUpdateKeys = new Set([
