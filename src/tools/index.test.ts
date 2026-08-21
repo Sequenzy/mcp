@@ -11229,6 +11229,13 @@ describe("send_sequence_test_email tool", () => {
     ]);
     expect(inputSchema?.properties).toHaveProperty("recipients");
     expect(tool?.outputSchema?.properties).toHaveProperty("results");
+    expect(tool?.description).toContain("nodeType is action_email");
+    expect(tool?.description).toContain(
+      "action_ab_test steps are not supported"
+    );
+    expect(JSON.stringify(inputSchema?.properties?.["nodeId"])).toContain(
+      "Do not pass an action_ab_test node"
+    );
   });
 
   it("queues tests for multiple normalized reviewers", async () => {

@@ -61,7 +61,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
   {
     name: "get_sequence",
     description:
-      "Get sequence details, editable step content, and graph topology. Read effectiveStatus (draft, live, enrollment_paused, paused, archived) to know whether a sequence is running: status alone reads `active` even when new enrollments are paused, and the legacy triggerConfig.active flag is not used by the runtime. Each sequence.nodes item includes id, nodeType, current config, updatedAt, and updateHints with its editable/managed fields and ready-to-return expectedUpdatedAt token for update_sequence_node/update_sequence_nodes. The response also includes sequence.edges and graphRevision for safe edit_sequence_graph calls, plus sequence.emails with each email step's nodeId, linked emailId, subject, previewText, emailPreset (the per-email Style > Format for native blocks, including emails with supported custom HTML blocks; null when the entire email is standalone raw HTML), and blocks.",
+      "Get sequence details, editable step content, and graph topology. Read effectiveStatus (draft, live, enrollment_paused, paused, archived) to know whether a sequence is running: status alone reads `active` even when new enrollments are paused, and the legacy triggerConfig.active flag is not used by the runtime. Each sequence.nodes item includes id, nodeType, current config, updatedAt, and updateHints with its editable/managed fields and ready-to-return expectedUpdatedAt token for update_sequence_node/update_sequence_nodes. The response also includes sequence.edges and graphRevision for safe edit_sequence_graph calls, plus sequence.emails with each email step's nodeId, nodeType, linked emailId, subject, previewText, emailPreset (the per-email Style > Format for native blocks, including emails with supported custom HTML blocks; null when the entire email is standalone raw HTML), and blocks. sequence.emails includes action_ab_test steps, whose copy lives on the A/B test variants rather than on the node: their subject/previewText/blocks are control variant A only, and each carries abTest with the test id, status, and one entry per variant. To change the copy of an A/B step, read every variant with get_ab_test and edit each one with update_ab_test_variant - update_sequence_node cannot touch variant content, and rebuilding the step as a plain email node to reach it destroys the test.",
     inputSchema: {
       type: "object",
       properties: {
@@ -155,7 +155,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
   {
     name: "send_sequence_test_email",
     description:
-      "Queue a real test send for one saved email step in a sequence. Call get_sequence first and pass the target email step's nodeId. Accepts 1-10 reviewer email addresses and returns one durable emailSendId per recipient for get_email_send delivery inspection. The sequence is not enabled and no subscribers are enrolled.",
+      "Queue a real test send for one saved action_email step in a sequence. Call get_sequence first and pass the target sequence.emails entry's nodeId only when nodeType is action_email; action_ab_test steps are not supported by this tool and their variants must be inspected with get_ab_test. Accepts 1-10 reviewer email addresses and returns one durable emailSendId per recipient for get_email_send delivery inspection. The sequence is not enabled and no subscribers are enrolled.",
     inputSchema: {
       type: "object",
       properties: {
@@ -171,7 +171,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
         nodeId: {
           type: "string",
           description:
-            "Email step nodeId from get_sequence. The node must belong to sequenceId.",
+            "action_email step nodeId from get_sequence. The node must belong to sequenceId. Do not pass an action_ab_test node; inspect its variants with get_ab_test instead.",
         },
         recipients: {
           type: "array",

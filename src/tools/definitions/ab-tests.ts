@@ -32,7 +32,7 @@ export const abTestToolDefinitions: Tool[] = [
   {
     name: "get_ab_test",
     description:
-      "Get A/B test details, variants, and per-locale localization sync status",
+      "Get A/B test details, variants, and per-locale localization sync status. This is how you read the email copy of a sequence step whose nodeType is action_ab_test: the blocks live on each variant here, not on the sequence node, and get_sequence reports the abTestId to pass in.",
     inputSchema: {
       type: "object",
       properties: {
@@ -125,7 +125,7 @@ export const abTestToolDefinitions: Tool[] = [
   {
     name: "update_ab_test_variant",
     description:
-      "Update an A/B test variant. Campaign variants are editable only in draft. Sequence variants can be edited after activity with confirmLiveChange, but earlier sends stay unchanged and combined results may no longer be accurate. Provide at least one of subject, previewText, html, or blocks. Use either html or blocks, not both.",
+      "Update an A/B test variant, including the email body of a sequence step whose nodeType is action_ab_test - that content cannot be edited through update_sequence_node, and a change meant for the whole step has to be repeated on every variant. Campaign variants are editable only in draft. Sequence variants can be edited after activity with confirmLiveChange, but earlier sends stay unchanged and combined results may no longer be accurate. Provide at least one of subject, previewText, html, or blocks. Use either html or blocks, not both.",
     inputSchema: {
       type: "object",
       properties: {
@@ -232,7 +232,7 @@ export const abTestToolDefinitions: Tool[] = [
   {
     name: "create_ab_test",
     description:
-      "Create a campaign A/B test or convert a sequence email node into a typed A/B test node. Provide exactly one of campaignId or automationNodeId. Control variant A is created automatically from the current email. Campaign tests may add variants later; automationNodeId conversions require at least one variants[] entry to compete with control variant A.",
+      "Create a campaign A/B test or convert a sequence email node into a typed A/B test node. Provide exactly one of campaignId or automationNodeId. Control variant A is created automatically from the current email. Campaign tests may add variants later; automationNodeId conversions require at least one variants[] entry to compete with control variant A. A conversion moves that step's copy off the sequence node and onto the test's variants: from then on update_sequence_node cannot edit its subject, previewText, or blocks, and every content change has to be applied per variant with update_ab_test_variant (get_ab_test lists them). The response echoes this in contentEditing.",
     inputSchema: {
       type: "object",
       properties: {
