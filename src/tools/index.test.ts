@@ -1650,6 +1650,76 @@ describe("update_company tool validation", () => {
     expect(inputSchema?.properties).toHaveProperty("replyTrackingEnabled");
     expect(inputSchema?.properties).toHaveProperty("replyTrackingDomainMode");
     expect(inputSchema?.properties).toHaveProperty("forwardReplies");
+    expect(inputSchema?.properties).toHaveProperty("defaultSubscriberListIds");
+  });
+
+  // The workspace default lists were previously unreachable from MCP, so an
+  // agent could see that an integration's contacts "follow the workspace
+  // default lists" and still have no way to read or change them.
+  it("passes defaultSubscriberListIds through to the company PATCH API", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      company: { id: "company_123", defaultSubscriberListIds: ["list_abc"] },
+    });
+
+    const result = await handleToolCall("update_company", {
+      companyId: "company_123",
+      defaultSubscriberListIds: ["list_abc"],
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/companies/company_123",
+      { defaultSubscriberListIds: ["list_abc"] }
+    );
+  });
+
+  it("keeps null and [] distinct for defaultSubscriberListIds", async () => {
+    // null = every current and future list. It must survive as an explicit
+    // null rather than being dropped as "no value supplied".
+    mockApiRequest.mockResolvedValueOnce({ success: true, company: {} });
+    await handleToolCall("update_company", {
+      companyId: "company_123",
+      defaultSubscriberListIds: null,
+    });
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "PATCH",
+      "/api/v1/companies/company_123",
+      { defaultSubscriberListIds: null }
+    );
+
+    // [] = no list at all, which is the opposite of null.
+    mockApiRequest.mockResolvedValueOnce({ success: true, company: {} });
+    await handleToolCall("update_company", {
+      companyId: "company_123",
+      defaultSubscriberListIds: [],
+    });
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "PATCH",
+      "/api/v1/companies/company_123",
+      { defaultSubscriberListIds: [] }
+    );
+  });
+
+  it("rejects malformed defaultSubscriberListIds values", async () => {
+    const notAnArray = await handleToolCall("update_company", {
+      companyId: "company_123",
+      defaultSubscriberListIds: "list_abc",
+    });
+    expect(notAnArray.isError).toBe(true);
+    expect(notAnArray.content[0]?.text).toContain(
+      "must be an array of list IDs"
+    );
+
+    const blankEntry = await handleToolCall("update_company", {
+      companyId: "company_123",
+      defaultSubscriberListIds: ["list_abc", "  "],
+    });
+    expect(blankEntry.isError).toBe(true);
+    expect(blankEntry.content[0]?.text).toContain("non-empty list IDs");
+
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
   it("calls the company PATCH API with editable fields", async () => {
@@ -2012,7 +2082,6 @@ describe("A/B test tools", () => {
     expect(toolNames).toContain("get_ab_test");
     expect(toolNames).toContain("get_ab_test_stats");
     expect(toolNames).toContain("restart_ab_test");
-    expect(toolNames).toContain("select_ab_test_winner");
     expect(toolNames).toContain("update_ab_test");
     expect(toolNames).toContain("update_ab_test_variant");
     expect(inputSchema?.required).toEqual(["abTestId", "variantId"]);
@@ -2821,26 +2890,6 @@ describe("A/B test tools", () => {
     );
   });
 
-  it("selects a campaign A/B winner through the public API", async () => {
-    mockApiRequest.mockResolvedValueOnce({
-      success: true,
-      abTest: { id: "ab_123", winningVariantId: "var_b" },
-    });
-
-    await handleToolCall("select_ab_test_winner", {
-      companyId: "company_123",
-      abTestId: "ab_123",
-      variantId: "var_b",
-    });
-
-    expect(mockApiRequest).toHaveBeenCalledWith(
-      "POST",
-      "/api/v1/ab-tests/ab_123/select-winner",
-      { variantId: "var_b" },
-      "company_123"
-    );
-  });
-
   it("rejects invalid A/B restart options before calling the API", async () => {
     const result = await handleToolCall("restart_ab_test", {
       abTestId: "ab_123",
@@ -3269,6 +3318,301 @@ describe("transactional email tools", () => {
       "Provide either `templateId` or both `subject` and `html` when calling `send_email`."
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("publishes multi-recipient send_email fields in the schema", () => {
+    const sendEmailTool = tools.find((tool) => tool.name === "send_email");
+    const inputSchema = sendEmailTool?.inputSchema as
+      | { properties?: Record<string, unknown> }
+      | undefined;
+    const properties = inputSchema?.properties as
+      | Record<
+          string,
+          { type?: string | string[]; maxItems?: number; description?: string }
+        >
+      | undefined;
+
+    expect(properties?.["to"]?.type).toEqual(["string", "array"]);
+    expect(properties?.["to"]?.maxItems).toBe(50);
+    expect(properties?.["cc"]?.type).toEqual(["string", "array"]);
+    expect(properties?.["cc"]?.maxItems).toBe(50);
+    expect(properties?.["bcc"]?.type).toEqual(["string", "array"]);
+    expect(properties?.["bcc"]?.maxItems).toBe(50);
+    expect(properties?.["cc"]?.description).toContain("visible to every");
+    expect(properties?.["bcc"]?.description).toContain(
+      "hidden from the other recipients"
+    );
+    expect(sendEmailTool?.outputSchema?.properties).toHaveProperty("cc");
+    expect(sendEmailTool?.outputSchema?.properties).toHaveProperty("bcc");
+  });
+
+  it("forwards send_email to arrays with cc and bcc recipients", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      emailSendId: "send_shared_123",
+    });
+
+    await handleToolCall("send_email", {
+      companyId: "company_123",
+      to: ["buyer@example.com", "ops@example.com"],
+      cc: ["billing@example.com"],
+      bcc: "archive@example.com",
+      templateId: "order-confirmation",
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/transactional/send",
+      {
+        to: ["buyer@example.com", "ops@example.com"],
+        cc: ["billing@example.com"],
+        bcc: "archive@example.com",
+        slug: "order-confirmation",
+      },
+      "company_123"
+    );
+  });
+
+  it("drops repeated addresses inside a send_email recipient list", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      emailSendId: "send_dedupe_123",
+    });
+
+    await handleToolCall("send_email", {
+      to: ["buyer@example.com", " BUYER@example.com "],
+      templateId: "order-confirmation",
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/transactional/send",
+      {
+        to: ["buyer@example.com"],
+        slug: "order-confirmation",
+      },
+      undefined
+    );
+  });
+
+  it("drops repeated addresses from lower-priority send_email fields", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      emailSendId: "send_cross_dedupe_123",
+    });
+
+    await handleToolCall("send_email", {
+      to: "buyer@example.com",
+      cc: ["BUYER@example.com", "billing@example.com"],
+      bcc: ["billing@example.com", "archive@example.com"],
+      templateId: "order-confirmation",
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/transactional/send",
+      {
+        to: "buyer@example.com",
+        cc: ["billing@example.com"],
+        bcc: ["archive@example.com"],
+        slug: "order-confirmation",
+      },
+      undefined
+    );
+  });
+
+  it("applies send_email recipient policy after cross-field deduplication", async () => {
+    mockApiRequest.mockResolvedValue({
+      success: true,
+      emailSendId: "send_single_123",
+    });
+
+    await handleToolCall("send_email", {
+      to: "user@example.com",
+      cc: "USER@example.com",
+      templateId: "trial-reminder",
+      emailType: "marketing",
+    });
+    await handleToolCall("send_email", {
+      to: "user@example.com",
+      bcc: ["USER@example.com"],
+      subscriberExternalId: "subscriber_123",
+      templateId: "trial-reminder",
+    });
+
+    expect(mockApiRequest).toHaveBeenNthCalledWith(
+      1,
+      "POST",
+      "/api/v1/transactional/send",
+      {
+        to: "user@example.com",
+        slug: "trial-reminder",
+        emailType: "marketing",
+      },
+      undefined
+    );
+    expect(mockApiRequest).toHaveBeenNthCalledWith(
+      2,
+      "POST",
+      "/api/v1/transactional/send",
+      {
+        to: "user@example.com",
+        slug: "trial-reminder",
+        subscriberExternalId: "subscriber_123",
+      },
+      undefined
+    );
+  });
+
+  it("omits send_email cc and bcc when they resolve to nothing", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      emailSendId: "send_no_cc_123",
+    });
+
+    await handleToolCall("send_email", {
+      to: "user@example.com",
+      cc: [],
+      bcc: null,
+      templateId: "welcome-email",
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/transactional/send",
+      {
+        to: "user@example.com",
+        slug: "welcome-email",
+      },
+      undefined
+    );
+  });
+
+  it("rejects more than 50 send_email recipients in one field", async () => {
+    const many = Array.from(
+      { length: 51 },
+      (_, index) => `user-${index}@example.com`
+    );
+
+    const toResult = await handleToolCall("send_email", {
+      to: many,
+      templateId: "welcome-email",
+    });
+    const ccResult = await handleToolCall("send_email", {
+      to: "user@example.com",
+      cc: many,
+      templateId: "welcome-email",
+    });
+
+    expect(toResult.isError).toBe(true);
+    expect(toResult.content[0]?.text).toContain(
+      "`to` accepts at most 50 email addresses when calling `send_email`."
+    );
+    expect(ccResult.isError).toBe(true);
+    expect(ccResult.content[0]?.text).toContain(
+      "`cc` accepts at most 50 email addresses when calling `send_email`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("applies the send_email recipient cap before deduplication", async () => {
+    const result = await handleToolCall("send_email", {
+      to: Array.from({ length: 51 }, () => "same@example.com"),
+      templateId: "welcome-email",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`to` accepts at most 50 email addresses when calling `send_email`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects non-string send_email recipient entries", async () => {
+    const result = await handleToolCall("send_email", {
+      to: ["user@example.com", 42],
+      templateId: "welcome-email",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`to` item 2 must be an email address when calling `send_email`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects a send_email call whose recipient list is empty", async () => {
+    const result = await handleToolCall("send_email", {
+      to: [],
+      templateId: "welcome-email",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`to` is required when calling `send_email`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects marketing send_email calls that use a shared recipient list", async () => {
+    const ccResult = await handleToolCall("send_email", {
+      to: "user@example.com",
+      cc: ["billing@example.com"],
+      templateId: "trial-reminder",
+      emailType: "marketing",
+    });
+    const multiToResult = await handleToolCall("send_email", {
+      to: ["a@example.com", "b@example.com"],
+      templateId: "trial-reminder",
+      emailType: "marketing",
+    });
+
+    expect(ccResult.isError).toBe(true);
+    expect(ccResult.content[0]?.text).toContain(
+      "Marketing sends accept exactly one `to` address and do not support `cc` or `bcc` when calling `send_email`."
+    );
+    expect(multiToResult.isError).toBe(true);
+    expect(multiToResult.content[0]?.text).toContain(
+      "Marketing sends accept exactly one `to` address and do not support `cc` or `bcc` when calling `send_email`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects send_email subscriberExternalId on a shared recipient list", async () => {
+    const result = await handleToolCall("send_email", {
+      to: ["buyer@example.com", "ops@example.com"],
+      subscriberExternalId: "subscriber_123",
+      templateId: "order-confirmation",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`subscriberExternalId` is only supported for single-recipient sends when calling `send_email`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("treats a whitespace subscriberExternalId as absent for recipient policy", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      emailSendId: "send_shared_123",
+    });
+
+    await handleToolCall("send_email", {
+      to: ["buyer@example.com", "ops@example.com"],
+      subscriberExternalId: "   ",
+      templateId: "order-confirmation",
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/transactional/send",
+      {
+        to: ["buyer@example.com", "ops@example.com"],
+        slug: "order-confirmation",
+      },
+      undefined
+    );
   });
 
   it("publishes create_transactional_email content fields in the schema", () => {
@@ -5033,15 +5377,15 @@ describe("landing page tools", () => {
           properties?: Record<string, unknown>;
         }
       | undefined;
-    const contentSchema = createSchema?.properties?.["content"] as
-      | { description?: string }
-      | undefined;
     const removeDomainSchema = removeDomainTool?.inputSchema as
       | {
           additionalProperties?: boolean;
           properties?: Record<string, unknown>;
           required?: string[];
         }
+      | undefined;
+    const contentSchema = createSchema?.properties?.["content"] as
+      | { description?: string }
       | undefined;
 
     expect(toolNames).toContain("list_landing_pages");
@@ -5060,6 +5404,10 @@ describe("landing page tools", () => {
     expect(contentSchema?.description).toContain("`top`");
     expect(contentSchema?.description).toContain("`#form`");
     expect(contentSchema?.description).toContain("`sectionAnimation`");
+    expect(contentSchema?.description).toContain("`video`");
+    expect(contentSchema?.description).toContain("YouTube URL");
+    expect(contentSchema?.description).not.toContain("Vimeo");
+    expect(contentSchema?.description).not.toContain("Loom");
     expect(createSchema?.properties).toHaveProperty("content");
     expect(createSchema?.properties).toHaveProperty("template");
     expect(updateSchema?.required).toEqual(["landingPageId"]);
@@ -6930,12 +7278,22 @@ describe("sequence node update tools", () => {
     expect(singleSchema?.properties).toHaveProperty("expectedUpdatedAt");
     expect(singleSchema?.properties).toHaveProperty("confirmLiveChange");
     const changesSchema = singleSchema?.properties?.["changes"] as
-      | { properties?: Record<string, unknown> }
+      | { description?: string; properties?: Record<string, unknown> }
       | undefined;
     expect(changesSchema?.properties?.["emailPreset"]).toMatchObject({
       type: "string",
       enum: ["branded", "minimal"],
     });
+    // A per-email theme lever has to be visible on the changes schema, not
+    // only accepted by the API: an agent that cannot see the field falls back
+    // to moving the whole account's theme with update_company.
+    expect(changesSchema?.properties?.["emailTheme"]).toMatchObject({
+      type: ["object", "null"],
+    });
+    expect(JSON.stringify(changesSchema?.properties?.["emailTheme"])).toContain(
+      '"background"'
+    );
+    expect(changesSchema?.description).toContain("emailTheme");
     expect(batchSchema?.required).toEqual(["sequenceId", "updates"]);
     expect(batchSchema?.additionalProperties).toBe(false);
     expect(singleTool?.description).toContain(
@@ -7013,6 +7371,41 @@ describe("sequence node update tools", () => {
     expect(result.structuredContent?.["sequence"]).toMatchObject({
       emails: [{ nodeId: "email_1", emailPreset: "minimal" }],
     });
+  });
+
+  it("forwards a per-email theme patch as an action_email node change", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      sequence: {
+        id: "seq_123",
+        updatedNodeCount: 1,
+        updatedNodes: [{ id: "email_1", nodeType: "action_email" }],
+      },
+    });
+
+    const result = await handleToolCall("update_sequence_node", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      nodeId: "email_1",
+      changes: { emailTheme: { colors: { background: "#ffffff" } } },
+      expectedUpdatedAt: "2026-07-14T10:00:00.000Z",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/sequences/seq_123",
+      {
+        nodeUpdates: [
+          {
+            nodeId: "email_1",
+            changes: { emailTheme: { colors: { background: "#ffffff" } } },
+            expectedUpdatedAt: "2026-07-14T10:00:00.000Z",
+          },
+        ],
+      },
+      "comp_123"
+    );
   });
 
   it("maps one delay patch to the sequence nodeUpdates API", async () => {

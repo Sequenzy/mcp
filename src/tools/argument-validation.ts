@@ -193,6 +193,7 @@ export const COMPANY_UPDATE_FIELDS = [
   "replyTrackingEnabled",
   "replyTrackingDomainMode",
   "forwardReplies",
+  "defaultSubscriberListIds",
 ] as const;
 
 export function validateOptionalObjectArg(
@@ -294,6 +295,29 @@ export function buildUpdateCompanyBody(
   }
   validateOptionalArrayArg("update_company", args, "valueProps");
   validateOptionalArrayArg("update_company", args, "testimonials");
+
+  // defaultSubscriberListIds is nullable and the three states are distinct:
+  // null = every list, [] = no list, populated = exactly those lists. It
+  // therefore cannot use validateOptionalArrayArg, which would reject null.
+  if (
+    args.defaultSubscriberListIds !== undefined &&
+    args.defaultSubscriberListIds !== null
+  ) {
+    if (!Array.isArray(args.defaultSubscriberListIds)) {
+      throw new Error(
+        "`defaultSubscriberListIds` must be an array of list IDs, null for every list, or [] for no list when calling `update_company`."
+      );
+    }
+    if (
+      args.defaultSubscriberListIds.some(
+        (listId) => typeof listId !== "string" || listId.trim() === ""
+      )
+    ) {
+      throw new Error(
+        "`defaultSubscriberListIds` must contain non-empty list IDs when calling `update_company`."
+      );
+    }
+  }
 
   for (const key of ["replyTrackingEnabled", "forwardReplies"] as const) {
     if (args[key] !== undefined && typeof args[key] !== "boolean") {

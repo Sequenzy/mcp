@@ -99,7 +99,7 @@ export const replyToNameDescription =
   "Display name for the Reply-To address. Requires replyTo; omit it when using replyProfileId, which already carries its own display name. An address carries one Reply-To name company-wide: if replyTo already has a saved profile under a different name, that saved name is kept and the response `warnings` array says so. Rename it with update_sender_profile (type 'reply') to change it everywhere.";
 
 export const landingPageContentDescription =
-  "Complete Sequenzy landing page content JSON. Use this when replacing the page structure. The content must be the editor-compatible landing page schema with version, template, seo, theme, and blocks. Landing pages must include exactly one footer block and at most one form block. Each block carries a `slot`, and slots render in order: `top` (full-width band above the hero, for announcement bars or banner images), `hero`, `form` (the card beside the hero), `body`, `footer`. Button and pricing CTA URLs accept an external https URL or an in-page anchor: `#form` scrolls to the page's form block, `#section-<sectionId>` and `#block-<blockId>` scroll to any section or block, and `#top` returns to the top. Anchor CTAs stay in the same tab, so one form plus repeated CTAs is the way to build a single opt-in page. Scroll reveal is set on `theme`: `sectionAnimation` is one of none, fade, slide-up, zoom-in (default none) and `sectionAnimationSpeed` is one of slow, normal, fast (default normal). The reveal plays on the published page and is skipped for visitors who prefer reduced motion.";
+  "Complete Sequenzy landing page content JSON. Use this when replacing the page structure. The content must be the editor-compatible landing page schema with version, template, seo, theme, and blocks. Landing pages must include exactly one footer block and at most one form block. Each block carries a `slot`, and slots render in order: `top` (full-width band above the hero, for announcement bars or banner images), `hero`, `form` (the card beside the hero), `body`, `footer`. A `video` block embeds a pasted YouTube URL with `url`, `title`, and an optional `aspectRatio` of 16:9, 4:3, 1:1, or 9:16 - other providers and direct video files are not supported. Button and pricing CTA URLs accept an external https URL or an in-page anchor: `#form` scrolls to the page's form block, `#section-<sectionId>` and `#block-<blockId>` scroll to any section or block, and `#top` returns to the top. Anchor CTAs stay in the same tab, so one form plus repeated CTAs is the way to build a single opt-in page. Scroll reveal is set on `theme`: `sectionAnimation` is one of none, fade, slide-up, zoom-in (default none) and `sectionAnimationSpeed` is one of slow, normal, fast (default normal). The reveal plays on the published page and is skipped for visitors who prefer reduced motion.";
 
 export const landingPageTemplateDescription =
   "Optional template key for default content, such as from-scratch, waitlist, lead-magnet, launch, demo-request, webinar, newsletter, product-hunt, pricing-offer, agency-lead-gen, or feature-announcement.";
@@ -354,10 +354,123 @@ export const sequenceDelaySchema = {
   additionalProperties: false,
 } as const;
 
+/**
+ * Sections of a partial `emailTheme` patch. Shared by every tool that writes a
+ * stored theme - the company default on `update_company` and the per-email
+ * override on sequence email steps - because the API validates all of them
+ * with one rule set. A field accepted in one place must be described the same
+ * way in the other.
+ */
+export const emailThemePatchProperties = {
+  presetId: {
+    type: "string",
+    description:
+      "Theme preset to base the theme on: default, soft, editorial, or bold.",
+  },
+  colors: {
+    type: "object",
+    description: "6-digit hex colors.",
+    properties: {
+      primary: { type: "string" },
+      background: { type: "string" },
+      surface: { type: "string" },
+      text: { type: "string" },
+      mutedText: { type: "string" },
+      heading: { type: "string" },
+      border: { type: "string" },
+      link: { type: "string" },
+      buttonText: {
+        type: "string",
+        description:
+          "Label color for solid buttons. Omit to auto-derive a readable color from the button background.",
+      },
+    },
+    additionalProperties: false,
+  },
+  typography: {
+    type: "object",
+    description: "Numeric type settings.",
+    properties: {
+      baseFontSize: { type: "number" },
+      leadFontSize: { type: "number" },
+      baseLineHeight: { type: "number" },
+      heading1Size: { type: "number" },
+      heading2Size: { type: "number" },
+      heading3Size: { type: "number" },
+      buttonFontSize: { type: "number" },
+      buttonFontWeight: {
+        type: "number",
+        description: "CTA label weight, 400-800.",
+      },
+      headingFontWeight: {
+        type: "number",
+        description:
+          "Heading weight applied to all heading levels, 300-900. Omit for the per-level defaults.",
+      },
+      headingFontFamily: {
+        type: "string",
+        description:
+          "Font stack for headings when it differs from the email body font. Omit so headings inherit the email font.",
+      },
+      headingLetterSpacing: {
+        type: "number",
+        description:
+          "Heading letter spacing in pixels (negative = tighter), clamped to -2..4. Omit for natural tracking.",
+      },
+    },
+    additionalProperties: false,
+  },
+  buttonStyle: {
+    type: "string",
+    description:
+      'How primary buttons are filled: "solid" (default) or "outline" (transparent fill with a brand-color border).',
+  },
+  layout: {
+    type: "object",
+    description: "Numeric layout settings.",
+    properties: {
+      contentWidth: { type: "number" },
+      containerPaddingX: { type: "number" },
+      containerPaddingY: { type: "number" },
+      blockSpacing: { type: "number" },
+      baseRadius: { type: "number" },
+      buttonRadius: { type: "number" },
+      sectionPadding: { type: "number" },
+      buttonPaddingX: { type: "number" },
+      buttonPaddingY: { type: "number" },
+      borderedBlockPadding: { type: "number" },
+    },
+    additionalProperties: false,
+  },
+} as const;
+
+export const companyEmailThemeSchema = {
+  type: ["object", "null"],
+  description:
+    "Default email theme applied to campaigns, sequences, and transactional email. Partial update: omitted fields keep their current value (or the preset default). Pass null to reset to the platform default theme. Numeric values are clamped to supported ranges.",
+  properties: emailThemePatchProperties,
+  additionalProperties: false,
+} as const;
+
+/**
+ * Per-email theme override for one sequence email step. Distinct from
+ * `update_company.emailTheme`, which moves the account-wide default.
+ */
+export const sequenceStepEmailThemeSchema = {
+  type: ["object", "null"],
+  description:
+    "Visual theme override for this step's linked email only; the company-wide default is left untouched, as is every other email. Partial update: the patch merges into this email's current theme, so `{ colors: { background: '#ffffff' } }` repaints the background and keeps its fonts, spacing, and other colors. A step with no override merges into the company theme rather than the platform preset. Pass null to drop the override so the step follows the company theme again. Numeric values are clamped to supported ranges. Use update_company to change the account-wide default instead.",
+  properties: emailThemePatchProperties,
+  additionalProperties: false,
+} as const;
+
+export const sequenceEmailThemeSchema = sequenceStepEmailThemeSchema;
+
 export const sequenceNodeChangesSchema = {
   type: "object",
-  description: `Type-aware patch for the existing node. Start from get_sequence.sequence.nodes[].config. For logic_delay, set exactly one of delay ({ days, hours, minutes }), delayMs, waitUntil, or waitUntilWeekday ({ day, startTime, endTime, timezone } - hold until the next weekday window); optional label is also accepted. For action_email, use name/label, subject, previewText, html/htmlContent or blocks, emailPreset, isTransactional, attachments ([{ filename, path }] URL-backed files fetched at send time; path may use {{event.*}} from the enrollment event; [] removes them), and sender/reply identity fields. For action_sms, use text, blocks, imageUrls, label, or ineligibleAction. Other node types accept their editable config keys. For an existing random logic_branch, randomPercentages may be updated with one non-negative value per branch summing to 100. splitMode cannot be converted in place because condition and random splits have different graph topology; build a new random split with insert_sequence_step. Managed IDs, nodeType conversion, and branch path IDs/count are not editable here; use edit_sequence_graph for topology. Webhook header patches are merged, and redacted values from get_sequence must be omitted or replaced with a real new value.${sequenceStepBlocksFormatHintForNodeChanges}`,
+  description: `Type-aware patch for the existing node. Start from get_sequence.sequence.nodes[].config. For logic_delay, set exactly one of delay ({ days, hours, minutes }), delayMs, waitUntil, or waitUntilWeekday ({ day, startTime, endTime, timezone } - hold until the next weekday window); optional label is also accepted. For action_email, use name/label, subject, previewText, html/htmlContent or blocks, emailPreset, emailTheme (per-email colors/typography/layout override - patch { colors: { background: '#ffffff' } } to repaint one step without touching the company default, or null to inherit it again), isTransactional, attachments ([{ filename, path }] URL-backed files fetched at send time; path may use {{event.*}} from the enrollment event; [] removes them), and sender/reply identity fields. For action_sms, use text, blocks, imageUrls, label, or ineligibleAction. Other node types accept their editable config keys. For an existing random logic_branch, randomPercentages may be updated with one non-negative value per branch summing to 100. splitMode cannot be converted in place because condition and random splits have different graph topology; build a new random split with insert_sequence_step. Managed IDs, nodeType conversion, and branch path IDs/count are not editable here; use edit_sequence_graph for topology. Webhook header patches are merged, and redacted values from get_sequence must be omitted or replaced with a real new value.${sequenceStepBlocksFormatHintForNodeChanges}`,
   properties: {
+    emailTheme: sequenceEmailThemeSchema,
     emailPreset: {
       type: "string",
       enum: ["branded", "minimal"],

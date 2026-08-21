@@ -19,6 +19,7 @@ import {
   sequenceBranchRandomPercentagesSchema,
   sequenceBranchSplitModeSchema,
   sequenceEmailStepIdentityProperties,
+  sequenceEmailThemeSchema,
   sequencePathStepSchema,
 } from "../internal.js";
 
@@ -485,6 +486,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
                 description:
                   "Per-email Style > Format for native Sequenzy blocks, including emails that contain supported custom HTML blocks. Minimal removes the company logo and uses the simple footer; branded restores the branded chrome. Does not change the company default. Not a lossless toggle: minimal deletes standalone logo blocks, so switching back to branded generates a new logo block with a new id and the company name as alt text - send the authored logo block in `blocks` alongside the branded update to keep it. Not supported when the entire email is standalone raw HTML and must not be combined with html/htmlContent.",
               },
+              emailTheme: sequenceEmailThemeSchema,
               blocks: {
                 type: "array",
                 description: `${replacementEmailBlocksDescription}${sequenceStepBlocksFormatHint}`,
@@ -559,6 +561,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
                 description:
                   "Per-email Style > Format for native Sequenzy blocks, including emails that contain supported custom HTML blocks. Minimal removes the company logo and uses the simple footer; branded restores the branded chrome. Does not change the company default. Not a lossless toggle: minimal deletes standalone logo blocks, so switching back to branded generates a new logo block with a new id and the company name as alt text - send the authored logo block in `blocks` alongside the branded update to keep it. Not supported when the entire email is standalone raw HTML and must not be combined with html/htmlContent.",
               },
+              emailTheme: sequenceEmailThemeSchema,
               blocks: {
                 type: "array",
                 description: `${replacementEmailBlocksDescription}${sequenceStepBlocksFormatHint}`,
@@ -655,7 +658,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
   {
     name: "update_sequence_node",
     description:
-      "Patch one existing sequence node in place. Call get_sequence first, select sequence.nodes[].id, inspect nodeType/config, and pass that node's updatedAt as expectedUpdatedAt. This supports every stored sequence node type, including delays, email/SMS content, actions, conditions, branches without topology changes, webhooks, and trigger settings. Delay example: changes:{ delay:{ days:7 } }. For a direct text-forward email, use changes:{ emailPreset:'minimal' } on its action_email node; this changes only that linked email's Style > Format. The update is type-aware and preserves fields you omit. It cannot change nodeType, managed linked-resource IDs, or graph topology; use edit_sequence_graph for structural work. On an active sequence, set confirmLiveChange:true only after the user confirms the live behavior change. Existing recipients already waiting keep their scheduled timestamp; the new delay applies when recipients reach the node in the future.",
+      "Patch one existing sequence node in place. Call get_sequence first, select sequence.nodes[].id, inspect nodeType/config, and pass that node's updatedAt as expectedUpdatedAt. This supports every stored sequence node type, including delays, email/SMS content, actions, conditions, branches without topology changes, webhooks, and trigger settings. Delay example: changes:{ delay:{ days:7 } }. For a direct text-forward email, use changes:{ emailPreset:'minimal' } on its action_email node; this changes only that linked email's Style > Format. To restyle one email, patch changes:{ emailTheme:{ colors:{ background:'#ffffff' } } } on its action_email node - that overrides only this step's linked email and leaves the company-wide theme alone. The update is type-aware and preserves fields you omit. It cannot change nodeType, managed linked-resource IDs, or graph topology; use edit_sequence_graph for structural work. On an active sequence, set confirmLiveChange:true only after the user confirms the live behavior change. Existing recipients already waiting keep their scheduled timestamp; the new delay applies when recipients reach the node in the future.",
     inputSchema: {
       type: "object",
       properties: {
@@ -685,7 +688,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
   {
     name: "update_sequence_nodes",
     description:
-      "Atomically patch multiple existing sequence nodes. Call get_sequence first and include each node's id plus its updatedAt as expectedUpdatedAt. Every patch follows update_sequence_node's type-aware rules. Either every node update commits or none do, making this the preferred tool for changes such as replacing all 5-minute delays with 7-day delays or setting several action_email nodes to changes:{ emailPreset:'minimal' } without changing the company theme. A node may appear only once. It cannot change node types or graph topology. On an active sequence, set confirmLiveChange:true only after the user confirms the live behavior change. Existing recipients already waiting keep their scheduled timestamps.",
+      "Atomically patch multiple existing sequence nodes. Call get_sequence first and include each node's id plus its updatedAt as expectedUpdatedAt. Every patch follows update_sequence_node's type-aware rules. Either every node update commits or none do, making this the preferred tool for changes such as replacing all 5-minute delays with 7-day delays, or restyling several action_email nodes at once with changes:{ emailPreset:'minimal' } or changes:{ emailTheme:{ colors:{ background:'#ffffff' } } }, without changing the company theme. A node may appear only once. It cannot change node types or graph topology. On an active sequence, set confirmLiveChange:true only after the user confirms the live behavior change. Existing recipients already waiting keep their scheduled timestamps.",
     inputSchema: {
       type: "object",
       properties: {
