@@ -77,6 +77,12 @@ export const sequenceEditingToolDefinitions: Tool[] = [
           type: "string",
           description: "List ID for a contact_added trigger replacement.",
         },
+        listScope: {
+          type: "string",
+          enum: ["any_contact", "any_list"],
+          description:
+            "For a contact_added trigger replacement with no listId. 'any_contact' (default) enrolls every contact added, even one that joins no list; 'any_list' waits for a list membership. Cannot be combined with listId.",
+        },
         tagName: {
           type: "string",
           description: "Tag name required for a tag_added trigger replacement.",

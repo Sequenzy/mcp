@@ -173,6 +173,9 @@ export function resourceListOutputProperty(
 const EMAIL_FUNNEL_STATS_HINT =
   "`opened` and `clicked` are unique counts deduplicated by email send (one recipient opening five times counts once), not total open events. Every count is attributed to the sends made inside the requested window, including engagement that arrives after the window ends, so `opened <= delivered <= sent` always holds. Rates use `rateDenominator` (`delivered`, or `sent` when no delivery events were recorded, reported as `rateDenominatorBasis`); `deliveryRate` and `bounceRate` divide by `sent`.";
 
+const SUBSCRIBER_IMPORT_HINT =
+  "The subscriber import record: status, totalRows, emailCount, duplicateRows, addedCount, updatedCount, skippedCount, failedCount, processedCount, chunk progress, and the reason maps skippedReasons, failedReasons, and failedChunkReasons. Every excluded row is explained: skippedReasons sums to skippedCount and failedReasons sums to failedCount. Report a shortfall with the import ID instead of guessing which rows are missing.";
+
 const SEQUENCE_RUN_STATE_HINT =
   "Run state: branch on effectiveStatus (draft, live, enrollment_paused, paused, or archived) rather than on status, which reads `active` even when new enrollments are paused. acceptsNewEnrollments and processesExistingEnrollments answer the two questions behind it, and effectiveStatusSummary is a plain-language sentence. The legacy triggerConfig.active flag is not read by the runtime; it is reported as a mirror of acceptsNewEnrollments.";
 
@@ -780,10 +783,10 @@ export const outputPropertiesByToolName: Record<
     subscriber: resourceOutputProperty("subscriber"),
   },
   create_subscriber_import: {
-    import: resourceOutputProperty("subscriber import"),
+    import: objectOutputProperty(SUBSCRIBER_IMPORT_HINT),
   },
   get_subscriber_import: {
-    import: resourceOutputProperty("subscriber import"),
+    import: objectOutputProperty(SUBSCRIBER_IMPORT_HINT),
   },
   update_subscriber: {
     subscriber: resourceOutputProperty("subscriber"),

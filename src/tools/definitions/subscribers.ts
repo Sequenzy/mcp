@@ -204,7 +204,7 @@ export const subscriberToolDefinitions: Tool[] = [
   {
     name: "get_subscriber_import",
     description:
-      "Get progress, counts, skipped reasons, and failure summaries for a queued subscriber import.",
+      "Get progress, counts, skipped reasons, and failure summaries for a queued subscriber import. Every excluded row is explained: skippedReasons sums to skippedCount and failedReasons sums to failedCount, so a finished import can be reconciled without inspecting individual contacts. If the reason counts fall short of the totals, report it with the import ID rather than guessing what the missing rows were.",
     inputSchema: {
       type: "object",
       properties: {

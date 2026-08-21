@@ -247,7 +247,8 @@ export const landingPageToolDefinitions: Tool[] = [
         },
         domain: {
           type: "string",
-          description: "Custom domain, for example pages.example.com.",
+          description:
+            "Custom domain: a subdomain (pages.example.com, needs a CNAME record) or a root domain (example.com, needs an A record to 76.76.21.21; www also redirects to the root when its CNAME points to pages.sequenzydns.com).",
         },
         landingPageId: {
           type: "string",

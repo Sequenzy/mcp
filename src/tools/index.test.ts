@@ -6082,6 +6082,7 @@ describe("create_sequence tool", () => {
     expect(inputSchema?.properties).toHaveProperty("steps");
     expect(inputSchema?.properties).toHaveProperty("sendingWindow");
     expect(inputSchema?.properties).toHaveProperty("stopCondition");
+    expect(inputSchema?.properties).toHaveProperty("listScope");
     expect(inputSchema?.properties).toHaveProperty("fromEmail");
     expect(inputSchema?.properties).toHaveProperty("replyTo");
     const enrollmentFieldPath = inputSchema?.properties?.[
@@ -6206,6 +6207,74 @@ describe("create_sequence tool", () => {
       "comp_123"
     );
     expect(result.content[0]?.text).toContain("blank draft");
+  });
+
+  it("forwards listScope for contact-added sequences", async () => {
+    mockApiRequest
+      .mockResolvedValueOnce({
+        success: true,
+        sequence: {
+          id: "seq_any_list",
+          name: "Newsletter welcome",
+          status: "draft",
+          emailCount: 0,
+        },
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        sequence: {
+          id: "seq_any_list",
+          name: "Newsletter welcome",
+          status: "draft",
+          enrichmentStatus: "complete",
+          emailCount: 0,
+          enrichedCount: 0,
+          nodes: [],
+        },
+      });
+
+    const result = await handleToolCall("create_sequence", {
+      companyId: "comp_123",
+      name: "Newsletter welcome",
+      trigger: "contact_added",
+      listScope: "any_list",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenNthCalledWith(
+      1,
+      "POST",
+      "/api/v1/sequences",
+      {
+        companyId: "comp_123",
+        name: "Newsletter welcome",
+        trigger: "contact_added",
+        listScope: "any_list",
+      },
+      "comp_123"
+    );
+  });
+
+  it("rejects invalid listScope combinations before creating", async () => {
+    for (const args of [
+      {
+        name: "Conflicting scope",
+        trigger: "contact_added",
+        listId: "list-1",
+        listScope: "any_list",
+      },
+      {
+        name: "Wrong trigger",
+        trigger: "tag_added",
+        tagName: "vip",
+        listScope: "any_list",
+      },
+    ]) {
+      const result = await handleToolCall("create_sequence", args);
+      expect(result.isError).toBe(true);
+    }
+
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
   it("creates explicit discount sequences without polling for AI enrichment", async () => {
@@ -6506,6 +6575,7 @@ describe("update_sequence tool", () => {
     expect(inputSchema?.properties).toHaveProperty("insertSteps");
     expect(inputSchema?.properties).toHaveProperty("subscriberUpdateSteps");
     expect(inputSchema?.properties).toHaveProperty("trigger");
+    expect(inputSchema?.properties).toHaveProperty("listScope");
     expect(inputSchema?.properties).toHaveProperty("integrationSlug");
     expect(inputSchema?.properties).toHaveProperty("customIntegration");
     const enrollmentFieldPath = inputSchema?.properties?.[
@@ -6688,6 +6758,54 @@ describe("update_sequence tool", () => {
       },
       "comp_123"
     );
+  });
+
+  it("forwards listScope for a contact-added trigger replacement", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true, sequence: {} });
+
+    const result = await handleToolCall("update_sequence", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      trigger: "contact_added",
+      listScope: "any_list",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/sequences/seq_123",
+      {
+        companyId: "comp_123",
+        sequenceId: "seq_123",
+        trigger: "contact_added",
+        listScope: "any_list",
+      },
+      "comp_123"
+    );
+  });
+
+  it("rejects invalid listScope combinations before updating", async () => {
+    for (const args of [
+      {
+        companyId: "comp_123",
+        sequenceId: "seq_123",
+        trigger: "contact_added",
+        listId: "list-1",
+        listScope: "any_list",
+      },
+      {
+        companyId: "comp_123",
+        sequenceId: "seq_123",
+        trigger: "tag_added",
+        tagName: "vip",
+        listScope: "any_list",
+      },
+    ]) {
+      const result = await handleToolCall("update_sequence", args);
+      expect(result.isError).toBe(true);
+    }
+
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
   it("forwards sequence From and Reply-To overrides", async () => {

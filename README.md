@@ -331,7 +331,11 @@ does not stop a provider's live webhook from creating contacts. Use
 `set_integration_list_targeting` to choose their future list memberships:
 `null` follows workspace defaults, `[]` joins no list, and a populated array
 targets those lists. The change is not retroactive and never removes existing
-memberships. Supabase, Stripe, Shopify, Wix, and Webflow support this control.
+memberships. It also does not stop default `any_contact` sequences, which
+enroll list-less contacts; explicit `any_list` and specific-list sequences
+require a matching membership. Pair list targeting with
+`pause_sequence_enrollments` when those default enrollments must stop too.
+Supabase, Stripe, Shopify, Wix, and Webflow support this control.
 
 For PostHog, `sync_integration` restarts the event-history import from the
 beginning with the stored personal API key. Imported events are deduplicated, so
@@ -418,11 +422,14 @@ abandonment or price-drop settings. Timing values must be positive;
 Use `create_subscriber_import` for CRM onboarding instead of looping over
 `add_subscriber`. One call accepts 5,000 full records and returns an asynchronous
 import ID; poll it with `get_subscriber_import`. A `completed` import can still
-contain row failures, so inspect `failedCount` and `failedReasons`. When email
-hygiene is enabled, deliverability checks continue separately after ingestion
-and results appear in List health; import status does not wait for or include
-those verdicts. Invalid verdicts are suppressed from later sends. Use
-`optInMode: "confirmed"` only when consent was already verified.
+contain row failures, so inspect `failedCount` and `failedReasons`. Every
+excluded row is accounted for: `skippedReasons` sums to `skippedCount`, and
+`failedReasons` sums to `failedCount`. Report any shortfall with the import ID
+instead of guessing which rows were omitted. When email hygiene is enabled,
+deliverability checks continue separately after ingestion and results appear
+in List health; import status does not wait for or include those verdicts.
+Invalid verdicts are suppressed from later sends. Use `optInMode: "confirmed"`
+only when consent was already verified.
 
 For compliance suppression, call `update_subscriber` with
 `status: "unsubscribed"` (or use `remove_subscriber` without `hardDelete`). Do
@@ -863,8 +870,10 @@ Button and pricing CTA URLs accept external HTTPS destinations or in-page
 anchors such as `#form`, `#section-<sectionId>`, `#block-<blockId>`, and
 `#top`. Set `theme.sectionAnimation` to `none`, `fade`, `slide-up`, or
 `zoom-in`, with `theme.sectionAnimationSpeed` set to `slow`, `normal`, or
-`fast`, to control published scroll reveals. Custom landing page domains
-require a CNAME record pointing to `pages.sequenzydns.com`; call
+`fast`, to control published scroll reveals. Custom landing page subdomains
+require a CNAME record pointing to `pages.sequenzydns.com`; root domains use an
+A record pointing to `76.76.21.21`, and their `www` host redirects to the root
+when its CNAME points to `pages.sequenzydns.com`. Call
 `update_landing_page_domain_settings` with `verify: true` after DNS changes
 propagate.
 
@@ -906,6 +915,9 @@ Sequence creation supports:
 
 - Name-only creation for a blank, disabled trigger-to-completion draft matching the dashboard.
 - Dashboard metadata and delivery settings: `description`, `labels`, `userCancellable`, sequence BCC, and From/Reply-To identity.
+- `trigger: "contact_added"` with either `listId` or `listScope`: `any_contact`
+  (the default) enrolls every added contact, including contacts that join no
+  list, while `any_list` waits for an actual list membership.
 - `trigger: "segment_entered"` plus `segmentId` for saved-segment entry automations.
 - `trigger: "event_received"` plus `{{event.*}}` merge tags in subjects or body content.
 - `trigger: "inbound_webhook"` plus integration metadata for dashboard-compatible webhook entry nodes.

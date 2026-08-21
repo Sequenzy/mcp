@@ -270,7 +270,13 @@ export const sequenceBasicToolDefinitions: Tool[] = [
         listId: {
           type: "string",
           description:
-            "List ID to trigger on (for contact_added trigger). If not provided, triggers on any list.",
+            "List ID to trigger on (for contact_added trigger). Omit to use listScope instead.",
+        },
+        listScope: {
+          type: "string",
+          enum: ["any_contact", "any_list"],
+          description:
+            "For contact_added with no listId. 'any_contact' (default) enrolls every contact added, including the list-less contacts that integrations like PostHog, Stripe, or Supabase create when no list targeting is configured. 'any_list' waits until the contact actually joins a list. Cannot be combined with listId.",
         },
         // tag_added trigger options
         tagName: {

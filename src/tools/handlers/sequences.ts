@@ -14,6 +14,7 @@ import {
   validateCreateSequenceGoalArgs,
   validateUpdateSequenceGoalArgs,
   validateLabelsArg,
+  validateSequenceListScopeArgs,
   validateSendingIdentityArgs,
 } from "../internal.js";
 
@@ -200,6 +201,9 @@ export async function handleSequenceTools(
     case "create_sequence": {
       const companyId = args.companyId as string | undefined;
       validateLabelsArg("create_sequence", args);
+      validateSequenceListScopeArgs("create_sequence", args, {
+        defaultTrigger: "contact_added",
+      });
       validateSendingIdentityArgs("create_sequence", args, {
         hasEmailSteps: true,
       });

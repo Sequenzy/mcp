@@ -59,6 +59,29 @@ export function validateLabelsArg(
   }
 }
 
+export function validateSequenceListScopeArgs(
+  toolName: string,
+  args: Record<string, unknown>,
+  options: { defaultTrigger?: string | undefined } = {}
+): void {
+  if (args.listScope === undefined) {
+    return;
+  }
+
+  if (args.listId !== undefined) {
+    throw new Error(
+      `Provide either listId or listScope when calling ${toolName}, not both.`
+    );
+  }
+
+  const trigger = args.trigger ?? options.defaultTrigger;
+  if (trigger !== "contact_added") {
+    throw new Error(
+      `listScope only applies to a contact_added trigger when calling ${toolName}.`
+    );
+  }
+}
+
 export function validateCreateSegmentArgs(args: Record<string, unknown>): void {
   const hasFilters = args.filters !== undefined;
   const hasRoot = args.root !== undefined;
@@ -762,6 +785,7 @@ export function buildUpdateSequenceBody(
   validateLabelsArg("update_sequence", args);
   const triggerFields = [
     "listId",
+    "listScope",
     "tagName",
     "segmentId",
     "stopOnSegmentExit",
@@ -783,6 +807,7 @@ export function buildUpdateSequenceBody(
       "Provide `trigger` when replacing sequence trigger configuration with `update_sequence`."
     );
   }
+  validateSequenceListScopeArgs("update_sequence", args);
   validateSendingIdentityArgs("update_sequence", args, { hasEmailSteps: true });
   if (
     args.clearEnrollmentFieldPath === true &&
