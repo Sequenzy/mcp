@@ -438,7 +438,7 @@ export const outputPropertiesByToolName: Record<
     blockTypes: {
       type: "array",
       description:
-        "Listing mode: one entry per block type, each with `type`, `creatable`, `required`, `optional`, and a `fields` array of { name, required, type, values?, itemFields? }. `values` holds an enum field's allowed values; `itemFields` holds the shape of one entry in an array field, which is where `list` (items carry `content`) and `steps` (items carry `title`) differ.",
+        "Listing mode: one entry per block type, each with `type`, `creatable`, `required`, `optional`, and a `fields` array of { name, required, type, values?, itemFields?, fields? }. `values` holds an enum field's allowed values; `itemFields` holds the shape of one entry in an array field, which is where `list` (items carry `content`) and `steps` (items carry `title`) differ; a field's own `fields` holds the shape of an object field, such as a repeat block's `productSource`.",
       items: objectOutputProperty(
         "A block type reference: type, creatable, required, optional, fields, and - when the type is one an author should hand-create - a minimal valid `example` and authoring `notes`."
       ),

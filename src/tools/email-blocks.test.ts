@@ -47,6 +47,14 @@ describe("get_email_block_schema", () => {
     expect(description).toContain("never accepts `items`");
   });
 
+  it("tells an agent that nested object fields are expanded", () => {
+    const description =
+      tools.find((candidate) => candidate.name === "get_email_block_schema")
+        ?.description ?? "";
+
+    expect(description).toContain("nested item arrays and nested objects");
+  });
+
   it("lists every block type when no type is given", async () => {
     await handleToolCall("get_email_block_schema", {});
 
