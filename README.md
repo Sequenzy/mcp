@@ -657,26 +657,27 @@ Use `get_ab_test` to copy the effective `settings` object and discover variant I
 
 ### Campaigns
 
-| Tool                             | Description                                                                                             |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `list_campaigns`                 | List paginated campaigns by status or label, including reviewer feedback for rejected campaigns.        |
-| `get_campaign`                   | Get details, stats, and reviewer feedback for a rejected campaign.                                      |
-| `get_campaign_audience`          | Resolve saved targeting, missing references, a plain-language summary, and live recipient count.        |
-| `list_email_sends`               | Search recent delivery history with resource IDs and URLs, optionally scoped to one sequence step.      |
-| `get_email_send`                 | Inspect a queued, test, sent, suppressed, or failed delivery by durable email-send ID.                  |
-| `get_recipient_suppression`      | Check local bounce, complaint, email-hygiene, and regional SES suppression for one exact recipient.     |
-| `remove_recipient_suppression`   | Remove stale bounce suppression while preserving complaint, unsubscribe, and email-hygiene protections. |
-| `create_campaign`                | Create a campaign with content, data, and optional From/Reply-To identity overrides.                    |
-| `update_campaign`                | Update a draft campaign, including content, data, From, Reply-To, CC, and BCC.                          |
-| `schedule_campaign`              | Schedule or reschedule a one-off or recurring campaign after validating subject, content, and audience. |
-| `send_test_email`                | Send a test email to one address.                                                                       |
-| `render_email`                   | Render exact email-safe HTML and report unresolved tags, including typos hidden by defaults.            |
-| `cancel_campaign`                | Cancel a scheduled or sending campaign.                                                                 |
-| `pause_campaign`                 | Pause a sending campaign.                                                                               |
-| `resume_campaign`                | Resume a paused campaign, optionally spreading delivery over time.                                      |
-| `delete_campaign`                | Delete a campaign.                                                                                      |
-| `duplicate_campaign`             | Duplicate a campaign into a new draft.                                                                  |
-| `resend_campaign_to_non_openers` | Create a draft resend for the original audience members who did not open a sent campaign.               |
+| Tool                             | Description                                                                                                |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `list_campaigns`                 | List paginated campaigns by status or label, including reviewer feedback for rejected campaigns.           |
+| `get_campaign`                   | Get details, stats, and reviewer feedback for a rejected campaign.                                         |
+| `get_campaign_audience`          | Resolve saved targeting, missing references, a plain-language summary, and live recipient count.           |
+| `list_email_sends`               | Search recent delivery history with resource IDs and URLs, optionally scoped to one sequence step.         |
+| `get_email_send`                 | Inspect a queued, test, sent, suppressed, or failed delivery by durable email-send ID.                     |
+| `list_recipient_suppressions`    | List associated suppressed recipients, including protected global invalid addresses and complaints.        |
+| `get_recipient_suppression`      | Check local bounce, complaint, email-hygiene, and regional SES suppression for one exact recipient.        |
+| `remove_recipient_suppression`   | Remove a workspace soft-bounce escalation while preserving global, hard-bounce, and complaint protections. |
+| `create_campaign`                | Create a campaign with content, data, and optional From/Reply-To identity overrides.                       |
+| `update_campaign`                | Update a draft campaign, including content, data, From, Reply-To, CC, and BCC.                             |
+| `schedule_campaign`              | Schedule or reschedule a one-off or recurring campaign after validating subject, content, and audience.    |
+| `send_test_email`                | Send a test email to one address.                                                                          |
+| `render_email`                   | Render exact email-safe HTML and report unresolved tags, including typos hidden by defaults.               |
+| `cancel_campaign`                | Cancel a scheduled or sending campaign.                                                                    |
+| `pause_campaign`                 | Pause a sending campaign.                                                                                  |
+| `resume_campaign`                | Resume a paused campaign, optionally spreading delivery over time.                                         |
+| `delete_campaign`                | Delete a campaign.                                                                                         |
+| `duplicate_campaign`             | Duplicate a campaign into a new draft.                                                                     |
+| `resend_campaign_to_non_openers` | Create a draft resend for the original audience members who did not open a sent campaign.                  |
 
 Prompt-created campaigns are generated and persisted in one API request and
 remain drafts. Use `templateId`, `blocks`, or `html` only when copying or
@@ -703,12 +704,13 @@ status, type, bounce type, or source; pass an ID to `get_email_send` to inspect
 `status`, `errorMessage`, the stored body, and delivery events. Delivery-list
 rows are retained for 14 days. Queue jobs are internal execution details and
 are not exposed through the MCP contract. Every returned delivery has a direct
-dashboard `url`. Use `get_recipient_suppression` before cleanup, then
-`remove_recipient_suppression` only after confirming a hard-bounced mailbox is
-working again. Cleanup removes bounce entries but never complaint or unsubscribe
-or email-hygiene protections. A local hygiene result uses the `bounced` reason
-with `email_hygiene` as its source without changing the subscriber's consent
-status.
+dashboard `url`. Use `list_recipient_suppressions` to distinguish protected
+global invalid-recipient, protected company hard-bounce, and complaint rows from removable company soft-bounce
+escalations, and use `get_recipient_suppression` for the exact regional status.
+`remove_recipient_suppression` removes only the company escalation; global and
+Amazon SES account-level suppressions, complaints, unsubscribes, and email-hygiene
+protections remain intact. A local hygiene result uses the `bounced` reason with
+`email_hygiene` as its source without changing the subscriber's consent status.
 
 Agents should pass a caller-owned `idempotencyKey` to `send_email` before the
 first attempt and reuse it for every retry of that same logical email. Sequenzy

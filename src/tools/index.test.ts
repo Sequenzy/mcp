@@ -11966,6 +11966,70 @@ describe("recipient suppression tools", () => {
     mockApiRequest.mockClear();
   });
 
+  it("lists suppressed recipients with search and pagination", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      suppressions: [
+        {
+          email: "escalated@example.com",
+          suppressionType: "soft_bounce_escalation",
+          reason: "bounced",
+          scope: "company",
+          delistable: true,
+        },
+      ],
+      total: 1,
+      page: 2,
+      limit: 10,
+      hasMore: false,
+    });
+
+    const result = await handleToolCall("list_recipient_suppressions", {
+      companyId: "w5icln9p0l2sopp8anjcxx2d",
+      search: "example.com",
+      page: 2,
+      limit: 10,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/suppressions?search=example.com&page=2&limit=10",
+      undefined,
+      "w5icln9p0l2sopp8anjcxx2d"
+    );
+  });
+
+  it("lists suppressed recipients with no filters", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      suppressions: [],
+      total: 0,
+      page: 1,
+      limit: 25,
+      hasMore: false,
+    });
+
+    const result = await handleToolCall("list_recipient_suppressions", {});
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/suppressions",
+      undefined,
+      undefined
+    );
+  });
+
+  it("rejects an out-of-range suppression list limit", async () => {
+    const result = await handleToolCall("list_recipient_suppressions", {
+      limit: 500,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
   it("checks one exact recipient suppression", async () => {
     mockApiRequest.mockResolvedValueOnce({
       success: true,
@@ -11987,11 +12051,11 @@ describe("recipient suppression tools", () => {
     );
   });
 
-  it("removes one exact recipient bounce suppression", async () => {
+  it("removes one exact workspace soft-bounce escalation", async () => {
     mockApiRequest.mockResolvedValueOnce({
       success: true,
       removed: true,
-      removedSesRegions: ["us-east-1"],
+      removedSesRegions: [],
     });
 
     const result = await handleToolCall("remove_recipient_suppression", {

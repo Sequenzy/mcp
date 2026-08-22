@@ -1121,19 +1121,31 @@ export const outputPropertiesByToolName: Record<
       "Number of days sent-email rows remain queryable in this collection."
     ),
   },
+  list_recipient_suppressions: {
+    suppressions: resourceListOutputProperty(
+      "suppressed recipient, with suppressionType, reason, scope and whether it can be removed"
+    ),
+    total: numberOutputProperty(
+      "Total suppressed recipients matching the filter."
+    ),
+    page: numberOutputProperty("1-based page number returned."),
+    limit: numberOutputProperty("Entries per page."),
+    hasMore: booleanOutputProperty("Whether another page is available."),
+  },
   get_recipient_suppression: {
     suppression: resourceOutputProperty("recipient suppression status"),
   },
   remove_recipient_suppression: {
     removed: booleanOutputProperty(
-      "Whether stale bounce suppression was removed."
+      "Whether a workspace soft-bounce escalation was removed."
     ),
     removedLocalBounce: booleanOutputProperty(
-      "Whether the platform-local bounce block was removed."
+      "Whether the workspace-local soft-bounce escalation was removed."
     ),
     removedSesRegions: {
       type: "array",
-      description: "AWS SES regions where a bounce suppression was removed.",
+      description:
+        "Always empty for company-authenticated removal; AWS SES account-level suppressions are protected.",
       items: stringOutputProperty("One AWS SES region."),
     },
     remainingSuppression: resourceOutputProperty(

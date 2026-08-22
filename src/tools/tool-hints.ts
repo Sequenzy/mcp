@@ -63,6 +63,7 @@ export const READ_ONLY_TOOL_NAMES = new Set([
   "get_popup",
   "get_popup_embed",
   "get_recipient_suppression",
+  "list_recipient_suppressions",
   "list_landing_pages",
   "get_landing_page",
   "list_sequences",
