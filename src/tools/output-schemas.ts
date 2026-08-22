@@ -179,9 +179,12 @@ const SUBSCRIBER_IMPORT_HINT =
 const SEQUENCE_RUN_STATE_HINT =
   "Run state: branch on effectiveStatus (draft, live, enrollment_paused, paused, or archived) rather than on status, which reads `active` even when new enrollments are paused. acceptsNewEnrollments and processesExistingEnrollments answer the two questions behind it, and effectiveStatusSummary is a plain-language sentence. The legacy triggerConfig.active flag is not read by the runtime; it is reported as a mirror of acceptsNewEnrollments.";
 
+const SEQUENCE_STEP_NUMBER_HINT =
+  "Email numbering: emails[].stepNumber and nodes[].config.stepNumber are legacy stored ordinals retained for compatibility. Prefer emails[].structuralStepNumber and nodes[].structuralStepNumber when explaining the visible sequence position. Structural numbers are graph-derived; emails in parallel branches intentionally share a depth.";
+
 export const sequenceOutputProperty: OutputSchemaProperty =
   objectOutputProperty(
-    `The sequence record returned by Sequenzy. ${SEQUENCE_RUN_STATE_HINT}`
+    `The sequence record returned by Sequenzy. ${SEQUENCE_RUN_STATE_HINT} ${SEQUENCE_STEP_NUMBER_HINT}`
   );
 
 export const sequenceListOutputProperty: OutputSchemaProperty =

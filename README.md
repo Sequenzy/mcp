@@ -1016,6 +1016,14 @@ return `null` for `emailPreset` and do not support format changes.
 `emailPreset` cannot be combined with `html` or `htmlContent` because those
 fields replace the entire email with standalone raw HTML.
 
+For sequence position, prefer `structuralStepNumber` on linked emails and the
+top level of email nodes. It is derived from the current graph and matches the
+step badge shown in the dashboard. Parallel branch emails intentionally share
+the same structural depth, and an unequal branch merge continues from the
+longer incoming path. The older `stepNumber` field in linked emails and node
+configs remains a stored ordinal for backward compatibility and may be stale
+after graph edits.
+
 Each linked email also returns its stored `emailTheme` override, or `null` when
 it follows the company theme. Set `emailTheme` on an `emails`/`steps` item or in
 an `action_email` node's `changes` to restyle only that step. Theme updates are

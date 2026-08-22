@@ -7465,6 +7465,13 @@ describe("sequence node update tools", () => {
   });
 
   it("returns the per-email format from get_sequence", async () => {
+    const sequenceOutputSchema = tools.find(
+      (tool) => tool.name === "get_sequence"
+    )?.outputSchema?.properties?.["sequence"] as
+      | { description?: string }
+      | undefined;
+    expect(sequenceOutputSchema?.description).toContain("structuralStepNumber");
+
     mockApiRequest.mockResolvedValueOnce({
       success: true,
       sequence: {
