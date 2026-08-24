@@ -64,13 +64,15 @@ export function validateSequenceListScopeArgs(
   args: Record<string, unknown>,
   options: { defaultTrigger?: string | undefined } = {}
 ): void {
+  validateSequenceAudienceArgs(toolName, args, options);
+
   if (args.listScope === undefined) {
     return;
   }
 
-  if (args.listId !== undefined) {
+  if (args.listId !== undefined || args.listIds !== undefined) {
     throw new Error(
-      `Provide either listId or listScope when calling ${toolName}, not both.`
+      `Provide either listId/listIds or listScope when calling ${toolName}, not both.`
     );
   }
 
@@ -79,6 +81,45 @@ export function validateSequenceListScopeArgs(
     throw new Error(
       `listScope only applies to a contact_added trigger when calling ${toolName}.`
     );
+  }
+}
+
+/**
+ * Reject audience arrays aimed at the wrong trigger type, and empty entries.
+ * Caught here rather than server-side so the model gets a corrective error it
+ * can act on instead of a sequence that silently triggers on nothing.
+ */
+function validateSequenceAudienceArgs(
+  toolName: string,
+  args: Record<string, unknown>,
+  options: { defaultTrigger?: string | undefined } = {}
+): void {
+  const trigger = args.trigger ?? options.defaultTrigger;
+
+  for (const [field, expectedTrigger] of [
+    ["listIds", "contact_added"],
+    ["tagNames", "tag_added"],
+  ] as const) {
+    const value = args[field];
+    if (value === undefined) continue;
+
+    if (!Array.isArray(value) || value.length === 0) {
+      throw new Error(
+        `\`${field}\` must be a non-empty array of strings when calling \`${toolName}\`.`
+      );
+    }
+    if (
+      value.some((entry) => typeof entry !== "string" || entry.trim() === "")
+    ) {
+      throw new Error(
+        `\`${field}\` must contain only non-empty strings when calling \`${toolName}\`.`
+      );
+    }
+    if (trigger !== undefined && trigger !== expectedTrigger) {
+      throw new Error(
+        `\`${field}\` only applies to a ${expectedTrigger} trigger when calling \`${toolName}\`.`
+      );
+    }
   }
 }
 
@@ -785,8 +826,10 @@ export function buildUpdateSequenceBody(
   validateLabelsArg("update_sequence", args);
   const triggerFields = [
     "listId",
+    "listIds",
     "listScope",
     "tagName",
+    "tagNames",
     "segmentId",
     "stopOnSegmentExit",
     "eventName",

@@ -1337,7 +1337,7 @@ export const outputPropertiesByToolName: Record<
       items: { type: "string", description: "Enrollment status." },
     },
     stopCondition: objectOutputProperty(
-      "The sequence's single configured stop condition: `type` (`none` when unset), `value`, and nullable `matchConfig` containing any event-property filters or field comparison. A sequence holds exactly one, so a stop event with any other name never applies. Stop conditions are re-evaluated when an enrollment next runs a step, not when their event arrives."
+      "The sequence's single configured stop condition: `type` (`none` when unset), `value`, and nullable `matchConfig` containing event-property filters, a field comparison, or entry_audience resolution. For entry_audience, value is null and audience identifies the enrolling tag or list resolved per contact. Stop conditions are re-evaluated when an enrollment next runs a step, not when their event arrives."
     ),
     stopConditionMatchEvaluatedCount: numberOutputProperty(
       "How many enrollments in this page were actually evaluated for a current stop-condition match. 0 when stopConditionMatch was not requested, the sequence has no stop condition, or no returned enrollment was still active or waiting."
@@ -1415,6 +1415,27 @@ export const outputPropertiesByToolName: Record<
           stopConditionMatchReason: nullableStringOutputProperty(
             "Human-readable reason the stop condition matches, such as the stop event or tag that satisfied it. Null when stopConditionMatches is not true."
           ),
+          enteredVia: {
+            type: "object",
+            description:
+              "What put this contact into the sequence. Use this to distinguish which list or tag matched a multi-value trigger.",
+            properties: {
+              kind: stringOutputProperty(
+                "Entry source kind: list, tag, segment, event, inactivity, frequency, manual, test_run, or unknown."
+              ),
+              value: nullableStringOutputProperty(
+                "Raw list ID, tag name, segment ID, event name, or monitored event name. Null for manual, test_run, and unknown."
+              ),
+              name: nullableStringOutputProperty(
+                "Resolved display name for list and segment sources, or null when not applicable or deleted."
+              ),
+              description: stringOutputProperty(
+                "Ready-to-display description of the entry source."
+              ),
+            },
+            required: ["kind", "value", "name", "description"],
+            additionalProperties: true,
+          },
         },
         // `failedReason` is deliberately absent, like every other field this
         // package added after the fact: clients validate structuredContent

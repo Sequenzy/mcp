@@ -13,7 +13,7 @@ Connect Sequenzy to Claude Desktop, Claude Code, Codex, Cursor, Windsurf, VS Cod
 - Draft, update, schedule, and inspect campaigns, including resolved audience previews and From, Reply-To, CC, and BCC identities.
 - Render campaigns, sequence steps, and templates to their exact email-safe HTML without sending.
 - Add one-click Poll and NPS survey blocks to emails and inspect campaign response summaries.
-- Create and edit email sequences, including event-triggered and segment-entry automations, property-filtered post-enrollment event stop conditions, sending identity overrides, existing graph restructuring, and direct step test sends to internal reviewers.
+- Create and edit email sequences, including multi-list/tag triggers, entry-audience and property-filtered stop conditions, sending identity overrides, existing graph restructuring, and direct step test sends to internal reviewers.
 - Cancel, pause, resume, duplicate, or delete campaigns and enroll contacts into sequences.
 - Manage transactional email templates and send transactional emails to shared To, Cc, and Bcc recipient lists.
 - Supply localized template variants or queue AI translation for enabled locales.
@@ -885,7 +885,7 @@ propagate.
 | ---------------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | `list_sequences`                         | List sequences with dashboard status, search, label, limit, and offset filters.                         |
 | `get_sequence`                           | Get sequence details, including ordinary and A/B email steps, nodes, edges, and linked copy.            |
-| `list_sequence_enrollments`              | List contact enrollments by node, status, subscriber, or email with pagination.                         |
+| `list_sequence_enrollments`              | List contact enrollments with pagination and accurate list/tag/event/time-based entry attribution.      |
 | `send_sequence_test_email`               | Send one saved action_email step to 1-10 reviewers; A/B steps are inspected per variant.                |
 | `create_sequence`                        | Create a blank dashboard draft or an AI-generated/explicit-step sequence.                               |
 | `update_sequence`                        | Update identity, settings, enrollment, existing steps, branch logic, or insert linear steps.            |
@@ -917,9 +917,11 @@ Sequence creation supports:
 
 - Name-only creation for a blank, disabled trigger-to-completion draft matching the dashboard.
 - Dashboard metadata and delivery settings: `description`, `labels`, `userCancellable`, sequence BCC, and From/Reply-To identity.
-- `trigger: "contact_added"` with either `listId` or `listScope`: `any_contact`
-  (the default) enrolls every added contact, including contacts that join no
-  list, while `any_list` waits for an actual list membership.
+- `trigger: "contact_added"` with `listId`, several `listIds`, or `listScope`:
+  `any_contact` (the default) enrolls every added contact, including contacts
+  that join no list, while `any_list` waits for an actual list membership.
+- `trigger: "tag_added"` with `tagName` or several `tagNames`; any configured
+  tag enrolls the contact.
 - `trigger: "segment_entered"` plus `segmentId` for saved-segment entry automations.
 - `trigger: "event_received"` plus `{{event.*}}` merge tags in subjects or body content.
 - `trigger: "inbound_webhook"` plus integration metadata for dashboard-compatible webhook entry nodes.
@@ -943,6 +945,12 @@ ready-to-use arguments for `get_integration_guide`. If the match status is
 false, adapt the example using `examplePayloadNote` and the payload contract.
 Add this event feed and verify its required properties before enabling the draft
 sequence.
+
+`list_sequence_enrollments` returns `enteredVia` for each row. List and segment
+sources keep their stable ID in `value` and resolve a display `name`; tag and
+event sources retain their names in `value`. Time-based triggers report
+`inactivity` or `frequency` rather than being misidentified as ordinary
+received-event enrollments.
 
 Example dynamic Shopify discount step:
 

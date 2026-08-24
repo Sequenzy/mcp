@@ -6149,6 +6149,12 @@ describe("create_sequence tool", () => {
           properties?: {
             type?: { enum?: string[] };
             value?: { type?: string | string[] };
+            matchConfig?: {
+              properties?: {
+                mode?: { enum?: string[] };
+                audience?: { enum?: string[] };
+              };
+            };
           };
         }
       | undefined;
@@ -6158,6 +6164,12 @@ describe("create_sequence tool", () => {
     expect(stopCondition?.properties?.type?.enum).toContain("entered_segment");
     expect(stopCondition?.properties?.type?.enum).toContain("field_changed");
     expect(stopCondition?.properties?.value?.type).toEqual(["string", "null"]);
+    expect(
+      stopCondition?.properties?.matchConfig?.properties?.mode?.enum
+    ).toContain("entry_audience");
+    expect(
+      stopCondition?.properties?.matchConfig?.properties?.audience?.enum
+    ).toEqual(["tag", "list"]);
   });
 
   it("creates a blank dashboard-compatible draft without AI polling", async () => {
@@ -6665,6 +6677,12 @@ describe("update_sequence tool", () => {
           properties?: {
             type?: { enum?: string[] };
             value?: { type?: string | string[] };
+            matchConfig?: {
+              properties?: {
+                mode?: { enum?: string[] };
+                audience?: { enum?: string[] };
+              };
+            };
           };
         }
       | undefined;
@@ -6674,6 +6692,12 @@ describe("update_sequence tool", () => {
     expect(stopCondition?.properties?.type?.enum).toContain("entered_segment");
     expect(stopCondition?.properties?.type?.enum).toContain("field_changed");
     expect(stopCondition?.properties?.value?.type).toEqual(["string", "null"]);
+    expect(
+      stopCondition?.properties?.matchConfig?.properties?.mode?.enum
+    ).toContain("entry_audience");
+    expect(
+      stopCondition?.properties?.matchConfig?.properties?.audience?.enum
+    ).toEqual(["tag", "list"]);
   });
 
   it("documents the config fields each path node type expects", () => {
@@ -8865,6 +8889,15 @@ describe("list_sequence_enrollments tool", () => {
     expect(inputSchema?.properties).toHaveProperty("limit");
     expect(inputSchema?.properties).toHaveProperty("offset");
     expect(tool?.annotations?.readOnlyHint).toBe(true);
+
+    const enrollmentsSchema = tool?.outputSchema?.properties?.[
+      "enrollments"
+    ] as
+      | {
+          items?: { properties?: Record<string, unknown> };
+        }
+      | undefined;
+    expect(enrollmentsSchema?.items?.properties).toHaveProperty("enteredVia");
   });
 
   it("lists enrollments without filters", async () => {
