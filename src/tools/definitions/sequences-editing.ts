@@ -27,7 +27,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
   {
     name: "update_sequence",
     description:
-      "Update an existing sequence: both its settings and its steps. Sequence-level settings live directly on this tool - name, description, labels, trigger (with its trigger-specific field), enrollmentMode plus enrollmentFieldPath, enrollmentPaused, userCancellable, stopCondition, sendingWindow, bccEmails, and the sender/reply identity. This is the only way to change enrollmentMode after create_sequence, so use it to move a tag- or event-triggered sequence off the default 'unlimited' re-entry to 'one_time' or 'matching_field'. To target a specific existing step, use IDs returned by get_sequence. The emails/steps arrays edit email steps, smsSteps edits SMS steps, and subscriberUpdateSteps replaces the config of action_update_attributes steps. To insert new linear steps, use insertSteps with an afterNodeId from get_sequence; omit afterNodeId only to append to an unambiguous linear tail. Deleting a step immediately moves parked recipients to its unique surviving successor, or completes them when no successor remains; inspect migratedRecipientCount and completedRecipientCount in the returned sequence. For active sequences, structural changes such as insertSteps or branch require confirmStructuralChange:true after the user confirms the live-flow impact.",
+      "Update an existing sequence: both its settings and its steps. Sequence-level settings live directly on this tool - name, description, labels, trigger (with its trigger-specific field), enrollmentMode plus enrollmentFieldPath, enrollmentPaused, userCancellable, stopCondition, sendingWindow, bccEmails, and the sender/reply identity. This is the only way to change enrollmentMode after create_sequence, so use it to move a tag- or event-triggered sequence off the default 'unlimited' re-entry to 'one_time' or 'matching_field'. To target a specific existing step, use IDs returned by get_sequence. The emails/steps arrays edit email steps, smsSteps edits SMS steps, and subscriberUpdateSteps replaces the config of action_update_attributes steps. The emails/steps arrays reach action_email steps only: an action_ab_test step keeps its copy on the A/B test variants, so read it with get_ab_test and change each variant with update_ab_test_variant. To insert new linear steps, use insertSteps with an afterNodeId from get_sequence; omit afterNodeId only to append to an unambiguous linear tail. Deleting a step immediately moves parked recipients to its unique surviving successor, or completes them when no successor remains; inspect migratedRecipientCount and completedRecipientCount in the returned sequence. For active sequences, structural changes such as insertSteps or branch require confirmStructuralChange:true after the user confirms the live-flow impact.",
     inputSchema: {
       type: "object",
       properties: {
@@ -77,15 +77,31 @@ export const sequenceEditingToolDefinitions: Tool[] = [
           type: "string",
           description: "List ID for a contact_added trigger replacement.",
         },
+        listIds: {
+          type: "array",
+          minItems: 1,
+          maxItems: 25,
+          items: { type: "string" },
+          description:
+            "Several list IDs for a contact_added trigger replacement. Joining ANY of them enrolls the contact. Cannot be combined with listScope.",
+        },
         listScope: {
           type: "string",
           enum: ["any_contact", "any_list"],
           description:
-            "For a contact_added trigger replacement with no listId. 'any_contact' (default) enrolls every contact added, even one that joins no list; 'any_list' waits for a list membership. Cannot be combined with listId.",
+            "For a contact_added trigger replacement with no list. 'any_contact' (default) enrolls every contact added, even one that joins no list; 'any_list' waits for a list membership. Cannot be combined with listId or listIds.",
         },
         tagName: {
           type: "string",
           description: "Tag name required for a tag_added trigger replacement.",
+        },
+        tagNames: {
+          type: "array",
+          minItems: 1,
+          maxItems: 25,
+          items: { type: "string" },
+          description:
+            "Several tag names for a tag_added trigger replacement. Receiving ANY of them enrolls the contact.",
         },
         segmentId: {
           type: "string",
@@ -305,12 +321,12 @@ export const sequenceEditingToolDefinitions: Tool[] = [
             value: {
               type: ["string", "null"],
               description:
-                "Tag name, list ID, segment ID, field path, or event name for the stop condition. For the does_not_have_tag and removed_from_list guards this is the tag or list a subscriber must have to keep receiving the sequence.",
+                "Tag name, list ID, segment ID, field path, or event name for the stop condition. For entry_audience matching, omit this value because the enrolling tag or list is resolved per contact.",
             },
             matchConfig: {
               type: ["object", "null"],
               description:
-                "Optional stop-condition matching, three shapes keyed by mode. (1) For type 'event_received', { mode: 'event_property_filter', propertyFilters: [{ path: 'quota_used', operator: 'greater_than', value: 1 }] } stops only when an event received AFTER enrollment matches every filter (operators: exists, not_exists, equals, not_equals, one_of, contains, greater_than, less_than - same shape as trigger propertyFilters). Use this when a later occurrence must satisfy specific criteria, e.g. enroll on quota_used=1 and stop when quota_used is greater than 1. Without propertyFilters, a same-name event stop fires on any later occurrence. (2) For type 'event_received', { mode: 'event_property', rules: [{ entryFieldPath: 'orderId', eventFieldPath: 'orderId' }] } stops only when the stop event's field equals the same field captured on the enrolling event (requires an event-based trigger). (3) For type 'field_changed', { mode: 'field_value', operator: 'equals', value: 'pro' } stops only when the field changes to a matching value (operators: equals, not_equals, greater_than, less_than, contains, not_contains). Pass null to clear. Note: event_received stops only match events received after enrollment; the enrolling event itself never satisfies the stop.",
+                "Optional stop-condition matching, four shapes keyed by mode. event_property_filter and event_property refine event_received; field_value refines field_changed. entry_audience with audience tag/list makes a does_not_have_tag/removed_from_list guard resolve the tag or list that enrolled each contact; tag requires a tag_added trigger, and list requires a contact_added trigger scoped to at least one specific list. Omit value for this mode. Pass null to clear.",
               properties: {
                 mode: {
                   type: "string",
@@ -318,6 +334,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
                     "event_property_filter",
                     "event_property",
                     "field_value",
+                    "entry_audience",
                   ],
                   description:
                     "Which matching shape the config uses. Defaults to event_property_filter when omitted and propertyFilters is present.",
@@ -383,6 +400,12 @@ export const sequenceEditingToolDefinitions: Tool[] = [
                 value: {
                   type: "string",
                   description: "field_value mode comparison value.",
+                },
+                audience: {
+                  type: "string",
+                  enum: ["tag", "list"],
+                  description:
+                    "entry_audience mode source to resolve per enrollment.",
                 },
               },
               additionalProperties: true,
@@ -664,7 +687,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
   {
     name: "update_sequence_node",
     description:
-      "Patch one existing sequence node in place. Call get_sequence first, select sequence.nodes[].id, inspect nodeType/config, and pass that node's updatedAt as expectedUpdatedAt. This supports every stored sequence node type, including delays, email/SMS content, actions, conditions, branches without topology changes, webhooks, and trigger settings. Delay example: changes:{ delay:{ days:7 } }. For a direct text-forward email, use changes:{ emailPreset:'minimal' } on its action_email node; this changes only that linked email's Style > Format. To restyle one email, patch changes:{ emailTheme:{ colors:{ background:'#ffffff' } } } on its action_email node - that overrides only this step's linked email and leaves the company-wide theme alone. The update is type-aware and preserves fields you omit. It cannot change nodeType, managed linked-resource IDs, or graph topology; use edit_sequence_graph for structural work. On an active sequence, set confirmLiveChange:true only after the user confirms the live behavior change. Existing recipients already waiting keep their scheduled timestamp; the new delay applies when recipients reach the node in the future.",
+      "Patch one existing sequence node in place. Call get_sequence first, select sequence.nodes[].id, inspect nodeType/config, and pass that node's updatedAt as expectedUpdatedAt. This supports every stored sequence node type, including delays, email/SMS content, actions, conditions, branches without topology changes, webhooks, and trigger settings. Delay example: changes:{ delay:{ days:7 } }. For a direct text-forward email, use changes:{ emailPreset:'minimal' } on its action_email node; this changes only that linked email's Style > Format. To restyle one email, patch changes:{ emailTheme:{ colors:{ background:'#ffffff' } } } on its action_email node - that overrides only this step's linked email and leaves the company-wide theme alone. The update is type-aware and preserves fields you omit. It cannot change nodeType, managed linked-resource IDs, or graph topology; use edit_sequence_graph for structural work. It also cannot edit the copy of an action_ab_test step: that content lives on the A/B test variants, so read them with get_ab_test using the node's config.abTestId and change each one with update_ab_test_variant. On an active sequence, set confirmLiveChange:true only after the user confirms the live behavior change. Existing recipients already waiting keep their scheduled timestamp; the new delay applies when recipients reach the node in the future.",
     inputSchema: {
       type: "object",
       properties: {

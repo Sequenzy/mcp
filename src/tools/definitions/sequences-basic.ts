@@ -61,7 +61,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
   {
     name: "get_sequence",
     description:
-      "Get sequence details, editable step content, and graph topology. Read effectiveStatus (draft, live, enrollment_paused, paused, archived) to know whether a sequence is running: status alone reads `active` even when new enrollments are paused, and the legacy triggerConfig.active flag is not used by the runtime. Each sequence.nodes item includes id, nodeType, current config, updatedAt, and updateHints with its editable/managed fields and ready-to-return expectedUpdatedAt token for update_sequence_node/update_sequence_nodes. The response also includes sequence.edges and graphRevision for safe edit_sequence_graph calls, plus sequence.emails with each email step's nodeId, linked emailId, subject, previewText, emailPreset (the per-email Style > Format for native blocks, including emails with supported custom HTML blocks; null when the entire email is standalone raw HTML), and blocks.",
+      "Get sequence details, editable step content, and graph topology. Read effectiveStatus (draft, live, enrollment_paused, paused, archived) to know whether a sequence is running: status alone reads `active` even when new enrollments are paused, and the legacy triggerConfig.active flag is not used by the runtime. Each sequence.nodes item includes id, nodeType, current config, updatedAt, and updateHints with its editable/managed fields and ready-to-return expectedUpdatedAt token for update_sequence_node/update_sequence_nodes. The response also includes sequence.edges and graphRevision for safe edit_sequence_graph calls, plus sequence.emails with each email step's nodeId, nodeType, linked emailId, subject, previewText, emailPreset (the per-email Style > Format for native blocks, including emails with supported custom HTML blocks; null when the entire email is standalone raw HTML), and blocks. sequence.emails includes action_ab_test steps, whose copy lives on the A/B test variants rather than on the node: their subject/previewText/blocks are control variant A only. With ab_tests:read, each carries abTest with the test id, status, and one entry per variant; without that scope, test-record fields are redacted and variants is empty while the configured id and editing guidance remain available. To change the copy of an A/B step, read every variant with get_ab_test and edit each one with update_ab_test_variant - update_sequence_node cannot touch variant content, and rebuilding the step as a plain email node to reach it destroys the test.",
     inputSchema: {
       type: "object",
       properties: {
@@ -82,7 +82,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
   {
     name: "list_sequence_enrollments",
     description:
-      "List the individual contacts currently enrolled in a sequence, with the node each one is sitting on. Use this when get_sequence_stats gives you enrollmentCounts and you need the actual subscribers behind a number, such as everyone waiting at one step. Filter by currentNodeId (take the ID from get_sequence_stats enrollmentCounts.byCurrentNode or get_sequence nodes), status, subscriberId, or email, and page with limit/offset to export the full list. The response always echoes the sequence's single configured stopCondition, including matchConfig filters or comparisons. A stop condition does not cancel a waiting enrollment when its event arrives: it is re-evaluated when the enrollment next runs a step, so an enrollment parked on a delay keeps reporting `waiting` until that delay expires. Pass stopConditionMatch true to see whether each in-flight enrollment's stop condition matches right now. This is a non-atomic snapshot: a step already past its stop check may still finish.",
+      "List the individual contacts currently enrolled in a sequence, with the node each one is sitting on. Use this when get_sequence_stats gives you enrollmentCounts and you need the actual subscribers behind a number, such as everyone waiting at one step. Filter by currentNodeId (take the ID from get_sequence_stats enrollmentCounts.byCurrentNode or get_sequence nodes), status, subscriberId, or email, and page with limit/offset to export the full list. The response always echoes the sequence's single configured stopCondition, including matchConfig filters or comparisons. A stop condition does not cancel a waiting enrollment when its event arrives: it is re-evaluated when the enrollment next runs a step, so an enrollment parked on a delay keeps reporting `waiting` until that delay expires. Pass stopConditionMatch true to see whether each in-flight enrollment's stop condition matches right now. This is a non-atomic snapshot: a step already past its stop check may still finish. Each enrollment also reports enteredVia - the list, tag, segment, event, inactivity check, or frequency check that enrolled it - which is how you tell apart contacts entering a sequence whose trigger covers several lists or tags.",
     inputSchema: {
       type: "object",
       properties: {
@@ -155,7 +155,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
   {
     name: "send_sequence_test_email",
     description:
-      "Queue a real test send for one saved email step in a sequence. Call get_sequence first and pass the target email step's nodeId. Accepts 1-10 reviewer email addresses and returns one durable emailSendId per recipient for get_email_send delivery inspection. The sequence is not enabled and no subscribers are enrolled.",
+      "Queue a real test send for one saved action_email step in a sequence. Call get_sequence first and pass the target sequence.emails entry's nodeId only when nodeType is action_email; action_ab_test steps are not supported by this tool and their variants must be inspected with get_ab_test. Accepts 1-10 reviewer email addresses and returns one durable emailSendId per recipient for get_email_send delivery inspection. The sequence is not enabled and no subscribers are enrolled.",
     inputSchema: {
       type: "object",
       properties: {
@@ -171,7 +171,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
         nodeId: {
           type: "string",
           description:
-            "Email step nodeId from get_sequence. The node must belong to sequenceId.",
+            "action_email step nodeId from get_sequence. The node must belong to sequenceId. Do not pass an action_ab_test node; inspect its variants with get_ab_test instead.",
         },
         recipients: {
           type: "array",
@@ -189,7 +189,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
   {
     name: "create_sequence",
     description:
-      "Create and persist a disabled draft email sequence, follow-up series, drip campaign, nurture flow, or automation workflow. For natural-language content, provide goal and emailCount. Use explicit steps for finished caller-supplied content, exact workflows, or migrations. Configure trigger plus its relevant field, such as listId, tagName, segmentId, or eventName. Supports email and SMS steps, delays and date waits, actions that dynamically create a provider discount/code (later emails print it with {{discount.code}}), subscriber updates, event filters, enrollment rules, sending windows, and stop conditions. The saved draft appears in list_sequences. Never call enable_sequence unless the user explicitly asks to activate it.",
+      "Create and persist a disabled draft email sequence, follow-up series, drip campaign, nurture flow, or automation workflow. For natural-language content, provide goal and emailCount. Use explicit steps for finished caller-supplied content, exact workflows, or migrations. Configure trigger plus its relevant field, such as listId/listIds, tagName/tagNames, segmentId, or eventName. Supports email and SMS steps, delays and date waits, actions that dynamically create a provider discount/code (later emails print it with {{discount.code}}), subscriber updates, event filters, enrollment rules, sending windows, and stop conditions. The saved draft appears in list_sequences. Never call enable_sequence unless the user explicitly asks to activate it.",
     inputSchema: {
       type: "object",
       properties: {
@@ -270,19 +270,35 @@ export const sequenceBasicToolDefinitions: Tool[] = [
         listId: {
           type: "string",
           description:
-            "List ID to trigger on (for contact_added trigger). Omit to use listScope instead.",
+            "List ID to trigger on (for contact_added trigger). Omit to use listScope instead. Use listIds to trigger on several lists.",
+        },
+        listIds: {
+          type: "array",
+          minItems: 1,
+          maxItems: 25,
+          items: { type: "string" },
+          description:
+            "Several list IDs for a contact_added trigger. A contact joining ANY of them enrolls. Use this instead of listId when the user says 'when added to list A or list B'. Cannot be combined with listScope.",
         },
         listScope: {
           type: "string",
           enum: ["any_contact", "any_list"],
           description:
-            "For contact_added with no listId. 'any_contact' (default) enrolls every contact added, including the list-less contacts that integrations like PostHog, Stripe, or Supabase create when no list targeting is configured. 'any_list' waits until the contact actually joins a list. Cannot be combined with listId.",
+            "For contact_added with no list at all. 'any_contact' (default) enrolls every contact added, including the list-less contacts that integrations like PostHog, Stripe, or Supabase create when no list targeting is configured. 'any_list' waits until the contact actually joins a list. Cannot be combined with listId or listIds.",
         },
         // tag_added trigger options
         tagName: {
           type: "string",
           description:
-            "Tag name to trigger on (required for tag_added trigger)",
+            "Tag name to trigger on (required for tag_added trigger). Use tagNames to trigger on several tags.",
+        },
+        tagNames: {
+          type: "array",
+          minItems: 1,
+          maxItems: 25,
+          items: { type: "string" },
+          description:
+            "Several tag names for a tag_added trigger. Receiving ANY of them enrolls the contact. Use this instead of tagName when the user says 'when tagged vip or trial'.",
         },
         // segment_entered trigger options
         segmentId: {
@@ -458,12 +474,12 @@ export const sequenceBasicToolDefinitions: Tool[] = [
             value: {
               type: ["string", "null"],
               description:
-                "Tag name, list ID, segment ID, field path, or event name for the stop condition. For the does_not_have_tag and removed_from_list guards this is the tag or list a subscriber must have to keep receiving the sequence. Use null or omit for type 'none'.",
+                "Tag name, list ID, segment ID, field path, or event name for the stop condition. For entry_audience matching, omit this value because the enrolling tag or list is resolved per contact. Use null or omit for type 'none'.",
             },
             matchConfig: {
               type: ["object", "null"],
               description:
-                "Optional stop-condition matching. For type 'event_received': { mode: 'event_property_filter', propertyFilters: [{ path: 'quota_used', operator: 'greater_than', value: 1 }] } stops only when an event received after enrollment matches every filter (operators: exists, not_exists, equals, not_equals, one_of, contains, greater_than, less_than), or { mode: 'event_property', rules: [{ entryFieldPath: 'orderId', eventFieldPath: 'orderId' }] } stops only when the stop event's field equals the same field on the enrolling event. For type 'field_changed': { mode: 'field_value', operator: 'equals', value: 'pro' } stops only when the field changes to a matching value. event_received stops only match events received after enrollment, so a stop on the trigger's own event name is safe when combined with propertyFilters.",
+                "Optional stop-condition matching. event_property_filter and event_property refine event_received; field_value refines field_changed. entry_audience with audience tag/list makes a does_not_have_tag/removed_from_list guard resolve the tag or list that enrolled each contact; tag requires a tag_added trigger, and list requires a contact_added trigger scoped to at least one specific list. Omit value for this mode.",
               properties: {
                 mode: {
                   type: "string",
@@ -471,6 +487,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
                     "event_property_filter",
                     "event_property",
                     "field_value",
+                    "entry_audience",
                   ],
                 },
                 propertyFilters: {
@@ -530,6 +547,12 @@ export const sequenceBasicToolDefinitions: Tool[] = [
                 value: {
                   type: "string",
                   description: "field_value mode comparison value.",
+                },
+                audience: {
+                  type: "string",
+                  enum: ["tag", "list"],
+                  description:
+                    "entry_audience mode source to resolve per enrollment.",
                 },
               },
               additionalProperties: true,

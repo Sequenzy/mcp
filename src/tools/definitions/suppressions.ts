@@ -19,6 +19,32 @@ const commonProperties = {
 
 export const suppressionToolDefinitions: Tool[] = [
   {
+    name: "list_recipient_suppressions",
+    description:
+      "List the recipients this company cannot reach: protected global invalid-recipient suppressions for addresses associated with the company, protected workspace hard bounces without conclusive invalid-inbox evidence, removable workspace soft-bounce escalations, and protected spam complaints. Each row includes a stable suppressionType. Start here when a customer reports missing email; use get_recipient_suppression for one exact address.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: commonProperties.companyId,
+        search: {
+          type: "string" as const,
+          description:
+            "Case-insensitive substring filter on the recipient email address.",
+        },
+        page: {
+          type: "number" as const,
+          description: "1-based page number. Defaults to 1.",
+        },
+        limit: {
+          type: "number" as const,
+          description: "Entries per page. Defaults to 25, maximum 100.",
+        },
+      },
+      required: [],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "get_recipient_suppression",
     description:
       "Check whether one recipient is suppressed by Sequenzy's bounce/complaint safeguards or the regional Amazon SES account-level suppression list. This exact-address lookup never exposes other recipients from the shared SES account.",
@@ -32,7 +58,7 @@ export const suppressionToolDefinitions: Tool[] = [
   {
     name: "remove_recipient_suppression",
     description:
-      "Remove stale bounce suppression for an exact recipient associated with the company. Clears matching Amazon SES bounce entries and Sequenzy's local bounce block, then reactivates bounced company subscribers. Complaint and unsubscribe protections are never removed.",
+      "Remove a workspace-scoped soft-bounce escalation for an exact recipient associated with the company, then reactivate bounced company subscribers. Global invalid-recipient, workspace hard-bounce, Amazon SES account-level, complaint, and unsubscribe suppressions are protected.",
     inputSchema: {
       type: "object",
       properties: commonProperties,

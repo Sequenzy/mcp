@@ -179,9 +179,12 @@ const SUBSCRIBER_IMPORT_HINT =
 const SEQUENCE_RUN_STATE_HINT =
   "Run state: branch on effectiveStatus (draft, live, enrollment_paused, paused, or archived) rather than on status, which reads `active` even when new enrollments are paused. acceptsNewEnrollments and processesExistingEnrollments answer the two questions behind it, and effectiveStatusSummary is a plain-language sentence. The legacy triggerConfig.active flag is not read by the runtime; it is reported as a mirror of acceptsNewEnrollments.";
 
+const SEQUENCE_STEP_NUMBER_HINT =
+  "Email numbering: emails[].stepNumber and nodes[].config.stepNumber are legacy stored ordinals retained for compatibility. Prefer emails[].structuralStepNumber and nodes[].structuralStepNumber when explaining the visible sequence position. Structural numbers are graph-derived; emails in parallel branches intentionally share a depth.";
+
 export const sequenceOutputProperty: OutputSchemaProperty =
   objectOutputProperty(
-    `The sequence record returned by Sequenzy. ${SEQUENCE_RUN_STATE_HINT}`
+    `The sequence record returned by Sequenzy. ${SEQUENCE_RUN_STATE_HINT} ${SEQUENCE_STEP_NUMBER_HINT}`
   );
 
 export const sequenceListOutputProperty: OutputSchemaProperty =
@@ -435,7 +438,7 @@ export const outputPropertiesByToolName: Record<
     blockTypes: {
       type: "array",
       description:
-        "Listing mode: one entry per block type, each with `type`, `creatable`, `required`, `optional`, and a `fields` array of { name, required, type, values?, itemFields? }. `values` holds an enum field's allowed values; `itemFields` holds the shape of one entry in an array field, which is where `list` (items carry `content`) and `steps` (items carry `title`) differ.",
+        "Listing mode: one entry per block type, each with `type`, `creatable`, `required`, `optional`, and a `fields` array of { name, required, type, values?, itemFields?, fields? }. `values` holds an enum field's allowed values; `itemFields` holds the shape of one entry in an array field, which is where `list` (items carry `content`) and `steps` (items carry `title`) differ; a field's own `fields` holds the shape of an object field, such as a repeat block's `productSource`.",
       items: objectOutputProperty(
         "A block type reference: type, creatable, required, optional, fields, and - when the type is one an author should hand-create - a minimal valid `example` and authoring `notes`."
       ),
@@ -1121,19 +1124,31 @@ export const outputPropertiesByToolName: Record<
       "Number of days sent-email rows remain queryable in this collection."
     ),
   },
+  list_recipient_suppressions: {
+    suppressions: resourceListOutputProperty(
+      "suppressed recipient, with suppressionType, reason, scope and whether it can be removed"
+    ),
+    total: numberOutputProperty(
+      "Total suppressed recipients matching the filter."
+    ),
+    page: numberOutputProperty("1-based page number returned."),
+    limit: numberOutputProperty("Entries per page."),
+    hasMore: booleanOutputProperty("Whether another page is available."),
+  },
   get_recipient_suppression: {
     suppression: resourceOutputProperty("recipient suppression status"),
   },
   remove_recipient_suppression: {
     removed: booleanOutputProperty(
-      "Whether stale bounce suppression was removed."
+      "Whether a workspace soft-bounce escalation was removed."
     ),
     removedLocalBounce: booleanOutputProperty(
-      "Whether the platform-local bounce block was removed."
+      "Whether the workspace-local soft-bounce escalation was removed."
     ),
     removedSesRegions: {
       type: "array",
-      description: "AWS SES regions where a bounce suppression was removed.",
+      description:
+        "Always empty for company-authenticated removal; AWS SES account-level suppressions are protected.",
       items: stringOutputProperty("One AWS SES region."),
     },
     remainingSuppression: resourceOutputProperty(
@@ -1325,7 +1340,7 @@ export const outputPropertiesByToolName: Record<
       items: { type: "string", description: "Enrollment status." },
     },
     stopCondition: objectOutputProperty(
-      "The sequence's single configured stop condition: `type` (`none` when unset), `value`, and nullable `matchConfig` containing any event-property filters or field comparison. A sequence holds exactly one, so a stop event with any other name never applies. Stop conditions are re-evaluated when an enrollment next runs a step, not when their event arrives."
+      "The sequence's single configured stop condition: `type` (`none` when unset), `value`, and nullable `matchConfig` containing event-property filters, a field comparison, or entry_audience resolution. For entry_audience, value is null and audience identifies the enrolling tag or list resolved per contact. Stop conditions are re-evaluated when an enrollment next runs a step, not when their event arrives."
     ),
     stopConditionMatchEvaluatedCount: numberOutputProperty(
       "How many enrollments in this page were actually evaluated for a current stop-condition match. 0 when stopConditionMatch was not requested, the sequence has no stop condition, or no returned enrollment was still active or waiting."
@@ -1403,6 +1418,27 @@ export const outputPropertiesByToolName: Record<
           stopConditionMatchReason: nullableStringOutputProperty(
             "Human-readable reason the stop condition matches, such as the stop event or tag that satisfied it. Null when stopConditionMatches is not true."
           ),
+          enteredVia: {
+            type: "object",
+            description:
+              "What put this contact into the sequence. Use this to distinguish which list or tag matched a multi-value trigger.",
+            properties: {
+              kind: stringOutputProperty(
+                "Entry source kind: list, tag, segment, event, inactivity, frequency, manual, test_run, or unknown."
+              ),
+              value: nullableStringOutputProperty(
+                "Raw list ID, tag name, segment ID, event name, or monitored event name. Null for manual, test_run, and unknown."
+              ),
+              name: nullableStringOutputProperty(
+                "Resolved display name for list and segment sources, or null when not applicable or deleted."
+              ),
+              description: stringOutputProperty(
+                "Ready-to-display description of the entry source."
+              ),
+            },
+            required: ["kind", "value", "name", "description"],
+            additionalProperties: true,
+          },
         },
         // `failedReason` is deliberately absent, like every other field this
         // package added after the fact: clients validate structuredContent

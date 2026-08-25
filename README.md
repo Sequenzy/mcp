@@ -13,7 +13,7 @@ Connect Sequenzy to Claude Desktop, Claude Code, Codex, Cursor, Windsurf, VS Cod
 - Draft, update, schedule, and inspect campaigns, including resolved audience previews and From, Reply-To, CC, and BCC identities.
 - Render campaigns, sequence steps, and templates to their exact email-safe HTML without sending.
 - Add one-click Poll and NPS survey blocks to emails and inspect campaign response summaries.
-- Create and edit email sequences, including event-triggered and segment-entry automations, property-filtered post-enrollment event stop conditions, sending identity overrides, existing graph restructuring, and direct step test sends to internal reviewers.
+- Create and edit email sequences, including multi-list/tag triggers, entry-audience and property-filtered stop conditions, sending identity overrides, existing graph restructuring, and direct step test sends to internal reviewers.
 - Cancel, pause, resume, duplicate, or delete campaigns and enroll contacts into sequences.
 - Manage transactional email templates and send transactional emails to shared To, Cc, and Bcc recipient lists.
 - Supply localized template variants or queue AI translation for enabled locales.
@@ -637,46 +637,47 @@ components; their send-time unsubscribe handling remains unchanged.
 
 ### A/B Tests
 
-| Tool                     | Description                                                    |
-| ------------------------ | -------------------------------------------------------------- |
-| `list_ab_tests`          | List A/B tests and variants, optionally scoped by sequence.    |
-| `get_ab_test`            | Get effective settings, variants, and localization status.     |
-| `get_ab_test_stats`      | Get aggregate and per-variant stats.                           |
-| `restart_ab_test`        | Restart a stopped or completed A/B test.                       |
-| `select_ab_test_winner`  | Select a campaign test winner and queue remaining delivery.    |
-| `update_ab_test`         | Update campaign or sequence winner-selection settings.         |
-| `update_ab_test_variant` | Update a draft variant subject, preview text, HTML, or blocks. |
-| `create_ab_test`         | Create a campaign or sequence A/B test.                        |
-| `add_ab_test_variant`    | Add a variant to an existing A/B test.                         |
-| `delete_ab_test_variant` | Delete a draft A/B test variant.                               |
-| `delete_ab_test`         | Delete an A/B test.                                            |
+| Tool                     | Description                                                                    |
+| ------------------------ | ------------------------------------------------------------------------------ |
+| `list_ab_tests`          | List A/B tests and variants, optionally scoped by sequence.                    |
+| `get_ab_test`            | Get effective settings, variants, localization status, and sequence-step copy. |
+| `get_ab_test_stats`      | Get aggregate and per-variant stats.                                           |
+| `restart_ab_test`        | Restart a stopped or completed A/B test.                                       |
+| `select_ab_test_winner`  | Select a campaign test winner and queue remaining delivery.                    |
+| `update_ab_test`         | Update campaign or sequence winner-selection settings.                         |
+| `update_ab_test_variant` | Update campaign draft or sequence variant copy.                                |
+| `create_ab_test`         | Create a campaign test or convert a sequence email step.                       |
+| `add_ab_test_variant`    | Add a variant to an existing A/B test.                                         |
+| `delete_ab_test_variant` | Delete a draft A/B test variant.                                               |
+| `delete_ab_test`         | Delete an A/B test.                                                            |
 
 Use `get_ab_test` to copy the effective `settings` object and discover variant IDs before editing. Campaign settings use `testPercentage`, `testDurationMinutes`, and `winnerCriteria`; sequence settings use `testType`, `winnerThreshold`, and `winnerCriteria`. The legacy sequence values `testPercentage: 100` and `testDurationMinutes: 0` are compatibility sentinels, not runtime settings. `select_ab_test_winner` applies only to a campaign test that is currently testing and immediately queues the winning variant for the remaining audience. `update_ab_test` changes the appropriate settings model and requires `confirmLiveChange: true` when sequence settings affect an active or already-used test. Variant updates accept either `html` or `blocks`, not both.
 
-`create_ab_test` accepts exactly one of `campaignId` or `automationNodeId`; the latter requires one to four extra variants and converts a sequence email node into `action_ab_test`. An explicit sequence `winnerCriteria` overrides the `testType` default, so content variants can still be judged by opens. Pass `confirmLiveChange: true` when converting a node in an active sequence. Together with control A, an A/B test supports at most five variants. Sequence variants receive independent email templates and can be edited, added, or removed while the test is a draft; when the parent sequence is active, `update_ab_test_variant`, `add_ab_test_variant`, and `delete_ab_test_variant` also require `confirmLiveChange: true` because they immediately change the live rotation.
+`create_ab_test` accepts exactly one of `campaignId` or `automationNodeId`; the latter requires one to four extra variants and converts a sequence email node into `action_ab_test`. The conversion moves the step's subject, preview text, and blocks onto independent variant emails. Read every variant with `get_ab_test` and edit each one with `update_ab_test_variant`; `update_sequence_node` cannot edit variant copy, and a change intended for the whole step must be repeated for every variant. The full workflow requires `ab_tests:read`, `ab_tests:write`, and `sequences:write`. With only `sequences:read`, `get_sequence` keeps the A/B step and control copy visible but redacts test-record fields and returns an empty variant list. An explicit sequence `winnerCriteria` overrides the `testType` default, so content variants can still be judged by opens. Pass `confirmLiveChange: true` when converting a node in an active sequence. Together with control A, an A/B test supports at most five variants. Sequence variants receive independent email templates and can be edited after creation; once the sequence is active or the test has activity, `update_ab_test_variant` requires `confirmLiveChange: true`. Variants can only be added or removed while the test is a draft, and live-sequence changes also require confirmation because they immediately change the rotation.
 
 ### Campaigns
 
-| Tool                             | Description                                                                                             |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `list_campaigns`                 | List paginated campaigns by status or label, including reviewer feedback for rejected campaigns.        |
-| `get_campaign`                   | Get details, stats, and reviewer feedback for a rejected campaign.                                      |
-| `get_campaign_audience`          | Resolve saved targeting, missing references, a plain-language summary, and live recipient count.        |
-| `list_email_sends`               | Search recent delivery history with resource IDs and URLs, optionally scoped to one sequence step.      |
-| `get_email_send`                 | Inspect a queued, test, sent, suppressed, or failed delivery by durable email-send ID.                  |
-| `get_recipient_suppression`      | Check local bounce, complaint, email-hygiene, and regional SES suppression for one exact recipient.     |
-| `remove_recipient_suppression`   | Remove stale bounce suppression while preserving complaint, unsubscribe, and email-hygiene protections. |
-| `create_campaign`                | Create a campaign with content, data, and optional From/Reply-To identity overrides.                    |
-| `update_campaign`                | Update a draft campaign, including content, data, From, Reply-To, CC, and BCC.                          |
-| `schedule_campaign`              | Schedule or reschedule a one-off or recurring campaign after validating subject, content, and audience. |
-| `send_test_email`                | Send a test email to one address.                                                                       |
-| `render_email`                   | Render exact email-safe HTML and report unresolved tags, including typos hidden by defaults.            |
-| `cancel_campaign`                | Cancel a scheduled or sending campaign.                                                                 |
-| `pause_campaign`                 | Pause a sending campaign.                                                                               |
-| `resume_campaign`                | Resume a paused campaign, optionally spreading delivery over time.                                      |
-| `delete_campaign`                | Delete a campaign.                                                                                      |
-| `duplicate_campaign`             | Duplicate a campaign into a new draft.                                                                  |
-| `resend_campaign_to_non_openers` | Create a draft resend for the original audience members who did not open a sent campaign.               |
+| Tool                             | Description                                                                                                |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `list_campaigns`                 | List paginated campaigns by status or label, including reviewer feedback for rejected campaigns.           |
+| `get_campaign`                   | Get details, stats, and reviewer feedback for a rejected campaign.                                         |
+| `get_campaign_audience`          | Resolve saved targeting, missing references, a plain-language summary, and live recipient count.           |
+| `list_email_sends`               | Search recent delivery history with resource IDs and URLs, optionally scoped to one sequence step.         |
+| `get_email_send`                 | Inspect a queued, test, sent, suppressed, or failed delivery by durable email-send ID.                     |
+| `list_recipient_suppressions`    | List associated suppressed recipients, including protected global invalid addresses and complaints.        |
+| `get_recipient_suppression`      | Check local bounce, complaint, email-hygiene, and regional SES suppression for one exact recipient.        |
+| `remove_recipient_suppression`   | Remove a workspace soft-bounce escalation while preserving global, hard-bounce, and complaint protections. |
+| `create_campaign`                | Create a campaign with content, data, and optional From/Reply-To identity overrides.                       |
+| `update_campaign`                | Update a draft campaign, including content, data, From, Reply-To, CC, and BCC.                             |
+| `schedule_campaign`              | Schedule or reschedule a one-off or recurring campaign after validating subject, content, and audience.    |
+| `send_test_email`                | Send a test email to one address.                                                                          |
+| `render_email`                   | Render exact email-safe HTML and report unresolved tags, including typos hidden by defaults.               |
+| `cancel_campaign`                | Cancel a scheduled or sending campaign.                                                                    |
+| `pause_campaign`                 | Pause a sending campaign.                                                                                  |
+| `resume_campaign`                | Resume a paused campaign, optionally spreading delivery over time.                                         |
+| `delete_campaign`                | Delete a campaign.                                                                                         |
+| `duplicate_campaign`             | Duplicate a campaign into a new draft.                                                                     |
+| `resend_campaign_to_non_openers` | Create a draft resend for the original audience members who did not open a sent campaign.                  |
 
 Prompt-created campaigns are generated and persisted in one API request and
 remain drafts. Use `templateId`, `blocks`, or `html` only when copying or
@@ -703,12 +704,13 @@ status, type, bounce type, or source; pass an ID to `get_email_send` to inspect
 `status`, `errorMessage`, the stored body, and delivery events. Delivery-list
 rows are retained for 14 days. Queue jobs are internal execution details and
 are not exposed through the MCP contract. Every returned delivery has a direct
-dashboard `url`. Use `get_recipient_suppression` before cleanup, then
-`remove_recipient_suppression` only after confirming a hard-bounced mailbox is
-working again. Cleanup removes bounce entries but never complaint or unsubscribe
-or email-hygiene protections. A local hygiene result uses the `bounced` reason
-with `email_hygiene` as its source without changing the subscriber's consent
-status.
+dashboard `url`. Use `list_recipient_suppressions` to distinguish protected
+global invalid-recipient, protected company hard-bounce, and complaint rows from removable company soft-bounce
+escalations, and use `get_recipient_suppression` for the exact regional status.
+`remove_recipient_suppression` removes only the company escalation; global and
+Amazon SES account-level suppressions, complaints, unsubscribes, and email-hygiene
+protections remain intact. A local hygiene result uses the `bounced` reason with
+`email_hygiene` as its source without changing the subscriber's consent status.
 
 Agents should pass a caller-owned `idempotencyKey` to `send_email` before the
 first attempt and reuse it for every retry of that same logical email. Sequenzy
@@ -882,9 +884,9 @@ propagate.
 | Tool                                     | Description                                                                                             |
 | ---------------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | `list_sequences`                         | List sequences with dashboard status, search, label, limit, and offset filters.                         |
-| `get_sequence`                           | Get sequence details, including nodes, edges, linked emails, blocks, and per-email format/theme.        |
-| `list_sequence_enrollments`              | List contact enrollments by node, status, subscriber, or email with pagination.                         |
-| `send_sequence_test_email`               | Send one saved email step to 1-10 reviewers and return a durable delivery ID for each.                  |
+| `get_sequence`                           | Get sequence details, including ordinary and A/B email steps, nodes, edges, and linked copy.            |
+| `list_sequence_enrollments`              | List contact enrollments with pagination and accurate list/tag/event/time-based entry attribution.      |
+| `send_sequence_test_email`               | Send one saved action_email step to 1-10 reviewers; A/B steps are inspected per variant.                |
 | `create_sequence`                        | Create a blank dashboard draft or an AI-generated/explicit-step sequence.                               |
 | `update_sequence`                        | Update identity, settings, enrollment, existing steps, branch logic, or insert linear steps.            |
 | `update_sequence_node`                   | Type-aware patch of one existing sequence node.                                                         |
@@ -915,9 +917,11 @@ Sequence creation supports:
 
 - Name-only creation for a blank, disabled trigger-to-completion draft matching the dashboard.
 - Dashboard metadata and delivery settings: `description`, `labels`, `userCancellable`, sequence BCC, and From/Reply-To identity.
-- `trigger: "contact_added"` with either `listId` or `listScope`: `any_contact`
-  (the default) enrolls every added contact, including contacts that join no
-  list, while `any_list` waits for an actual list membership.
+- `trigger: "contact_added"` with `listId`, several `listIds`, or `listScope`:
+  `any_contact` (the default) enrolls every added contact, including contacts
+  that join no list, while `any_list` waits for an actual list membership.
+- `trigger: "tag_added"` with `tagName` or several `tagNames`; any configured
+  tag enrolls the contact.
 - `trigger: "segment_entered"` plus `segmentId` for saved-segment entry automations.
 - `trigger: "event_received"` plus `{{event.*}}` merge tags in subjects or body content.
 - `trigger: "inbound_webhook"` plus integration metadata for dashboard-compatible webhook entry nodes.
@@ -941,6 +945,12 @@ ready-to-use arguments for `get_integration_guide`. If the match status is
 false, adapt the example using `examplePayloadNote` and the payload contract.
 Add this event feed and verify its required properties before enabling the draft
 sequence.
+
+`list_sequence_enrollments` returns `enteredVia` for each row. List and segment
+sources keep their stable ID in `value` and resolve a display `name`; tag and
+event sources retain their names in `value`. Time-based triggers report
+`inactivity` or `frequency` rather than being misidentified as ordinary
+received-event enrollments.
 
 Example dynamic Shopify discount step:
 
@@ -980,7 +990,7 @@ Number and boolean values must be literals or one standalone merge tag. Use
 `update_sequence.subscriberUpdateSteps` with an `action_update_attributes`
 node ID from `get_sequence` to replace an existing step's config.
 
-Sequence updates support `insertSteps` for adding new linear steps after a `nodeId` returned by `get_sequence`. Omit `afterNodeId` only when appending to a sequence with exactly one linear tail. `insertSteps` supports addable steps that do not require companion records, such as email, delay, tag/list actions, attribute updates, discounts, conditions, wait-for-event steps, outbound webhooks, and AI steps. An `action_ai` step requires a merge-tag `prompt`, unique `resultKey`, and one or more `outputFields`; later steps read generated or fallback text with `{{ai.KEY.field}}`. Combined output-field limits must fit the step's 2000-token response budget. Use `includeTags`, `includeEventProperties`, or `includeAttributes` to opt specific contact context into generation, and `onError` (`continue`, `exit`, or `fail`) to choose failure behavior. Use `branch` for multi-path if/else branches; provide either `branch` or `insertSteps`, not both. Branch conditions support tag presence and absence checks with `has_tag` and `does_not_have_tag`, plus lists, saved segments, events, clicked links, and field comparisons. Each branch path may provide new `steps`, an existing `targetNodeId`, or both; the fallback uses `elseSteps` and/or `elseTargetNodeId`. A target can be the completion node returned by `get_sequence`, so one atomic request can route replies to completion and Else to an existing follow-up. The `emails` and `steps` arrays only edit existing email steps by `nodeId`, `emailId`, or array order; use `insertSteps` to create new steps and include a step-level `delay`, `delayMs`, `waitUntil`, or `waitUntilWeekday` when the inserted email needs a timer. `waitUntil` accepts a date field from the trigger event plus optional `offset`, `direction` (`before` or `after`), and `missingAction` (`continue` or `exit`). `waitUntilWeekday` accepts `day` or `days`, `startTime`, optional `endTime` (default `24:00`), and an IANA `timezone`; contacts already inside the window continue immediately. For active sequences, pass `confirmStructuralChange: true` with `insertSteps` or `branch` only after confirming the live-flow impact.
+Sequence updates support `insertSteps` for adding new linear steps after a `nodeId` returned by `get_sequence`. Omit `afterNodeId` only when appending to a sequence with exactly one linear tail. `insertSteps` supports addable steps that do not require companion records, such as email, delay, tag/list actions, attribute updates, discounts, conditions, wait-for-event steps, outbound webhooks, and AI steps. An `action_ai` step requires a merge-tag `prompt`, unique `resultKey`, and one or more `outputFields`; later steps read generated or fallback text with `{{ai.KEY.field}}`. Combined output-field limits must fit the step's 2000-token response budget. Use `includeTags`, `includeEventProperties`, or `includeAttributes` to opt specific contact context into generation, and `onError` (`continue`, `exit`, or `fail`) to choose failure behavior. Use `branch` for multi-path if/else branches; provide either `branch` or `insertSteps`, not both. Branch conditions support tag presence and absence checks with `has_tag` and `does_not_have_tag`, plus lists, saved segments, events, clicked links, and field comparisons. Each branch path may provide new `steps`, an existing `targetNodeId`, or both; the fallback uses `elseSteps` and/or `elseTargetNodeId`. A target can be the completion node returned by `get_sequence`, so one atomic request can route replies to completion and Else to an existing follow-up. The `emails` and `steps` arrays edit ordinary `action_email` steps by `nodeId`, `emailId`, or array order. `get_sequence.sequence.emails` also includes `action_ab_test` entries; a positional update landing on one is rejected, and its copy must be changed per variant with `update_ab_test_variant`. Use `insertSteps` to create new steps and include a step-level `delay`, `delayMs`, `waitUntil`, or `waitUntilWeekday` when the inserted email needs a timer. `waitUntil` accepts a date field from the trigger event plus optional `offset`, `direction` (`before` or `after`), and `missingAction` (`continue` or `exit`). `waitUntilWeekday` accepts `day` or `days`, `startTime`, optional `endTime` (default `24:00`), and an IANA `timezone`; contacts already inside the window continue immediately. For active sequences, pass `confirmStructuralChange: true` with `insertSteps` or `branch` only after confirming the live-flow impact.
 
 `insert_sequence_step` exposes every companion-record-free dashboard step directly: email, SMS, delay, discount, subscriber update, tag/list action, outbound webhook, AI generation, condition, wait, and branch. Set `type: "ai"` with `prompt`, `resultKey`, and `outputFields` to generate per-contact text for later `{{ai.KEY.field}}` merge tags. Outbound webhooks accept `url`, `method` (`POST` or `GET`), and string-valued `headers`. Email steps support transactional mode, per-step identity, and CC/BCC delivery settings. For a wait gate, set
 `type: "logic_wait_for_event"` with `eventName`, optional `timeoutDays` (1-365),
@@ -1015,6 +1025,14 @@ custom HTML blocks. Emails stored entirely as one standalone raw HTML block
 return `null` for `emailPreset` and do not support format changes.
 `emailPreset` cannot be combined with `html` or `htmlContent` because those
 fields replace the entire email with standalone raw HTML.
+
+For sequence position, prefer `structuralStepNumber` on linked emails and the
+top level of email nodes. It is derived from the current graph and matches the
+step badge shown in the dashboard. Parallel branch emails intentionally share
+the same structural depth, and an unequal branch merge continues from the
+longer incoming path. The older `stepNumber` field in linked emails and node
+configs remains a stored ordinal for backward compatibility and may be stale
+after graph edits.
 
 Each linked email also returns its stored `emailTheme` override, or `null` when
 it follows the company theme. Set `emailTheme` on an `emails`/`steps` item or in

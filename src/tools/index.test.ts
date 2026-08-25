@@ -6170,6 +6170,12 @@ describe("create_sequence tool", () => {
           properties?: {
             type?: { enum?: string[] };
             value?: { type?: string | string[] };
+            matchConfig?: {
+              properties?: {
+                mode?: { enum?: string[] };
+                audience?: { enum?: string[] };
+              };
+            };
           };
         }
       | undefined;
@@ -6179,6 +6185,12 @@ describe("create_sequence tool", () => {
     expect(stopCondition?.properties?.type?.enum).toContain("entered_segment");
     expect(stopCondition?.properties?.type?.enum).toContain("field_changed");
     expect(stopCondition?.properties?.value?.type).toEqual(["string", "null"]);
+    expect(
+      stopCondition?.properties?.matchConfig?.properties?.mode?.enum
+    ).toContain("entry_audience");
+    expect(
+      stopCondition?.properties?.matchConfig?.properties?.audience?.enum
+    ).toEqual(["tag", "list"]);
   });
 
   it("creates a blank dashboard-compatible draft without AI polling", async () => {
@@ -6686,6 +6698,12 @@ describe("update_sequence tool", () => {
           properties?: {
             type?: { enum?: string[] };
             value?: { type?: string | string[] };
+            matchConfig?: {
+              properties?: {
+                mode?: { enum?: string[] };
+                audience?: { enum?: string[] };
+              };
+            };
           };
         }
       | undefined;
@@ -6695,6 +6713,12 @@ describe("update_sequence tool", () => {
     expect(stopCondition?.properties?.type?.enum).toContain("entered_segment");
     expect(stopCondition?.properties?.type?.enum).toContain("field_changed");
     expect(stopCondition?.properties?.value?.type).toEqual(["string", "null"]);
+    expect(
+      stopCondition?.properties?.matchConfig?.properties?.mode?.enum
+    ).toContain("entry_audience");
+    expect(
+      stopCondition?.properties?.matchConfig?.properties?.audience?.enum
+    ).toEqual(["tag", "list"]);
   });
 
   it("documents the config fields each path node type expects", () => {
@@ -7486,6 +7510,13 @@ describe("sequence node update tools", () => {
   });
 
   it("returns the per-email format from get_sequence", async () => {
+    const sequenceOutputSchema = tools.find(
+      (tool) => tool.name === "get_sequence"
+    )?.outputSchema?.properties?.["sequence"] as
+      | { description?: string }
+      | undefined;
+    expect(sequenceOutputSchema?.description).toContain("structuralStepNumber");
+
     mockApiRequest.mockResolvedValueOnce({
       success: true,
       sequence: {
@@ -8879,6 +8910,15 @@ describe("list_sequence_enrollments tool", () => {
     expect(inputSchema?.properties).toHaveProperty("limit");
     expect(inputSchema?.properties).toHaveProperty("offset");
     expect(tool?.annotations?.readOnlyHint).toBe(true);
+
+    const enrollmentsSchema = tool?.outputSchema?.properties?.[
+      "enrollments"
+    ] as
+      | {
+          items?: { properties?: Record<string, unknown> };
+        }
+      | undefined;
+    expect(enrollmentsSchema?.items?.properties).toHaveProperty("enteredVia");
   });
 
   it("lists enrollments without filters", async () => {
@@ -11250,6 +11290,13 @@ describe("send_sequence_test_email tool", () => {
     ]);
     expect(inputSchema?.properties).toHaveProperty("recipients");
     expect(tool?.outputSchema?.properties).toHaveProperty("results");
+    expect(tool?.description).toContain("nodeType is action_email");
+    expect(tool?.description).toContain(
+      "action_ab_test steps are not supported"
+    );
+    expect(JSON.stringify(inputSchema?.properties?.["nodeId"])).toContain(
+      "Do not pass an action_ab_test node"
+    );
   });
 
   it("queues tests for multiple normalized reviewers", async () => {
@@ -11973,6 +12020,70 @@ describe("recipient suppression tools", () => {
     mockApiRequest.mockClear();
   });
 
+  it("lists suppressed recipients with search and pagination", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      suppressions: [
+        {
+          email: "escalated@example.com",
+          suppressionType: "soft_bounce_escalation",
+          reason: "bounced",
+          scope: "company",
+          delistable: true,
+        },
+      ],
+      total: 1,
+      page: 2,
+      limit: 10,
+      hasMore: false,
+    });
+
+    const result = await handleToolCall("list_recipient_suppressions", {
+      companyId: "w5icln9p0l2sopp8anjcxx2d",
+      search: "example.com",
+      page: 2,
+      limit: 10,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/suppressions?search=example.com&page=2&limit=10",
+      undefined,
+      "w5icln9p0l2sopp8anjcxx2d"
+    );
+  });
+
+  it("lists suppressed recipients with no filters", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      suppressions: [],
+      total: 0,
+      page: 1,
+      limit: 25,
+      hasMore: false,
+    });
+
+    const result = await handleToolCall("list_recipient_suppressions", {});
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/suppressions",
+      undefined,
+      undefined
+    );
+  });
+
+  it("rejects an out-of-range suppression list limit", async () => {
+    const result = await handleToolCall("list_recipient_suppressions", {
+      limit: 500,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
   it("checks one exact recipient suppression", async () => {
     mockApiRequest.mockResolvedValueOnce({
       success: true,
@@ -11994,11 +12105,11 @@ describe("recipient suppression tools", () => {
     );
   });
 
-  it("removes one exact recipient bounce suppression", async () => {
+  it("removes one exact workspace soft-bounce escalation", async () => {
     mockApiRequest.mockResolvedValueOnce({
       success: true,
       removed: true,
-      removedSesRegions: ["us-east-1"],
+      removedSesRegions: [],
     });
 
     const result = await handleToolCall("remove_recipient_suppression", {
