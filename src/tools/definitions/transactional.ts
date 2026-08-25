@@ -208,7 +208,7 @@ export const transactionalToolDefinitions: Tool[] = [
   {
     name: "send_email",
     description:
-      "Queue one email using either a saved transactional email API slug (`templateId`) or direct `subject` and `html` content. Always provide a stable `idempotencyKey` when an agent or workflow may retry, and reuse it for the same logical email; Sequenzy returns the original send for 14 days and rejects different content under the same key. The default delivery policy is transactional. A transactional send delivers one email to several people at once: `to` takes up to 50 addresses and `cc`/`bcc` take up to 50 each, so everyone sees the same shared recipient list instead of receiving separate copies. Addresses repeated across the fields are dropped from the lower-priority one (to beats cc beats bcc). When the recipient matches a subscriber, saved first and last names fill omitted name variables; explicit variables take precedence. Set `emailType` to `marketing` to add subscriber suppression, a marketing footer, and RFC 8058 one-click unsubscribe; marketing sends take exactly one `to` recipient and no `cc` or `bcc`. Company Reply-To defaults are inherited when no override is provided, and `{{viewInBrowserUrl}}` is replaced with a hosted copy URL. Attach up to 10 files with Base64 `content` or a public `path`; `contentId` embeds a CID image referenced by the HTML. Use `trackingSettings` with `clickTracking` or `openTracking` set to `false` to disable click-link rewriting or the open-tracking pixel for this send only; these opt-out fields cannot enable tracking the account has disabled. Returns a durable emailSendId, the accepted emailType, and the deduplicated recipient lists; pass the ID to get_email_send for delivery status and failure details.",
+      "Queue one email using either a saved transactional email API slug (`templateId`) or direct `subject` and `html` content. Always provide a stable `idempotencyKey` when an agent or workflow may retry, and reuse it for the same logical email; Sequenzy returns the original send for 14 days and rejects different content under the same key. The default delivery policy is transactional. A transactional send delivers one email to several people at once: `to` takes up to 50 addresses and `cc`/`bcc` take up to 50 each, so everyone sees the same shared recipient list instead of receiving separate copies. Addresses repeated across the fields are dropped from the lower-priority one (to beats cc beats bcc). When the recipient matches a subscriber, saved first and last names fill omitted name variables; explicit variables take precedence. Set `emailType` to `marketing` to add subscriber suppression, a marketing footer, and RFC 8058 one-click unsubscribe; marketing sends take exactly one `to` recipient and no `cc` or `bcc`. When no identity override is provided, a template send keeps its saved From and Reply-To identities, while a direct send uses the company defaults. To send as a non-default verified brand, pass `fromEmail` (and `fromName` if that address has several identities) plus optional `replyTo`/`replyToName`; you do not need profile IDs. `senderProfileId`/`replyProfileId` from `list_sender_profiles` remain available when you already have them. These fields look up existing identities and do not create profiles. `{{viewInBrowserUrl}}` is replaced with a hosted copy URL. Attach up to 10 files with Base64 `content` or a public `path`; `contentId` embeds a CID image referenced by the HTML. Use `trackingSettings` with `clickTracking` or `openTracking` set to `false` to disable click-link rewriting or the open-tracking pixel for this send only; these opt-out fields cannot enable tracking the account has disabled. Returns a durable emailSendId, the accepted emailType, and the deduplicated recipient lists; pass the ID to get_email_send for delivery status and failure details.",
     inputSchema: {
       type: "object",
       properties: {
@@ -277,7 +277,32 @@ export const transactionalToolDefinitions: Tool[] = [
         replyTo: {
           type: "string",
           description:
-            "Optional Reply-To address, formatted as `email@example.com` or `Name <email@example.com>`. When omitted, the saved template or company default is used.",
+            "Optional Reply-To address, formatted as `email@example.com` or `Name <email@example.com>`. Pair a bare address with `replyToName` instead of embedding the name. Mutually exclusive with `replyProfileId`. When omitted, the saved template or company default is used.",
+        },
+        replyToName: {
+          type: "string",
+          description:
+            "Display name for `replyTo`. Requires a bare `replyTo` address. Mutually exclusive with `replyProfileId`. Does not create a reply profile.",
+        },
+        senderProfileId: {
+          type: "string",
+          description:
+            "Existing sender profile ID (see list_sender_profiles). It already supplies both the From address and display name, so send it on its own and omit fromEmail and fromName. Mutually exclusive with fromEmail. When omitted, a template send keeps its saved sender and a direct send uses the company default.",
+        },
+        fromEmail: {
+          type: "string",
+          description:
+            "From address of an existing verified sender profile (see list_sender_profiles). Mutually exclusive with senderProfileId. If the address has several identities, pass fromName to choose one. Does not create a new sender profile.",
+        },
+        fromName: {
+          type: "string",
+          description:
+            "Display name of an existing verified sender identity on fromEmail, e.g. StudyBoost vs StudyBoost News. Requires fromEmail. Mutually exclusive with senderProfileId. Does not create a new sender profile.",
+        },
+        replyProfileId: {
+          type: "string",
+          description:
+            "Existing reply profile ID (see list_sender_profiles). It already supplies both the Reply-To address and display name, so send it on its own and omit replyTo and replyToName. Mutually exclusive with replyTo.",
         },
         attachments: {
           type: "array",

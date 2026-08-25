@@ -21,7 +21,7 @@ export const suppressionToolDefinitions: Tool[] = [
   {
     name: "list_recipient_suppressions",
     description:
-      "List the recipients this company cannot reach: protected global invalid-recipient suppressions for addresses associated with the company, protected workspace hard bounces without conclusive invalid-inbox evidence, removable workspace soft-bounce escalations, and protected spam complaints. Each row includes a stable suppressionType. Start here when a customer reports missing email; use get_recipient_suppression for one exact address.",
+      "List the recipients this company cannot reach: protected global invalid-recipient suppressions for addresses associated with the company, protected workspace hard bounces without conclusive invalid-inbox evidence, removable workspace soft-bounce escalations, and protected spam complaints. Each row includes a stable suppressionType, and the response echoes the applied sortBy/sortOrder. Sort by `status` to surface the suppressions you can actually remove. Start here when a customer reports missing email; use get_recipient_suppression for one exact address.",
     inputSchema: {
       type: "object",
       properties: {
@@ -38,6 +38,18 @@ export const suppressionToolDefinitions: Tool[] = [
         limit: {
           type: "number" as const,
           description: "Entries per page. Defaults to 25, maximum 100.",
+        },
+        sort: {
+          type: "string" as const,
+          enum: ["suppressedAt", "email", "status"],
+          description:
+            "Order the page. `suppressedAt` (default) is newest first, `email` is A-Z, and `status` lists removable workspace escalations before protected suppressions. An unrecognized value falls back to `suppressedAt`.",
+        },
+        order: {
+          type: "string" as const,
+          enum: ["asc", "desc"],
+          description:
+            "Sort direction. Defaults to `desc` for suppressedAt and status, `asc` for email.",
         },
       },
       required: [],

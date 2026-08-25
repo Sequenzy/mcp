@@ -7,10 +7,27 @@ import {
 import {
   buildUpdateCompanyBody,
   buildUpdateTrackingSettingsBody,
+  isRecord,
   optionalString,
   resolveCompanyIdForAppUrls,
   resolveRequiredCompanyId,
 } from "../internal.js";
+
+/**
+ * Company IDs from an account payload, or `null` when the payload does not
+ * carry a company list at all. The distinction matters: an empty list means
+ * the key can reach no companies, while a missing list means the response
+ * shape is unexpected and no selection should be discarded because of it.
+ */
+function readCompanyIds(value: unknown): string[] | null {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  return value.flatMap((entry) =>
+    isRecord(entry) && typeof entry.id === "string" ? [entry.id] : []
+  );
+}
 
 export async function handleAccountTools(
   name: string,
@@ -20,16 +37,40 @@ export async function handleAccountTools(
 
   switch (name) {
     case "get_account": {
+      // Sent without a company header: this lookup must succeed even when the
+      // current selection points at a company that no longer exists.
       const accountData = await apiRequest<Record<string, unknown>>(
         "GET",
-        "/api/v1/account"
+        "/api/v1/account",
+        undefined,
+        null
       );
       // Include the locally selected company ID in the response
       const locallySelectedCompanyId = getSelectedCompanyId();
+      // A company can be deleted, or access to it revoked, while a selection
+      // still points at it. Left in place, every later parameterless call
+      // sends a dead `x-company-id` and fails - including `get_account`
+      // itself, which is the documented recovery path. Drop the selection
+      // here so the account listing stays usable and the next call falls back
+      // to a company the key can still reach.
+      const accessibleCompanyIds = readCompanyIds(accountData.companies);
+      const staleSelection =
+        locallySelectedCompanyId !== null &&
+        accessibleCompanyIds !== null &&
+        !accessibleCompanyIds.includes(locallySelectedCompanyId);
+      if (staleSelection) {
+        setSelectedCompanyId(null);
+      }
+      const effectiveSelectedCompanyId = staleSelection
+        ? null
+        : locallySelectedCompanyId;
       result = {
         ...accountData,
         selectedCompanyId:
-          locallySelectedCompanyId ?? accountData.currentCompanyId,
+          effectiveSelectedCompanyId ?? accountData.currentCompanyId,
+        ...(staleSelection && {
+          note: `The previously selected company (${locallySelectedCompanyId}) is no longer available to this API key and has been cleared. Call select_company with one of the companies listed above, or pass companyId explicitly.`,
+        }),
       };
       break;
     }
@@ -37,10 +78,12 @@ export async function handleAccountTools(
     case "select_company": {
       const companyId = args.companyId as string;
       // Verify the company exists by fetching account info first
+      // Switching away from a deleted company has to work, so this
+      // verification lookup ignores the current selection too.
       const accountInfo = await apiRequest<{
         success: boolean;
         companies?: Array<{ id: string; name: string }>;
-      }>("GET", "/api/v1/account");
+      }>("GET", "/api/v1/account", undefined, null);
 
       const company = accountInfo.companies?.find((c) => c.id === companyId);
       if (!company) {
