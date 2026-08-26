@@ -1,4 +1,4 @@
-import type { Tool, ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
+import type { Tool, ToolAnnotations } from "../mcp-types.js";
 
 export type RequiredToolHints = Pick<
   Required<ToolAnnotations>,

@@ -1,4 +1,4 @@
-import { AjvJsonSchemaValidator } from "@modelcontextprotocol/sdk/validation/ajv";
+import { AjvJsonSchemaValidator } from "@modelcontextprotocol/server/validators/ajv";
 import { beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
 
 type ApiRequestMock = (
@@ -175,9 +175,7 @@ describe("account tools", () => {
 
   it("publishes and returns the current API key permission summary", async () => {
     const getAccountTool = tools.find((tool) => tool.name === "get_account");
-    const outputProperties = getAccountTool?.outputSchema?.properties as
-      | Record<string, unknown>
-      | undefined;
+    const outputProperties = getAccountTool?.outputSchema?.properties;
     const apiKeyPermissions = {
       preset: "custom",
       fullAccess: false,
@@ -412,12 +410,8 @@ describe("AI generation tools", () => {
     const tool = tools.find(
       (candidate) => candidate.name === "generate_sequence"
     );
-    const inputProperties = tool?.inputSchema.properties as
-      | Record<string, unknown>
-      | undefined;
-    const outputProperties = tool?.outputSchema?.properties as
-      | Record<string, unknown>
-      | undefined;
+    const inputProperties = tool?.inputSchema.properties;
+    const outputProperties = tool?.outputSchema?.properties;
 
     expect(tool?.description).toContain("Create and persist");
     expect(tool?.annotations?.readOnlyHint).toBe(false);
@@ -1149,7 +1143,9 @@ describe("nullable structured output", () => {
     if (!tool?.outputSchema) {
       throw new Error(`Tool ${toolName} has no output schema`);
     }
-    return validator.getValidator(tool.outputSchema)(structuredContent);
+    return validator.getValidator(tool.outputSchema as never)(
+      structuredContent
+    );
   }
 
   it("accepts a company with no dedicated tracking domain", () => {
@@ -2205,9 +2201,7 @@ describe("A/B test tools", () => {
     const tool = tools.find(
       (candidate) => candidate.name === "get_campaign_stats"
     );
-    const outputProperties = tool?.outputSchema?.properties as
-      | Record<string, unknown>
-      | undefined;
+    const outputProperties = tool?.outputSchema?.properties;
     const pollsOutput = outputProperties?.["polls"] as
       | { description?: string }
       | undefined;
@@ -2526,9 +2520,7 @@ describe("A/B test tools", () => {
     const sequenceTool = tools.find(
       (candidate) => candidate.name === "get_sequence_stats"
     );
-    const outputProperties = sequenceTool?.outputSchema?.properties as
-      | Record<string, unknown>
-      | undefined;
+    const outputProperties = sequenceTool?.outputSchema?.properties;
     const recommendations = {
       impressions: 8,
       recipients: 2,
@@ -5128,9 +5120,7 @@ describe("label list filters", () => {
 
   it("exposes limit and offset inputs plus pagination output on list_campaigns", () => {
     const tool = tools.find((entry) => entry.name === "list_campaigns");
-    const inputProperties = tool?.inputSchema.properties as
-      | Record<string, unknown>
-      | undefined;
+    const inputProperties = tool?.inputSchema.properties;
 
     expect(inputProperties).toHaveProperty("limit");
     expect(inputProperties).toHaveProperty("offset");
@@ -6447,9 +6437,7 @@ describe("create_sequence tool", () => {
     );
     expect(createSequenceTool?.description).toContain("follow-up series");
     expect(createSequenceTool?.description?.length).toBeLessThan(1_000);
-    const outputProperties = createSequenceTool?.outputSchema?.properties as
-      | Record<string, unknown>
-      | undefined;
+    const outputProperties = createSequenceTool?.outputSchema?.properties;
     expect(outputProperties).toHaveProperty("eventTrackingCode");
     expect(outputProperties).toHaveProperty("eventTracking");
     expect(outputProperties).toHaveProperty("requiredEvents");
@@ -9636,7 +9624,7 @@ describe("move_sequence_enrollments tool", () => {
     }
 
     const validation = new AjvJsonSchemaValidator().getValidator(
-      tool.outputSchema
+      tool.outputSchema as never
     )({
       success: true,
       sequenceId: "seq_123",

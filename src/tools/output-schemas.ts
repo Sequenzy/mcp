@@ -1,4 +1,6 @@
-import type { CallToolResult, Tool } from "@modelcontextprotocol/sdk/types.js";
+import type { CallToolResult } from "@modelcontextprotocol/server";
+
+import type { Tool } from "../mcp-types.js";
 
 import { isRecord } from "./common-primitives.js";
 import { dashboardUrlToolNames } from "./delivery-and-urls.js";
@@ -8,7 +10,10 @@ import {
 } from "./descriptions.js";
 
 export type ToolOutputSchema = NonNullable<Tool["outputSchema"]>;
-export type SequenzyToolCallResult = CallToolResult & {
+export type SequenzyToolCallResult = Omit<
+  CallToolResult,
+  "content" | "structuredContent"
+> & {
   content: Array<{ type: "text"; text: string }>;
   structuredContent?: Record<string, unknown>;
 };

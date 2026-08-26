@@ -53,6 +53,11 @@ https://api.sequenzy.com/v1/mcp
 
 Remote clients should authenticate with the Sequenzy OAuth flow when supported. Local and automation clients can still use the stdio package below with `SEQUENZY_API_KEY`.
 
+The hosted endpoint and the stdio package support MCP specification
+`2026-07-28` while remaining compatible with 2025-era clients. Modern HTTP
+clients use per-request discovery and method headers; existing clients keep
+working through the same endpoint and package command.
+
 Machine-readable discovery files:
 
 - MCP server manifest: [`server.json`](server.json)
@@ -250,7 +255,7 @@ build a list as well as create it. Imports that apply `listIds` also need
 
 ## Tools
 
-This server currently exposes 231 MCP tools.
+This server currently exposes 232 MCP tools.
 
 Tools reject arguments they do not declare instead of silently ignoring them.
 Errors name the unsupported fields, list the supported arguments, and provide
@@ -675,10 +680,10 @@ Use `get_ab_test` to copy the effective `settings` object and discover variant I
 | `list_campaigns`                 | List paginated campaigns by status or label, including reviewer feedback and delivery-pacing fields for account-wide STO audits. |
 | `get_campaign`                   | Get details, stats, reviewer feedback, and recorded delivery pacing for a campaign.                                              |
 | `get_campaign_audience`          | Resolve saved targeting, missing references, a plain-language summary, and live recipient count.                                 |
-| `list_campaign_goals`            | List the conversion goals persisted for one email campaign (SMS is unsupported).                                               |
-| `create_campaign_goal`           | Add an event, subscriber-attribute, or tag-applied email-campaign conversion goal.                                             |
-| `update_campaign_goal`           | Update a persisted email-campaign conversion goal.                                                                             |
-| `delete_campaign_goal`           | Delete a persisted email-campaign conversion goal.                                                                             |
+| `list_campaign_goals`            | List the conversion goals persisted for one email campaign (SMS is unsupported).                                                 |
+| `create_campaign_goal`           | Add an event, subscriber-attribute, or tag-applied email-campaign conversion goal.                                               |
+| `update_campaign_goal`           | Update a persisted email-campaign conversion goal.                                                                               |
+| `delete_campaign_goal`           | Delete a persisted email-campaign conversion goal.                                                                               |
 | `list_email_sends`               | Search recent delivery history with resource IDs and URLs, optionally scoped to one sequence step.                               |
 | `get_email_send`                 | Inspect a queued, test, sent, suppressed, or failed delivery by durable email-send ID.                                           |
 | `list_recipient_suppressions`    | List associated suppressed recipients, including protected global invalid addresses and complaints.                              |
@@ -932,7 +937,7 @@ propagate.
 | `archive_sequence`                       | Move a sequence into the dashboard archive and stop new enrollments.                                                                                        |
 | `unarchive_sequence`                     | Restore an archived sequence as a disabled draft.                                                                                                           |
 | `list_sequence_goals`                    | List the event, subscriber-attribute, and tag-applied conversion goals persisted for a sequence.                                                            |
-| `create_sequence_goal`                   | Add an event, subscriber-attribute, or tag-applied conversion goal.                                                                                          |
+| `create_sequence_goal`                   | Add an event, subscriber-attribute, or tag-applied conversion goal.                                                                                         |
 | `update_sequence_goal`                   | Update a persisted sequence conversion goal.                                                                                                                |
 | `delete_sequence_goal`                   | Delete a persisted sequence conversion goal.                                                                                                                |
 | `get_sequence_inbound_webhook`           | Read the endpoint and setup state for an inbound-webhook sequence.                                                                                          |

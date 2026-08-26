@@ -1,4 +1,4 @@
-import type { Resource } from "@modelcontextprotocol/sdk/types.js";
+import type { Resource } from "@modelcontextprotocol/server";
 
 import { buildSequenzyAppUrls } from "../app-urls.js";
 import { formatMcpError } from "../error-output.js";

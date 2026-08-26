@@ -1,4 +1,4 @@
-import type { Tool } from "@modelcontextprotocol/sdk/types.js";
+import type { Tool } from "../../mcp-types.js";
 
 import { abTestToolDefinitions } from "./ab-tests.js";
 import { accountToolDefinitions } from "./account.js";

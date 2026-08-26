@@ -1,4 +1,4 @@
-import type { Tool } from "@modelcontextprotocol/sdk/types.js";
+import type { Tool } from "../../mcp-types.js";
 
 /**
  * Block authoring is the one place where the tool schemas cannot describe the
