@@ -71,7 +71,7 @@ export const resources: Resource[] = [
     uri: "sequenzy://email-blocks",
     name: "Email Block Reference",
     description:
-      "Required and optional fields, enum values, and item shapes for every email block type accepted by the blocks parameter",
+      "Required and optional fields, enum values, and item shapes for every email block type accepted by the blocks parameter, including persisted structural group blocks",
     mimeType: "application/json",
   },
   {

@@ -55,6 +55,18 @@ describe("get_email_block_schema", () => {
     expect(description).toContain("nested item arrays and nested objects");
   });
 
+  it("identifies group as editor-managed structural content", () => {
+    const tool = tools.find(
+      (candidate) => candidate.name === "get_email_block_schema"
+    );
+    const creatableOnly = tool?.inputSchema.properties?.["creatableOnly"] as
+      | { description?: string }
+      | undefined;
+
+    expect(tool?.description).toContain("group");
+    expect(creatableOnly?.description).toContain("group");
+  });
+
   it("points at the condition table the block fields cannot express", () => {
     const tool = tools.find(
       (candidate) => candidate.name === "get_email_block_schema"
@@ -90,6 +102,15 @@ describe("get_email_block_schema", () => {
     expect(mockApiRequest).toHaveBeenCalledWith(
       "GET",
       "/api/v1/email-blocks/steps"
+    );
+  });
+
+  it("fetches the structural group reference", async () => {
+    await handleToolCall("get_email_block_schema", { blockType: "group" });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/email-blocks/group"
     );
   });
 
@@ -175,5 +196,6 @@ describe("sequenzy://email-blocks resource", () => {
 
     expect(resource).toBeDefined();
     expect(resource?.mimeType).toBe("application/json");
+    expect(resource?.description).toContain("structural group");
   });
 });
