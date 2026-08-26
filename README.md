@@ -445,6 +445,11 @@ not retry `add_subscriber` with a different status: status on that tool applies
 only when the contact is first created, and a mismatched skipped result is
 reported as an error.
 
+When `add_subscriber` omits `listIds`, a contact created by the call follows
+the workspace default lists while an existing contact keeps its current list
+memberships. Pass list IDs explicitly when an existing contact should join
+specific lists; pass `[]` to target no lists.
+
 `update_subscriber.phone` writes the native phone field shown on the contact,
 not a custom attribute. Pass `smsConsent: true` only after verifying express
 written consent, or `false` to opt the contact out. Changing the phone without

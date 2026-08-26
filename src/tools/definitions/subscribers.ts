@@ -117,7 +117,8 @@ export const subscriberToolDefinitions: Tool[] = [
         listIds: {
           type: "array",
           items: { type: "string" },
-          description: "List IDs to add subscriber to",
+          description:
+            "List IDs to add subscriber to. Omit to let a contact this call creates follow the workspace default lists; an existing contact then keeps the memberships they already have. Pass [] to join no list.",
         },
         status: {
           type: "string",
