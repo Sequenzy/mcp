@@ -1112,7 +1112,11 @@ used after the user confirms the preview.
 Call `get_email_block_schema` before hand-authoring a block type you have not
 used before. Omit `blockType` to list every type, pass a type such as `list` or
 `steps` for its complete reference, or pass `creatableOnly: true` to hide types
-managed by the editor. Lists are their own block type rather than a `text`
+managed by the editor. Persisted `group` blocks are structural editor content:
+they recursively wrap child blocks in Stack, Row, Grid, or single-image Overlay
+layouts, but AI generation and `creatableOnly` intentionally omit them. Request
+`blockType: "group"` to inspect their fields when reading or updating existing
+grouped content. Lists are their own block type rather than a `text`
 variant: `list` items use `content`, while `steps` items use `title` and an
 optional `description`.
 
