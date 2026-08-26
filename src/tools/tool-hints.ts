@@ -128,6 +128,7 @@ export const MUTATING_TOOL_NAMES = new Set([
   "delete_subscriber_note",
   "trigger_subscriber_event",
   "trigger_subscriber_events",
+  "import_subscriber_events",
   "bulk_add_subscriber_tags",
   "bulk_remove_subscriber_tags",
   "upsert_products",
