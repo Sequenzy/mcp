@@ -77,9 +77,16 @@ function getApiKey(): string | undefined {
   );
 }
 
+/**
+ * `companyIdOverride` of `null` sends the request with no company header at
+ * all, rather than falling back to the current selection. Account-level
+ * lookups need this: if a selected company is deleted, sending it would make
+ * `get_account` and `select_company` fail with the very error they exist to
+ * resolve.
+ */
 function buildApiHeaders(
   contentType: string,
-  companyIdOverride?: string,
+  companyIdOverride?: string | null,
   requestHeaders?: Readonly<Record<string, string>>
 ): Record<string, string> {
   const apiKey = getApiKey();
@@ -96,7 +103,10 @@ function buildApiHeaders(
     "Content-Type": contentType,
     Authorization: `Bearer ${apiKey}`,
   };
-  const effectiveCompanyId = companyIdOverride ?? getSelectedCompanyId();
+  const effectiveCompanyId =
+    companyIdOverride === null
+      ? null
+      : (companyIdOverride ?? getSelectedCompanyId());
   if (effectiveCompanyId) {
     headers["x-company-id"] = effectiveCompanyId;
   }
@@ -228,7 +238,7 @@ export async function apiRequest<T>(
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
   path: string,
   body?: unknown,
-  companyIdOverride?: string,
+  companyIdOverride?: string | null,
   requestHeaders?: Readonly<Record<string, string>>
 ): Promise<T> {
   const headers = buildApiHeaders(

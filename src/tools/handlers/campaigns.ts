@@ -5,6 +5,7 @@ import {
   validateLabelsArg,
   validateCreateCampaignContentArgs,
   validateCreateTemplateContentArgs,
+  validateCampaignDeliveryPacingArgs,
   validateScheduleCampaignArgs,
   isRecord,
   optionalString,
@@ -924,6 +925,8 @@ export async function handleCampaignTools(
         "segmentId",
         "listIds",
         "labels",
+        "sendTimeOptimization",
+        "sendTimeWindowHours",
       ]);
       const unsupportedCampaignUpdateKeys = Object.keys(args).filter(
         (key) => !allowedCampaignUpdateKeys.has(key)
@@ -931,12 +934,13 @@ export async function handleCampaignTools(
 
       if (unsupportedCampaignUpdateKeys.length > 0) {
         throw new Error(
-          `\`update_campaign\` accepts only content, sending identity, campaign data, computed list, audience, and label update fields. Unsupported field${unsupportedCampaignUpdateKeys.length === 1 ? "" : "s"}: ${unsupportedCampaignUpdateKeys.map((key) => `\`${key}\``).join(", ")}.`
+          `\`update_campaign\` accepts only content, sending identity, campaign data, computed list, audience, label, and delivery pacing update fields. Unsupported field${unsupportedCampaignUpdateKeys.length === 1 ? "" : "s"}: ${unsupportedCampaignUpdateKeys.map((key) => `\`${key}\``).join(", ")}.`
         );
       }
 
       validateHtmlOrBlocksArgs("update_campaign", args);
       validateLabelsArg("update_campaign", args);
+      validateCampaignDeliveryPacingArgs("update_campaign", args);
 
       validateSendingIdentityArgs("update_campaign", args, {
         replyFirst: true,
@@ -968,10 +972,12 @@ export async function handleCampaignTools(
         args.targetLists === undefined &&
         args.segmentId === undefined &&
         args.listIds === undefined &&
-        args.labels === undefined
+        args.labels === undefined &&
+        args.sendTimeOptimization === undefined &&
+        args.sendTimeWindowHours === undefined
       ) {
         throw new Error(
-          "Provide at least one campaign content, sending identity, campaign data, computed list, audience, or label field when calling `update_campaign`."
+          "Provide at least one campaign content, sending identity, campaign data, computed list, audience, label, or delivery pacing field when calling `update_campaign`."
         );
       }
 
@@ -993,6 +999,7 @@ export async function handleCampaignTools(
         "targetLists",
         "listIds",
         "sendTimeOptimization",
+        "sendTimeWindowHours",
         "spreadOverHours",
         "sendInRecipientTimezone",
         "scheduledTimezone",
@@ -1004,7 +1011,7 @@ export async function handleCampaignTools(
 
       if (unsupportedCampaignScheduleKeys.length > 0) {
         throw new Error(
-          `\`schedule_campaign\` accepts only \`campaignId\`, \`scheduledAt\`, \`targetLists\`, \`listIds\`, \`sendTimeOptimization\`, \`spreadOverHours\`, \`sendInRecipientTimezone\`, \`scheduledTimezone\`, and \`recurringInterval\`. Unsupported field${unsupportedCampaignScheduleKeys.length === 1 ? "" : "s"}: ${unsupportedCampaignScheduleKeys.map((key) => `\`${key}\``).join(", ")}.`
+          `\`schedule_campaign\` accepts only \`campaignId\`, \`scheduledAt\`, \`targetLists\`, \`listIds\`, \`sendTimeOptimization\`, \`sendTimeWindowHours\`, \`spreadOverHours\`, \`sendInRecipientTimezone\`, \`scheduledTimezone\`, and \`recurringInterval\`. Unsupported field${unsupportedCampaignScheduleKeys.length === 1 ? "" : "s"}: ${unsupportedCampaignScheduleKeys.map((key) => `\`${key}\``).join(", ")}.`
         );
       }
 
@@ -1023,6 +1030,9 @@ export async function handleCampaignTools(
           }),
           ...(args.sendTimeOptimization !== undefined && {
             sendTimeOptimization: args.sendTimeOptimization,
+          }),
+          ...(args.sendTimeWindowHours !== undefined && {
+            sendTimeWindowHours: args.sendTimeWindowHours,
           }),
           ...(args.spreadOverHours !== undefined && {
             spreadOverHours: args.spreadOverHours,

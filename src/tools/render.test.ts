@@ -119,6 +119,36 @@ describe("render_email MCP tool", () => {
     expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
+  it("forwards the tags of an inline subscriber", async () => {
+    // Without them a `tag` condition has no tags to read and renders as false,
+    // so only the else branch of a tag split is previewable.
+    mockApiRequest.mockResolvedValue(RENDER_RESULT);
+
+    await handleToolCall("render_email", {
+      templateId: "tmpl_1",
+      subscriber: { email: "ada@example.com", tags: ["extended"] },
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/templates/tmpl_1/render",
+      { subscriber: { email: "ada@example.com", tags: ["extended"] } },
+      undefined
+    );
+  });
+
+  it("documents that an unevaluated condition renders as false", () => {
+    const tool = tools.find((candidate) => candidate.name === "render_email");
+    const unevaluatedConditions = tool?.outputSchema?.properties?.[
+      "unevaluatedConditions"
+    ] as { description?: string } | undefined;
+
+    expect(tool?.description).toContain("unevaluatedConditions");
+    expect(unevaluatedConditions?.description).toContain(
+      "requires_stored_subscriber"
+    );
+  });
+
   it("forwards inline subscriber and variables", async () => {
     mockApiRequest.mockResolvedValue(RENDER_RESULT);
 

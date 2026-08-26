@@ -2,7 +2,11 @@ import type { CallToolResult, Tool } from "@modelcontextprotocol/sdk/types.js";
 
 import { isRecord } from "./common-primitives.js";
 import { dashboardUrlToolNames } from "./delivery-and-urls.js";
-import { pollRespondentFilterHint } from "./descriptions.js";
+import {
+  campaignStoOutputHint,
+  pollRespondentFilterHint,
+} from "./descriptions.js";
+
 export type ToolOutputSchema = NonNullable<Tool["outputSchema"]>;
 export type SequenzyToolCallResult = CallToolResult & {
   content: Array<{ type: "text"; text: string }>;
@@ -184,7 +188,7 @@ const SEQUENCE_STEP_NUMBER_HINT =
 
 export const sequenceOutputProperty: OutputSchemaProperty =
   objectOutputProperty(
-    `The sequence record returned by Sequenzy. ${SEQUENCE_RUN_STATE_HINT} ${SEQUENCE_STEP_NUMBER_HINT}`
+    `The sequence record returned by Sequenzy. ${SEQUENCE_RUN_STATE_HINT} ${SEQUENCE_STEP_NUMBER_HINT} Sequences use sendingWindow for allowed local hours/days; they do not have Send Time Optimization. STO is per-campaign (list_campaigns / get_campaign sendTimeOptimization).`
   );
 
 export const sequenceListOutputProperty: OutputSchemaProperty =
@@ -414,7 +418,7 @@ export const outputPropertiesByToolName: Record<
       "Webhook and sync activity over the last 24 hours: totals by status, stalled count, last activity time, and recent failures."
     ),
     ingestion: objectOutputProperty(
-      "What this integration does to the contact list: bulkSyncEnabled, supportsListTargeting, listTargeting (`company_default`, `none`, `specific`, or null when the provider ignores targeting), listIds (null means the workspace default lists), lists with their names, missingListIds for configured lists that have since been deleted and are therefore skipped, and a one-sentence summary. Neither setting stops the provider's live webhook creating contacts."
+      "What this integration does to the contact list: bulkSyncEnabled, supportsListTargeting, listTargeting (`company_default`, `none`, `specific`, or null when the provider ignores targeting), listIds (null means the workspace default lists), lists with their names, missingListIds for configured lists that have since been deleted and are therefore skipped, and a summary. When supportsListTargeting is false, the summary names defaultSubscriberListIds on get_company/update_company as the live-ingestion write path (null = every list, [] = none) and identifies provider-specific backfill exceptions such as PostHog history imports. Neither setting stops the provider's live webhook creating contacts."
     ),
     pixel: nullableObjectOutputProperty(
       "Shopify only: live storefront pixel state (installed, endpoint, endpointCurrent, configurationCurrent, healthy, error, dependentEvents). Null for providers without a pixel. When error is null and healthy is false, every dependentEvent is confirmed dark; an error means Shopify could not confirm the state."
@@ -446,6 +450,19 @@ export const outputPropertiesByToolName: Record<
     blockType: objectOutputProperty(
       "Single-type mode: the full reference for the requested type, including a minimal valid `example` and authoring `notes`."
     ),
+    conditionFields: {
+      type: "array",
+      description:
+        'The per-field table for block conditions - the `conditions` array every block takes, and the `conditions` of a `conditional-group`. Present when listing every type, when the requested type is `conditional-group`, and when conditionFields: true was passed; otherwise `conditionFieldsHint` says how to ask for it. Each entry is { field, label, operators, values?, valueFormat, serverEvaluated, previewSupport, example }. `operators` is the only set that field accepts: the `field` and `operator` enums inside a block\'s own reference pool every field\'s operators together, so they show `is` for `tag` even though a tag condition is rejected with it. `valueFormat` gives the shape of the value string, which differs per field ("attributeName:value" for attribute, a tag name for tag, an id for segment, "eventName:timeRange" for event). `serverEvaluated` marks the fields read from stored subscriber state rather than from the send\'s merge data, and `previewSupport` says what render_email needs before it can evaluate one: "any_contact", "inline_tags_or_stored_subscriber" (tag), or "stored_subscriber". A condition a render cannot evaluate is not an error - it renders as false and is listed in that render\'s unevaluatedConditions.',
+      items: objectOutputProperty(
+        "One condition field: its allowed operators, value format, and what a preview needs to evaluate it."
+      ),
+    },
+    conditionFieldsHint: {
+      type: "string",
+      description:
+        "Present on a single-type response that omitted `conditionFields`, saying that conditions are per-field and how to get the table. The table is several times the size of one block type's reference, so a targeted lookup does not carry it unless conditions are that type's purpose or you asked for it.",
+    },
   },
   get_event_schema: {
     eventName: {
@@ -938,7 +955,9 @@ export const outputPropertiesByToolName: Record<
     tagId: stringOutputProperty("Deleted tag ID."),
   },
   list_lists: {
-    lists: resourceListOutputProperty("list"),
+    lists: arrayOutputProperty(
+      "Subscriber lists. Each entry includes id, name, description, isPrivate, createdAt, subscriberCount (current members of any status), and activeSubscriberCount (current members with status=active). Memberships with unsubscribedAt set are excluded."
+    ),
   },
   create_list: {
     list: resourceOutputProperty("list"),
@@ -1086,13 +1105,17 @@ export const outputPropertiesByToolName: Record<
     abTestId: stringOutputProperty("Deleted A/B test ID."),
   },
   list_campaigns: {
-    campaigns: resourceListOutputProperty("campaign"),
+    campaigns: arrayOutputProperty(
+      `List of campaign records returned by Sequenzy. ${campaignStoOutputHint}`
+    ),
     pagination: objectOutputProperty(
       "Campaign page window: `limit`, `offset`, `count` returned in this page, `total` matching the filters, and `hasMore`. Keep calling with an advanced `offset` while `hasMore` is true to enumerate every campaign."
     ),
   },
   get_campaign: {
-    campaign: resourceOutputProperty("campaign"),
+    campaign: objectOutputProperty(
+      `The campaign record returned by Sequenzy. ${campaignStoOutputHint}`
+    ),
   },
   get_campaign_audience: {
     campaignId: stringOutputProperty("Campaign the audience was resolved for."),
@@ -1131,6 +1154,10 @@ export const outputPropertiesByToolName: Record<
     page: numberOutputProperty("1-based page number returned."),
     limit: numberOutputProperty("Entries per page."),
     hasMore: booleanOutputProperty("Whether another page is available."),
+    sortBy: stringOutputProperty(
+      "Sort field actually applied: suppressedAt, email or status. An unrecognized `sort` falls back to suppressedAt, so read this rather than assuming the requested order took effect."
+    ),
+    sortOrder: stringOutputProperty("Sort direction applied: asc or desc."),
   },
   get_recipient_suppression: {
     suppression: resourceOutputProperty("recipient suppression status"),
@@ -1763,6 +1790,12 @@ export const outputPropertiesByToolName: Record<
     emailType: stringOutputProperty(
       "Applied structural email type filter when one was requested."
     ),
+    subscriberCount: numberOutputProperty(
+      "Live count of every stored contact in the company. Independent of period. Use this for 'how many subscribers do I have'."
+    ),
+    activeSubscriberCount: numberOutputProperty(
+      "Live count of contacts with status=active. Independent of period. May include phone-only contacts without an email address."
+    ),
     commerceForecast: resourceOutputProperty(
       "Optional background-computed commerce AOV, 12-month customer value, and 90-day revenue forecast. Omitted when no snapshot is available; insufficient_data is returned only after eligibility was evaluated successfully."
     ),
@@ -2119,6 +2152,9 @@ export const outputPropertiesByToolName: Record<
     ),
     unresolvedMergeTags: arrayOutputProperty(
       'Merge tags that did not resolve, as [{ tag, reason }]. reason "unknown" means nothing provides that name, so it stays empty for every recipient - usually a typo or a tag copied from another platform. reason "no_value" means the name is recognized, or could not be checked, but is blank for this contact. An unknown name is reported even when a default filter such as {{ subscriber.frstName | default: "there" }} supplied text in its place: the fallback then reaches every recipient, including the ones whose real value is stored, and the rendered HTML looks correct precisely because the default worked. A recognized name that is merely blank for this contact is not reported when it has a default, since that is what a default is for. A name is only called unknown when the render had a source to check it against. Without the contact\'s attributes nothing is checkable, since a bare {{plan}} reads the same attribute map as {{subscriber.plan}}, so pass a stored subscriberId or an inline subscriber carrying customAttributes. Beyond that, {{event.*}} needs sample event properties in variables, since a real send fills those from the enrolling event; {{recommendedProducts.*}} needs a stored subscriberId the catalog has something to recommend for; and {{discount.*}} is only checkable on a sequence step whose incoming paths all run the same discount step, never on a standalone template. Rendering a transactional email is checkable only when variables is passed, because its tags come from the variables of each send call and carry no prefix marking them. Otherwise those tags land in no_value rather than in unknown. An optional attribute this contact never had set is kept out of unknown by checking the names other contacts in the account carry, which needs the subscribers:read scope; a key without it may report such a name as unknown. An empty array means every tag in the email resolved.'
+    ),
+    unevaluatedConditions: arrayOutputProperty(
+      'Block conditions this render could not decide, as [{ field, operator, value, description, reason, hint }]. Each was rendered as false, the same fail-closed rule a live send uses, so an else branch in the HTML is not evidence that the condition is false for a real recipient - checking the HTML alone cannot tell the two apart. reason "requires_stored_subscriber" means the field reads stored subscriber state: pass subscriberId, or for a `tag` condition pass tags on the inline subscriber, and it resolves. reason "invalid_filter" means the stored condition is malformed, which fails closed on a real send too, and hint carries the validation error. reason "evaluation_failed" means the lookup itself failed and the render is worth retrying. An empty array means every condition in the email was actually evaluated.'
     ),
     entity: objectOutputProperty(
       "Which entity was rendered: type, id, and variantId."

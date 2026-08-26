@@ -221,19 +221,19 @@ describe("account tools", () => {
     const tool = tools.find(
       (candidate) => candidate.name === "update_shopify_automation_settings"
     );
-    const properties = tool?.inputSchema.properties as
-      | Record<string, { properties?: Record<string, Record<string, unknown>> }>
-      | undefined;
+    const properties = tool?.inputSchema.properties;
 
-    expect(
-      properties?.["cartAbandonment"]?.properties?.["delayHours"]
-    ).toMatchObject({ type: "number", exclusiveMinimum: 0, maximum: 168 });
-    expect(
-      properties?.["cartAbandonment"]?.properties?.["cooldownHours"]
-    ).toMatchObject({ type: "number", exclusiveMinimum: 0, maximum: 720 });
-    expect(properties?.["priceDrop"]?.properties?.["minPercent"]).toMatchObject(
-      { type: "number", exclusiveMinimum: 0, maximum: 95 }
-    );
+    expect(properties?.["cartAbandonment"]).toMatchObject({
+      properties: {
+        delayHours: { type: "number", exclusiveMinimum: 0, maximum: 168 },
+        cooldownHours: { type: "number", exclusiveMinimum: 0, maximum: 720 },
+      },
+    });
+    expect(properties?.["priceDrop"]).toMatchObject({
+      properties: {
+        minPercent: { type: "number", exclusiveMinimum: 0, maximum: 95 },
+      },
+    });
   });
 
   it("reads per-user notification preferences for the selected company", async () => {
@@ -607,13 +607,13 @@ describe("create_api_key tool schema", () => {
     const tool = tools.find((candidate) => candidate.name === "create_api_key");
     expect(tool).toBeDefined();
 
-    const properties = tool?.inputSchema.properties as
-      | Record<string, { type?: string; items?: { type?: string } }>
-      | undefined;
+    const properties = tool?.inputSchema.properties;
 
-    expect(properties?.["preset"]?.type).toBe("string");
-    expect(properties?.["scopes"]?.type).toBe("array");
-    expect(properties?.["scopes"]?.items?.type).toBe("string");
+    expect(properties?.["preset"]).toMatchObject({ type: "string" });
+    expect(properties?.["scopes"]).toMatchObject({
+      type: "array",
+      items: { type: "string" },
+    });
     expect(tool?.inputSchema.required).toEqual(["companyId"]);
   });
 
@@ -1651,6 +1651,33 @@ describe("update_company tool validation", () => {
     expect(inputSchema?.properties).toHaveProperty("replyTrackingDomainMode");
     expect(inputSchema?.properties).toHaveProperty("forwardReplies");
     expect(inputSchema?.properties).toHaveProperty("defaultSubscriberListIds");
+    expect(updateCompanyTool?.description).toContain("write path");
+    expect(updateCompanyTool?.description).toContain("not 'no lists'");
+    expect(updateCompanyTool?.description).toContain(
+      "PostHog history imports always create contacts without list memberships"
+    );
+  });
+
+  it("tells agents that a JSON null is every list and that update_company writes it", () => {
+    const getCompanyTool = tools.find((tool) => tool.name === "get_company");
+    const setTargetingTool = tools.find(
+      (tool) => tool.name === "set_integration_list_targeting"
+    );
+
+    expect(getCompanyTool?.description).toContain("not an empty selection");
+    expect(getCompanyTool?.description).toContain("update_company");
+    expect(getCompanyTool?.description).toContain(
+      "PostHog history imports are different"
+    );
+    expect(getCompanyTool?.description).toContain(
+      "Send Time Optimization is not a company or sequence setting"
+    );
+    expect(setTargetingTool?.description).toContain("Dodo Payments");
+    expect(setTargetingTool?.description).toContain("PostHog");
+    expect(setTargetingTool?.description).toContain("defaultSubscriberListIds");
+    expect(setTargetingTool?.description).toContain(
+      "PostHog history imports are an exception"
+    );
   });
 
   // The workspace default lists were previously unreachable from MCP, so an
@@ -2269,6 +2296,8 @@ describe("A/B test tools", () => {
     mockApiRequest.mockResolvedValueOnce({
       success: true,
       stats: { replies: 4, replyRate: 12.5 },
+      subscriberCount: 12,
+      activeSubscriberCount: 9,
       commerceForecast: {
         status: "insufficient_data",
         eligibility: { reasons: [{ code: "needs_orders" }] },
@@ -2285,8 +2314,16 @@ describe("A/B test tools", () => {
     expect(overviewTool?.inputSchema.properties).toHaveProperty("emailType");
     expect(emailTypeInput?.type).toBe("string");
     expect(overviewTool?.description).toContain("commerceForecast");
+    expect(overviewTool?.description).toContain("subscriberCount");
+    expect(overviewTool?.description).toContain("activeSubscriberCount");
     expect(overviewTool?.outputSchema?.properties).toHaveProperty(
       "commerceForecast"
+    );
+    expect(overviewTool?.outputSchema?.properties).toHaveProperty(
+      "subscriberCount"
+    );
+    expect(overviewTool?.outputSchema?.properties).toHaveProperty(
+      "activeSubscriberCount"
     );
     expect(campaignTool?.description).toContain("replies and reply rate");
     // The steps array has to name the counts it carries, sends included:
@@ -2300,10 +2337,51 @@ describe("A/B test tools", () => {
       replies: 4,
       replyRate: 12.5,
     });
+    expect(result.structuredContent?.["subscriberCount"]).toBe(12);
+    expect(result.structuredContent?.["activeSubscriberCount"]).toBe(9);
     expect(result.structuredContent?.["commerceForecast"]).toEqual({
       status: "insufficient_data",
       eligibility: { reasons: [{ code: "needs_orders" }] },
     });
+  });
+
+  it("documents and returns per-list subscriber counts", async () => {
+    const listsTool = tools.find(
+      (candidate) => candidate.name === "list_lists"
+    );
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      lists: [
+        {
+          id: "list_1",
+          name: "Newsletter",
+          subscriberCount: 3,
+          activeSubscriberCount: 1,
+        },
+      ],
+    });
+
+    const result = await handleToolCall("list_lists", {
+      companyId: "company_123",
+    });
+
+    expect(listsTool?.description).toContain("subscriberCount");
+    expect(listsTool?.description).toContain("activeSubscriberCount");
+    expect(
+      (
+        listsTool?.outputSchema?.properties?.["lists"] as {
+          description?: string;
+        }
+      )?.description
+    ).toContain("subscriberCount");
+    expect(result.structuredContent?.["lists"]).toEqual([
+      {
+        id: "list_1",
+        name: "Newsletter",
+        subscriberCount: 3,
+        activeSubscriberCount: 1,
+      },
+    ]);
   });
 
   it("does not fabricate a commerce forecast when the snapshot is absent", async () => {
@@ -3039,24 +3117,31 @@ describe("transactional email tools", () => {
     expect(inputSchema?.properties).toHaveProperty("templateId");
     expect(inputSchema?.properties).toHaveProperty("emailType");
     expect(inputSchema?.properties).toHaveProperty("replyTo");
+    expect(inputSchema?.properties).toHaveProperty("senderProfileId");
+    expect(inputSchema?.properties).toHaveProperty("fromEmail");
+    expect(inputSchema?.properties).toHaveProperty("fromName");
+    expect(inputSchema?.properties).toHaveProperty("replyProfileId");
+    expect(inputSchema?.properties).toHaveProperty("replyToName");
     expect(inputSchema?.properties).toHaveProperty("idempotencyKey");
     expect(inputSchema?.properties).toHaveProperty("attachments");
     expect(inputSchema?.properties).toHaveProperty("trackingSettings");
-    const trackingSettingsSchema = properties?.["trackingSettings"] as
-      | {
-          description?: string;
-          properties?: Record<string, { description?: string }>;
-        }
-      | undefined;
-    expect(trackingSettingsSchema?.description).toContain(
-      "cannot enable tracking the account has disabled"
-    );
-    expect(
-      trackingSettingsSchema?.properties?.["clickTracking"]?.description
-    ).toContain("skip click-link rewriting for this send only");
-    expect(
-      trackingSettingsSchema?.properties?.["openTracking"]?.description
-    ).toContain("skip the open-tracking pixel for this send only");
+    expect(properties?.["trackingSettings"]).toMatchObject({
+      description: expect.stringContaining(
+        "cannot enable tracking the account has disabled"
+      ),
+      properties: {
+        clickTracking: {
+          description: expect.stringContaining(
+            "skip click-link rewriting for this send only"
+          ),
+        },
+        openTracking: {
+          description: expect.stringContaining(
+            "skip the open-tracking pixel for this send only"
+          ),
+        },
+      },
+    });
     expect(sendEmailTool?.outputSchema?.properties).toHaveProperty("emailType");
     expect(sendEmailTool?.description).toContain(
       "saved first and last names fill omitted name variables"
@@ -3099,6 +3184,110 @@ describe("transactional email tools", () => {
       },
       "company_123"
     );
+  });
+
+  it("forwards send_email senderProfileId and replyProfileId to the transactional API", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      emailSendId: "send_brand_123",
+    });
+
+    await handleToolCall("send_email", {
+      to: "user@example.com",
+      subject: "StudyBoost test",
+      html: "<p>From StudyBoost.</p>",
+      senderProfileId: "sender_studyboost",
+      replyProfileId: "reply_studyboost",
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/transactional/send",
+      {
+        to: "user@example.com",
+        subject: "StudyBoost test",
+        body: "<p>From StudyBoost.</p>",
+        senderProfileId: "sender_studyboost",
+        replyProfileId: "reply_studyboost",
+      },
+      undefined
+    );
+  });
+
+  it("forwards send_email fromEmail and fromName to the transactional API", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      emailSendId: "send_from_email_123",
+    });
+
+    await handleToolCall("send_email", {
+      to: "user@example.com",
+      templateId: "receipt",
+      fromEmail: "hello@studyboost.com",
+      fromName: "StudyBoost",
+      replyTo: "support@studyboost.com",
+      replyToName: "StudyBoost Support",
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/transactional/send",
+      {
+        to: "user@example.com",
+        slug: "receipt",
+        fromEmail: "hello@studyboost.com",
+        fromName: "StudyBoost",
+        replyTo: "support@studyboost.com",
+        replyToName: "StudyBoost Support",
+      },
+      undefined
+    );
+  });
+
+  it("rejects send_email calls that provide both senderProfileId and fromEmail", async () => {
+    const result = await handleToolCall("send_email", {
+      to: "user@example.com",
+      subject: "Test",
+      html: "<p>Hi</p>",
+      senderProfileId: "sender_123",
+      fromEmail: "hello@studyboost.com",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Provide either `fromEmail` or `senderProfileId` when calling `send_email`, not both."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects send_email calls that provide fromName without fromEmail", async () => {
+    const result = await handleToolCall("send_email", {
+      to: "user@example.com",
+      subject: "Test",
+      html: "<p>Hi</p>",
+      fromName: "StudyBoost",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`fromName` requires `fromEmail`"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects send_email calls that provide both replyTo and replyProfileId", async () => {
+    const result = await handleToolCall("send_email", {
+      to: "user@example.com",
+      templateId: "welcome-email",
+      replyTo: "support@example.com",
+      replyProfileId: "reply_123",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Provide either `replyTo` or `replyProfileId` when calling `send_email`, not both."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
   it("maps send_email templateId to the transactional API slug", async () => {
@@ -3996,6 +4185,9 @@ describe("update_campaign tool validation", () => {
     expect(inputSchema?.properties).toHaveProperty("targetLists");
     expect(inputSchema?.properties).toHaveProperty("segmentId");
     expect(inputSchema?.properties).toHaveProperty("labels");
+    expect(inputSchema?.properties).toHaveProperty("sendTimeOptimization");
+    expect(inputSchema?.properties).toHaveProperty("sendTimeWindowHours");
+    expect(updateCampaignTool?.description).toContain("campaign-only");
   });
 
   it("forwards an update_campaign audience change to the API", async () => {
@@ -4090,6 +4282,10 @@ describe("update_campaign tool validation", () => {
     expect(scheduleCampaignTool?.description).toContain(
       "at least one audience include rule"
     );
+    expect(scheduleCampaignTool?.description).toContain(
+      "Send Time Optimization"
+    );
+    expect(scheduleCampaignTool?.description).toContain("campaign-only");
     expect(inputSchema?.required).toEqual(["campaignId", "scheduledAt"]);
     expect(inputSchema?.additionalProperties).toBe(false);
     expect(inputSchema?.properties).toHaveProperty("targetLists");
@@ -4112,7 +4308,22 @@ describe("update_campaign tool validation", () => {
     expect(targetListsSchema?.properties).toHaveProperty("listIds");
     expect(inputSchema?.properties).toHaveProperty("listIds");
     expect(inputSchema?.properties).toHaveProperty("sendTimeOptimization");
+    expect(inputSchema?.properties).toHaveProperty("sendTimeWindowHours");
     expect(inputSchema?.properties).toHaveProperty("spreadOverHours");
+    expect(
+      (
+        inputSchema?.properties?.["sendTimeOptimization"] as
+          | { description?: string }
+          | undefined
+      )?.description
+    ).toContain("Campaign-only");
+    expect(
+      (
+        inputSchema?.properties?.["sendTimeWindowHours"] as
+          | { description?: string }
+          | undefined
+      )?.description
+    ).toContain("1-24");
   });
 
   it("rejects update_campaign calls that omit all supported update fields", async () => {
@@ -4122,7 +4333,7 @@ describe("update_campaign tool validation", () => {
 
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain(
-      "Provide at least one campaign content, sending identity"
+      "Provide at least one campaign content, sending identity, campaign data, computed list, audience, label, or delivery pacing field"
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
   });
@@ -4363,6 +4574,48 @@ describe("update_campaign tool validation", () => {
     );
   });
 
+  it("forwards sendTimeOptimization as the only update_campaign field", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      campaign: {
+        id: "camp_123",
+        sendTimeOptimization: true,
+        sendTimeWindowHours: 6,
+      },
+    });
+
+    const result = await handleToolCall("update_campaign", {
+      campaignId: "camp_123",
+      sendTimeOptimization: true,
+      sendTimeWindowHours: 6,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/campaigns/camp_123",
+      {
+        campaignId: "camp_123",
+        sendTimeOptimization: true,
+        sendTimeWindowHours: 6,
+      },
+      undefined
+    );
+  });
+
+  it("rejects an out-of-range sendTimeWindowHours on update_campaign", async () => {
+    const result = await handleToolCall("update_campaign", {
+      campaignId: "camp_123",
+      sendTimeWindowHours: 25,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`sendTimeWindowHours` must be an integer between 1 and 24"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
   it("calls the schedule campaign API with supported fields", async () => {
     mockApiRequest.mockResolvedValueOnce({
       success: true,
@@ -4406,6 +4659,55 @@ describe("update_campaign tool validation", () => {
       "https://sequenzy.com/dashboard/company/comp_123/campaign/camp_123?step=review"
     );
     expect(payload.appUrls.campaignPreview).toBe(payload.campaign.previewUrl);
+  });
+
+  it("forwards sendTimeOptimization and sendTimeWindowHours to schedule_campaign", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      campaign: {
+        id: "camp_123",
+        name: "Launch",
+        subject: "Hello",
+        status: "scheduled",
+        sendTimeOptimization: true,
+        sendTimeWindowHours: 8,
+      },
+      scheduledAt: "2026-06-01T14:00:00.000Z",
+    });
+
+    const result = await handleToolCall("schedule_campaign", {
+      companyId: "comp_123",
+      campaignId: "camp_123",
+      scheduledAt: "2026-06-01T14:00:00Z",
+      sendTimeOptimization: true,
+      sendTimeWindowHours: 8,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/campaigns/camp_123/schedule",
+      {
+        scheduledAt: "2026-06-01T14:00:00Z",
+        sendTimeOptimization: true,
+        sendTimeWindowHours: 8,
+      },
+      "comp_123"
+    );
+  });
+
+  it("rejects an out-of-range sendTimeWindowHours on schedule_campaign", async () => {
+    const result = await handleToolCall("schedule_campaign", {
+      campaignId: "camp_123",
+      scheduledAt: "2026-06-01T14:00:00Z",
+      sendTimeWindowHours: 0,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`sendTimeWindowHours` must be an integer between 1 and 24"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
   it("forwards rules audience targeting to the schedule endpoint", async () => {
@@ -4814,6 +5116,14 @@ describe("label list filters", () => {
     expect(inputProperties).toHaveProperty("limit");
     expect(inputProperties).toHaveProperty("offset");
     expect(tool?.outputSchema?.properties).toHaveProperty("pagination");
+    expect(tool?.description).toContain("sendTimeOptimization");
+    expect(
+      (
+        tool?.outputSchema?.properties?.["campaigns"] as
+          | { description?: string }
+          | undefined
+      )?.description
+    ).toContain("Send Time Optimization");
   });
 
   it("returns the pagination window from campaign list results", async () => {
@@ -7447,6 +7757,9 @@ describe("sequence node update tools", () => {
     expect(
       tools.find((tool) => tool.name === "get_sequence")?.description
     ).toContain("emailPreset");
+    expect(
+      tools.find((tool) => tool.name === "get_sequence")?.description
+    ).toContain("Send Time Optimization is not a company or sequence setting");
     expect(
       (changesSchema?.properties?.["emailPreset"] as { description?: string })
         .description

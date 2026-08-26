@@ -20,10 +20,17 @@ export async function handleSuppressionTools(
       Number.MAX_SAFE_INTEGER
     );
     const limit = optionalIntegerInRange(name, args, "limit", 1, 100);
+    const sort = optionalString(args, "sort");
+    const order = optionalString(args, "order");
     const query = new URLSearchParams();
     if (search) query.set("search", search);
     if (page !== undefined) query.set("page", String(page));
     if (limit !== undefined) query.set("limit", String(limit));
+    // Forwarded as-is: the API owns the allowlist and echoes back the sort it
+    // actually applied, so a second copy of the valid values here would be one
+    // more place to drift.
+    if (sort) query.set("sort", sort);
+    if (order) query.set("order", order);
     const listPath = `/api/v1/suppressions${query.size > 0 ? `?${query}` : ""}`;
 
     return {
