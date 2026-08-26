@@ -895,8 +895,8 @@ export function buildUpdateSequenceBody(
   return body;
 }
 
-function validateSequenceGoalTriggerArgs(
-  toolName: "create_sequence_goal",
+function validateGoalTriggerArgs(
+  toolName: "create_sequence_goal" | "create_campaign_goal",
   args: Record<string, unknown>
 ): void {
   const triggerType = args.triggerType ?? "event";
@@ -907,6 +907,18 @@ function validateSequenceGoalTriggerArgs(
     ) {
       throw new Error(
         `\`triggerEventName\` is required when calling \`${toolName}\` with an event goal (the default \`triggerType\`).`
+      );
+    }
+    return;
+  }
+
+  if (triggerType === "tag_added") {
+    if (
+      typeof args.triggerTagName !== "string" ||
+      args.triggerTagName.trim().length === 0
+    ) {
+      throw new Error(
+        `\`triggerTagName\` is required when calling \`${toolName}\` with \`triggerType: "tag_added"\`.`
       );
     }
     return;
@@ -946,10 +958,29 @@ function validateSequenceGoalTriggerArgs(
 export function validateCreateSequenceGoalArgs(
   args: Record<string, unknown>
 ): void {
-  validateSequenceGoalTriggerArgs("create_sequence_goal", args);
+  validateGoalTriggerArgs("create_sequence_goal", args);
+}
+
+export function validateCreateCampaignGoalArgs(
+  args: Record<string, unknown>
+): void {
+  validateGoalTriggerArgs("create_campaign_goal", args);
 }
 
 export function validateUpdateSequenceGoalArgs(
+  args: Record<string, unknown>
+): void {
+  validateUpdateGoalTriggerArgs("update_sequence_goal", args);
+}
+
+export function validateUpdateCampaignGoalArgs(
+  args: Record<string, unknown>
+): void {
+  validateUpdateGoalTriggerArgs("update_campaign_goal", args);
+}
+
+function validateUpdateGoalTriggerArgs(
+  toolName: "update_sequence_goal" | "update_campaign_goal",
   args: Record<string, unknown>
 ): void {
   // Partial updates are allowed: when the trigger type is unchanged, the API
@@ -960,7 +991,7 @@ export function validateUpdateSequenceGoalArgs(
     args.triggerEventName.trim().length === 0
   ) {
     throw new Error(
-      "`triggerEventName` must be a non-empty string when provided to `update_sequence_goal`."
+      `\`triggerEventName\` must be a non-empty string when provided to \`${toolName}\`.`
     );
   }
   if (
@@ -968,7 +999,15 @@ export function validateUpdateSequenceGoalArgs(
     args.attributePath.trim().length === 0
   ) {
     throw new Error(
-      "`attributePath` must be a non-empty string when provided to `update_sequence_goal`."
+      `\`attributePath\` must be a non-empty string when provided to \`${toolName}\`.`
+    );
+  }
+  if (
+    typeof args.triggerTagName === "string" &&
+    args.triggerTagName.trim().length === 0
+  ) {
+    throw new Error(
+      `\`triggerTagName\` must be a non-empty string when provided to \`${toolName}\`.`
     );
   }
 }

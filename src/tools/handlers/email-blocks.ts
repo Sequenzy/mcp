@@ -17,9 +17,15 @@ export async function handleEmailBlockTools(
   const blockType = optionalString(args, "blockType");
 
   if (blockType !== undefined) {
+    // The condition table is ~9.7KB, which is over four times the size of a
+    // single block type's reference, so a targeted lookup does not pay for it
+    // unless it asked or unless conditions are the point of the type. The
+    // response says the table exists either way.
+    const conditionFields =
+      args.conditionFields === true ? "?conditionFields=true" : "";
     const result = await apiRequest(
       "GET",
-      `/api/v1/email-blocks/${encodeURIComponent(blockType)}`
+      `/api/v1/email-blocks/${encodeURIComponent(blockType)}${conditionFields}`
     );
 
     return { handled: true, result };

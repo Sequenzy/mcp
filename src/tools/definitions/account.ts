@@ -113,7 +113,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "get_company",
     description:
-      "Get company details, processing status, product info, brand colors, AI writing context, reply-tracking settings, effective email localization settings, and defaultSubscriberListIds - the workspace default lists new contacts join when nothing targets them explicitly (null means every list, [] means none). Read defaultSubscriberListIds before connecting an integration whose provider has no per-integration list targeting, because its contacts land there.",
+      "Get company details, processing status, product info, brand colors, AI writing context, reply-tracking settings, effective email localization settings, and defaultSubscriberListIds - the workspace default lists new contacts join when nothing targets them explicitly. A JSON null means every current and future list, not an empty selection; [] means no list at all; an array means exactly those lists. Change it with update_company. Read it before connecting an integration whose provider has no per-integration list targeting (Dodo Payments, PostHog, Polar, Paddle, and similar), because its live contacts and payment-provider backfills land there. PostHog history imports are different: contacts created by that import have no list memberships.",
     inputSchema: {
       type: "object",
       properties: {
@@ -128,7 +128,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "update_company",
     description:
-      "Edit company product info, brand context, the default email theme, reply-tracking settings, and account-wide sending identity defaults. fromEmail must use a verified sending domain; replyTo may be any valid mailbox. Missing sender/reply profiles are created automatically. Send fromName/replyToName on their own to rename the display name of the existing default profile without changing its address, or pair them with senderProfileId/replyProfileId (from list_sender_profiles) to rename a specific profile. Provide at least one editable field. Profile, branding, and AI-context fields need the company_profile:manage scope; the sending identity, reply-tracking, and defaultSubscriberListIds fields additionally need companies:manage.",
+      "Edit company product info, brand context, the default email theme, reply-tracking settings, account-wide sending identity defaults, and defaultSubscriberListIds - which lists new untargeted contacts join. That field is the write path for Dodo Payments and live PostHog events, plus every other integration without per-integration targeting: null = every current and future list (not 'no lists'), [] = no list, [ids] = exactly those lists. PostHog history imports always create contacts without list memberships. fromEmail must use a verified sending domain; replyTo may be any valid mailbox. Missing sender/reply profiles are created automatically. Send fromName/replyToName on their own to rename the display name of the existing default profile without changing its address, or pair them with senderProfileId/replyProfileId (from list_sender_profiles) to rename a specific profile. Provide at least one editable field. Profile, branding, and AI-context fields need the company_profile:manage scope; the sending identity, reply-tracking, and defaultSubscriberListIds fields additionally need companies:manage.",
     inputSchema: {
       type: "object",
       properties: {
@@ -961,7 +961,7 @@ Requires the companies:manage scope and owner or admin access to the company.`,
   {
     name: "get_notification_preferences",
     description:
-      "Get the account notification settings for the API key's own user in this company: whether Sequenzy emails them when a new subscriber joins and when a campaign finishes sending, and whether each arrives per-occurrence or as a daily summary. Returns the supported modes and platform defaults alongside the current values. These are per-person settings - this never reads a teammate's preferences.",
+      "Get the account notification settings for the API key's own user in this company: whether Sequenzy emails them when a new subscriber joins, when a form is submitted, and when a campaign finishes sending, and whether each arrives per-occurrence or as a daily summary. Instant form-submission notifications stop after 50 per workspace per UTC day. Returns the supported modes and platform defaults alongside the current values. These are per-person settings - this never reads a teammate's preferences.",
     inputSchema: {
       type: "object",
       properties: {
@@ -976,7 +976,7 @@ Requires the companies:manage scope and owner or admin access to the company.`,
   {
     name: "update_notification_preferences",
     description:
-      "Change which account notifications Sequenzy emails the API key's own user for this company. Requires the companies:manage scope. Useful before a bulk import or a large migration, when per-signup notifications would otherwise flood the inbox. Modes are 'off', 'instant' (one email per occurrence), and 'daily' (one summary per day); 'daily' is only valid for new_subscriber, because a campaign finishes once. New-subscriber notifications already fall back to a daily summary automatically on high-volume days, and imports never trigger them at all.",
+      "Change which account notifications Sequenzy emails the API key's own user for this company. Requires the companies:manage scope. Useful before a bulk import or a large migration, when per-signup notifications would otherwise flood the inbox. Modes are 'off', 'instant' (one email per occurrence), and 'daily' (one summary per day); 'daily' is only valid for new_subscriber, because a campaign finishes once and each form submit is its own lead. Instant form-submission notifications stop after 50 per workspace per UTC day. New-subscriber notifications already fall back to a daily summary automatically on high-volume days, and imports never trigger them at all.",
     inputSchema: {
       type: "object",
       properties: {
@@ -994,14 +994,18 @@ Requires the companies:manage scope and owner or admin access to the company.`,
             properties: {
               event: {
                 type: "string",
-                enum: ["new_subscriber", "campaign_completed"],
+                enum: [
+                  "new_subscriber",
+                  "form_submitted",
+                  "campaign_completed",
+                ],
                 description: "Which notification to configure.",
               },
               mode: {
                 type: "string",
                 enum: ["off", "instant", "daily"],
                 description:
-                  "How to receive it. 'daily' is not supported for campaign_completed.",
+                  "How to receive it. 'daily' is not supported for form_submitted or campaign_completed.",
               },
             },
             required: ["event", "mode"],

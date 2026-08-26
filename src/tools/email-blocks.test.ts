@@ -55,6 +55,20 @@ describe("get_email_block_schema", () => {
     expect(description).toContain("nested item arrays and nested objects");
   });
 
+  it("points at the condition table the block fields cannot express", () => {
+    const tool = tools.find(
+      (candidate) => candidate.name === "get_email_block_schema"
+    );
+    const conditionFields = tool?.outputSchema?.properties?.[
+      "conditionFields"
+    ] as { description?: string } | undefined;
+
+    expect(tool?.description).toContain("conditionFields");
+    expect(conditionFields?.description).toContain(
+      "the only set that field accepts"
+    );
+  });
+
   it("lists every block type when no type is given", async () => {
     await handleToolCall("get_email_block_schema", {});
 
@@ -88,6 +102,32 @@ describe("get_email_block_schema", () => {
       "GET",
       "/api/v1/email-blocks/product%20grid"
     );
+  });
+
+  it("asks for the condition table only when the caller wants it", async () => {
+    // The table is several times the size of one block type's reference, so a
+    // targeted lookup that is not about conditions should not carry it.
+    await handleToolCall("get_email_block_schema", {
+      blockType: "text",
+      conditionFields: true,
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/email-blocks/text?conditionFields=true"
+    );
+  });
+
+  it("says how to get the condition table it left out", () => {
+    const tool = tools.find(
+      (candidate) => candidate.name === "get_email_block_schema"
+    );
+    const hint = tool?.outputSchema?.properties?.["conditionFieldsHint"] as
+      | { description?: string }
+      | undefined;
+
+    expect(tool?.inputSchema.properties).toHaveProperty("conditionFields");
+    expect(hint?.description).toContain("omitted `conditionFields`");
   });
 });
 

@@ -318,6 +318,7 @@ describe("account tools", () => {
     expect(preferencesSchema?.items?.required).toEqual(["event", "mode"]);
     expect(preferencesSchema?.items?.properties?.["event"]?.enum).toEqual([
       "new_subscriber",
+      "form_submitted",
       "campaign_completed",
     ]);
     expect(preferencesSchema?.items?.properties?.["mode"]?.enum).toEqual([
@@ -1651,6 +1652,30 @@ describe("update_company tool validation", () => {
     expect(inputSchema?.properties).toHaveProperty("replyTrackingDomainMode");
     expect(inputSchema?.properties).toHaveProperty("forwardReplies");
     expect(inputSchema?.properties).toHaveProperty("defaultSubscriberListIds");
+    expect(updateCompanyTool?.description).toContain("write path");
+    expect(updateCompanyTool?.description).toContain("not 'no lists'");
+    expect(updateCompanyTool?.description).toContain(
+      "PostHog history imports always create contacts without list memberships"
+    );
+  });
+
+  it("tells agents that a JSON null is every list and that update_company writes it", () => {
+    const getCompanyTool = tools.find((tool) => tool.name === "get_company");
+    const setTargetingTool = tools.find(
+      (tool) => tool.name === "set_integration_list_targeting"
+    );
+
+    expect(getCompanyTool?.description).toContain("not an empty selection");
+    expect(getCompanyTool?.description).toContain("update_company");
+    expect(getCompanyTool?.description).toContain(
+      "PostHog history imports are different"
+    );
+    expect(setTargetingTool?.description).toContain("Dodo Payments");
+    expect(setTargetingTool?.description).toContain("PostHog");
+    expect(setTargetingTool?.description).toContain("defaultSubscriberListIds");
+    expect(setTargetingTool?.description).toContain(
+      "PostHog history imports are an exception"
+    );
   });
 
   // The workspace default lists were previously unreachable from MCP, so an
@@ -2269,6 +2294,8 @@ describe("A/B test tools", () => {
     mockApiRequest.mockResolvedValueOnce({
       success: true,
       stats: { replies: 4, replyRate: 12.5 },
+      subscriberCount: 12,
+      activeSubscriberCount: 9,
       commerceForecast: {
         status: "insufficient_data",
         eligibility: { reasons: [{ code: "needs_orders" }] },
@@ -2285,8 +2312,16 @@ describe("A/B test tools", () => {
     expect(overviewTool?.inputSchema.properties).toHaveProperty("emailType");
     expect(emailTypeInput?.type).toBe("string");
     expect(overviewTool?.description).toContain("commerceForecast");
+    expect(overviewTool?.description).toContain("subscriberCount");
+    expect(overviewTool?.description).toContain("activeSubscriberCount");
     expect(overviewTool?.outputSchema?.properties).toHaveProperty(
       "commerceForecast"
+    );
+    expect(overviewTool?.outputSchema?.properties).toHaveProperty(
+      "subscriberCount"
+    );
+    expect(overviewTool?.outputSchema?.properties).toHaveProperty(
+      "activeSubscriberCount"
     );
     expect(campaignTool?.description).toContain("replies and reply rate");
     // The steps array has to name the counts it carries, sends included:
@@ -2300,10 +2335,51 @@ describe("A/B test tools", () => {
       replies: 4,
       replyRate: 12.5,
     });
+    expect(result.structuredContent?.["subscriberCount"]).toBe(12);
+    expect(result.structuredContent?.["activeSubscriberCount"]).toBe(9);
     expect(result.structuredContent?.["commerceForecast"]).toEqual({
       status: "insufficient_data",
       eligibility: { reasons: [{ code: "needs_orders" }] },
     });
+  });
+
+  it("documents and returns per-list subscriber counts", async () => {
+    const listsTool = tools.find(
+      (candidate) => candidate.name === "list_lists"
+    );
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      lists: [
+        {
+          id: "list_1",
+          name: "Newsletter",
+          subscriberCount: 3,
+          activeSubscriberCount: 1,
+        },
+      ],
+    });
+
+    const result = await handleToolCall("list_lists", {
+      companyId: "company_123",
+    });
+
+    expect(listsTool?.description).toContain("subscriberCount");
+    expect(listsTool?.description).toContain("activeSubscriberCount");
+    expect(
+      (
+        listsTool?.outputSchema?.properties?.["lists"] as {
+          description?: string;
+        }
+      )?.description
+    ).toContain("subscriberCount");
+    expect(result.structuredContent?.["lists"]).toEqual([
+      {
+        id: "list_1",
+        name: "Newsletter",
+        subscriberCount: 3,
+        activeSubscriberCount: 1,
+      },
+    ]);
   });
 
   it("does not fabricate a commerce forecast when the snapshot is absent", async () => {
@@ -3039,6 +3115,11 @@ describe("transactional email tools", () => {
     expect(inputSchema?.properties).toHaveProperty("templateId");
     expect(inputSchema?.properties).toHaveProperty("emailType");
     expect(inputSchema?.properties).toHaveProperty("replyTo");
+    expect(inputSchema?.properties).toHaveProperty("senderProfileId");
+    expect(inputSchema?.properties).toHaveProperty("fromEmail");
+    expect(inputSchema?.properties).toHaveProperty("fromName");
+    expect(inputSchema?.properties).toHaveProperty("replyProfileId");
+    expect(inputSchema?.properties).toHaveProperty("replyToName");
     expect(inputSchema?.properties).toHaveProperty("idempotencyKey");
     expect(inputSchema?.properties).toHaveProperty("attachments");
     expect(inputSchema?.properties).toHaveProperty("trackingSettings");
@@ -3099,6 +3180,110 @@ describe("transactional email tools", () => {
       },
       "company_123"
     );
+  });
+
+  it("forwards send_email senderProfileId and replyProfileId to the transactional API", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      emailSendId: "send_brand_123",
+    });
+
+    await handleToolCall("send_email", {
+      to: "user@example.com",
+      subject: "StudyBoost test",
+      html: "<p>From StudyBoost.</p>",
+      senderProfileId: "sender_studyboost",
+      replyProfileId: "reply_studyboost",
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/transactional/send",
+      {
+        to: "user@example.com",
+        subject: "StudyBoost test",
+        body: "<p>From StudyBoost.</p>",
+        senderProfileId: "sender_studyboost",
+        replyProfileId: "reply_studyboost",
+      },
+      undefined
+    );
+  });
+
+  it("forwards send_email fromEmail and fromName to the transactional API", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      emailSendId: "send_from_email_123",
+    });
+
+    await handleToolCall("send_email", {
+      to: "user@example.com",
+      templateId: "receipt",
+      fromEmail: "hello@studyboost.com",
+      fromName: "StudyBoost",
+      replyTo: "support@studyboost.com",
+      replyToName: "StudyBoost Support",
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/transactional/send",
+      {
+        to: "user@example.com",
+        slug: "receipt",
+        fromEmail: "hello@studyboost.com",
+        fromName: "StudyBoost",
+        replyTo: "support@studyboost.com",
+        replyToName: "StudyBoost Support",
+      },
+      undefined
+    );
+  });
+
+  it("rejects send_email calls that provide both senderProfileId and fromEmail", async () => {
+    const result = await handleToolCall("send_email", {
+      to: "user@example.com",
+      subject: "Test",
+      html: "<p>Hi</p>",
+      senderProfileId: "sender_123",
+      fromEmail: "hello@studyboost.com",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Provide either `fromEmail` or `senderProfileId` when calling `send_email`, not both."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects send_email calls that provide fromName without fromEmail", async () => {
+    const result = await handleToolCall("send_email", {
+      to: "user@example.com",
+      subject: "Test",
+      html: "<p>Hi</p>",
+      fromName: "StudyBoost",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`fromName` requires `fromEmail`"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects send_email calls that provide both replyTo and replyProfileId", async () => {
+    const result = await handleToolCall("send_email", {
+      to: "user@example.com",
+      templateId: "welcome-email",
+      replyTo: "support@example.com",
+      replyProfileId: "reply_123",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Provide either `replyTo` or `replyProfileId` when calling `send_email`, not both."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
   it("maps send_email templateId to the transactional API slug", async () => {
@@ -8715,6 +8900,82 @@ describe("sequence goal tools", () => {
       { triggerType: "event" },
       "comp_123"
     );
+  });
+});
+
+describe("campaign goal tools", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("publishes typed goal CRUD tools", () => {
+    for (const toolName of [
+      "list_campaign_goals",
+      "create_campaign_goal",
+      "update_campaign_goal",
+      "delete_campaign_goal",
+    ]) {
+      const tool = tools.find((candidate) => candidate.name === toolName);
+      expect(tool?.inputSchema.type).toBe("object");
+      expect(tool?.inputSchema.required).toContain("campaignId");
+    }
+    const createTool = tools.find(
+      (candidate) => candidate.name === "create_campaign_goal"
+    );
+    expect(createTool?.inputSchema.properties).toHaveProperty("triggerType");
+    expect(createTool?.inputSchema.properties).toHaveProperty("attributePath");
+    expect(createTool?.inputSchema.properties).toHaveProperty("isActive");
+    expect(
+      createTool?.inputSchema.properties?.["attributionWindowHours"]
+    ).toMatchObject({ type: "integer", minimum: 1, maximum: 720 });
+  });
+
+  it("forwards goal creation and deletion", async () => {
+    mockApiRequest.mockResolvedValue({ success: true, goal: {} });
+    await handleToolCall("create_campaign_goal", {
+      companyId: "comp_123",
+      campaignId: "camp_123",
+      name: "Recipient signed up",
+      triggerType: "event",
+      triggerEventName: "custom.signup",
+      attributionWindowHours: 168,
+      isActive: false,
+    });
+    await handleToolCall("delete_campaign_goal", {
+      companyId: "comp_123",
+      campaignId: "camp_123",
+      goalId: "goal_123",
+    });
+
+    expect(mockApiRequest).toHaveBeenNthCalledWith(
+      1,
+      "POST",
+      "/api/v1/campaigns/camp_123/goals",
+      {
+        name: "Recipient signed up",
+        triggerType: "event",
+        triggerEventName: "custom.signup",
+        attributionWindowHours: 168,
+        isActive: false,
+      },
+      "comp_123"
+    );
+    expect(mockApiRequest).toHaveBeenNthCalledWith(
+      2,
+      "DELETE",
+      "/api/v1/campaigns/camp_123/goals/goal_123",
+      undefined,
+      "comp_123"
+    );
+  });
+
+  it("rejects schema-valid goal creations the API would refuse", async () => {
+    const eventResult = await handleToolCall("create_campaign_goal", {
+      campaignId: "camp_123",
+      name: "Recipient signed up",
+    });
+    expect(eventResult.isError).toBe(true);
+    expect(eventResult.content[0]?.text).toContain("triggerEventName");
   });
 });
 

@@ -95,7 +95,8 @@ export const tagListSegmentToolDefinitions: Tool[] = [
   },
   {
     name: "list_lists",
-    description: "List all subscriber lists",
+    description:
+      "List all subscriber lists. Each list includes subscriberCount (current members of any status) and activeSubscriberCount (current members with status=active). Members who unsubscribed from the list are not counted. Use these fields for list audience size instead of paging search_subscribers.",
     inputSchema: {
       type: "object",
       properties: {

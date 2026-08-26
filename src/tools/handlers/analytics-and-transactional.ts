@@ -2,6 +2,7 @@ import { apiRequest } from "../../runtime.js";
 import {
   validateHtmlOrBlocksArgs,
   validateCreateTransactionalContentArgs,
+  validateSendingIdentityArgs,
   requireSubscriberIdentifier,
   fetchDetailedSubscriberByIdentifier,
   requiredString,
@@ -213,6 +214,26 @@ export async function handleAnalyticsAndTransactionalTools(
         args.replyTo === undefined
           ? undefined
           : requiredString("send_email", args, "replyTo");
+      const senderProfileId =
+        args.senderProfileId === undefined
+          ? undefined
+          : requiredString("send_email", args, "senderProfileId");
+      const fromEmail =
+        args.fromEmail === undefined
+          ? undefined
+          : requiredString("send_email", args, "fromEmail");
+      const fromName =
+        args.fromName === undefined
+          ? undefined
+          : requiredString("send_email", args, "fromName");
+      const replyProfileId =
+        args.replyProfileId === undefined
+          ? undefined
+          : requiredString("send_email", args, "replyProfileId");
+      const replyToName =
+        args.replyToName === undefined
+          ? undefined
+          : requiredString("send_email", args, "replyToName");
       const idempotencyKey =
         args.idempotencyKey === undefined
           ? undefined
@@ -311,6 +332,8 @@ export async function handleAnalyticsAndTransactionalTools(
         );
       }
 
+      validateSendingIdentityArgs("send_email", args);
+
       assertSendRecipientPolicy({
         emailType,
         to,
@@ -358,6 +381,11 @@ export async function handleAnalyticsAndTransactionalTools(
           subscriberExternalId,
           emailType,
           replyTo,
+          senderProfileId,
+          fromEmail,
+          fromName,
+          replyProfileId,
+          replyToName,
           attachments,
           trackingSettings,
         }).filter(([, value]) => value !== undefined)

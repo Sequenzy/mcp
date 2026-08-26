@@ -37,7 +37,17 @@ async function withRequestContext<T>(
   options: CreateSequenzyMcpServerOptions,
   callback: () => Promise<T>
 ): Promise<T> {
-  const context = options.getRequestContext?.(extra) ?? {};
+  const context = options.getRequestContext?.(extra);
+
+  // The stdio server has no per-request context: one process serves one user,
+  // so its company selection lives in the module-level runtime state for the
+  // life of the process. Entering the AsyncLocalStorage scope with an empty
+  // object would shadow that state - `getSelectedCompanyId` branches on the
+  // store existing, not on it holding a selection - so `select_company` would
+  // write into a throwaway object and every later call would read back `null`.
+  if (!context) {
+    return callback();
+  }
 
   try {
     return await withMcpRequestContext(context, callback);

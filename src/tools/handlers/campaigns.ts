@@ -6,6 +6,8 @@ import {
   validateCreateCampaignContentArgs,
   validateCreateTemplateContentArgs,
   validateScheduleCampaignArgs,
+  validateCreateCampaignGoalArgs,
+  validateUpdateCampaignGoalArgs,
   isRecord,
   optionalString,
   requiredString,
@@ -1193,6 +1195,60 @@ export async function handleCampaignTools(
       result = await apiRequest(
         "POST",
         `/api/v1/campaigns/${encodeURIComponent(campaignId)}/resend-to-non-openers`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "list_campaign_goals": {
+      const companyId = args.companyId as string | undefined;
+      const campaignId = requiredString(name, args, "campaignId");
+      result = await apiRequest(
+        "GET",
+        `/api/v1/campaigns/${encodeURIComponent(campaignId)}/goals`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "create_campaign_goal":
+    case "update_campaign_goal": {
+      const companyId = args.companyId as string | undefined;
+      const campaignId = requiredString(name, args, "campaignId");
+      if (name === "create_campaign_goal") {
+        requiredString(name, args, "name");
+        validateCreateCampaignGoalArgs(args);
+      } else {
+        validateUpdateCampaignGoalArgs(args);
+      }
+      const goalId =
+        name === "update_campaign_goal"
+          ? requiredString(name, args, "goalId")
+          : undefined;
+      const body = { ...args };
+      delete body.companyId;
+      delete body.campaignId;
+      delete body.goalId;
+      result = await apiRequest(
+        name === "create_campaign_goal" ? "POST" : "PATCH",
+        `/api/v1/campaigns/${encodeURIComponent(campaignId)}/goals${
+          goalId ? `/${encodeURIComponent(goalId)}` : ""
+        }`,
+        body,
+        companyId
+      );
+      break;
+    }
+
+    case "delete_campaign_goal": {
+      const companyId = args.companyId as string | undefined;
+      const campaignId = requiredString(name, args, "campaignId");
+      const goalId = requiredString(name, args, "goalId");
+      result = await apiRequest(
+        "DELETE",
+        `/api/v1/campaigns/${encodeURIComponent(campaignId)}/goals/${encodeURIComponent(goalId)}`,
         undefined,
         companyId
       );
