@@ -428,6 +428,24 @@ describe("AI generation tools", () => {
 });
 
 describe("tool schema compatibility", () => {
+  it("publishes a human-readable title for every tool", () => {
+    const violations = tools
+      .filter(
+        (tool) =>
+          typeof tool.annotations?.title !== "string" ||
+          tool.annotations.title.trim().length === 0
+      )
+      .map((tool) => tool.name);
+
+    expect(violations).toEqual([]);
+    expect(
+      tools.find((tool) => tool.name === "get_app_urls")?.annotations?.title
+    ).toBe("Get App URLs");
+    expect(
+      tools.find((tool) => tool.name === "create_api_key")?.annotations?.title
+    ).toBe("Create API Key");
+  });
+
   it("publishes required boolean tool annotations", () => {
     const requiredHints = [
       "readOnlyHint",
