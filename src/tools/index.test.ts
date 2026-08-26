@@ -318,6 +318,7 @@ describe("account tools", () => {
     expect(preferencesSchema?.items?.required).toEqual(["event", "mode"]);
     expect(preferencesSchema?.items?.properties?.["event"]?.enum).toEqual([
       "new_subscriber",
+      "form_submitted",
       "campaign_completed",
     ]);
     expect(preferencesSchema?.items?.properties?.["mode"]?.enum).toEqual([
@@ -9046,6 +9047,82 @@ describe("sequence goal tools", () => {
       { triggerType: "event" },
       "comp_123"
     );
+  });
+});
+
+describe("campaign goal tools", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("publishes typed goal CRUD tools", () => {
+    for (const toolName of [
+      "list_campaign_goals",
+      "create_campaign_goal",
+      "update_campaign_goal",
+      "delete_campaign_goal",
+    ]) {
+      const tool = tools.find((candidate) => candidate.name === toolName);
+      expect(tool?.inputSchema.type).toBe("object");
+      expect(tool?.inputSchema.required).toContain("campaignId");
+    }
+    const createTool = tools.find(
+      (candidate) => candidate.name === "create_campaign_goal"
+    );
+    expect(createTool?.inputSchema.properties).toHaveProperty("triggerType");
+    expect(createTool?.inputSchema.properties).toHaveProperty("attributePath");
+    expect(createTool?.inputSchema.properties).toHaveProperty("isActive");
+    expect(
+      createTool?.inputSchema.properties?.["attributionWindowHours"]
+    ).toMatchObject({ type: "integer", minimum: 1, maximum: 720 });
+  });
+
+  it("forwards goal creation and deletion", async () => {
+    mockApiRequest.mockResolvedValue({ success: true, goal: {} });
+    await handleToolCall("create_campaign_goal", {
+      companyId: "comp_123",
+      campaignId: "camp_123",
+      name: "Recipient signed up",
+      triggerType: "event",
+      triggerEventName: "custom.signup",
+      attributionWindowHours: 168,
+      isActive: false,
+    });
+    await handleToolCall("delete_campaign_goal", {
+      companyId: "comp_123",
+      campaignId: "camp_123",
+      goalId: "goal_123",
+    });
+
+    expect(mockApiRequest).toHaveBeenNthCalledWith(
+      1,
+      "POST",
+      "/api/v1/campaigns/camp_123/goals",
+      {
+        name: "Recipient signed up",
+        triggerType: "event",
+        triggerEventName: "custom.signup",
+        attributionWindowHours: 168,
+        isActive: false,
+      },
+      "comp_123"
+    );
+    expect(mockApiRequest).toHaveBeenNthCalledWith(
+      2,
+      "DELETE",
+      "/api/v1/campaigns/camp_123/goals/goal_123",
+      undefined,
+      "comp_123"
+    );
+  });
+
+  it("rejects schema-valid goal creations the API would refuse", async () => {
+    const eventResult = await handleToolCall("create_campaign_goal", {
+      campaignId: "camp_123",
+      name: "Recipient signed up",
+    });
+    expect(eventResult.isError).toBe(true);
+    expect(eventResult.content[0]?.text).toContain("triggerEventName");
   });
 });
 

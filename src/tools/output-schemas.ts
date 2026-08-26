@@ -665,7 +665,7 @@ export const outputPropertiesByToolName: Record<
       "One entry per notification event with its current mode: off, instant, or daily. Every event is always present; an event the user has never configured reports the platform default."
     ),
     supportedModes: objectOutputProperty(
-      "Modes each event accepts, keyed by event. campaign_completed does not accept daily."
+      "Modes each event accepts, keyed by event. form_submitted and campaign_completed do not accept daily."
     ),
     defaults: objectOutputProperty(
       "Mode each event uses when the user has never configured it."
@@ -676,7 +676,7 @@ export const outputPropertiesByToolName: Record<
       "Every notification event with its mode after the update, not only the events that were changed."
     ),
     supportedModes: objectOutputProperty(
-      "Modes each event accepts, keyed by event. campaign_completed does not accept daily."
+      "Modes each event accepts, keyed by event. form_submitted and campaign_completed do not accept daily."
     ),
     defaults: objectOutputProperty(
       "Mode each event uses when the user has never configured it."
@@ -1618,6 +1618,18 @@ export const outputPropertiesByToolName: Record<
   unarchive_sequence: {
     sequence: sequenceOutputProperty,
   },
+  list_campaign_goals: {
+    goals: resourceListOutputProperty("campaign goal"),
+  },
+  create_campaign_goal: {
+    goal: resourceOutputProperty("campaign goal"),
+  },
+  update_campaign_goal: {
+    goal: resourceOutputProperty("campaign goal"),
+  },
+  delete_campaign_goal: {
+    goalId: stringOutputProperty("Deleted campaign goal ID."),
+  },
   list_sequence_goals: {
     goals: resourceListOutputProperty("sequence goal"),
   },
@@ -1871,6 +1883,14 @@ export const outputPropertiesByToolName: Record<
     recommendations: objectOutputProperty(
       "Product recommendation funnel: impressions, recipients, clicks, clickers, orders, legacy revenueCents, currency-safe revenueByCurrency totals, and topProducts (per-product impressions/clicks). Orders count when a subscriber buys a recommended product within 7 days of clicking it. Present only when the campaign rendered product recommendation blocks."
     ),
+    goals: {
+      type: "array",
+      description:
+        "Conversion goals attached to this campaign, in creation order. Each entry has goalId, name, conversions attributed to this campaign, and trackedValue in minor units. Present only when the campaign has attached goals. Zero-conversion goals are included so the report can show the full funnel.",
+      items: objectOutputProperty(
+        "One campaign goal with goalId/name/conversions/trackedValue."
+      ),
+    },
   },
   list_poll_responses: {
     campaignId: stringOutputProperty("Campaign the responses belong to."),

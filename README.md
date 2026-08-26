@@ -10,7 +10,7 @@ Connect Sequenzy to Claude Desktop, Claude Code, Codex, Cursor, Windsurf, VS Cod
 - Sync segments to Meta custom audiences for Facebook and Instagram retargeting.
 - Manage products and attach digital delivery files for purchase automations.
 - Upload hosted email images with alt text and reusable responsive crop settings.
-- Draft, update, schedule, and inspect campaigns, including resolved audience previews and From, Reply-To, CC, and BCC identities.
+- Draft, update, schedule, and inspect campaigns, including resolved audience previews, persisted conversion goals, and From, Reply-To, CC, and BCC identities.
 - Render campaigns, sequence steps, and templates to their exact email-safe HTML without sending.
 - Add one-click Poll and NPS survey blocks to emails and inspect campaign response summaries.
 - Create and edit email sequences, including multi-list/tag triggers, entry-audience and property-filtered stop conditions, sending identity overrides, existing graph restructuring, and direct step test sends to internal reviewers.
@@ -250,7 +250,7 @@ build a list as well as create it. Imports that apply `listIds` also need
 
 ## Tools
 
-This server currently exposes 224 MCP tools.
+This server currently exposes 231 MCP tools.
 
 Tools reject arguments they do not declare instead of silently ignoring them.
 Errors name the unsupported fields, list the supported arguments, and provide
@@ -675,6 +675,10 @@ Use `get_ab_test` to copy the effective `settings` object and discover variant I
 | `list_campaigns`                 | List paginated campaigns by status or label, including reviewer feedback and delivery-pacing fields for account-wide STO audits. |
 | `get_campaign`                   | Get details, stats, reviewer feedback, and recorded delivery pacing for a campaign.                                              |
 | `get_campaign_audience`          | Resolve saved targeting, missing references, a plain-language summary, and live recipient count.                                 |
+| `list_campaign_goals`            | List the conversion goals persisted for one email campaign (SMS is unsupported).                                               |
+| `create_campaign_goal`           | Add an event, subscriber-attribute, or tag-applied email-campaign conversion goal.                                             |
+| `update_campaign_goal`           | Update a persisted email-campaign conversion goal.                                                                             |
+| `delete_campaign_goal`           | Delete a persisted email-campaign conversion goal.                                                                             |
 | `list_email_sends`               | Search recent delivery history with resource IDs and URLs, optionally scoped to one sequence step.                               |
 | `get_email_send`                 | Inspect a queued, test, sent, suppressed, or failed delivery by durable email-send ID.                                           |
 | `list_recipient_suppressions`    | List associated suppressed recipients, including protected global invalid addresses and complaints.                              |
@@ -696,6 +700,13 @@ Prompt-created campaigns are generated and persisted in one API request and
 remain drafts. Use `templateId`, `blocks`, or `html` only when copying or
 preserving existing content rather than asking the agent to author it. Omit all
 content fields to create an empty draft for later editing.
+
+Campaign goals credit recipients who were actually sent that campaign within
+the configured attribution window; an open or click remains the stronger
+last-touch signal when one exists. Event goals require `triggerEventName`,
+subscriber-attribute goals require `attributePath`, and tag-applied goals
+require `triggerTagName`. The campaign attribution window defaults to 168
+hours when omitted.
 
 To deliver at the same wall-clock time in every recipient's own timezone, call
 `schedule_campaign` with `sendInRecipientTimezone: true` and an IANA
@@ -920,8 +931,8 @@ propagate.
 | `duplicate_sequence`                     | Create an independent draft copy of the graph, emails, and sequence A/B tests.                                                                              |
 | `archive_sequence`                       | Move a sequence into the dashboard archive and stop new enrollments.                                                                                        |
 | `unarchive_sequence`                     | Restore an archived sequence as a disabled draft.                                                                                                           |
-| `list_sequence_goals`                    | List the conversion goals persisted for a sequence.                                                                                                         |
-| `create_sequence_goal`                   | Add an event or subscriber-attribute conversion goal.                                                                                                       |
+| `list_sequence_goals`                    | List the event, subscriber-attribute, and tag-applied conversion goals persisted for a sequence.                                                            |
+| `create_sequence_goal`                   | Add an event, subscriber-attribute, or tag-applied conversion goal.                                                                                          |
 | `update_sequence_goal`                   | Update a persisted sequence conversion goal.                                                                                                                |
 | `delete_sequence_goal`                   | Delete a persisted sequence conversion goal.                                                                                                                |
 | `get_sequence_inbound_webhook`           | Read the endpoint and setup state for an inbound-webhook sequence.                                                                                          |
@@ -1186,7 +1197,7 @@ arguments when retrying; the key remains valid for 14 days.
 | ------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | `get_stats`               | Get overview stats for `7d`, `30d`, or `90d`; filter by structural email type.                                 |
 | `get_transactional_stats` | Get all-time or time-scoped metrics for one saved transactional email by ID or slug.                           |
-| `get_campaign_stats`      | Get campaign performance, reply metrics, and Poll/NPS summaries.                                               |
+| `get_campaign_stats`      | Get campaign performance, reply metrics, attached conversion goals, and Poll/NPS summaries.                    |
 | `list_poll_responses`     | List each respondent's latest Poll/NPS answer per block, with identity and response time.                      |
 | `get_sequence_stats`      | Get aggregate and per-step sequence performance plus live active/waiting enrollment counts by current node.    |
 | `list_email_metrics`      | Compare campaign and sequence-step funnels, replies, conversions, and revenue, including cross-sequence steps. |

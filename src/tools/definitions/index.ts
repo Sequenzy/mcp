@@ -5,6 +5,7 @@ import { accountToolDefinitions } from "./account.js";
 import { aiGenerationToolDefinitions } from "./ai-generation.js";
 import { analyticsToolDefinitions } from "./analytics.js";
 import { audienceSyncToolDefinitions } from "./audience-syncs.js";
+import { campaignGoalToolDefinitions } from "./campaign-goals.js";
 import { campaignToolDefinitions } from "./campaigns.js";
 import { emailBlockToolDefinitions } from "./email-blocks.js";
 import { emailComponentToolDefinitions } from "./email-components.js";
@@ -45,6 +46,7 @@ export const toolDefinitions: Tool[] = [
   ...emailComponentToolDefinitions,
   ...abTestToolDefinitions,
   ...campaignToolDefinitions,
+  ...campaignGoalToolDefinitions,
   ...renderToolDefinitions,
   ...savedFormToolDefinitions,
   ...savedPopupToolDefinitions,

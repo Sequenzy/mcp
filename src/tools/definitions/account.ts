@@ -965,7 +965,7 @@ Requires the companies:manage scope and owner or admin access to the company.`,
   {
     name: "get_notification_preferences",
     description:
-      "Get the account notification settings for the API key's own user in this company: whether Sequenzy emails them when a new subscriber joins and when a campaign finishes sending, and whether each arrives per-occurrence or as a daily summary. Returns the supported modes and platform defaults alongside the current values. These are per-person settings - this never reads a teammate's preferences.",
+      "Get the account notification settings for the API key's own user in this company: whether Sequenzy emails them when a new subscriber joins, when a form is submitted, and when a campaign finishes sending, and whether each arrives per-occurrence or as a daily summary. Instant form-submission notifications stop after 50 per workspace per UTC day. Returns the supported modes and platform defaults alongside the current values. These are per-person settings - this never reads a teammate's preferences.",
     inputSchema: {
       type: "object",
       properties: {
@@ -980,7 +980,7 @@ Requires the companies:manage scope and owner or admin access to the company.`,
   {
     name: "update_notification_preferences",
     description:
-      "Change which account notifications Sequenzy emails the API key's own user for this company. Requires the companies:manage scope. Useful before a bulk import or a large migration, when per-signup notifications would otherwise flood the inbox. Modes are 'off', 'instant' (one email per occurrence), and 'daily' (one summary per day); 'daily' is only valid for new_subscriber, because a campaign finishes once. New-subscriber notifications already fall back to a daily summary automatically on high-volume days, and imports never trigger them at all.",
+      "Change which account notifications Sequenzy emails the API key's own user for this company. Requires the companies:manage scope. Useful before a bulk import or a large migration, when per-signup notifications would otherwise flood the inbox. Modes are 'off', 'instant' (one email per occurrence), and 'daily' (one summary per day); 'daily' is only valid for new_subscriber, because a campaign finishes once and each form submit is its own lead. Instant form-submission notifications stop after 50 per workspace per UTC day. New-subscriber notifications already fall back to a daily summary automatically on high-volume days, and imports never trigger them at all.",
     inputSchema: {
       type: "object",
       properties: {
@@ -998,14 +998,18 @@ Requires the companies:manage scope and owner or admin access to the company.`,
             properties: {
               event: {
                 type: "string",
-                enum: ["new_subscriber", "campaign_completed"],
+                enum: [
+                  "new_subscriber",
+                  "form_submitted",
+                  "campaign_completed",
+                ],
                 description: "Which notification to configure.",
               },
               mode: {
                 type: "string",
                 enum: ["off", "instant", "daily"],
                 description:
-                  "How to receive it. 'daily' is not supported for campaign_completed.",
+                  "How to receive it. 'daily' is not supported for form_submitted or campaign_completed.",
               },
             },
             required: ["event", "mode"],
