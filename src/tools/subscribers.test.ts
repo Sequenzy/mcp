@@ -1370,6 +1370,269 @@ describe("subscriber MCP tools", () => {
     );
   });
 
+  it("imports events for many subscribers in one call", async () => {
+    mockApiRequest.mockImplementation(async () => ({
+      success: true,
+      total: 2,
+      recorded: 2,
+      duplicates: 0,
+      failed: 0,
+      subscribers: 2,
+    }));
+
+    await handleToolCall("import_subscriber_events", {
+      events: [
+        {
+          email: "one@example.com",
+          name: "purchase_completed",
+          eventId: "order_1",
+          occurredAt: "2026-08-01T12:00:00Z",
+        },
+        {
+          externalId: "user_42",
+          name: "purchase_completed",
+          eventId: "order_2",
+        },
+      ],
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/subscribers/events/imports",
+      {
+        events: [
+          {
+            email: "one@example.com",
+            name: "purchase_completed",
+            eventId: "order_1",
+            occurredAt: "2026-08-01T12:00:00Z",
+          },
+          {
+            externalId: "user_42",
+            name: "purchase_completed",
+            eventId: "order_2",
+          },
+        ],
+      },
+      undefined
+    );
+  });
+
+  it("preserves structured recovery details for a partial events import", async () => {
+    const partialResult = {
+      success: false,
+      total: 2,
+      recorded: 1,
+      duplicates: 0,
+      failed: 1,
+      subscribers: 2,
+      failures: [{ index: 1, error: "identity conflict" }],
+      error: "identity conflict",
+    };
+    mockApiRequest.mockResolvedValueOnce(partialResult);
+
+    const result = await handleToolCall("import_subscriber_events", {
+      events: [
+        { email: "one@example.com", name: "purchase", eventId: "event-1" },
+        { email: "two@example.com", name: "purchase", eventId: "event-2" },
+      ],
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.structuredContent).toEqual(partialResult);
+    expect(result.content[0]?.text).toContain('"failed": 1');
+    expect(result.content[0]?.text).toContain('"index": 1');
+  });
+
+  it("preserves structured recovery details for post-write side-effect failures", async () => {
+    const partialResult = {
+      success: false,
+      total: 1,
+      recorded: 1,
+      duplicates: 0,
+      failed: 0,
+      sideEffectFailed: 1,
+      subscribers: 1,
+      sideEffectFailures: [{ index: 0, stages: ["automation-triggering"] }],
+      error:
+        "One or more events were recorded, but downstream side effects failed.",
+    };
+    mockApiRequest.mockResolvedValueOnce(partialResult);
+
+    const result = await handleToolCall("import_subscriber_events", {
+      events: [
+        { email: "one@example.com", name: "purchase", eventId: "event-1" },
+      ],
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.structuredContent).toEqual(partialResult);
+    expect(result.content[0]?.text).toContain('"sideEffectFailed": 1');
+  });
+
+  it("accepts and forwards warehouse nulls in event imports", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      total: 1,
+      recorded: 1,
+      duplicates: 0,
+      failed: 0,
+      sideEffectFailed: 0,
+      subscribers: 1,
+    });
+    const events = [
+      {
+        email: null,
+        externalId: "user-1",
+        name: "purchase",
+        occurredAt: null,
+        eventId: "event-1",
+      },
+    ];
+
+    await handleToolCall("import_subscriber_events", { events });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/subscribers/events/imports",
+      { events },
+      undefined
+    );
+  });
+
+  it("publishes nullable warehouse fields in the event import schema", () => {
+    const tool = tools.find(
+      (candidate) => candidate.name === "import_subscriber_events"
+    );
+    const schema = tool?.inputSchema as {
+      properties?: {
+        events?: {
+          items?: {
+            properties?: Record<
+              string,
+              { type?: unknown; description?: string }
+            >;
+          };
+        };
+      };
+    };
+    const eventProperties = schema.properties?.events?.items?.properties;
+
+    expect(eventProperties?.["email"]?.type).toEqual(["string", "null"]);
+    expect(eventProperties?.["externalId"]?.type).toEqual(["string", "null"]);
+    expect(eventProperties?.["occurredAt"]?.type).toEqual(["string", "null"]);
+    expect(tool?.description).toContain(
+      "externalId-only rows must identify an existing contact"
+    );
+    expect(tool?.description).toContain("whole group live");
+    expect(eventProperties?.["occurredAt"]?.description).toContain(
+      "every row for that contact"
+    );
+    expect(tool?.outputSchema?.properties?.["sideEffectFailed"]).toMatchObject({
+      description: expect.stringContaining("orthogonal to receipt accounting"),
+    });
+  });
+
+  it("keeps request-level events import failures on the MCP error path", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: false,
+      error: "request failed",
+    });
+
+    const result = await handleToolCall("import_subscriber_events", {
+      events: [
+        { email: "one@example.com", name: "purchase", eventId: "event-1" },
+      ],
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.structuredContent).toBeUndefined();
+    expect(result.content[0]?.text).toContain("request failed");
+  });
+
+  it("rejects an events import row without identity before calling the API", async () => {
+    const result = await handleToolCall("import_subscriber_events", {
+      events: [{ name: "purchase_completed", eventId: "event-1" }],
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "must include an `email` or an `externalId`"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects an events import row without eventId before calling the API", async () => {
+    const result = await handleToolCall("import_subscriber_events", {
+      events: [{ email: "one@example.com", name: "purchase_completed" }],
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("non-empty `eventId`");
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects more than 25 imported events before calling the API", async () => {
+    const result = await handleToolCall("import_subscriber_events", {
+      events: Array.from({ length: 26 }, (_value, index) => ({
+        email: `contact-${index}@example.com`,
+        name: "purchase",
+        eventId: `event-${index}`,
+      })),
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("at most 25 events");
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("accepts exactly 25 retry-safe imported events", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      total: 25,
+      recorded: 25,
+      duplicates: 0,
+      failed: 0,
+      subscribers: 25,
+    });
+    const events = Array.from({ length: 25 }, (_value, index) => ({
+      email: `contact-${index}@example.com`,
+      name: "purchase",
+      eventId: `event-${index}`,
+    }));
+
+    const result = await handleToolCall("import_subscriber_events", { events });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/subscribers/events/imports",
+      { events },
+      undefined
+    );
+  });
+
+  it("passes the import idempotency key through", async () => {
+    mockApiRequest.mockImplementation(async () => ({
+      success: true,
+      import: { id: "import-1" },
+    }));
+
+    await handleToolCall("create_subscriber_import", {
+      subscribers: [{ email: "one@example.com" }],
+      idempotencyKey: "nightly-sync-2026-08-25",
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/subscribers/imports",
+      expect.objectContaining({
+        idempotencyKey: "nightly-sync-2026-08-25",
+      }),
+      undefined
+    );
+  });
+
   it("posts a bulk tag add with only the identifier lists that were provided", async () => {
     mockApiRequest.mockImplementation(async () => ({ success: true }));
 

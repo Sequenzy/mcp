@@ -2,7 +2,11 @@ import type { CallToolResult, Tool } from "@modelcontextprotocol/sdk/types.js";
 
 import { isRecord } from "./common-primitives.js";
 import { dashboardUrlToolNames } from "./delivery-and-urls.js";
-import { pollRespondentFilterHint } from "./descriptions.js";
+import {
+  campaignStoOutputHint,
+  pollRespondentFilterHint,
+} from "./descriptions.js";
+
 export type ToolOutputSchema = NonNullable<Tool["outputSchema"]>;
 export type SequenzyToolCallResult = CallToolResult & {
   content: Array<{ type: "text"; text: string }>;
@@ -184,7 +188,7 @@ const SEQUENCE_STEP_NUMBER_HINT =
 
 export const sequenceOutputProperty: OutputSchemaProperty =
   objectOutputProperty(
-    `The sequence record returned by Sequenzy. ${SEQUENCE_RUN_STATE_HINT} ${SEQUENCE_STEP_NUMBER_HINT}`
+    `The sequence record returned by Sequenzy. ${SEQUENCE_RUN_STATE_HINT} ${SEQUENCE_STEP_NUMBER_HINT} Sequences use sendingWindow for allowed local hours/days; they do not have Send Time Optimization. STO is per-campaign (list_campaigns / get_campaign sendTimeOptimization).`
   );
 
 export const sequenceListOutputProperty: OutputSchemaProperty =
@@ -800,6 +804,9 @@ export const outputPropertiesByToolName: Record<
   },
   create_subscriber_import: {
     import: objectOutputProperty(SUBSCRIBER_IMPORT_HINT),
+    deduplicated: booleanOutputProperty(
+      "Present and true when idempotencyKey matched an already-queued import. Nothing new was queued; `import` is the original import."
+    ),
   },
   get_subscriber_import: {
     import: objectOutputProperty(SUBSCRIBER_IMPORT_HINT),
@@ -856,6 +863,55 @@ export const outputPropertiesByToolName: Record<
   trigger_subscriber_events: {
     subscriber: resourceOutputProperty("subscriber"),
     events: resourceListOutputProperty("recorded event"),
+  },
+  import_subscriber_events: {
+    total: numberOutputProperty("Events submitted in this request."),
+    recorded: numberOutputProperty("Events recorded by this request."),
+    duplicates: numberOutputProperty(
+      "Events skipped because their eventId was already recorded."
+    ),
+    failed: numberOutputProperty("Events that failed to record."),
+    sideEffectFailed: numberOutputProperty(
+      "Receipt rows whose downstream side effects or historical automation shielding failed. This is orthogonal to receipt accounting and may accompany either a newly recorded or duplicate row during recovery."
+    ),
+    subscribers: numberOutputProperty(
+      "Distinct subscriber identities in the request."
+    ),
+    failures: {
+      type: "array",
+      description:
+        "Failed events by input index. Recorded events are kept, so treat an error as partial success and retry with the same eventIds.",
+      items: {
+        type: "object",
+        description: "One failed event.",
+        properties: {
+          index: numberOutputProperty("Index into the submitted events array."),
+          error: stringOutputProperty("Why this event failed."),
+        },
+      },
+    },
+    sideEffectFailures: {
+      type: "array",
+      description:
+        "Post-write failures by input index. The receipt exists (new or duplicate); use the stages and optional error for recovery, then retry with the same eventId.",
+      items: {
+        type: "object",
+        description:
+          "One event receipt (new or duplicate) with failed downstream work.",
+        properties: {
+          index: numberOutputProperty("Index into the submitted events array."),
+          stages: {
+            type: "array",
+            description: "Downstream stages that failed.",
+            items: { type: "string", description: "Failed stage name." },
+          },
+          error: stringOutputProperty("Optional recovery guidance."),
+        },
+      },
+    },
+    error: stringOutputProperty(
+      "The first row-level failure message when any event failed."
+    ),
   },
   bulk_add_subscriber_tags: {
     tags: {
@@ -1101,13 +1157,17 @@ export const outputPropertiesByToolName: Record<
     abTestId: stringOutputProperty("Deleted A/B test ID."),
   },
   list_campaigns: {
-    campaigns: resourceListOutputProperty("campaign"),
+    campaigns: arrayOutputProperty(
+      `List of campaign records returned by Sequenzy. ${campaignStoOutputHint}`
+    ),
     pagination: objectOutputProperty(
       "Campaign page window: `limit`, `offset`, `count` returned in this page, `total` matching the filters, and `hasMore`. Keep calling with an advanced `offset` while `hasMore` is true to enumerate every campaign."
     ),
   },
   get_campaign: {
-    campaign: resourceOutputProperty("campaign"),
+    campaign: objectOutputProperty(
+      `The campaign record returned by Sequenzy. ${campaignStoOutputHint}`
+    ),
   },
   get_campaign_audience: {
     campaignId: stringOutputProperty("Campaign the audience was resolved for."),

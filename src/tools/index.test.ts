@@ -221,19 +221,19 @@ describe("account tools", () => {
     const tool = tools.find(
       (candidate) => candidate.name === "update_shopify_automation_settings"
     );
-    const properties = tool?.inputSchema.properties as
-      | Record<string, { properties?: Record<string, Record<string, unknown>> }>
-      | undefined;
+    const properties = tool?.inputSchema.properties;
 
-    expect(
-      properties?.["cartAbandonment"]?.properties?.["delayHours"]
-    ).toMatchObject({ type: "number", exclusiveMinimum: 0, maximum: 168 });
-    expect(
-      properties?.["cartAbandonment"]?.properties?.["cooldownHours"]
-    ).toMatchObject({ type: "number", exclusiveMinimum: 0, maximum: 720 });
-    expect(properties?.["priceDrop"]?.properties?.["minPercent"]).toMatchObject(
-      { type: "number", exclusiveMinimum: 0, maximum: 95 }
-    );
+    expect(properties?.["cartAbandonment"]).toMatchObject({
+      properties: {
+        delayHours: { type: "number", exclusiveMinimum: 0, maximum: 168 },
+        cooldownHours: { type: "number", exclusiveMinimum: 0, maximum: 720 },
+      },
+    });
+    expect(properties?.["priceDrop"]).toMatchObject({
+      properties: {
+        minPercent: { type: "number", exclusiveMinimum: 0, maximum: 95 },
+      },
+    });
   });
 
   it("reads per-user notification preferences for the selected company", async () => {
@@ -429,6 +429,24 @@ describe("AI generation tools", () => {
 });
 
 describe("tool schema compatibility", () => {
+  it("publishes a human-readable title for every tool", () => {
+    const violations = tools
+      .filter(
+        (tool) =>
+          typeof tool.annotations?.title !== "string" ||
+          tool.annotations.title.trim().length === 0
+      )
+      .map((tool) => tool.name);
+
+    expect(violations).toEqual([]);
+    expect(
+      tools.find((tool) => tool.name === "get_app_urls")?.annotations?.title
+    ).toBe("Get App URLs");
+    expect(
+      tools.find((tool) => tool.name === "create_api_key")?.annotations?.title
+    ).toBe("Create API Key");
+  });
+
   it("publishes required boolean tool annotations", () => {
     const requiredHints = [
       "readOnlyHint",
@@ -608,13 +626,13 @@ describe("create_api_key tool schema", () => {
     const tool = tools.find((candidate) => candidate.name === "create_api_key");
     expect(tool).toBeDefined();
 
-    const properties = tool?.inputSchema.properties as
-      | Record<string, { type?: string; items?: { type?: string } }>
-      | undefined;
+    const properties = tool?.inputSchema.properties;
 
-    expect(properties?.["preset"]?.type).toBe("string");
-    expect(properties?.["scopes"]?.type).toBe("array");
-    expect(properties?.["scopes"]?.items?.type).toBe("string");
+    expect(properties?.["preset"]).toMatchObject({ type: "string" });
+    expect(properties?.["scopes"]).toMatchObject({
+      type: "array",
+      items: { type: "string" },
+    });
     expect(tool?.inputSchema.required).toEqual(["companyId"]);
   });
 
@@ -1669,6 +1687,9 @@ describe("update_company tool validation", () => {
     expect(getCompanyTool?.description).toContain("update_company");
     expect(getCompanyTool?.description).toContain(
       "PostHog history imports are different"
+    );
+    expect(getCompanyTool?.description).toContain(
+      "Send Time Optimization is not a company or sequence setting"
     );
     expect(setTargetingTool?.description).toContain("Dodo Payments");
     expect(setTargetingTool?.description).toContain("PostHog");
@@ -3123,21 +3144,23 @@ describe("transactional email tools", () => {
     expect(inputSchema?.properties).toHaveProperty("idempotencyKey");
     expect(inputSchema?.properties).toHaveProperty("attachments");
     expect(inputSchema?.properties).toHaveProperty("trackingSettings");
-    const trackingSettingsSchema = properties?.["trackingSettings"] as
-      | {
-          description?: string;
-          properties?: Record<string, { description?: string }>;
-        }
-      | undefined;
-    expect(trackingSettingsSchema?.description).toContain(
-      "cannot enable tracking the account has disabled"
-    );
-    expect(
-      trackingSettingsSchema?.properties?.["clickTracking"]?.description
-    ).toContain("skip click-link rewriting for this send only");
-    expect(
-      trackingSettingsSchema?.properties?.["openTracking"]?.description
-    ).toContain("skip the open-tracking pixel for this send only");
+    expect(properties?.["trackingSettings"]).toMatchObject({
+      description: expect.stringContaining(
+        "cannot enable tracking the account has disabled"
+      ),
+      properties: {
+        clickTracking: {
+          description: expect.stringContaining(
+            "skip click-link rewriting for this send only"
+          ),
+        },
+        openTracking: {
+          description: expect.stringContaining(
+            "skip the open-tracking pixel for this send only"
+          ),
+        },
+      },
+    });
     expect(sendEmailTool?.outputSchema?.properties).toHaveProperty("emailType");
     expect(sendEmailTool?.description).toContain(
       "saved first and last names fill omitted name variables"
@@ -4181,6 +4204,9 @@ describe("update_campaign tool validation", () => {
     expect(inputSchema?.properties).toHaveProperty("targetLists");
     expect(inputSchema?.properties).toHaveProperty("segmentId");
     expect(inputSchema?.properties).toHaveProperty("labels");
+    expect(inputSchema?.properties).toHaveProperty("sendTimeOptimization");
+    expect(inputSchema?.properties).toHaveProperty("sendTimeWindowHours");
+    expect(updateCampaignTool?.description).toContain("campaign-only");
   });
 
   it("forwards an update_campaign audience change to the API", async () => {
@@ -4275,6 +4301,10 @@ describe("update_campaign tool validation", () => {
     expect(scheduleCampaignTool?.description).toContain(
       "at least one audience include rule"
     );
+    expect(scheduleCampaignTool?.description).toContain(
+      "Send Time Optimization"
+    );
+    expect(scheduleCampaignTool?.description).toContain("campaign-only");
     expect(inputSchema?.required).toEqual(["campaignId", "scheduledAt"]);
     expect(inputSchema?.additionalProperties).toBe(false);
     expect(inputSchema?.properties).toHaveProperty("targetLists");
@@ -4297,7 +4327,22 @@ describe("update_campaign tool validation", () => {
     expect(targetListsSchema?.properties).toHaveProperty("listIds");
     expect(inputSchema?.properties).toHaveProperty("listIds");
     expect(inputSchema?.properties).toHaveProperty("sendTimeOptimization");
+    expect(inputSchema?.properties).toHaveProperty("sendTimeWindowHours");
     expect(inputSchema?.properties).toHaveProperty("spreadOverHours");
+    expect(
+      (
+        inputSchema?.properties?.["sendTimeOptimization"] as
+          | { description?: string }
+          | undefined
+      )?.description
+    ).toContain("Campaign-only");
+    expect(
+      (
+        inputSchema?.properties?.["sendTimeWindowHours"] as
+          | { description?: string }
+          | undefined
+      )?.description
+    ).toContain("1-24");
   });
 
   it("rejects update_campaign calls that omit all supported update fields", async () => {
@@ -4307,7 +4352,7 @@ describe("update_campaign tool validation", () => {
 
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain(
-      "Provide at least one campaign content, sending identity"
+      "Provide at least one campaign content, sending identity, campaign data, computed list, audience, label, or delivery pacing field"
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
   });
@@ -4548,6 +4593,48 @@ describe("update_campaign tool validation", () => {
     );
   });
 
+  it("forwards sendTimeOptimization as the only update_campaign field", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      campaign: {
+        id: "camp_123",
+        sendTimeOptimization: true,
+        sendTimeWindowHours: 6,
+      },
+    });
+
+    const result = await handleToolCall("update_campaign", {
+      campaignId: "camp_123",
+      sendTimeOptimization: true,
+      sendTimeWindowHours: 6,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/campaigns/camp_123",
+      {
+        campaignId: "camp_123",
+        sendTimeOptimization: true,
+        sendTimeWindowHours: 6,
+      },
+      undefined
+    );
+  });
+
+  it("rejects an out-of-range sendTimeWindowHours on update_campaign", async () => {
+    const result = await handleToolCall("update_campaign", {
+      campaignId: "camp_123",
+      sendTimeWindowHours: 25,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`sendTimeWindowHours` must be an integer between 1 and 24"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
   it("calls the schedule campaign API with supported fields", async () => {
     mockApiRequest.mockResolvedValueOnce({
       success: true,
@@ -4591,6 +4678,55 @@ describe("update_campaign tool validation", () => {
       "https://sequenzy.com/dashboard/company/comp_123/campaign/camp_123?step=review"
     );
     expect(payload.appUrls.campaignPreview).toBe(payload.campaign.previewUrl);
+  });
+
+  it("forwards sendTimeOptimization and sendTimeWindowHours to schedule_campaign", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      campaign: {
+        id: "camp_123",
+        name: "Launch",
+        subject: "Hello",
+        status: "scheduled",
+        sendTimeOptimization: true,
+        sendTimeWindowHours: 8,
+      },
+      scheduledAt: "2026-06-01T14:00:00.000Z",
+    });
+
+    const result = await handleToolCall("schedule_campaign", {
+      companyId: "comp_123",
+      campaignId: "camp_123",
+      scheduledAt: "2026-06-01T14:00:00Z",
+      sendTimeOptimization: true,
+      sendTimeWindowHours: 8,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/campaigns/camp_123/schedule",
+      {
+        scheduledAt: "2026-06-01T14:00:00Z",
+        sendTimeOptimization: true,
+        sendTimeWindowHours: 8,
+      },
+      "comp_123"
+    );
+  });
+
+  it("rejects an out-of-range sendTimeWindowHours on schedule_campaign", async () => {
+    const result = await handleToolCall("schedule_campaign", {
+      campaignId: "camp_123",
+      scheduledAt: "2026-06-01T14:00:00Z",
+      sendTimeWindowHours: 0,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`sendTimeWindowHours` must be an integer between 1 and 24"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
   it("forwards rules audience targeting to the schedule endpoint", async () => {
@@ -4999,6 +5135,14 @@ describe("label list filters", () => {
     expect(inputProperties).toHaveProperty("limit");
     expect(inputProperties).toHaveProperty("offset");
     expect(tool?.outputSchema?.properties).toHaveProperty("pagination");
+    expect(tool?.description).toContain("sendTimeOptimization");
+    expect(
+      (
+        tool?.outputSchema?.properties?.["campaigns"] as
+          | { description?: string }
+          | undefined
+      )?.description
+    ).toContain("Send Time Optimization");
   });
 
   it("returns the pagination window from campaign list results", async () => {
@@ -7632,6 +7776,9 @@ describe("sequence node update tools", () => {
     expect(
       tools.find((tool) => tool.name === "get_sequence")?.description
     ).toContain("emailPreset");
+    expect(
+      tools.find((tool) => tool.name === "get_sequence")?.description
+    ).toContain("Send Time Optimization is not a company or sequence setting");
     expect(
       (changesSchema?.properties?.["emailPreset"] as { description?: string })
         .description
@@ -11910,6 +12057,7 @@ describe("outbound webhook tools", () => {
       events: [
         "email.delivered",
         "email.replied",
+        "campaign.sent",
         "subscriber.unsubscribed",
         "subscriber.list_subscribed",
         "subscriber.list_unsubscribed",
@@ -11926,6 +12074,7 @@ describe("outbound webhook tools", () => {
         events: [
           "email.delivered",
           "email.replied",
+          "campaign.sent",
           "subscriber.unsubscribed",
           "subscriber.list_subscribed",
           "subscriber.list_unsubscribed",
@@ -11944,7 +12093,7 @@ describe("outbound webhook tools", () => {
     const result = await handleToolCall("create_webhook", {
       name: "Prod",
       url: "https://example.com/webhooks/sequenzy",
-      events: ["email.delivered", "campaign.sent"],
+      events: ["email.delivered", "campaign.exploded"],
     });
 
     expect(result.isError).toBe(true);

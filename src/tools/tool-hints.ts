@@ -130,6 +130,7 @@ export const MUTATING_TOOL_NAMES = new Set([
   "delete_subscriber_note",
   "trigger_subscriber_event",
   "trigger_subscriber_events",
+  "import_subscriber_events",
   "bulk_add_subscriber_tags",
   "bulk_remove_subscriber_tags",
   "upsert_products",
@@ -357,11 +358,38 @@ export function getRequiredToolHints(toolName: string): RequiredToolHints {
   };
 }
 
+const TOOL_TITLE_ACRONYMS: Record<string, string> = {
+  ab: "A/B",
+  ai: "AI",
+  api: "API",
+  html: "HTML",
+  id: "ID",
+  mcp: "MCP",
+  nps: "NPS",
+  sms: "SMS",
+  url: "URL",
+  urls: "URLs",
+  utm: "UTM",
+};
+
+function getToolTitle(toolName: string): string {
+  return toolName
+    .split("_")
+    .filter(Boolean)
+    .map(
+      (part) =>
+        TOOL_TITLE_ACRONYMS[part] ??
+        part.charAt(0).toUpperCase() + part.slice(1)
+    )
+    .join(" ");
+}
+
 export function withRequiredToolHints(tool: Tool): Tool {
   return {
     ...tool,
     annotations: {
       ...tool.annotations,
+      title: tool.annotations?.title ?? getToolTitle(tool.name),
       ...getRequiredToolHints(tool.name),
     },
   };

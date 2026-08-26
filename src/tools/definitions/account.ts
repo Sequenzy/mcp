@@ -1,6 +1,9 @@
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 
-import { emailThemePatchProperties } from "../internal.js";
+import {
+  campaignStoNotCompanyOrSequenceHint,
+  emailThemePatchProperties,
+} from "../internal.js";
 
 export const accountToolDefinitions: Tool[] = [
   // ============================================================================
@@ -112,8 +115,9 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   },
   {
     name: "get_company",
-    description:
-      "Get company details, processing status, product info, brand colors, AI writing context, reply-tracking settings, effective email localization settings, and defaultSubscriberListIds - the workspace default lists new contacts join when nothing targets them explicitly. A JSON null means every current and future list, not an empty selection; [] means no list at all; an array means exactly those lists. Change it with update_company. Read it before connecting an integration whose provider has no per-integration list targeting (Dodo Payments, PostHog, Polar, Paddle, and similar), because its live contacts and payment-provider backfills land there. PostHog history imports are different: contacts created by that import have no list memberships.",
+    description: `Get company details, processing status, product info, brand colors, AI writing context, reply-tracking settings, effective email localization settings, and defaultSubscriberListIds - the workspace default lists new contacts join when nothing targets them explicitly. A JSON null means every current and future list, not an empty selection; [] means no list at all; an array means exactly those lists. Change it with update_company. Read it before connecting an integration whose provider has no per-integration list targeting (Dodo Payments, PostHog, Polar, Paddle, and similar), because its live contacts and payment-provider backfills land there. PostHog history imports are different: contacts created by that import have no list memberships. ${
+      campaignStoNotCompanyOrSequenceHint
+    }`,
     inputSchema: {
       type: "object",
       properties: {

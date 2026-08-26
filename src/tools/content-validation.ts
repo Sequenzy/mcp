@@ -76,6 +76,33 @@ export function validateCreateTemplateContentArgs(
   }
 }
 
+export function validateCampaignDeliveryPacingArgs(
+  toolName: "update_campaign" | "schedule_campaign",
+  args: Record<string, unknown>
+): void {
+  if (
+    args.sendTimeOptimization !== undefined &&
+    typeof args.sendTimeOptimization !== "boolean"
+  ) {
+    throw new Error(
+      `\`sendTimeOptimization\` must be a boolean when calling \`${toolName}\`.`
+    );
+  }
+
+  if (args.sendTimeWindowHours !== undefined) {
+    if (
+      typeof args.sendTimeWindowHours !== "number" ||
+      !Number.isInteger(args.sendTimeWindowHours) ||
+      args.sendTimeWindowHours < 1 ||
+      args.sendTimeWindowHours > 24
+    ) {
+      throw new Error(
+        `\`sendTimeWindowHours\` must be an integer between 1 and 24 when calling \`${toolName}\`.`
+      );
+    }
+  }
+}
+
 export function validateScheduleCampaignArgs(
   args: Record<string, unknown>
 ): void {
@@ -108,13 +135,7 @@ export function validateScheduleCampaignArgs(
     );
   }
 
-  if (args.sendTimeOptimization !== undefined) {
-    if (typeof args.sendTimeOptimization !== "boolean") {
-      throw new Error(
-        "`sendTimeOptimization` must be a boolean when calling `schedule_campaign`."
-      );
-    }
-  }
+  validateCampaignDeliveryPacingArgs("schedule_campaign", args);
 
   if (args.spreadOverHours !== undefined) {
     if (
