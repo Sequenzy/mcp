@@ -11962,6 +11962,7 @@ describe("outbound webhook tools", () => {
       events: [
         "email.delivered",
         "email.replied",
+        "campaign.sent",
         "subscriber.unsubscribed",
         "subscriber.list_subscribed",
         "subscriber.list_unsubscribed",
@@ -11978,6 +11979,7 @@ describe("outbound webhook tools", () => {
         events: [
           "email.delivered",
           "email.replied",
+          "campaign.sent",
           "subscriber.unsubscribed",
           "subscriber.list_subscribed",
           "subscriber.list_unsubscribed",
@@ -11996,7 +11998,7 @@ describe("outbound webhook tools", () => {
     const result = await handleToolCall("create_webhook", {
       name: "Prod",
       url: "https://example.com/webhooks/sequenzy",
-      events: ["email.delivered", "campaign.sent"],
+      events: ["email.delivered", "campaign.exploded"],
     });
 
     expect(result.isError).toBe(true);
