@@ -405,19 +405,20 @@ abandonment or price-drop settings. Timing values must be positive;
 
 ### Subscribers
 
-| Tool                          | Description                                                                                                    |
-| ----------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `add_subscriber`              | Add one subscriber; status is creation-only, so use `update_subscriber` for an existing contact.               |
-| `create_subscriber_import`    | Queue up to 5,000 full CRM records; enabled email-hygiene checks continue separately after ingestion.          |
-| `get_subscriber_import`       | Read progress, row outcome counts, and failure summaries for a queued import.                                  |
-| `update_subscriber`           | Update native profile and phone fields, SMS consent, attributes, tags, or global status.                       |
-| `remove_subscriber`           | Unsubscribe while preserving suppression history, or permanently delete only with `hardDelete: true`.          |
-| `get_subscriber`              | Fetch subscriber details by email or external ID.                                                              |
-| `search_subscribers`          | Search by query, tags, list, status, segment, or one custom attribute, with automatic or resumable pagination. |
-| `trigger_subscriber_event`    | Emit one custom event exactly as an integration would, applying sync rules and matching sequence triggers.     |
-| `trigger_subscriber_events`   | Emit several ordered custom events for one subscriber.                                                         |
-| `bulk_add_subscriber_tags`    | Add tags to up to 500 existing subscribers; requires `subscribers:tag` and may also require `tags:write`.      |
-| `bulk_remove_subscriber_tags` | Remove tags from up to 500 existing subscribers; requires `subscribers:tag` or `subscribers:write`.            |
+| Tool                          | Description                                                                                                                                        |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `add_subscriber`              | Add one subscriber; status is creation-only, so use `update_subscriber` for an existing contact.                                                   |
+| `create_subscriber_import`    | Queue up to 5,000 full CRM records with an optional retry-safe `idempotencyKey`; enabled email-hygiene checks continue separately after ingestion. |
+| `get_subscriber_import`       | Read progress, row outcome counts, and failure summaries for a queued import.                                                                      |
+| `update_subscriber`           | Update native profile and phone fields, SMS consent, attributes, tags, or global status.                                                           |
+| `remove_subscriber`           | Unsubscribe while preserving suppression history, or permanently delete only with `hardDelete: true`.                                              |
+| `get_subscriber`              | Fetch subscriber details by email or external ID.                                                                                                  |
+| `search_subscribers`          | Search by query, tags, list, status, segment, or one custom attribute, with automatic or resumable pagination.                                     |
+| `trigger_subscriber_event`    | Emit one custom event exactly as an integration would, applying sync rules and matching sequence triggers.                                         |
+| `trigger_subscriber_events`   | Emit several ordered custom events for one subscriber.                                                                                             |
+| `import_subscriber_events`    | Import up to 25 source-identified events across contacts; silent history requires every row for a contact to be over an hour old.                  |
+| `bulk_add_subscriber_tags`    | Add tags to up to 500 existing subscribers; requires `subscribers:tag` and may also require `tags:write`.                                          |
+| `bulk_remove_subscriber_tags` | Remove tags from up to 500 existing subscribers; requires `subscribers:tag` or `subscribers:write`.                                                |
 
 Use `create_subscriber_import` for CRM onboarding instead of looping over
 `add_subscriber`. One call accepts 5,000 full records and returns an asynchronous
@@ -430,6 +431,13 @@ deliverability checks continue separately after ingestion and results appear
 in List health; import status does not wait for or include those verdicts.
 Invalid verdicts are suppressed from later sends. Use `optInMode: "confirmed"`
 only when consent was already verified.
+
+For `import_subscriber_events`, email is required when a row may create a new
+contact; `externalId` can stand alone only for an existing contact. Supply a
+stable `eventId` on every row. Retrying reuses the original receipt and
+idempotently re-attempts downstream recovery. Historical classification is per
+contact: if any row for a contact is recent, that contact's whole group uses
+the live side-effect path.
 
 For compliance suppression, call `update_subscriber` with
 `status: "unsubscribed"` (or use `remove_subscriber` without `hardDelete`). Do

@@ -804,6 +804,9 @@ export const outputPropertiesByToolName: Record<
   },
   create_subscriber_import: {
     import: objectOutputProperty(SUBSCRIBER_IMPORT_HINT),
+    deduplicated: booleanOutputProperty(
+      "Present and true when idempotencyKey matched an already-queued import. Nothing new was queued; `import` is the original import."
+    ),
   },
   get_subscriber_import: {
     import: objectOutputProperty(SUBSCRIBER_IMPORT_HINT),
@@ -860,6 +863,55 @@ export const outputPropertiesByToolName: Record<
   trigger_subscriber_events: {
     subscriber: resourceOutputProperty("subscriber"),
     events: resourceListOutputProperty("recorded event"),
+  },
+  import_subscriber_events: {
+    total: numberOutputProperty("Events submitted in this request."),
+    recorded: numberOutputProperty("Events recorded by this request."),
+    duplicates: numberOutputProperty(
+      "Events skipped because their eventId was already recorded."
+    ),
+    failed: numberOutputProperty("Events that failed to record."),
+    sideEffectFailed: numberOutputProperty(
+      "Receipt rows whose downstream side effects or historical automation shielding failed. This is orthogonal to receipt accounting and may accompany either a newly recorded or duplicate row during recovery."
+    ),
+    subscribers: numberOutputProperty(
+      "Distinct subscriber identities in the request."
+    ),
+    failures: {
+      type: "array",
+      description:
+        "Failed events by input index. Recorded events are kept, so treat an error as partial success and retry with the same eventIds.",
+      items: {
+        type: "object",
+        description: "One failed event.",
+        properties: {
+          index: numberOutputProperty("Index into the submitted events array."),
+          error: stringOutputProperty("Why this event failed."),
+        },
+      },
+    },
+    sideEffectFailures: {
+      type: "array",
+      description:
+        "Post-write failures by input index. The receipt exists (new or duplicate); use the stages and optional error for recovery, then retry with the same eventId.",
+      items: {
+        type: "object",
+        description:
+          "One event receipt (new or duplicate) with failed downstream work.",
+        properties: {
+          index: numberOutputProperty("Index into the submitted events array."),
+          stages: {
+            type: "array",
+            description: "Downstream stages that failed.",
+            items: { type: "string", description: "Failed stage name." },
+          },
+          error: stringOutputProperty("Optional recovery guidance."),
+        },
+      },
+    },
+    error: stringOutputProperty(
+      "The first row-level failure message when any event failed."
+    ),
   },
   bulk_add_subscriber_tags: {
     tags: {
