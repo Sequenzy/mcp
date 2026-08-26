@@ -663,7 +663,7 @@ Use `get_ab_test` to copy the effective `settings` object and discover variant I
 | `get_campaign`                   | Get details, stats, and reviewer feedback for a rejected campaign.                                         |
 | `get_campaign_audience`          | Resolve saved targeting, missing references, a plain-language summary, and live recipient count.           |
 | `list_campaign_goals`            | List the conversion goals persisted for one email campaign (SMS is unsupported).                           |
-| `create_campaign_goal`           | Add an event, subscriber-attribute, or tag-applied email-campaign conversion goal.                          |
+| `create_campaign_goal`           | Add an event, subscriber-attribute, or tag-applied email-campaign conversion goal.                         |
 | `update_campaign_goal`           | Update a persisted email-campaign conversion goal.                                                         |
 | `delete_campaign_goal`           | Delete a persisted email-campaign conversion goal.                                                         |
 | `list_email_sends`               | Search recent delivery history with resource IDs and URLs, optionally scoped to one sequence step.         |
@@ -909,7 +909,7 @@ propagate.
 | `duplicate_sequence`                     | Create an independent draft copy of the graph, emails, and sequence A/B tests.                          |
 | `archive_sequence`                       | Move a sequence into the dashboard archive and stop new enrollments.                                    |
 | `unarchive_sequence`                     | Restore an archived sequence as a disabled draft.                                                       |
-| `list_sequence_goals`                    | List the conversion goals persisted for a sequence.                                                     |
+| `list_sequence_goals`                    | List the event, subscriber-attribute, and tag-applied conversion goals persisted for a sequence.        |
 | `create_sequence_goal`                   | Add an event, subscriber-attribute, or tag-applied conversion goal.                                     |
 | `update_sequence_goal`                   | Update a persisted sequence conversion goal.                                                            |
 | `delete_sequence_goal`                   | Delete a persisted sequence conversion goal.                                                            |
