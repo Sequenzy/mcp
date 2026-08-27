@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { serveStdio } from "@modelcontextprotocol/server/stdio";
 
 import { formatMcpError } from "./error-output.js";
 import { assertConfiguredApiKey, enableLocalFileUploads } from "./runtime.js";
@@ -13,7 +13,7 @@ export {
 } from "./runtime.js";
 export { createSequenzyMcpServer } from "./server.js";
 
-async function main() {
+function main() {
   assertConfiguredApiKey();
 
   // The stdio server runs on the user's machine, so tools may read local
@@ -21,13 +21,13 @@ async function main() {
   // server never enables this.
   enableLocalFileUploads();
 
-  const server = createSequenzyMcpServer();
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
+  serveStdio(() => createSequenzyMcpServer());
   console.error("Sequenzy MCP server running on stdio");
 }
 
-main().catch((error) => {
+try {
+  main();
+} catch (error) {
   console.error(formatMcpError(error));
   process.exit(1);
-});
+}

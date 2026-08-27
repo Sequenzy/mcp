@@ -1,6 +1,5 @@
-import type { Tool } from "@modelcontextprotocol/sdk/types.js";
-
 import { formatMcpError } from "../error-output.js";
+import type { Tool } from "../mcp-types.js";
 
 import { toolDefinitions } from "./definitions/index.js";
 import { toolHandlers } from "./handlers/index.js";

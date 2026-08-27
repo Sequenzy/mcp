@@ -485,6 +485,13 @@ export const sequenceStepEmailThemeSchema = {
 
 export const sequenceEmailThemeSchema = sequenceStepEmailThemeSchema;
 
+export const campaignEmailPresetSchema = {
+  type: "string",
+  enum: ["branded", "minimal"],
+  description:
+    "Per-email Style > Format for native Sequenzy blocks, including emails with supported custom HTML blocks. Use minimal for a direct text-forward note without the company logo and with the simple footer, or branded for branded chrome. This does not change the company-wide default and is not `style`, which is a prompt-generation hint valid only with `prompt`. Not a lossless toggle: minimal deletes standalone logo blocks, so switching back to branded generates a new logo block with a new id and the company name as alt text - send the authored logo block in `blocks` alongside the branded update to keep it. A standalone raw HTML email does not support this field, and emailPreset must not be combined with html.",
+} as const;
+
 export const sequenceNodeChangesSchema = {
   type: "object",
   description: `Type-aware patch for the existing node. Start from get_sequence.sequence.nodes[].config. For logic_delay, set exactly one of delay ({ days, hours, minutes }), delayMs, waitUntil, or waitUntilWeekday ({ day, startTime, endTime, timezone } - hold until the next weekday window); optional label is also accepted. For action_email, use name/label, subject, previewText, html/htmlContent or blocks, emailPreset, emailTheme (per-email colors/typography/layout override - patch { colors: { background: '#ffffff' } } to repaint one step without touching the company default, or null to inherit it again), isTransactional, attachments ([{ filename, path }] URL-backed files fetched at send time; path may use {{event.*}} from the enrollment event; [] removes them), and sender/reply identity fields. For action_sms, use text, blocks, imageUrls, label, or ineligibleAction. Other node types accept their editable config keys. For an existing random logic_branch, randomPercentages may be updated with one non-negative value per branch summing to 100. splitMode cannot be converted in place because condition and random splits have different graph topology; build a new random split with insert_sequence_step. Managed IDs, nodeType conversion, and branch path IDs/count are not editable here; use edit_sequence_graph for topology. Webhook header patches are merged, and redacted values from get_sequence must be omitted or replaced with a real new value.${sequenceStepBlocksFormatHintForNodeChanges}`,

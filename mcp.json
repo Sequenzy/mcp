@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "sequenzy": {
+      "url": "https://api.sequenzy.com/v1/mcp"
+    }
+  }
+}

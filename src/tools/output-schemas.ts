@@ -1,4 +1,6 @@
-import type { CallToolResult, Tool } from "@modelcontextprotocol/sdk/types.js";
+import type { CallToolResult } from "@modelcontextprotocol/server";
+
+import type { Tool } from "../mcp-types.js";
 
 import { isRecord } from "./common-primitives.js";
 import { dashboardUrlToolNames } from "./delivery-and-urls.js";
@@ -8,7 +10,10 @@ import {
 } from "./descriptions.js";
 
 export type ToolOutputSchema = NonNullable<Tool["outputSchema"]>;
-export type SequenzyToolCallResult = CallToolResult & {
+export type SequenzyToolCallResult = Omit<
+  CallToolResult,
+  "content" | "structuredContent"
+> & {
   content: Array<{ type: "text"; text: string }>;
   structuredContent?: Record<string, unknown>;
 };
@@ -263,7 +268,7 @@ export const outputPropertiesByToolName: Record<
     account: resourceOutputProperty("account"),
     companies: resourceListOutputProperty("company"),
     apiKeyPermissions: objectOutputProperty(
-      "Current API key preset and scopes, whether common marketing work is discoverable, any missing marketing read scopes, and the API Keys management URL."
+      "Current API key preset and scopes, whether common marketing work is discoverable, any missing marketing read scopes, `canSendLive` plus `missingLiveDeliveryScopes` (delivery this key cannot perform, e.g. `transactional:send` for `send_email`; check before composing anything meant to be sent) and `liveDeliveryBlockedByRole` (a viewer role blocks sending no matter the scopes, so widening the key will not help), and the API Keys management URL."
     ),
     currentCompanyId: stringOutputProperty(
       "Company ID selected by the authenticated API key, when available."
@@ -731,7 +736,7 @@ export const outputPropertiesByToolName: Record<
       "Open, click, and unsubscribe tracking flags, the opt-in strictBotFilteringEnabled bot-detection flag, plus the default attribution window in hours."
     ),
     consent: objectOutputProperty(
-      "Signup consent settings: doubleOptInEnabled, and doubleOptInEmailId for the confirmation email sent to pending contacts (null when double opt-in has never been enabled)."
+      "Signup consent settings: doubleOptInEnabled, doubleOptInEmailId for the confirmation email sent to pending contacts (null when double opt-in has never been enabled), and doubleOptInRedirectUrl for where the hosted confirmation page sends subscribers after confirming (null keeps them on the branded confirmation page)."
     ),
     autoUtm: objectOutputProperty(
       "Automatic UTM tagging state and its configured parameters."
@@ -749,7 +754,7 @@ export const outputPropertiesByToolName: Record<
       "Open, click, and unsubscribe tracking flags, the opt-in strictBotFilteringEnabled bot-detection flag, plus the default attribution window in hours, after the update."
     ),
     consent: objectOutputProperty(
-      "Signup consent settings after the update: doubleOptInEnabled, and doubleOptInEmailId for the confirmation email, which is provisioned automatically the first time double opt-in is enabled."
+      "Signup consent settings after the update: doubleOptInEnabled, doubleOptInEmailId for the confirmation email (provisioned automatically the first time double opt-in is enabled), and doubleOptInRedirectUrl for the post-confirmation redirect (null keeps subscribers on the branded confirmation page)."
     ),
     autoUtm: objectOutputProperty(
       "Automatic UTM tagging state and its configured parameters, after the update."

@@ -1,5 +1,4 @@
-import type { Tool } from "@modelcontextprotocol/sdk/types.js";
-
+import type { Tool } from "../../mcp-types.js";
 import { OUTBOUND_WEBHOOK_EVENT_TYPES } from "../internal.js";
 
 export const webhookToolDefinitions: Tool[] = [

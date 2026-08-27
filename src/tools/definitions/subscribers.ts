@@ -1,5 +1,4 @@
-import type { Tool } from "@modelcontextprotocol/sdk/types.js";
-
+import type { Tool } from "../../mcp-types.js";
 import { SUBSCRIBER_ATTRIBUTE_FILTER_OPERATORS } from "../descriptions.js";
 import { includeMachineEngagementToolProperty } from "../internal.js";
 
