@@ -226,6 +226,13 @@ describe("sequence step emailTheme schema", () => {
     expect(JSON.stringify(sequenceStepEmailThemeSchema.properties)).toContain(
       '"background"'
     );
+    expect(JSON.stringify(sequenceStepEmailThemeSchema.properties)).toContain(
+      '"content"'
+    );
+    expect(
+      sequenceStepEmailThemeSchema.properties.colors.properties.content
+        .description
+    ).toContain("preserve its current value");
   });
 
   it("states that the patch is per-email and that null clears it", () => {

@@ -801,7 +801,11 @@ exact profile to make default and rename.
 partial - omitted fields keep their current value (or the preset default) and
 numeric values are clamped to supported ranges. Pass `emailTheme: null` to
 reset the company to the platform default theme. Layout settings can control
-the shared `baseRadius` and a separate `buttonRadius`.
+the shared `baseRadius` and a separate `buttonRadius`. Within `colors`,
+`background` paints the outer canvas, `content` paints the inner content card,
+and `surface` paints nested cards or tinted tiles. Omitting `content` preserves
+its current value; when no content color is stored, the card follows
+`background`.
 
 Reply tracking is available on the same company tools. Use
 `replyTrackingEnabled`, `replyTrackingDomainMode` (`sequenzy` or `custom`), and
@@ -1091,10 +1095,11 @@ Each linked email also returns its stored `emailTheme` override, or `null` when
 it follows the company theme. Set `emailTheme` on an `emails`/`steps` item or in
 an `action_email` node's `changes` to restyle only that step. Theme updates are
 partial patches, so `changes: { "emailTheme": { "colors": {
-"background": "#ffffff" } } }` changes the background while retaining the
-email's other colors, typography, and layout. Pass `emailTheme: null` to drop
-the override and follow the company theme again. Use `update_company` only when
-the account-wide default should change.
+"background": "#f3f4f6", "content": "#ffffff" } } }` gives that email a gray
+outer canvas and white content card while retaining its other colors,
+typography, and layout. Omitting either color preserves its current value. Pass
+`emailTheme: null` to drop the override and follow the company theme again. Use
+`update_company` only when the account-wide default should change.
 
 Use `update_sequence_node` for a focused in-place edit, or
 `update_sequence_nodes` when several node patches must commit atomically. Call

@@ -391,8 +391,19 @@ export const emailThemePatchProperties = {
     description: "6-digit hex colors.",
     properties: {
       primary: { type: "string" },
-      background: { type: "string" },
-      surface: { type: "string" },
+      background: {
+        type: "string",
+        description: "Outer canvas behind the email.",
+      },
+      content: {
+        type: "string",
+        description:
+          "Inner content card the blocks sit on. Omit to preserve its current value; when no content color is stored, the card follows background.",
+      },
+      surface: {
+        type: "string",
+        description: "Nested cards and tinted tiles.",
+      },
       text: { type: "string" },
       mutedText: { type: "string" },
       heading: { type: "string" },
@@ -478,7 +489,7 @@ export const companyEmailThemeSchema = {
 export const sequenceStepEmailThemeSchema = {
   type: ["object", "null"],
   description:
-    "Visual theme override for this step's linked email only; the company-wide default is left untouched, as is every other email. Partial update: the patch merges into this email's current theme, so `{ colors: { background: '#ffffff' } }` repaints the background and keeps its fonts, spacing, and other colors. A step with no override merges into the company theme rather than the platform preset. Pass null to drop the override so the step follows the company theme again. Numeric values are clamped to supported ranges. Use update_company to change the account-wide default instead.",
+    "Visual theme override for this step's linked email only; the company-wide default is left untouched, as is every other email. Partial update: the patch merges into this email's current theme, so `{ colors: { background: '#f3f4f6' } }` repaints the outer canvas and keeps its fonts, spacing, and other colors; use colors.content for the inner card and colors.surface for nested cards. A step with no override merges into the company theme rather than the platform preset. Pass null to drop the override so the step follows the company theme again. Numeric values are clamped to supported ranges. Use update_company to change the account-wide default instead.",
   properties: emailThemePatchProperties,
   additionalProperties: false,
 } as const;
