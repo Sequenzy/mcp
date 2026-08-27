@@ -33,6 +33,17 @@ export async function handleLandingPageTools(
       break;
     }
 
+    case "render_landing_page": {
+      const companyId = args.companyId as string | undefined;
+      result = await apiRequest(
+        "POST",
+        `/api/v1/landing-pages/${args.landingPageId}/render`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
     case "create_landing_page": {
       const companyId = args.companyId as string | undefined;
       const allowedKeys = new Set([

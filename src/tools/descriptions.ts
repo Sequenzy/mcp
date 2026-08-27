@@ -147,10 +147,29 @@ export const emailEventTypes = [
 /** Shared "Supported values" fragment so tool descriptions cannot drift. */
 export const emailEventTypesList = emailEventTypes.join(", ");
 
+/**
+ * Send Time Optimization is campaign-only. Agents looking at get_company or
+ * get_sequence for an account-level toggle will otherwise open the dashboard.
+ */
+export const campaignStoNotCompanyOrSequenceHint =
+  "Send Time Optimization is not a company or sequence setting. It is campaign-only: audit with list_campaigns or get_campaign (sendTimeOptimization, sendTimeWindowHours, default 12h window). Change a draft with update_campaign, or apply it when calling schedule_campaign. Sequences use sendingWindow (allowed local hours/days), which is a shared gate, not per-subscriber predicted send times.";
+
+export const campaignSendTimeOptimizationFieldDescription =
+  "Deliver each recipient at their predicted best open hour within sendTimeWindowHours of scheduledAt (default 12h). Campaign-only: there is no company or sequence STO toggle. Sequences use sendingWindow instead. spreadOverHours takes precedence and turns STO off; sendInRecipientTimezone also turns it off.";
+
+export const campaignSendTimeWindowHoursFieldDescription =
+  "STO delivery window in hours from scheduledAt (integer 1-24, default 12). Only used when sendTimeOptimization is true. Recipients whose predicted hour falls outside the window are snapped to the nearest edge. Sequences have no equivalent.";
+
+export const campaignStoListFieldsHint =
+  "Each item also carries delivery pacing so an account-wide STO audit does not need one get_campaign call each: sendTimeOptimization, sendTimeWindowHours, spreadOverHours, sendInRecipientTimezone, and scheduledTimezone. STO is campaign-only; sequences use sendingWindow.";
+
+export const campaignStoOutputHint =
+  "Delivery pacing: sendTimeOptimization is per-campaign Send Time Optimization (not a company or sequence setting). sendTimeWindowHours is that window in hours (default 12, max 24). spreadOverHours is a linear spread that turns STO off. sendInRecipientTimezone is a third mutually exclusive mode. Sequences use sendingWindow, which is an allowed-hours gate, not per-subscriber optimization.";
+
 export const sequenceSendingWindowSchema = {
   type: "object",
   description:
-    "Optional send window for every email step in the sequence. When set, email actions that become due outside the window wait until the next allowed local time. Omit days to allow every day. Changing the window does not move contacts already waiting on a delay step - they keep their existing wait time, and narrowing the window can defer them to the next allowed day. Call realign_sequence_enrollments after the change to pull those waits back to the new opening.",
+    "Optional send window for every email step in the sequence. This is not Send Time Optimization: it is a shared allowed-hours gate, not per-subscriber predicted send times. STO is campaign-only (list_campaigns, get_campaign, update_campaign, schedule_campaign). When set, email actions that become due outside the window wait until the next allowed local time. Omit days to allow every day. Changing the window does not move contacts already waiting on a delay step - they keep their existing wait time, and narrowing the window can defer them to the next allowed day. Call realign_sequence_enrollments after the change to pull those waits back to the new opening.",
   properties: {
     enabled: {
       type: "boolean",
@@ -466,6 +485,13 @@ export const sequenceStepEmailThemeSchema = {
 
 export const sequenceEmailThemeSchema = sequenceStepEmailThemeSchema;
 
+export const campaignEmailPresetSchema = {
+  type: "string",
+  enum: ["branded", "minimal"],
+  description:
+    "Per-email Style > Format for native Sequenzy blocks, including emails with supported custom HTML blocks. Use minimal for a direct text-forward note without the company logo and with the simple footer, or branded for branded chrome. This does not change the company-wide default and is not `style`, which is a prompt-generation hint valid only with `prompt`. Not a lossless toggle: minimal deletes standalone logo blocks, so switching back to branded generates a new logo block with a new id and the company name as alt text - send the authored logo block in `blocks` alongside the branded update to keep it. A standalone raw HTML email does not support this field, and emailPreset must not be combined with html.",
+} as const;
+
 export const sequenceNodeChangesSchema = {
   type: "object",
   description: `Type-aware patch for the existing node. Start from get_sequence.sequence.nodes[].config. For logic_delay, set exactly one of delay ({ days, hours, minutes }), delayMs, waitUntil, or waitUntilWeekday ({ day, startTime, endTime, timezone } - hold until the next weekday window); optional label is also accepted. For action_email, use name/label, subject, previewText, html/htmlContent or blocks, emailPreset, emailTheme (per-email colors/typography/layout override - patch { colors: { background: '#ffffff' } } to repaint one step without touching the company default, or null to inherit it again), isTransactional, attachments ([{ filename, path }] URL-backed files fetched at send time; path may use {{event.*}} from the enrollment event; [] removes them), and sender/reply identity fields. For action_sms, use text, blocks, imageUrls, label, or ineligibleAction. Other node types accept their editable config keys. For an existing random logic_branch, randomPercentages may be updated with one non-negative value per branch summing to 100. splitMode cannot be converted in place because condition and random splits have different graph topology; build a new random split with insert_sequence_step. Managed IDs, nodeType conversion, and branch path IDs/count are not editable here; use edit_sequence_graph for topology. Webhook header patches are merged, and redacted values from get_sequence must be omitted or replaced with a real new value.${sequenceStepBlocksFormatHintForNodeChanges}`,
@@ -532,6 +558,7 @@ export const OUTBOUND_WEBHOOK_EVENT_TYPES = [
   "email.clicked",
   "email.replied",
   "email.unsubscribed",
+  "campaign.sent",
   "sms.sent",
   "sms.delivered",
   "sms.failed",
@@ -542,6 +569,7 @@ export const OUTBOUND_WEBHOOK_EVENT_TYPES = [
   "subscriber.unsubscribed",
   "subscriber.list_subscribed",
   "subscriber.list_unsubscribed",
+  "subscriber_import.completed",
   "sequence.finished",
   "sequence.failed",
   "poll.answered",

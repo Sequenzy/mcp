@@ -1,4 +1,4 @@
-import type { Tool, ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
+import type { Tool, ToolAnnotations } from "../mcp-types.js";
 
 export type RequiredToolHints = Pick<
   Required<ToolAnnotations>,
@@ -53,6 +53,7 @@ export const READ_ONLY_TOOL_NAMES = new Set([
   "list_campaigns",
   "get_campaign",
   "get_campaign_audience",
+  "list_campaign_goals",
   // Returns HTML and never mutates or sends, despite being backed by a POST.
   "render_email",
   "list_email_sends",
@@ -66,8 +67,10 @@ export const READ_ONLY_TOOL_NAMES = new Set([
   "list_recipient_suppressions",
   "list_landing_pages",
   "get_landing_page",
+  "render_landing_page",
   "list_sequences",
   "get_sequence",
+  "simulate_sequence",
   "list_sequence_enrollments",
   "get_sequence_enrollment_realignment",
   "list_sequence_goals",
@@ -129,6 +132,7 @@ export const MUTATING_TOOL_NAMES = new Set([
   "delete_subscriber_note",
   "trigger_subscriber_event",
   "trigger_subscriber_events",
+  "import_subscriber_events",
   "bulk_add_subscriber_tags",
   "bulk_remove_subscriber_tags",
   "upsert_products",
@@ -213,6 +217,9 @@ export const MUTATING_TOOL_NAMES = new Set([
   "duplicate_sequence",
   "archive_sequence",
   "unarchive_sequence",
+  "create_campaign_goal",
+  "update_campaign_goal",
+  "delete_campaign_goal",
   "create_sequence_goal",
   "update_sequence_goal",
   "delete_sequence_goal",
@@ -318,6 +325,7 @@ export const DESTRUCTIVE_TOOL_NAMES = new Set([
   "set_integration_list_targeting",
   "disable_sequence",
   "archive_sequence",
+  "delete_campaign_goal",
   "delete_sequence_goal",
   "rotate_sequence_inbound_webhook_secret",
   "edit_sequence_graph",
@@ -354,11 +362,38 @@ export function getRequiredToolHints(toolName: string): RequiredToolHints {
   };
 }
 
+const TOOL_TITLE_ACRONYMS: Record<string, string> = {
+  ab: "A/B",
+  ai: "AI",
+  api: "API",
+  html: "HTML",
+  id: "ID",
+  mcp: "MCP",
+  nps: "NPS",
+  sms: "SMS",
+  url: "URL",
+  urls: "URLs",
+  utm: "UTM",
+};
+
+function getToolTitle(toolName: string): string {
+  return toolName
+    .split("_")
+    .filter(Boolean)
+    .map(
+      (part) =>
+        TOOL_TITLE_ACRONYMS[part] ??
+        part.charAt(0).toUpperCase() + part.slice(1)
+    )
+    .join(" ");
+}
+
 export function withRequiredToolHints(tool: Tool): Tool {
   return {
     ...tool,
     annotations: {
       ...tool.annotations,
+      title: tool.annotations?.title ?? getToolTitle(tool.name),
       ...getRequiredToolHints(tool.name),
     },
   };

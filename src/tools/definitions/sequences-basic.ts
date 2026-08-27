@@ -1,6 +1,6 @@
-import type { Tool } from "@modelcontextprotocol/sdk/types.js";
-
+import type { Tool } from "../../mcp-types.js";
 import {
+  campaignStoNotCompanyOrSequenceHint,
   discountMergeTagsHint,
   rawHtmlContentDescription,
   replyToNameDescription,
@@ -60,8 +60,9 @@ export const sequenceBasicToolDefinitions: Tool[] = [
   },
   {
     name: "get_sequence",
-    description:
-      "Get sequence details, editable step content, and graph topology. Read effectiveStatus (draft, live, enrollment_paused, paused, archived) to know whether a sequence is running: status alone reads `active` even when new enrollments are paused, and the legacy triggerConfig.active flag is not used by the runtime. Each sequence.nodes item includes id, nodeType, current config, updatedAt, and updateHints with its editable/managed fields and ready-to-return expectedUpdatedAt token for update_sequence_node/update_sequence_nodes. The response also includes sequence.edges and graphRevision for safe edit_sequence_graph calls, plus sequence.emails with each email step's nodeId, nodeType, linked emailId, subject, previewText, emailPreset (the per-email Style > Format for native blocks, including emails with supported custom HTML blocks; null when the entire email is standalone raw HTML), and blocks. sequence.emails includes action_ab_test steps, whose copy lives on the A/B test variants rather than on the node: their subject/previewText/blocks are control variant A only. With ab_tests:read, each carries abTest with the test id, status, and one entry per variant; without that scope, test-record fields are redacted and variants is empty while the configured id and editing guidance remain available. To change the copy of an A/B step, read every variant with get_ab_test and edit each one with update_ab_test_variant - update_sequence_node cannot touch variant content, and rebuilding the step as a plain email node to reach it destroys the test.",
+    description: `Get sequence details, editable step content, and graph topology. Read effectiveStatus (draft, live, enrollment_paused, paused, archived) to know whether a sequence is running: status alone reads \`active\` even when new enrollments are paused, and the legacy triggerConfig.active flag is not used by the runtime. Each sequence.nodes item includes id, nodeType, current config, updatedAt, and updateHints with its editable/managed fields and ready-to-return expectedUpdatedAt token for update_sequence_node/update_sequence_nodes. The response also includes sequence.edges and graphRevision for safe edit_sequence_graph calls, plus sequence.emails with each email step's nodeId, nodeType, linked emailId, subject, previewText, emailPreset (the per-email Style > Format for native blocks, including emails with supported custom HTML blocks; null when the entire email is standalone raw HTML), and blocks. sequence.emails includes action_ab_test steps, whose copy lives on the A/B test variants rather than on the node: their subject/previewText/blocks are control variant A only. With ab_tests:read, each carries abTest with the test id, status, and one entry per variant; without that scope, test-record fields are redacted and variants is empty while the configured id and editing guidance remain available. To change the copy of an A/B step, read every variant with get_ab_test and edit each one with update_ab_test_variant - update_sequence_node cannot touch variant content, and rebuilding the step as a plain email node to reach it destroys the test. ${
+      campaignStoNotCompanyOrSequenceHint
+    }`,
     inputSchema: {
       type: "object",
       properties: {
@@ -146,6 +147,44 @@ export const sequenceBasicToolDefinitions: Tool[] = [
           type: "number",
           description:
             "Number of enrollments to skip. Page until pagination.hasMore is false.",
+        },
+      },
+      required: ["sequenceId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "simulate_sequence",
+    description:
+      "Dry-run a sequence without sending mail or enrolling anyone. Requires sequences:read and subscribers:read because results include contact samples. Nobody is auto-enrolled when you activate. Without a subscriber this reports who currently matches (existing list/tag/segment matches are not auto-enrolled) and activation readiness errors. Frequency and inactivity current-match counts are unavailable because the hourly worker evaluates them. Pass subscriberId or email to also walk that stored contact's branch path - use this to check whether a paid user would get an upgrade email. Call this before enable_sequence.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        sequenceId: {
+          type: "string",
+          description: "Sequence ID to simulate.",
+        },
+        subscriberId: {
+          type: "string",
+          description:
+            "Optional stored subscriber to walk through the graph. Do not pass with email.",
+        },
+        email: {
+          type: "string",
+          description:
+            "Optional stored subscriber email to walk through the graph. Do not pass with subscriberId.",
+        },
+        limit: {
+          type: "integer",
+          minimum: 1,
+          maximum: 25,
+          description:
+            "Maximum currently matching contacts to include in the sample. Defaults to 10.",
         },
       },
       required: ["sequenceId"],

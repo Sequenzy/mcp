@@ -1,6 +1,10 @@
-import type { Tool } from "@modelcontextprotocol/sdk/types.js";
-
+import type { Tool } from "../../mcp-types.js";
 import {
+  campaignEmailPresetSchema,
+  campaignSendTimeOptimizationFieldDescription,
+  campaignSendTimeWindowHoursFieldDescription,
+  campaignStoListFieldsHint,
+  campaignStoNotCompanyOrSequenceHint,
   emailBlocksDescription,
   rawHtmlContentDescription,
   replyToNameDescription,
@@ -72,8 +76,9 @@ export const campaignToolDefinitions: Tool[] = [
   // ============================================================================
   {
     name: "list_campaigns",
-    description:
-      "List campaigns. Each item carries `emailPreset`, the linked email's Style > Format (branded or minimal; null for SMS campaigns and standalone raw HTML emails), so chrome can be compared across campaigns without one get_campaign call each. Results are paginated: the default page size is 50 and limit is capped at 100. Always read the returned `pagination` object (`limit`, `offset`, `count`, `total`, `hasMore`) and keep paging with `offset` while `hasMore` is true - a single call does not necessarily return every campaign.",
+    description: `List campaigns. Each item carries \`emailPreset\`, the linked email's Style > Format (branded or minimal; null for SMS campaigns and standalone raw HTML emails), so chrome can be compared across campaigns without one get_campaign call each. ${
+      campaignStoListFieldsHint
+    } Results are paginated: the default page size is 50 and limit is capped at 100. Always read the returned \`pagination\` object (\`limit\`, \`offset\`, \`count\`, \`total\`, \`hasMore\`) and keep paging with \`offset\` while \`hasMore\` is true - a single call does not necessarily return every campaign.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -105,8 +110,9 @@ export const campaignToolDefinitions: Tool[] = [
   },
   {
     name: "get_campaign",
-    description:
-      "Get campaign details and stats, including rejectionComment reviewer feedback for rejected campaigns. `emailId` is the campaign's linked email body - the same record returned by the templates tools - and can be passed as templateId to create_campaign to reuse the design; it is null for SMS campaigns. `emailPreset` reports that email's Style > Format the same way get_sequence does per step (branded or minimal; null for SMS campaigns and standalone raw HTML emails), so campaign chrome can be compared against sequence steps and transactional templates without rendering them - minimal suppresses the company logo at render time. `targetLists` holds the raw audience targeting (IDs only); call get_campaign_audience for resolved list/segment names and a recipient count. Note that `computedLists` is email personalization (product lists rendered inside the email), not audience targeting. For native sends, `sentAt` is stamped when the last recipient is handed off, so on a paced send it is the end of the delivery window; `spreadOverHours`, `sendTimeOptimization`, and `sendTimeWindowHours` report recorded pacing. Imported campaigns may not include pacing metadata from their source provider, so absent pacing fields do not prove that delivery happened all at once.",
+    description: `Get campaign details and stats, including rejectionComment reviewer feedback for rejected campaigns. \`emailId\` is the campaign's linked email body - the same record returned by the templates tools - and can be passed as templateId to create_campaign to reuse the design; it is null for SMS campaigns. \`emailPreset\` reports that email's Style > Format the same way get_sequence does per step (branded or minimal; null for SMS campaigns and standalone raw HTML emails), so campaign chrome can be compared against sequence steps and transactional templates without rendering them - minimal suppresses the company logo at render time. \`targetLists\` holds the raw audience targeting (IDs only); call get_campaign_audience for resolved list/segment names and a recipient count. Note that \`computedLists\` is email personalization (product lists rendered inside the email), not audience targeting. For native sends, \`sentAt\` is stamped when the last recipient is handed off, so on a paced send it is the end of the delivery window; \`spreadOverHours\`, \`sendTimeOptimization\`, and \`sendTimeWindowHours\` report recorded pacing. Change draft pacing with update_campaign, or apply it when calling schedule_campaign. ${
+      campaignStoNotCompanyOrSequenceHint
+    } Imported campaigns may not include pacing metadata from their source provider, so absent pacing fields do not prove that delivery happened all at once.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -287,7 +293,7 @@ export const campaignToolDefinitions: Tool[] = [
   {
     name: "create_campaign",
     description:
-      "Create a new campaign. Omit all content fields to create an empty draft. For net-new natural-language content use `prompt`; do not author HTML or blocks. `blocks` are finished caller-supplied Sequenzy content and `html` is preserved/imported markup. Defaults to draft; status 'sent' only archives an already-sent campaign.",
+      "Create a new campaign. Omit all content fields to create an empty draft. For net-new natural-language content use `prompt`; do not author HTML or blocks. `blocks` are finished caller-supplied Sequenzy content and `html` is preserved/imported markup. Pass `emailPreset` with native blocks to set Style > Format (minimal or branded); `style` is a prompt-generation hint only. Defaults to draft; status 'sent' only archives an already-sent campaign.",
     inputSchema: {
       type: "object",
       properties: {
@@ -344,13 +350,14 @@ export const campaignToolDefinitions: Tool[] = [
         style: {
           type: "string",
           description:
-            "Prompt generation style: minimal, branded, promotional. Only used with `prompt`.",
+            "Prompt generation style: minimal, branded, promotional. Only used with `prompt`; this is not Style > Format. Use `emailPreset` to set branded or minimal chrome on native blocks.",
         },
         tone: {
           type: "string",
           description:
             "Prompt generation tone: professional, casual, friendly. Only used with `prompt`.",
         },
+        emailPreset: campaignEmailPresetSchema,
         templateId: {
           type: "string",
           description: "Use a template instead of html",
@@ -424,7 +431,9 @@ export const campaignToolDefinitions: Tool[] = [
   },
   {
     name: "update_campaign",
-    description: "Update a draft campaign",
+    description: `Update a draft campaign's content, audience, sending identity, labels, Style > Format, or delivery pacing. Pass emailPreset to change Style > Format on native blocks without rewriting copy. sendTimeOptimization and sendTimeWindowHours persist on the draft and are used when the campaign is later scheduled unless schedule_campaign overrides them. ${
+      campaignStoNotCompanyOrSequenceHint
+    }`,
     inputSchema: {
       type: "object",
       properties: {
@@ -461,6 +470,7 @@ export const campaignToolDefinitions: Tool[] = [
             type: "object",
           },
         },
+        emailPreset: campaignEmailPresetSchema,
         replyTo: {
           type: "string",
           description:
@@ -539,6 +549,14 @@ export const campaignToolDefinitions: Tool[] = [
             type: "string",
           },
         },
+        sendTimeOptimization: {
+          type: "boolean",
+          description: campaignSendTimeOptimizationFieldDescription,
+        },
+        sendTimeWindowHours: {
+          type: "number",
+          description: campaignSendTimeWindowHoursFieldDescription,
+        },
       },
       required: ["campaignId"],
       additionalProperties: false,
@@ -547,7 +565,7 @@ export const campaignToolDefinitions: Tool[] = [
   {
     name: "schedule_campaign",
     description:
-      "Schedule a draft or already scheduled campaign as a one-off send or on a repeating weekly/monthly cadence via `recurringInterval`. The campaign must have a non-empty subject, at least one content block, and at least one audience include rule. Use `recurringInterval` for newsletters that go out on a fixed schedule instead of creating one campaign per issue. Returns dashboard edit and preview URLs; validation errors explain what must be fixed before retrying.",
+      "Schedule a draft or already scheduled campaign as a one-off send or on a repeating weekly/monthly cadence via `recurringInterval`. The campaign must have a non-empty subject, at least one content block, and at least one audience include rule. Use `recurringInterval` for newsletters that go out on a fixed schedule instead of creating one campaign per issue. Send Time Optimization (sendTimeOptimization) delivers each recipient at their predicted best hour within sendTimeWindowHours of scheduledAt (default 12h, max 24); it is campaign-only and is not available on sequences. spreadOverHours takes precedence and turns STO off; sendInRecipientTimezone also turns it off. Returns dashboard edit and preview URLs; validation errors explain what must be fixed before retrying.",
     inputSchema: {
       type: "object",
       properties: {
@@ -576,7 +594,11 @@ export const campaignToolDefinitions: Tool[] = [
         },
         sendTimeOptimization: {
           type: "boolean",
-          description: "Whether to use send-time optimization.",
+          description: campaignSendTimeOptimizationFieldDescription,
+        },
+        sendTimeWindowHours: {
+          type: "number",
+          description: campaignSendTimeWindowHoursFieldDescription,
         },
         spreadOverHours: {
           type: "number",

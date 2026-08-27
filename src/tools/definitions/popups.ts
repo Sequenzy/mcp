@@ -1,4 +1,4 @@
-import type { Tool } from "@modelcontextprotocol/sdk/types.js";
+import type { Tool } from "../../mcp-types.js";
 
 const POPUP_TEMPLATE_DESCRIPTION =
   "Starting design. One of: newsletter-modal, discount-offer, countdown-launch, minimal-slide-in, exit-lead-magnet, live-demo, launch-modal, paper-digest, stark-takeover, top-bar, announcement-bar, fullscreen-welcome. Defaults to newsletter-modal.";

@@ -16,7 +16,7 @@
   },
   "scripts": {
     "dev": "bun --watch src/index.ts",
-    "build": "bun build src/index.ts src/server.ts src/runtime.ts --outdir dist --target node --minify",
+    "build": "bun build src/index.ts src/server.ts src/runtime.ts --outdir dist --target node --minify --packages=external",
     "start": "node dist/index.js",
     "lint": "eslint src",
     "type-check": "bunx --bun tsc --noEmit",
@@ -25,9 +25,10 @@
     "prepublishOnly": "bun run build"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0"
+    "@modelcontextprotocol/server": "2.0.0"
   },
   "devDependencies": {
+    "@modelcontextprotocol/client": "2.0.0",
     "@types/bun": "latest",
     "@types/node": "^22.0.0",
     "bun-types": "latest",

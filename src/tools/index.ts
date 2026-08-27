@@ -1,6 +1,5 @@
-import type { Tool } from "@modelcontextprotocol/sdk/types.js";
-
 import { formatMcpError } from "../error-output.js";
+import type { Tool } from "../mcp-types.js";
 
 import { toolDefinitions } from "./definitions/index.js";
 import { toolHandlers } from "./handlers/index.js";
@@ -18,6 +17,30 @@ import { assertKnownToolArguments } from "./unknown-arguments.js";
 export const tools: Tool[] = toolDefinitions
   .map(withToolOutputSchema)
   .map(withRequiredToolHints);
+
+function isRecoverablePartialResult(name: string, result: unknown): boolean {
+  if (
+    name !== "import_subscriber_events" ||
+    result === null ||
+    typeof result !== "object"
+  ) {
+    return false;
+  }
+
+  const record = result as Record<string, unknown>;
+  return (
+    record.success === false &&
+    typeof record.total === "number" &&
+    typeof record.recorded === "number" &&
+    typeof record.duplicates === "number" &&
+    typeof record.failed === "number" &&
+    typeof record.subscribers === "number" &&
+    ((record.failed > 0 && Array.isArray(record.failures)) ||
+      (typeof record.sideEffectFailed === "number" &&
+        record.sideEffectFailed > 0 &&
+        Array.isArray(record.sideEffectFailures)))
+  );
+}
 
 export async function handleToolCall(
   name: string,
@@ -42,7 +65,13 @@ export async function handleToolCall(
       throw new Error(`Unknown tool: ${name}`);
     }
 
-    const resultError = extractResultError(result);
+    // Event imports intentionally use HTTP 200 for row-level partial failure
+    // so callers retain the counts and indices needed for a safe retry. Keep
+    // that narrowly shaped response structured; request-level failures still
+    // flow through the normal MCP error path.
+    const resultError = isRecoverablePartialResult(name, result)
+      ? null
+      : extractResultError(result);
     if (resultError) {
       throw resultError;
     }

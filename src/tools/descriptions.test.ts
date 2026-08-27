@@ -1,13 +1,14 @@
-import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { describe, expect, it } from "bun:test";
 
-import { abTestToolDefinitions } from "./definitions/ab-tests";
-import { sequenceBasicToolDefinitions } from "./definitions/sequences-basic";
-import { sequenceEditingToolDefinitions } from "./definitions/sequences-editing";
+import type { Tool } from "../mcp-types.js";
+
 import {
   sequenceEmailStepIdentityProperties,
   sequencePathStepSchema,
 } from "./content-validation";
+import { abTestToolDefinitions } from "./definitions/ab-tests";
+import { sequenceBasicToolDefinitions } from "./definitions/sequences-basic";
+import { sequenceEditingToolDefinitions } from "./definitions/sequences-editing";
 import {
   blockConditionsHint,
   blockFieldWarningsHint,

@@ -5,7 +5,11 @@ import {
   validateLabelsArg,
   validateCreateCampaignContentArgs,
   validateCreateTemplateContentArgs,
+  validateCampaignDeliveryPacingArgs,
   validateScheduleCampaignArgs,
+  validateEmailPresetArg,
+  validateCreateCampaignGoalArgs,
+  validateUpdateCampaignGoalArgs,
   isRecord,
   optionalString,
   requiredString,
@@ -931,6 +935,7 @@ export async function handleCampaignTools(
         "trackingCode",
         "html",
         "blocks",
+        "emailPreset",
         "fromEmail",
         "fromName",
         "senderProfileId",
@@ -945,6 +950,8 @@ export async function handleCampaignTools(
         "segmentId",
         "listIds",
         "labels",
+        "sendTimeOptimization",
+        "sendTimeWindowHours",
       ]);
       const unsupportedCampaignUpdateKeys = Object.keys(args).filter(
         (key) => !allowedCampaignUpdateKeys.has(key)
@@ -952,12 +959,14 @@ export async function handleCampaignTools(
 
       if (unsupportedCampaignUpdateKeys.length > 0) {
         throw new Error(
-          `\`update_campaign\` accepts only content, sending identity, campaign data, computed list, audience, and label update fields. Unsupported field${unsupportedCampaignUpdateKeys.length === 1 ? "" : "s"}: ${unsupportedCampaignUpdateKeys.map((key) => `\`${key}\``).join(", ")}.`
+          `\`update_campaign\` accepts only content, sending identity, campaign data, computed list, audience, label, and delivery pacing update fields. Unsupported field${unsupportedCampaignUpdateKeys.length === 1 ? "" : "s"}: ${unsupportedCampaignUpdateKeys.map((key) => `\`${key}\``).join(", ")}.`
         );
       }
 
       validateHtmlOrBlocksArgs("update_campaign", args);
       validateLabelsArg("update_campaign", args);
+      validateEmailPresetArg("update_campaign", args);
+      validateCampaignDeliveryPacingArgs("update_campaign", args);
 
       validateSendingIdentityArgs("update_campaign", args, {
         replyFirst: true,
@@ -978,6 +987,7 @@ export async function handleCampaignTools(
         args.trackingCode === undefined &&
         args.html === undefined &&
         args.blocks === undefined &&
+        args.emailPreset === undefined &&
         args.fromEmail === undefined &&
         args.senderProfileId === undefined &&
         args.replyTo === undefined &&
@@ -989,10 +999,12 @@ export async function handleCampaignTools(
         args.targetLists === undefined &&
         args.segmentId === undefined &&
         args.listIds === undefined &&
-        args.labels === undefined
+        args.labels === undefined &&
+        args.sendTimeOptimization === undefined &&
+        args.sendTimeWindowHours === undefined
       ) {
         throw new Error(
-          "Provide at least one campaign content, sending identity, campaign data, computed list, audience, or label field when calling `update_campaign`."
+          "Provide at least one campaign content, sending identity, campaign data, computed list, audience, label, or delivery pacing field when calling `update_campaign`."
         );
       }
 
@@ -1014,6 +1026,7 @@ export async function handleCampaignTools(
         "targetLists",
         "listIds",
         "sendTimeOptimization",
+        "sendTimeWindowHours",
         "spreadOverHours",
         "sendInRecipientTimezone",
         "scheduledTimezone",
@@ -1025,7 +1038,7 @@ export async function handleCampaignTools(
 
       if (unsupportedCampaignScheduleKeys.length > 0) {
         throw new Error(
-          `\`schedule_campaign\` accepts only \`campaignId\`, \`scheduledAt\`, \`targetLists\`, \`listIds\`, \`sendTimeOptimization\`, \`spreadOverHours\`, \`sendInRecipientTimezone\`, \`scheduledTimezone\`, and \`recurringInterval\`. Unsupported field${unsupportedCampaignScheduleKeys.length === 1 ? "" : "s"}: ${unsupportedCampaignScheduleKeys.map((key) => `\`${key}\``).join(", ")}.`
+          `\`schedule_campaign\` accepts only \`campaignId\`, \`scheduledAt\`, \`targetLists\`, \`listIds\`, \`sendTimeOptimization\`, \`sendTimeWindowHours\`, \`spreadOverHours\`, \`sendInRecipientTimezone\`, \`scheduledTimezone\`, and \`recurringInterval\`. Unsupported field${unsupportedCampaignScheduleKeys.length === 1 ? "" : "s"}: ${unsupportedCampaignScheduleKeys.map((key) => `\`${key}\``).join(", ")}.`
         );
       }
 
@@ -1044,6 +1057,9 @@ export async function handleCampaignTools(
           }),
           ...(args.sendTimeOptimization !== undefined && {
             sendTimeOptimization: args.sendTimeOptimization,
+          }),
+          ...(args.sendTimeWindowHours !== undefined && {
+            sendTimeWindowHours: args.sendTimeWindowHours,
           }),
           ...(args.spreadOverHours !== undefined && {
             spreadOverHours: args.spreadOverHours,
@@ -1214,6 +1230,60 @@ export async function handleCampaignTools(
       result = await apiRequest(
         "POST",
         `/api/v1/campaigns/${encodeURIComponent(campaignId)}/resend-to-non-openers`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "list_campaign_goals": {
+      const companyId = args.companyId as string | undefined;
+      const campaignId = requiredString(name, args, "campaignId");
+      result = await apiRequest(
+        "GET",
+        `/api/v1/campaigns/${encodeURIComponent(campaignId)}/goals`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "create_campaign_goal":
+    case "update_campaign_goal": {
+      const companyId = args.companyId as string | undefined;
+      const campaignId = requiredString(name, args, "campaignId");
+      if (name === "create_campaign_goal") {
+        requiredString(name, args, "name");
+        validateCreateCampaignGoalArgs(args);
+      } else {
+        validateUpdateCampaignGoalArgs(args);
+      }
+      const goalId =
+        name === "update_campaign_goal"
+          ? requiredString(name, args, "goalId")
+          : undefined;
+      const body = { ...args };
+      delete body.companyId;
+      delete body.campaignId;
+      delete body.goalId;
+      result = await apiRequest(
+        name === "create_campaign_goal" ? "POST" : "PATCH",
+        `/api/v1/campaigns/${encodeURIComponent(campaignId)}/goals${
+          goalId ? `/${encodeURIComponent(goalId)}` : ""
+        }`,
+        body,
+        companyId
+      );
+      break;
+    }
+
+    case "delete_campaign_goal": {
+      const companyId = args.companyId as string | undefined;
+      const campaignId = requiredString(name, args, "campaignId");
+      const goalId = requiredString(name, args, "goalId");
+      result = await apiRequest(
+        "DELETE",
+        `/api/v1/campaigns/${encodeURIComponent(campaignId)}/goals/${encodeURIComponent(goalId)}`,
         undefined,
         companyId
       );

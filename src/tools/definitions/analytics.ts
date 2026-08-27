@@ -1,5 +1,4 @@
-import type { Tool } from "@modelcontextprotocol/sdk/types.js";
-
+import type { Tool } from "../../mcp-types.js";
 import { emailEventTypesList } from "../descriptions.js";
 import { includeMachineEngagementToolProperty } from "../internal.js";
 
@@ -71,7 +70,7 @@ export const analyticsToolDefinitions: Tool[] = [
   {
     name: "get_campaign_stats",
     description:
-      "Get detailed statistics for a campaign, including replies and reply rate, attributed conversions, revenue (revenueCents), product recommendation funnel metrics, a per-link click breakdown in the top-level clickedLinks array, and any Poll or NPS survey summaries in the top-level polls array",
+      "Get detailed statistics for a campaign, including replies and reply rate, attributed conversions, revenue (revenueCents), attached campaign conversion goals in the top-level goals array (sent → opened → clicked → each named goal), product recommendation funnel metrics, a per-link click breakdown in the top-level clickedLinks array, and any Poll or NPS survey summaries in the top-level polls array",
     inputSchema: {
       type: "object",
       properties: {

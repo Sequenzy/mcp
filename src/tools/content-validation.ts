@@ -38,9 +38,32 @@ export function validateCreateCampaignContentArgs(
     );
   }
 
+  validateEmailPresetArg("create_campaign", args);
+
   if (!hasPrompt && optionalString(args, "subject") === undefined) {
     throw new Error(
       "`subject` is required unless `prompt` is provided when calling `create_campaign`."
+    );
+  }
+}
+
+export function validateEmailPresetArg(
+  toolName: string,
+  args: Record<string, unknown>
+): void {
+  if (args.emailPreset === undefined) {
+    return;
+  }
+
+  if (args.emailPreset !== "branded" && args.emailPreset !== "minimal") {
+    throw new Error(
+      `\`emailPreset\` must be branded or minimal when calling \`${toolName}\`.`
+    );
+  }
+
+  if (args.html !== undefined) {
+    throw new Error(
+      `\`emailPreset\` is only supported for native Sequenzy blocks and cannot be combined with \`html\` when calling \`${toolName}\`.`
     );
   }
 }
@@ -76,6 +99,33 @@ export function validateCreateTemplateContentArgs(
   }
 }
 
+export function validateCampaignDeliveryPacingArgs(
+  toolName: "update_campaign" | "schedule_campaign",
+  args: Record<string, unknown>
+): void {
+  if (
+    args.sendTimeOptimization !== undefined &&
+    typeof args.sendTimeOptimization !== "boolean"
+  ) {
+    throw new Error(
+      `\`sendTimeOptimization\` must be a boolean when calling \`${toolName}\`.`
+    );
+  }
+
+  if (args.sendTimeWindowHours !== undefined) {
+    if (
+      typeof args.sendTimeWindowHours !== "number" ||
+      !Number.isInteger(args.sendTimeWindowHours) ||
+      args.sendTimeWindowHours < 1 ||
+      args.sendTimeWindowHours > 24
+    ) {
+      throw new Error(
+        `\`sendTimeWindowHours\` must be an integer between 1 and 24 when calling \`${toolName}\`.`
+      );
+    }
+  }
+}
+
 export function validateScheduleCampaignArgs(
   args: Record<string, unknown>
 ): void {
@@ -108,13 +158,7 @@ export function validateScheduleCampaignArgs(
     );
   }
 
-  if (args.sendTimeOptimization !== undefined) {
-    if (typeof args.sendTimeOptimization !== "boolean") {
-      throw new Error(
-        "`sendTimeOptimization` must be a boolean when calling `schedule_campaign`."
-      );
-    }
-  }
+  validateCampaignDeliveryPacingArgs("schedule_campaign", args);
 
   if (args.spreadOverHours !== undefined) {
     if (

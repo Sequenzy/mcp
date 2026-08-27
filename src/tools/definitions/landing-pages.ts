@@ -1,5 +1,4 @@
-import type { Tool } from "@modelcontextprotocol/sdk/types.js";
-
+import type { Tool } from "../../mcp-types.js";
 import {
   landingPageContentDescription,
   landingPageTemplateDescription,
@@ -26,7 +25,8 @@ export const landingPageToolDefinitions: Tool[] = [
   },
   {
     name: "get_landing_page",
-    description: "Get landing page details, content, metrics, and URLs",
+    description:
+      "Get landing page details, content, metrics, and URLs. Drafts have publicUrl and appPublicUrl set to null; previewUrl is a signed, unlisted visitor-facing preview that works before publish. Use render_landing_page when you need that preview URL called out with publish-vs-draft guidance.",
     inputSchema: {
       type: "object",
       properties: {
@@ -38,6 +38,27 @@ export const landingPageToolDefinitions: Tool[] = [
         landingPageId: {
           type: "string",
           description: "Landing page ID.",
+        },
+      },
+      required: ["landingPageId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "render_landing_page",
+    description:
+      "Render a visitor-facing preview of a landing page without publishing it. Unlike get_landing_page, which returns builder JSON, this returns previewUrl: a signed, unlisted URL that shows the page with the same layout, theme, form, and #form button anchors visitors will see. Drafts keep publicUrl and appPublicUrl null until publish_landing_page; open previewUrl to check copy and layout on a draft instead of putting unreviewed content on the public domain. The preview is not indexed. Signup forms on a draft preview do not collect contacts. This is read-only and never publishes, unpublishes, or changes the page.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        landingPageId: {
+          type: "string",
+          description: "Landing page ID to preview.",
         },
       },
       required: ["landingPageId"],

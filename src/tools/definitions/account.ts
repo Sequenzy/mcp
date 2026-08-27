@@ -1,6 +1,8 @@
-import type { Tool } from "@modelcontextprotocol/sdk/types.js";
-
-import { emailThemePatchProperties } from "../internal.js";
+import type { Tool } from "../../mcp-types.js";
+import {
+  campaignStoNotCompanyOrSequenceHint,
+  emailThemePatchProperties,
+} from "../internal.js";
 
 export const accountToolDefinitions: Tool[] = [
   // ============================================================================
@@ -112,8 +114,9 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   },
   {
     name: "get_company",
-    description:
-      "Get company details, processing status, product info, brand colors, AI writing context, reply-tracking settings, effective email localization settings, and defaultSubscriberListIds - the workspace default lists new contacts join when nothing targets them explicitly. A JSON null means every current and future list, not an empty selection; [] means no list at all; an array means exactly those lists. Change it with update_company. Read it before connecting an integration whose provider has no per-integration list targeting (Dodo Payments, PostHog, Polar, Paddle, and similar), because its live contacts and payment-provider backfills land there. PostHog history imports are different: contacts created by that import have no list memberships.",
+    description: `Get company details, processing status, product info, brand colors, AI writing context, reply-tracking settings, effective email localization settings, and defaultSubscriberListIds - the workspace default lists new contacts join when nothing targets them explicitly. A JSON null means every current and future list, not an empty selection; [] means no list at all; an array means exactly those lists. Change it with update_company. Read it before connecting an integration whose provider has no per-integration list targeting (Dodo Payments, PostHog, Polar, Paddle, and similar), because its live contacts and payment-provider backfills land there. PostHog history imports are different: contacts created by that import have no list memberships. ${
+      campaignStoNotCompanyOrSequenceHint
+    }`,
     inputSchema: {
       type: "object",
       properties: {
@@ -938,6 +941,11 @@ Requires the companies:manage scope and owner or admin access to the company.`,
           description:
             "Require email confirmation before a new contact becomes subscribed. When on, contacts added by forms, the API, and integrations start pending and receive a confirmation email; they only become active after clicking it, and they are never sent marketing email while pending. This is the account-wide default that the per-write optInMode on add_subscriber overrides. Use it to stop bot and alias signups from landing in the list as active contacts. Enabling it requires a sender profile and provisions the confirmation email automatically if the account has none; it does not retroactively unsubscribe existing active contacts.",
         },
+        doubleOptInRedirectUrl: {
+          type: ["string", "null"],
+          description:
+            "Where the hosted confirmation page sends subscribers after they confirm - typically a branded thank-you or welcome page on the company's own site. Must be an http(s) URL; a bare domain is normalized to https. Pass null to clear it, which keeps subscribers on the hosted confirmation page (branded with the company's name, logo, and colors).",
+        },
         autoUtmEnabled: {
           type: "boolean",
           description:
@@ -961,7 +969,7 @@ Requires the companies:manage scope and owner or admin access to the company.`,
   {
     name: "get_notification_preferences",
     description:
-      "Get the account notification settings for the API key's own user in this company: whether Sequenzy emails them when a new subscriber joins and when a campaign finishes sending, and whether each arrives per-occurrence or as a daily summary. Returns the supported modes and platform defaults alongside the current values. These are per-person settings - this never reads a teammate's preferences.",
+      "Get the account notification settings for the API key's own user in this company: whether Sequenzy emails them when a new subscriber joins, when a form is submitted, and when a campaign finishes sending, and whether each arrives per-occurrence or as a daily summary. Instant form-submission notifications stop after 50 per workspace per UTC day. Returns the supported modes and platform defaults alongside the current values. These are per-person settings - this never reads a teammate's preferences.",
     inputSchema: {
       type: "object",
       properties: {
@@ -976,7 +984,7 @@ Requires the companies:manage scope and owner or admin access to the company.`,
   {
     name: "update_notification_preferences",
     description:
-      "Change which account notifications Sequenzy emails the API key's own user for this company. Requires the companies:manage scope. Useful before a bulk import or a large migration, when per-signup notifications would otherwise flood the inbox. Modes are 'off', 'instant' (one email per occurrence), and 'daily' (one summary per day); 'daily' is only valid for new_subscriber, because a campaign finishes once. New-subscriber notifications already fall back to a daily summary automatically on high-volume days, and imports never trigger them at all.",
+      "Change which account notifications Sequenzy emails the API key's own user for this company. Requires the companies:manage scope. Useful before a bulk import or a large migration, when per-signup notifications would otherwise flood the inbox. Modes are 'off', 'instant' (one email per occurrence), and 'daily' (one summary per day); 'daily' is only valid for new_subscriber, because a campaign finishes once and each form submit is its own lead. Instant form-submission notifications stop after 50 per workspace per UTC day. New-subscriber notifications already fall back to a daily summary automatically on high-volume days, and imports never trigger them at all.",
     inputSchema: {
       type: "object",
       properties: {
@@ -994,14 +1002,18 @@ Requires the companies:manage scope and owner or admin access to the company.`,
             properties: {
               event: {
                 type: "string",
-                enum: ["new_subscriber", "campaign_completed"],
+                enum: [
+                  "new_subscriber",
+                  "form_submitted",
+                  "campaign_completed",
+                ],
                 description: "Which notification to configure.",
               },
               mode: {
                 type: "string",
                 enum: ["off", "instant", "daily"],
                 description:
-                  "How to receive it. 'daily' is not supported for campaign_completed.",
+                  "How to receive it. 'daily' is not supported for form_submitted or campaign_completed.",
               },
             },
             required: ["event", "mode"],

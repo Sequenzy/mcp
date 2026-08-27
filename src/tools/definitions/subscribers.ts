@@ -1,5 +1,4 @@
-import type { Tool } from "@modelcontextprotocol/sdk/types.js";
-
+import type { Tool } from "../../mcp-types.js";
 import { SUBSCRIBER_ATTRIBUTE_FILTER_OPERATORS } from "../descriptions.js";
 import { includeMachineEngagementToolProperty } from "../internal.js";
 
@@ -117,7 +116,8 @@ export const subscriberToolDefinitions: Tool[] = [
         listIds: {
           type: "array",
           items: { type: "string" },
-          description: "List IDs to add subscriber to",
+          description:
+            "List IDs to add subscriber to. Omit to let a contact this call creates follow the workspace default lists; an existing contact then keeps the memberships they already have. Pass [] to join no list.",
         },
         status: {
           type: "string",
@@ -196,6 +196,13 @@ export const subscriberToolDefinitions: Tool[] = [
           enum: ["default", "confirmed", "double_opt_in"],
           description:
             "Email consent mode. Default follows workspace double opt-in settings. Confirmed creates active contacts immediately and must only be used for verified consent. Double_opt_in may send confirmation email and requires automations:trigger.",
+        },
+        idempotencyKey: {
+          type: "string",
+          minLength: 1,
+          maxLength: 255,
+          description:
+            "Caller-owned key (1-255 characters, not blank) that makes retrying this request safe. The key is scoped to the request content: resending the same request returns the already-queued import (deduplicated: true), while different content under the same key queues a new import. Use it whenever a timeout or retry loop could resend the same import. If two identical requests overlap, a transient 503 means to retry the same call shortly.",
         },
       },
       required: ["subscribers"],
@@ -549,6 +556,63 @@ export const subscriberToolDefinitions: Tool[] = [
           type: "object",
           description: "Custom attributes to set on the subscriber.",
           additionalProperties: true,
+        },
+      },
+      required: ["events"],
+    },
+  },
+  {
+    name: "import_subscriber_events",
+    description:
+      "Record a bounded batch of events for many subscribers in one call, built for data pipeline and warehouse syncs. Each event carries its own email or externalId and a required source-owned eventId; externalId-only rows must identify an existing contact because email is required for creation. Contacts whose events are all more than an hour old are imported silently as history (including no double-opt-in email); any recent event makes that contact's whole group live. Retries preserve one receipt and idempotently re-attempt downstream recovery. Accepts at most 25 events.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        events: {
+          type: "array",
+          minItems: 1,
+          maxItems: 25,
+          items: {
+            type: "object",
+            properties: {
+              email: {
+                type: ["string", "null"],
+                description:
+                  "Subscriber email address. Required when the event may create a new contact; null is treated as absent.",
+              },
+              externalId: {
+                type: ["string", "null"],
+                description:
+                  "Customer-owned subscriber ID. It can be used alone only when it resolves to an existing contact; null is treated as absent.",
+              },
+              name: { type: "string", description: "Event name" },
+              properties: {
+                type: "object",
+                description: "Event properties",
+                additionalProperties: true,
+              },
+              occurredAt: {
+                type: ["string", "null"],
+                description:
+                  "When the event happened (ISO 8601; null is absent). Classification is per contact: only when every row for that contact is more than an hour old is the group historical; any recent row makes the whole group live.",
+              },
+              eventId: {
+                type: "string",
+                minLength: 1,
+                description:
+                  "Required source-owned id for this event, making a re-run idempotent on both the live and historical paths.",
+              },
+            },
+            required: ["name", "eventId"],
+            additionalProperties: false,
+          },
+          description:
+            "Events to record. Each event identifies its own subscriber.",
         },
       },
       required: ["events"],

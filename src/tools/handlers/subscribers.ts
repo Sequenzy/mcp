@@ -209,6 +209,9 @@ export async function handleSubscriberTools(
             smsConsent: args.smsConsent,
           }),
           ...(optInMode !== undefined && { optInMode }),
+          ...(args.idempotencyKey !== undefined && {
+            idempotencyKey: args.idempotencyKey,
+          }),
         },
         companyId
       );
@@ -489,6 +492,55 @@ export async function handleSubscriberTools(
             customAttributes: args.attributes,
           }),
         },
+        companyId
+      );
+      break;
+    }
+
+    case "import_subscriber_events": {
+      const companyId = args.companyId as string | undefined;
+      if (!Array.isArray(args.events) || args.events.length === 0) {
+        throw new Error(
+          "`events` must be a non-empty array when calling `import_subscriber_events`."
+        );
+      }
+      if (args.events.length > 25) {
+        throw new Error(
+          "`import_subscriber_events` accepts at most 25 events per call. Split a larger import into several calls."
+        );
+      }
+      for (let index = 0; index < args.events.length; index += 1) {
+        const event = args.events[index];
+        if (
+          !isRecord(event) ||
+          typeof event.name !== "string" ||
+          event.name.trim() === ""
+        ) {
+          throw new Error(
+            `Event ${index} must include a non-empty \`name\` string.`
+          );
+        }
+        const hasEmail =
+          typeof event.email === "string" && event.email.trim() !== "";
+        const hasExternalId =
+          typeof event.externalId === "string" &&
+          event.externalId.trim() !== "";
+        if (!hasEmail && !hasExternalId) {
+          throw new Error(
+            `Event ${index} must include an \`email\` or an \`externalId\`.`
+          );
+        }
+        if (typeof event.eventId !== "string" || event.eventId.trim() === "") {
+          throw new Error(
+            `Event ${index} must include a non-empty \`eventId\` so retries are safe.`
+          );
+        }
+      }
+
+      result = await apiRequest(
+        "POST",
+        "/api/v1/subscribers/events/imports",
+        { events: args.events },
         companyId
       );
       break;

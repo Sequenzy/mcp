@@ -1,15 +1,5 @@
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import type { RequestHandlerExtra } from "@modelcontextprotocol/sdk/shared/protocol.js";
-import {
-  CallToolRequestSchema,
-  ListResourcesRequestSchema,
-  ListToolsRequestSchema,
-  ReadResourceRequestSchema,
-  type Notification,
-  type Request,
-  type ServerNotification,
-  type ServerRequest,
-} from "@modelcontextprotocol/sdk/types.js";
+import { McpServer, type ListToolsResult } from "@modelcontextprotocol/server";
+
 import packageJson from "../package.json";
 
 import { handleResourceRead, resources } from "./resources/index.js";
@@ -17,27 +7,23 @@ import type { McpRequestContext } from "./runtime.js";
 import { withMcpRequestContext } from "./runtime.js";
 import { handleToolCall, tools } from "./tools/index.js";
 
-type SequenzyRequestHandlerExtra = RequestHandlerExtra<
-  ServerRequest | Request,
-  ServerNotification | Notification
->;
+const LIST_CACHE_HINT = {
+  ttlMs: 60_000,
+  cacheScope: "public" as const,
+};
 
 interface CreateSequenzyMcpServerOptions {
-  getRequestContext?: (
-    extra: SequenzyRequestHandlerExtra
-  ) => McpRequestContext | undefined;
+  getRequestContext?: () => McpRequestContext | undefined;
   onRequestContextUpdated?: (
-    context: McpRequestContext,
-    extra: SequenzyRequestHandlerExtra
+    context: McpRequestContext
   ) => void | Promise<void>;
 }
 
 async function withRequestContext<T>(
-  extra: SequenzyRequestHandlerExtra,
   options: CreateSequenzyMcpServerOptions,
   callback: () => Promise<T>
 ): Promise<T> {
-  const context = options.getRequestContext?.(extra);
+  const context = options.getRequestContext?.();
 
   // The stdio server has no per-request context: one process serves one user,
   // so its company selection lives in the module-level runtime state for the
@@ -52,53 +38,53 @@ async function withRequestContext<T>(
   try {
     return await withMcpRequestContext(context, callback);
   } finally {
-    await options.onRequestContextUpdated?.(context, extra);
+    await options.onRequestContextUpdated?.(context);
   }
 }
 
 export function createSequenzyMcpServer(
   options: CreateSequenzyMcpServerOptions = {}
 ) {
-  const server = new Server(
+  const server = new McpServer(
     {
       name: "sequenzy",
       version: packageJson.version,
     },
     {
       capabilities: {
-        tools: {},
-        resources: {},
+        tools: { listChanged: false },
+        resources: { listChanged: false },
       },
       instructions: [
         "Sequenzy email marketing MCP server: manage subscribers, campaigns, sequences, templates, and delivery stats.",
         "If you have access to multiple companies, call get_account and then select_company (or pass companyId per call) before other tools.",
         "IMPORTANT: whenever the user wanted to accomplish something and these tools did not expose functionality for it (missing tool, missing argument, unsupported workflow, or broken behavior), call submit_feedback describing the gap before finishing the task. When a tool call produced a wrong or unexpected result, include userIntent, toolCalls, expected, actual, and resourceIds in the submission so the team can reproduce it. The Sequenzy team reads every submission and uses it to decide what to build next.",
       ].join("\n"),
+      cacheHints: {
+        "tools/list": LIST_CACHE_HINT,
+        "resources/list": LIST_CACHE_HINT,
+        "server/discover": LIST_CACHE_HINT,
+      },
     }
   );
 
-  server.setRequestHandler(ListToolsRequestSchema, async () => {
-    return { tools };
+  server.server.setRequestHandler("tools/list", async () => {
+    return { tools } as unknown as ListToolsResult;
   });
 
-  server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
+  server.server.setRequestHandler("tools/call", async (request) => {
     const { name, arguments: args } = request.params;
-    return withRequestContext(extra, options, () =>
-      handleToolCall(name, args ?? {})
-    );
+    return withRequestContext(options, () => handleToolCall(name, args ?? {}));
   });
 
-  server.setRequestHandler(ListResourcesRequestSchema, async () => {
+  server.server.setRequestHandler("resources/list", async () => {
     return { resources };
   });
 
-  server.setRequestHandler(
-    ReadResourceRequestSchema,
-    async (request, extra) => {
-      const { uri } = request.params;
-      return withRequestContext(extra, options, () => handleResourceRead(uri));
-    }
-  );
+  server.server.setRequestHandler("resources/read", async (request) => {
+    const { uri } = request.params;
+    return withRequestContext(options, () => handleResourceRead(uri));
+  });
 
   return server;
 }

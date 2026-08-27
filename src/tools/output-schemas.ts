@@ -1,10 +1,19 @@
-import type { CallToolResult, Tool } from "@modelcontextprotocol/sdk/types.js";
+import type { CallToolResult } from "@modelcontextprotocol/server";
+
+import type { Tool } from "../mcp-types.js";
 
 import { isRecord } from "./common-primitives.js";
 import { dashboardUrlToolNames } from "./delivery-and-urls.js";
-import { pollRespondentFilterHint } from "./descriptions.js";
+import {
+  campaignStoOutputHint,
+  pollRespondentFilterHint,
+} from "./descriptions.js";
+
 export type ToolOutputSchema = NonNullable<Tool["outputSchema"]>;
-export type SequenzyToolCallResult = CallToolResult & {
+export type SequenzyToolCallResult = Omit<
+  CallToolResult,
+  "content" | "structuredContent"
+> & {
   content: Array<{ type: "text"; text: string }>;
   structuredContent?: Record<string, unknown>;
 };
@@ -184,7 +193,7 @@ const SEQUENCE_STEP_NUMBER_HINT =
 
 export const sequenceOutputProperty: OutputSchemaProperty =
   objectOutputProperty(
-    `The sequence record returned by Sequenzy. ${SEQUENCE_RUN_STATE_HINT} ${SEQUENCE_STEP_NUMBER_HINT}`
+    `The sequence record returned by Sequenzy. ${SEQUENCE_RUN_STATE_HINT} ${SEQUENCE_STEP_NUMBER_HINT} Sequences use sendingWindow for allowed local hours/days; they do not have Send Time Optimization. STO is per-campaign (list_campaigns / get_campaign sendTimeOptimization).`
   );
 
 export const sequenceListOutputProperty: OutputSchemaProperty =
@@ -259,7 +268,7 @@ export const outputPropertiesByToolName: Record<
     account: resourceOutputProperty("account"),
     companies: resourceListOutputProperty("company"),
     apiKeyPermissions: objectOutputProperty(
-      "Current API key preset and scopes, whether common marketing work is discoverable, any missing marketing read scopes, and the API Keys management URL."
+      "Current API key preset and scopes, whether common marketing work is discoverable, any missing marketing read scopes, `canSendLive` plus `missingLiveDeliveryScopes` (delivery this key cannot perform, e.g. `transactional:send` for `send_email`; check before composing anything meant to be sent) and `liveDeliveryBlockedByRole` (a viewer role blocks sending no matter the scopes, so widening the key will not help), and the API Keys management URL."
     ),
     currentCompanyId: stringOutputProperty(
       "Company ID selected by the authenticated API key, when available."
@@ -661,7 +670,7 @@ export const outputPropertiesByToolName: Record<
       "One entry per notification event with its current mode: off, instant, or daily. Every event is always present; an event the user has never configured reports the platform default."
     ),
     supportedModes: objectOutputProperty(
-      "Modes each event accepts, keyed by event. campaign_completed does not accept daily."
+      "Modes each event accepts, keyed by event. form_submitted and campaign_completed do not accept daily."
     ),
     defaults: objectOutputProperty(
       "Mode each event uses when the user has never configured it."
@@ -672,7 +681,7 @@ export const outputPropertiesByToolName: Record<
       "Every notification event with its mode after the update, not only the events that were changed."
     ),
     supportedModes: objectOutputProperty(
-      "Modes each event accepts, keyed by event. campaign_completed does not accept daily."
+      "Modes each event accepts, keyed by event. form_submitted and campaign_completed do not accept daily."
     ),
     defaults: objectOutputProperty(
       "Mode each event uses when the user has never configured it."
@@ -727,7 +736,7 @@ export const outputPropertiesByToolName: Record<
       "Open, click, and unsubscribe tracking flags, the opt-in strictBotFilteringEnabled bot-detection flag, plus the default attribution window in hours."
     ),
     consent: objectOutputProperty(
-      "Signup consent settings: doubleOptInEnabled, and doubleOptInEmailId for the confirmation email sent to pending contacts (null when double opt-in has never been enabled)."
+      "Signup consent settings: doubleOptInEnabled, doubleOptInEmailId for the confirmation email sent to pending contacts (null when double opt-in has never been enabled), and doubleOptInRedirectUrl for where the hosted confirmation page sends subscribers after confirming (null keeps them on the branded confirmation page)."
     ),
     autoUtm: objectOutputProperty(
       "Automatic UTM tagging state and its configured parameters."
@@ -745,7 +754,7 @@ export const outputPropertiesByToolName: Record<
       "Open, click, and unsubscribe tracking flags, the opt-in strictBotFilteringEnabled bot-detection flag, plus the default attribution window in hours, after the update."
     ),
     consent: objectOutputProperty(
-      "Signup consent settings after the update: doubleOptInEnabled, and doubleOptInEmailId for the confirmation email, which is provisioned automatically the first time double opt-in is enabled."
+      "Signup consent settings after the update: doubleOptInEnabled, doubleOptInEmailId for the confirmation email (provisioned automatically the first time double opt-in is enabled), and doubleOptInRedirectUrl for the post-confirmation redirect (null keeps subscribers on the branded confirmation page)."
     ),
     autoUtm: objectOutputProperty(
       "Automatic UTM tagging state and its configured parameters, after the update."
@@ -800,6 +809,9 @@ export const outputPropertiesByToolName: Record<
   },
   create_subscriber_import: {
     import: objectOutputProperty(SUBSCRIBER_IMPORT_HINT),
+    deduplicated: booleanOutputProperty(
+      "Present and true when idempotencyKey matched an already-queued import. Nothing new was queued; `import` is the original import."
+    ),
   },
   get_subscriber_import: {
     import: objectOutputProperty(SUBSCRIBER_IMPORT_HINT),
@@ -856,6 +868,55 @@ export const outputPropertiesByToolName: Record<
   trigger_subscriber_events: {
     subscriber: resourceOutputProperty("subscriber"),
     events: resourceListOutputProperty("recorded event"),
+  },
+  import_subscriber_events: {
+    total: numberOutputProperty("Events submitted in this request."),
+    recorded: numberOutputProperty("Events recorded by this request."),
+    duplicates: numberOutputProperty(
+      "Events skipped because their eventId was already recorded."
+    ),
+    failed: numberOutputProperty("Events that failed to record."),
+    sideEffectFailed: numberOutputProperty(
+      "Receipt rows whose downstream side effects or historical automation shielding failed. This is orthogonal to receipt accounting and may accompany either a newly recorded or duplicate row during recovery."
+    ),
+    subscribers: numberOutputProperty(
+      "Distinct subscriber identities in the request."
+    ),
+    failures: {
+      type: "array",
+      description:
+        "Failed events by input index. Recorded events are kept, so treat an error as partial success and retry with the same eventIds.",
+      items: {
+        type: "object",
+        description: "One failed event.",
+        properties: {
+          index: numberOutputProperty("Index into the submitted events array."),
+          error: stringOutputProperty("Why this event failed."),
+        },
+      },
+    },
+    sideEffectFailures: {
+      type: "array",
+      description:
+        "Post-write failures by input index. The receipt exists (new or duplicate); use the stages and optional error for recovery, then retry with the same eventId.",
+      items: {
+        type: "object",
+        description:
+          "One event receipt (new or duplicate) with failed downstream work.",
+        properties: {
+          index: numberOutputProperty("Index into the submitted events array."),
+          stages: {
+            type: "array",
+            description: "Downstream stages that failed.",
+            items: { type: "string", description: "Failed stage name." },
+          },
+          error: stringOutputProperty("Optional recovery guidance."),
+        },
+      },
+    },
+    error: stringOutputProperty(
+      "The first row-level failure message when any event failed."
+    ),
   },
   bulk_add_subscriber_tags: {
     tags: {
@@ -1104,13 +1165,17 @@ export const outputPropertiesByToolName: Record<
     abTestId: stringOutputProperty("Deleted A/B test ID."),
   },
   list_campaigns: {
-    campaigns: resourceListOutputProperty("campaign"),
+    campaigns: arrayOutputProperty(
+      `List of campaign records returned by Sequenzy. ${campaignStoOutputHint}`
+    ),
     pagination: objectOutputProperty(
       "Campaign page window: `limit`, `offset`, `count` returned in this page, `total` matching the filters, and `hasMore`. Keep calling with an advanced `offset` while `hasMore` is true to enumerate every campaign."
     ),
   },
   get_campaign: {
-    campaign: resourceOutputProperty("campaign"),
+    campaign: objectOutputProperty(
+      `The campaign record returned by Sequenzy. ${campaignStoOutputHint}`
+    ),
   },
   get_campaign_audience: {
     campaignId: stringOutputProperty("Campaign the audience was resolved for."),
@@ -1309,6 +1374,25 @@ export const outputPropertiesByToolName: Record<
   get_landing_page: {
     landingPage: resourceOutputProperty("landing page"),
   },
+  render_landing_page: {
+    previewUrl: stringOutputProperty(
+      "Signed, unlisted visitor-facing preview of the current page content. Works for drafts. Not indexed. Share this URL to review layout and copy without publishing."
+    ),
+    publicUrl: nullableStringOutputProperty(
+      "Public visitor URL, or null until the page is published."
+    ),
+    landingPageId: stringOutputProperty("Landing page ID."),
+    name: stringOutputProperty("Landing page name."),
+    status: stringOutputProperty(
+      "draft or published. Drafts are only visible at previewUrl."
+    ),
+    published: booleanOutputProperty(
+      "Whether the page is live on publicUrl. False for drafts."
+    ),
+    title: stringOutputProperty(
+      "Visitor-facing title from SEO metadata or the first heading."
+    ),
+  },
   create_landing_page: {
     landingPage: resourceOutputProperty("landing page"),
   },
@@ -1478,6 +1562,23 @@ export const outputPropertiesByToolName: Record<
     },
     pagination: objectOutputProperty("Pagination metadata."),
   },
+  simulate_sequence: {
+    sequenceId: stringOutputProperty("Sequence ID."),
+    sequenceName: stringOutputProperty("Sequence name."),
+    status: stringOutputProperty("Stored sequence status."),
+    sendsMail: booleanOutputProperty(
+      "Always false. Simulation never sends mail or enrolls anyone."
+    ),
+    enrollment: objectOutputProperty(
+      "Who currently matches and the confirmation that nobody is auto-enrolled on activate. List, tag, and segment matches can still be enrolled by hand."
+    ),
+    readiness: objectOutputProperty(
+      "Activation checks: ready, errors that should be fixed before enable_sequence, and non-blocking warnings."
+    ),
+    path: nullableObjectOutputProperty(
+      "Walked graph for the optional stored subscriber, including branch verdicts, emailStepsOnPath (traversed email nodes), and emailsOnPath (emails deliverable for the subscriber's current email/status). Null when no subscriberId or email was passed."
+    ),
+  },
   send_sequence_test_email: {
     sequenceId: stringOutputProperty("Sequence ID."),
     nodeId: stringOutputProperty("Tested sequence email-step node ID."),
@@ -1560,6 +1661,18 @@ export const outputPropertiesByToolName: Record<
   },
   unarchive_sequence: {
     sequence: sequenceOutputProperty,
+  },
+  list_campaign_goals: {
+    goals: resourceListOutputProperty("campaign goal"),
+  },
+  create_campaign_goal: {
+    goal: resourceOutputProperty("campaign goal"),
+  },
+  update_campaign_goal: {
+    goal: resourceOutputProperty("campaign goal"),
+  },
+  delete_campaign_goal: {
+    goalId: stringOutputProperty("Deleted campaign goal ID."),
   },
   list_sequence_goals: {
     goals: resourceListOutputProperty("sequence goal"),
@@ -1814,6 +1927,14 @@ export const outputPropertiesByToolName: Record<
     recommendations: objectOutputProperty(
       "Product recommendation funnel: impressions, recipients, clicks, clickers, orders, legacy revenueCents, currency-safe revenueByCurrency totals, and topProducts (per-product impressions/clicks). Orders count when a subscriber buys a recommended product within 7 days of clicking it. Present only when the campaign rendered product recommendation blocks."
     ),
+    goals: {
+      type: "array",
+      description:
+        "Conversion goals attached to this campaign, in creation order. Each entry has goalId, name, conversions attributed to this campaign, and trackedValue in minor units. Present only when the campaign has attached goals. Zero-conversion goals are included so the report can show the full funnel.",
+      items: objectOutputProperty(
+        "One campaign goal with goalId/name/conversions/trackedValue."
+      ),
+    },
   },
   list_poll_responses: {
     campaignId: stringOutputProperty("Campaign the responses belong to."),

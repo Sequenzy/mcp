@@ -9,6 +9,7 @@ import {
   buildMoveSequenceEnrollmentBody,
   buildRealignSequenceEnrollmentBody,
   optionalString,
+  optionalIntegerInRange,
   requiredString,
   buildSequenceEnrollmentBody,
   validateCreateSequenceGoalArgs,
@@ -141,6 +142,31 @@ export async function handleSequenceTools(
       result = await apiRequest(
         "GET",
         `/api/v1/sequences/${args.sequenceId}`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "simulate_sequence": {
+      const companyId = args.companyId as string | undefined;
+      const sequenceId = requiredString(name, args, "sequenceId");
+      const subscriberId = optionalString(args, "subscriberId");
+      const email = optionalString(args, "email");
+      const limit = optionalIntegerInRange(name, args, "limit", 1, 25);
+      if (subscriberId && email) {
+        throw new Error(
+          "Pass `subscriberId` or `email`, not both, when calling `simulate_sequence`."
+        );
+      }
+      const query = new URLSearchParams();
+      if (subscriberId) query.set("subscriberId", subscriberId);
+      if (email) query.set("email", email);
+      if (limit !== undefined) query.set("limit", String(limit));
+      const suffix = query.size > 0 ? `?${query.toString()}` : "";
+      result = await apiRequest(
+        "GET",
+        `/api/v1/sequences/${encodeURIComponent(sequenceId)}/simulate${suffix}`,
         undefined,
         companyId
       );
