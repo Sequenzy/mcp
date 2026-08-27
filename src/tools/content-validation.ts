@@ -38,9 +38,32 @@ export function validateCreateCampaignContentArgs(
     );
   }
 
+  validateEmailPresetArg("create_campaign", args);
+
   if (!hasPrompt && optionalString(args, "subject") === undefined) {
     throw new Error(
       "`subject` is required unless `prompt` is provided when calling `create_campaign`."
+    );
+  }
+}
+
+export function validateEmailPresetArg(
+  toolName: string,
+  args: Record<string, unknown>
+): void {
+  if (args.emailPreset === undefined) {
+    return;
+  }
+
+  if (args.emailPreset !== "branded" && args.emailPreset !== "minimal") {
+    throw new Error(
+      `\`emailPreset\` must be branded or minimal when calling \`${toolName}\`.`
+    );
+  }
+
+  if (args.html !== undefined) {
+    throw new Error(
+      `\`emailPreset\` is only supported for native Sequenzy blocks and cannot be combined with \`html\` when calling \`${toolName}\`.`
     );
   }
 }

@@ -7,6 +7,7 @@ import {
   validateCreateTemplateContentArgs,
   validateCampaignDeliveryPacingArgs,
   validateScheduleCampaignArgs,
+  validateEmailPresetArg,
   validateCreateCampaignGoalArgs,
   validateUpdateCampaignGoalArgs,
   isRecord,
@@ -913,6 +914,7 @@ export async function handleCampaignTools(
         "trackingCode",
         "html",
         "blocks",
+        "emailPreset",
         "fromEmail",
         "fromName",
         "senderProfileId",
@@ -942,6 +944,7 @@ export async function handleCampaignTools(
 
       validateHtmlOrBlocksArgs("update_campaign", args);
       validateLabelsArg("update_campaign", args);
+      validateEmailPresetArg("update_campaign", args);
       validateCampaignDeliveryPacingArgs("update_campaign", args);
 
       validateSendingIdentityArgs("update_campaign", args, {
@@ -963,6 +966,7 @@ export async function handleCampaignTools(
         args.trackingCode === undefined &&
         args.html === undefined &&
         args.blocks === undefined &&
+        args.emailPreset === undefined &&
         args.fromEmail === undefined &&
         args.senderProfileId === undefined &&
         args.replyTo === undefined &&

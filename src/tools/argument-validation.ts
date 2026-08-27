@@ -436,6 +436,7 @@ export const TRACKING_SETTINGS_UPDATE_FIELDS = [
   "unsubscribeTrackingEnabled",
   "defaultAttributionWindowHours",
   "doubleOptInEnabled",
+  "doubleOptInRedirectUrl",
   "autoUtmEnabled",
   "autoUtmSettings",
 ] as const;
@@ -502,6 +503,18 @@ export function buildUpdateTrackingSettingsBody(
   ) {
     throw new Error(
       "`defaultAttributionWindowHours` must be a whole number of hours between 1 and 720 when calling `update_tracking_settings`."
+    );
+  }
+
+  // doubleOptInRedirectUrl is nullable: null clears the redirect, keeping
+  // subscribers on the branded confirmation page.
+  if (
+    args.doubleOptInRedirectUrl !== undefined &&
+    args.doubleOptInRedirectUrl !== null &&
+    typeof args.doubleOptInRedirectUrl !== "string"
+  ) {
+    throw new Error(
+      "`doubleOptInRedirectUrl` must be a URL string or null when calling `update_tracking_settings`."
     );
   }
 

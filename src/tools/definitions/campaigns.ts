@@ -1,5 +1,6 @@
 import type { Tool } from "../../mcp-types.js";
 import {
+  campaignEmailPresetSchema,
   campaignSendTimeOptimizationFieldDescription,
   campaignSendTimeWindowHoursFieldDescription,
   campaignStoListFieldsHint,
@@ -292,7 +293,7 @@ export const campaignToolDefinitions: Tool[] = [
   {
     name: "create_campaign",
     description:
-      "Create a new campaign. Omit all content fields to create an empty draft. For net-new natural-language content use `prompt`; do not author HTML or blocks. `blocks` are finished caller-supplied Sequenzy content and `html` is preserved/imported markup. Defaults to draft; status 'sent' only archives an already-sent campaign.",
+      "Create a new campaign. Omit all content fields to create an empty draft. For net-new natural-language content use `prompt`; do not author HTML or blocks. `blocks` are finished caller-supplied Sequenzy content and `html` is preserved/imported markup. Pass `emailPreset` with native blocks to set Style > Format (minimal or branded); `style` is a prompt-generation hint only. Defaults to draft; status 'sent' only archives an already-sent campaign.",
     inputSchema: {
       type: "object",
       properties: {
@@ -349,13 +350,14 @@ export const campaignToolDefinitions: Tool[] = [
         style: {
           type: "string",
           description:
-            "Prompt generation style: minimal, branded, promotional. Only used with `prompt`.",
+            "Prompt generation style: minimal, branded, promotional. Only used with `prompt`; this is not Style > Format. Use `emailPreset` to set branded or minimal chrome on native blocks.",
         },
         tone: {
           type: "string",
           description:
             "Prompt generation tone: professional, casual, friendly. Only used with `prompt`.",
         },
+        emailPreset: campaignEmailPresetSchema,
         templateId: {
           type: "string",
           description: "Use a template instead of html",
@@ -429,7 +431,7 @@ export const campaignToolDefinitions: Tool[] = [
   },
   {
     name: "update_campaign",
-    description: `Update a draft campaign's content, audience, sending identity, labels, or delivery pacing. sendTimeOptimization and sendTimeWindowHours persist on the draft and are used when the campaign is later scheduled unless schedule_campaign overrides them. ${
+    description: `Update a draft campaign's content, audience, sending identity, labels, Style > Format, or delivery pacing. Pass emailPreset to change Style > Format on native blocks without rewriting copy. sendTimeOptimization and sendTimeWindowHours persist on the draft and are used when the campaign is later scheduled unless schedule_campaign overrides them. ${
       campaignStoNotCompanyOrSequenceHint
     }`,
     inputSchema: {
@@ -468,6 +470,7 @@ export const campaignToolDefinitions: Tool[] = [
             type: "object",
           },
         },
+        emailPreset: campaignEmailPresetSchema,
         replyTo: {
           type: "string",
           description:

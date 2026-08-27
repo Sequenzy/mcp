@@ -186,6 +186,9 @@ describe("account tools", () => {
         "sequences:read",
         "landing_pages:read",
       ],
+      canSendLive: false,
+      missingLiveDeliveryScopes: ["transactional:send"],
+      liveDeliveryBlockedByRole: false,
       manageUrl:
         "https://sequenzy.com/dashboard/company/company_123/settings?tab=api-keys",
     };
@@ -4196,6 +4199,7 @@ describe("update_campaign tool validation", () => {
     expect(inputSchema?.properties).toHaveProperty("targetLists");
     expect(inputSchema?.properties).toHaveProperty("segmentId");
     expect(inputSchema?.properties).toHaveProperty("labels");
+    expect(inputSchema?.properties).toHaveProperty("emailPreset");
     expect(inputSchema?.properties).toHaveProperty("sendTimeOptimization");
     expect(inputSchema?.properties).toHaveProperty("sendTimeWindowHours");
     expect(updateCampaignTool?.description).toContain("campaign-only");
@@ -4491,6 +4495,48 @@ describe("update_campaign tool validation", () => {
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain(
       "Provide either `html` or `blocks` when calling `update_campaign`, not both."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("allows emailPreset as the only update_campaign field", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      campaign: {
+        id: "camp_123",
+        name: "Launch",
+        subject: "Hello",
+        emailPreset: "minimal",
+      },
+    });
+
+    const result = await handleToolCall("update_campaign", {
+      campaignId: "camp_123",
+      emailPreset: "minimal",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/campaigns/camp_123",
+      {
+        campaignId: "camp_123",
+        emailPreset: "minimal",
+      },
+      undefined
+    );
+  });
+
+  it("rejects emailPreset with html on update_campaign", async () => {
+    const result = await handleToolCall("update_campaign", {
+      campaignId: "camp_123",
+      html: "<p>Hello</p>",
+      emailPreset: "minimal",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`emailPreset` is only supported for native Sequenzy blocks and cannot be combined with `html` when calling `update_campaign`."
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
   });
@@ -5996,6 +6042,14 @@ describe("create_campaign tool validation", () => {
     expect(inputSchema?.properties).toHaveProperty("previewText");
     expect(inputSchema?.properties).toHaveProperty("fromEmail");
     expect(inputSchema?.properties).toHaveProperty("replyTo");
+    expect(inputSchema?.properties).toHaveProperty("emailPreset");
+    expect(inputSchema?.properties?.["emailPreset"]).toMatchObject({
+      enum: ["branded", "minimal"],
+    });
+    expect(
+      (inputSchema?.properties?.["style"] as { description?: string })
+        .description
+    ).toContain("not Style > Format");
   });
 
   it("publishes concrete Poll and NPS block guidance", () => {
@@ -6042,6 +6096,69 @@ describe("create_campaign tool validation", () => {
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain(
       "`subject` is required unless `prompt` is provided when calling `create_campaign`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("forwards emailPreset with caller-supplied blocks", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      campaign: {
+        id: "camp_123",
+        name: "Research",
+        subject: "Quick question",
+        emailPreset: "minimal",
+      },
+    });
+
+    const result = await handleToolCall("create_campaign", {
+      companyId: "comp_123",
+      name: "Research",
+      subject: "Quick question",
+      emailPreset: "minimal",
+      blocks: [{ type: "text", content: "<p>Could I ask a question?</p>" }],
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/campaigns",
+      {
+        name: "Research",
+        subject: "Quick question",
+        emailPreset: "minimal",
+        blocks: [{ type: "text", content: "<p>Could I ask a question?</p>" }],
+      },
+      "comp_123"
+    );
+  });
+
+  it("rejects emailPreset with html on create_campaign", async () => {
+    const result = await handleToolCall("create_campaign", {
+      name: "Launch",
+      subject: "Hello",
+      html: "<p>Hello</p>",
+      emailPreset: "minimal",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`emailPreset` is only supported for native Sequenzy blocks and cannot be combined with `html` when calling `create_campaign`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects an invalid emailPreset on create_campaign", async () => {
+    const result = await handleToolCall("create_campaign", {
+      name: "Launch",
+      subject: "Hello",
+      emailPreset: "promotional",
+      blocks: [{ type: "text", content: "<p>Hello</p>" }],
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`emailPreset` must be branded or minimal when calling `create_campaign`."
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
   });

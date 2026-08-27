@@ -941,6 +941,11 @@ Requires the companies:manage scope and owner or admin access to the company.`,
           description:
             "Require email confirmation before a new contact becomes subscribed. When on, contacts added by forms, the API, and integrations start pending and receive a confirmation email; they only become active after clicking it, and they are never sent marketing email while pending. This is the account-wide default that the per-write optInMode on add_subscriber overrides. Use it to stop bot and alias signups from landing in the list as active contacts. Enabling it requires a sender profile and provisions the confirmation email automatically if the account has none; it does not retroactively unsubscribe existing active contacts.",
         },
+        doubleOptInRedirectUrl: {
+          type: ["string", "null"],
+          description:
+            "Where the hosted confirmation page sends subscribers after they confirm - typically a branded thank-you or welcome page on the company's own site. Must be an http(s) URL; a bare domain is normalized to https. Pass null to clear it, which keeps subscribers on the hosted confirmation page (branded with the company's name, logo, and colors).",
+        },
         autoUtmEnabled: {
           type: "boolean",
           description:
