@@ -144,7 +144,15 @@ SEQUENZY_API_KEY = "seq_user_your_key_here"
 
 ### Cursor
 
-Add this to `~/.cursor/mcp.json`:
+Install **Sequenzy** from the Cursor Marketplace for a hosted connection with Sequenzy OAuth. The plugin connects to:
+
+```text
+https://api.sequenzy.com/v1/mcp
+```
+
+After installing, complete the browser sign-in flow. Cursor's agent can then use Sequenzy tools from chat, including when Grok is the selected model.
+
+For a manual local stdio setup instead, add this to `~/.cursor/mcp.json`:
 
 ```json
 {
