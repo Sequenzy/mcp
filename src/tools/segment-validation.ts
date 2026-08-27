@@ -88,7 +88,7 @@ export const segmentFilterItemSchema = {
         "commerceProduct",
         "commerceCollection",
       ],
-      description: `Filter field. Use \`email\` with is/is_not for exact, case-insensitive address matching (allowlists and exclusions) and with contains/not_contains for domain or substring matching. Use \`phone\` with is_not_empty/is_empty to check whether a subscriber has a phone number, and \`smsStatus\` (is/is_not one of \`subscribed\`, \`unsubscribed\`, \`not_subscribed\`) for SMS marketing consent. Use \`event\` for custom subscriber events, \`segment\` for saved segment membership, \`stripeProduct\`/\`stripeCurrentProduct\`/\`stripeTrialProduct\` for Stripe product-based segments, and \`commerceProduct\` for products purchased through commerce orders - the value is \`provider:productId\` (provider one of \`shopify\`, \`woocommerce\`, \`api\`; product ids are provider-scoped), optionally with an order-count threshold (\`provider:productId:count\`) for at_least/less_than_count; a bare product id matches the id on any provider. Use \`commerceCollection\` to segment on anyone who bought ANY product in a store collection - the value is the collection id or handle (e.g. \`skincare\`), optionally provider-prefixed and/or with an order-count threshold (\`shopify:skincare:2\`); collection membership is resolved from the synced catalog as it stands now, and only Shopify collections and WooCommerce categories are synced. Engagement fields (\`emailSent\`, \`emailDelivered\`, \`emailOpened\`, \`emailClicked\`, \`emailBounced\`, \`emailComplained\`) accept a time range as the value, a specific campaign via \`campaign:<campaign_id>\`, or \`count:timeRange\` (e.g. \`10:30d\`, \`10:all\`) with at_least/less_than_count to segment by number of opens/clicks. ${pollRespondentFilterHint}`,
+      description: `Filter field. Use \`email\` with is/is_not for exact, case-insensitive address matching (allowlists and exclusions) and with contains/not_contains for domain or substring matching. Use \`phone\` with is_not_empty/is_empty to check whether a subscriber has a phone number, and \`smsStatus\` (is/is_not one of \`subscribed\`, \`unsubscribed\`, \`not_subscribed\`) for SMS marketing consent. Use \`event\` for custom subscriber events, \`segment\` for saved segment membership, \`stripeProduct\`/\`stripeCurrentProduct\`/\`stripeTrialProduct\` for Stripe product-based segments, and \`commerceProduct\` for products purchased through commerce orders - the value is \`provider:productId\` (provider one of \`shopify\`, \`woocommerce\`, \`api\`; product ids are provider-scoped), optionally with an order-count threshold (\`provider:productId:count\`) for at_least/less_than_count; a bare product id matches the id on any provider. Use \`commerceCollection\` to segment on anyone who bought ANY product in a store collection - the value is the collection id or handle (e.g. \`skincare\`), optionally provider-prefixed and/or with an order-count threshold (\`shopify:skincare:2\`); collection membership is resolved from the synced catalog as it stands now, and only Shopify collections and WooCommerce categories are synced. Engagement fields (\`emailSent\`, \`emailDelivered\`, \`emailOpened\`, \`emailClicked\`, \`emailBounced\`, \`emailComplained\`) accept a time range as the value, a specific campaign via \`campaign:<campaign_id>\`, an email-type scope via \`marketing:<timeRange>\` (marketing-policy campaign, automation, and Send API traffic) or \`transactional:<timeRange>\` (transactional-policy sends), or \`count:timeRange\` (e.g. \`10:30d\`, \`10:all\`) with at_least/less_than_count to segment by number of opens/clicks. ${pollRespondentFilterHint}`,
     },
     operator: {
       type: "string",
@@ -114,7 +114,7 @@ export const segmentFilterItemSchema = {
     },
     value: {
       type: "string",
-      description: `Filter value. For custom attribute empty checks, use \`attributeName:\` such as \`last_logged_in:\`. Event examples: \`saas.purchase:30d\`, \`saas.purchase:all\`, or \`saas.purchase:5:30d\` for thresholds. Segment values are segment IDs. Stripe product examples: \`prod_123\` for bought/didn't buy/current/trialing, \`prod_123:3\` for payment thresholds, \`prod_123:is_canceled\` for products set to cancel, \`prod_123:cancels_at:2026-05-26\`, \`prod_123:end_at:2026-05-26\`, or \`prod_123:start_at:7 days ago\` for product-scoped dates. Engagement examples: \`7d\`, \`30d\`, \`90d\`, \`180d\`, \`all\` for rolling time windows, \`campaign:<campaign_id>\` to scope to a specific sent campaign (use \`list_campaigns\` to find IDs), or \`count:timeRange\` like \`10:30d\` / \`10:all\` with at_least/less_than_count operators (e.g. emailClicked at_least \`10:all\` = clicked 10 or more times ever). ${pollRespondentFilterHint}`,
+      description: `Filter value. For custom attribute empty checks, use \`attributeName:\` such as \`last_logged_in:\`. Event examples: \`saas.purchase:30d\`, \`saas.purchase:all\`, or \`saas.purchase:5:30d\` for thresholds. Segment values are segment IDs. Stripe product examples: \`prod_123\` for bought/didn't buy/current/trialing, \`prod_123:3\` for payment thresholds, \`prod_123:is_canceled\` for products set to cancel, \`prod_123:cancels_at:2026-05-26\`, \`prod_123:end_at:2026-05-26\`, or \`prod_123:start_at:7 days ago\` for product-scoped dates. Engagement examples: \`7d\`, \`30d\`, \`90d\`, \`180d\`, \`all\` for rolling time windows, \`campaign:<campaign_id>\` to scope to a specific sent campaign (use \`list_campaigns\` to find IDs), \`marketing:7d\` / \`transactional:30d\` to scope by email type (marketing includes marketing-policy campaign, automation, and Send API traffic; policy scopes require a send-time policy snapshot, so ambiguous older events remain unscoped; email-type values work with is/is_not and the emailBounced subtype operators, e.g. emailSent is_not \`marketing:7d\` = no captured marketing email in the last 7 days), or \`count:timeRange\` like \`10:30d\` / \`10:all\` with at_least/less_than_count operators (e.g. emailClicked at_least \`10:all\` = clicked 10 or more times ever). ${pollRespondentFilterHint}`,
     },
   },
   required: ["field", "operator", "value"],
@@ -225,6 +225,64 @@ export function isSegmentTimeRange(value: string): boolean {
 
   const days = Number.parseInt(match[1], 10);
   return Number.isInteger(days) && days > 0;
+}
+
+const segmentEngagementFields = new Set([
+  "emailSent",
+  "emailDelivered",
+  "emailOpened",
+  "emailClicked",
+  "emailBounced",
+  "emailComplained",
+]);
+
+export function getSegmentEngagementValueValidationError(
+  operator: string,
+  rawValue: string
+): string | null {
+  const value = rawValue.trim();
+  const isCountOperator =
+    operator === "at_least" || operator === "less_than_count";
+
+  if (value.startsWith("campaign:")) {
+    if (isCountOperator) {
+      return "Campaign-specific engagement values cannot be combined with count operators.";
+    }
+    return value.slice("campaign:".length).trim()
+      ? null
+      : 'Campaign-specific engagement filters must use "campaign:<campaignId>".';
+  }
+
+  if (value.startsWith("marketing:") || value.startsWith("transactional:")) {
+    if (isCountOperator) {
+      return "Email-type engagement values cannot be combined with count operators.";
+    }
+    const colonIndex = value.indexOf(":");
+    return isSegmentTimeRange(value.slice(colonIndex + 1).trim())
+      ? null
+      : 'Email-type engagement filters must use "marketing:<timeRange>" or "transactional:<timeRange>", like "marketing:7d".';
+  }
+
+  if (isCountOperator) {
+    if (isSegmentTimeRange(value)) {
+      return null;
+    }
+    const colonIndex = value.indexOf(":");
+    const thresholdValue = value.slice(0, colonIndex).trim();
+    const threshold = Number.parseInt(thresholdValue, 10);
+    const timeRange = value.slice(colonIndex + 1).trim();
+    return colonIndex > 0 &&
+      /^\d+$/.test(thresholdValue) &&
+      Number.isInteger(threshold) &&
+      threshold > 0 &&
+      isSegmentTimeRange(timeRange)
+      ? null
+      : 'Engagement count filters must use "count:timeRange", like "10:30d" or "10:all".';
+  }
+
+  return isSegmentTimeRange(value)
+    ? null
+    : 'Engagement filters must use a time range like "30d" or "all", "campaign:<campaignId>", or an email-type scope like "marketing:7d" or "transactional:7d".';
 }
 
 export function getSegmentEventValueValidationError(
@@ -609,6 +667,16 @@ export function getSegmentFilterValidationError(
     );
     if (eventValueError) {
       return eventValueError;
+    }
+  }
+
+  if (segmentEngagementFields.has(field) && typeof value === "string") {
+    const engagementValueError = getSegmentEngagementValueValidationError(
+      operator,
+      value
+    );
+    if (engagementValueError) {
+      return engagementValueError;
     }
   }
 

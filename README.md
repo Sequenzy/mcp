@@ -596,7 +596,7 @@ Commerce product filters match products purchased through commerce orders. Value
 { "field": "commerceProduct", "operator": "at_least", "value": "shopify:42:2" }
 ```
 
-Engagement fields such as `emailSent`, `emailDelivered`, `emailOpened`, `emailClicked`, `emailBounced`, and `emailComplained` accept rolling windows like `7d`, `30d`, `90d`, `180d`, or `all`. With `at_least` and `less_than_count`, use `count:timeRange`, such as `10:30d` or `10:all`. Presence operators can instead use a campaign scope like `campaign:cmp_123`; campaign scopes cannot be combined with count operators.
+Engagement fields such as `emailSent`, `emailDelivered`, `emailOpened`, `emailClicked`, `emailBounced`, and `emailComplained` accept rolling windows like `7d`, `30d`, `90d`, `180d`, or `all`. Presence operators can scope by delivery policy with `marketing:<timeRange>` (marketing-policy campaign, automation, and Send API traffic) or `transactional:<timeRange>` (transactional-policy sends); policy scopes require a send-time policy snapshot, so ambiguous older automation and Send API events remain available only through unscoped filters. `emailBounced` also supports scoped values with `is_temporary_bounce` and `is_permanent_bounce`. With `at_least` and `less_than_count`, use `count:timeRange`, such as `10:30d` or `10:all`. Presence operators can instead use a campaign scope like `campaign:cmp_123`; campaign and email-type scopes cannot be combined with count operators.
 
 ### Audience Syncs (Meta Ads)
 
