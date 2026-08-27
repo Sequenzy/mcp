@@ -1543,7 +1543,7 @@ export const outputPropertiesByToolName: Record<
       "Always false. Simulation never sends mail or enrolls anyone."
     ),
     enrollment: objectOutputProperty(
-      "Last-24h trigger volume, who currently matches, and the confirmation that nobody is auto-enrolled on activate. List, tag, and segment matches can still be enrolled by hand."
+      "Who currently matches and the confirmation that nobody is auto-enrolled on activate. List, tag, and segment matches can still be enrolled by hand."
     ),
     readiness: objectOutputProperty(
       "Activation checks: ready, errors that should be fixed before enable_sequence, and non-blocking warnings."

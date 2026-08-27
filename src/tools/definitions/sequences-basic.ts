@@ -157,7 +157,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
   {
     name: "simulate_sequence",
     description:
-      "Dry-run a sequence without sending mail or enrolling anyone. Requires sequences:read and subscribers:read because aggregate results include contact samples. Nobody is auto-enrolled when you activate. Without a subscriber this reports last-24h trigger volume (how many people hit this recently), who currently matches (existing list/tag/segment matches are not auto-enrolled), and activation readiness errors. Frequency and inactivity current-match counts are unavailable because the hourly worker evaluates them. Pass subscriberId or email to also walk that stored contact's branch path - use this to check whether a paid user would get an upgrade email. Call this before enable_sequence.",
+      "Dry-run a sequence without sending mail or enrolling anyone. Requires sequences:read and subscribers:read because results include contact samples. Nobody is auto-enrolled when you activate. Without a subscriber this reports who currently matches (existing list/tag/segment matches are not auto-enrolled) and activation readiness errors. Frequency and inactivity current-match counts are unavailable because the hourly worker evaluates them. Pass subscriberId or email to also walk that stored contact's branch path - use this to check whether a paid user would get an upgrade email. Call this before enable_sequence.",
     inputSchema: {
       type: "object",
       properties: {
@@ -185,7 +185,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
           minimum: 1,
           maximum: 25,
           description:
-            "Maximum contacts to include in each sample. Defaults to 10.",
+            "Maximum currently matching contacts to include in the sample. Defaults to 10.",
         },
       },
       required: ["sequenceId"],

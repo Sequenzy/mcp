@@ -926,7 +926,7 @@ propagate.
 | `update_sequence_nodes`                  | Atomically patch multiple existing sequence nodes.                                                                                                          |
 | `insert_sequence_step`                   | Insert any typed dashboard step, including AI generation, outbound webhooks, waits, and wired branches.                                                     |
 | `edit_sequence_graph`                    | Move, reconnect, delete, or duplicate graph nodes; reports recipients moved or completed.                                                                   |
-| `simulate_sequence`                      | Dry-run trigger volume, current matches, activation readiness, and an optional contact's branch path without enrolling or sending.                           |
+| `simulate_sequence`                      | Dry-run current matches, activation readiness, and an optional contact's branch path without enrolling or sending.                                          |
 | `enable_sequence`                        | Activate a sequence.                                                                                                                                        |
 | `disable_sequence`                       | Freeze a sequence, blocking new enrollments and holding current recipients.                                                                                 |
 | `duplicate_sequence`                     | Create an independent draft copy of the graph, emails, and sequence A/B tests.                                                                              |
