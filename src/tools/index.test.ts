@@ -2129,6 +2129,15 @@ describe("A/B test tools", () => {
     expect(toolNames).toContain("restart_ab_test");
     expect(toolNames).toContain("update_ab_test");
     expect(toolNames).toContain("update_ab_test_variant");
+    expect(
+      tools.find((tool) => tool.name === "get_ab_test")?.description
+    ).toContain("get_sequence.sequence.emails[].abTest.variants");
+    expect(updateVariantTool?.description).toContain(
+      "enable it on the Sequenzy connector"
+    );
+    expect(updateVariantTool?.description).toContain(
+      "get_sequence.sequence.emails[].abTest.variants"
+    );
     expect(inputSchema?.required).toEqual(["abTestId", "variantId"]);
     expect(inputSchema?.additionalProperties).toBe(false);
     expect(inputSchema?.properties).toHaveProperty("subject");
@@ -7911,6 +7920,12 @@ describe("sequence node update tools", () => {
     expect(
       tools.find((tool) => tool.name === "get_sequence")?.description
     ).toContain("emailPreset");
+    expect(
+      tools.find((tool) => tool.name === "get_sequence")?.description
+    ).toContain("that variant's full blocks");
+    expect(
+      tools.find((tool) => tool.name === "get_sequence")?.description
+    ).toContain("enable it on the Sequenzy connector");
     expect(
       tools.find((tool) => tool.name === "get_sequence")?.description
     ).toContain("Send Time Optimization is not a company or sequence setting");

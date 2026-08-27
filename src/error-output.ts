@@ -227,6 +227,21 @@ function describeMcpError(error: unknown): McpErrorDescriptor {
     };
   }
 
+  if (
+    normalized.code === "AB_TEST_VARIANT_CONTENT_EDIT" ||
+    (lowerMessage.includes("update_ab_test_variant") &&
+      (lowerMessage.includes("a/b test") || lowerMessage.includes("ab test")))
+  ) {
+    return {
+      title: "A/B variant copy cannot be edited here",
+      description: message,
+      howToFix:
+        "Call `update_ab_test_variant` with `abTestId` and `variantId` from `get_sequence.sequence.emails[].abTest.variants` (or `get_ab_test`). Repeat once per variant for a whole-step rewrite. If the sequence is live or the test has activity, pass `confirmLiveChange: true`. Needs `ab_tests:write` and `sequences:write`, both on Safer agent access. If `update_ab_test_variant` is not in the MCP tool list, enable it on the Sequenzy connector - do not retry with `update_template`, `update_sequence_node`, or another email tool.",
+      docsUrl: `${MCP_DOCS_URL}#editing-the-content-of-a-sequence-ab-step`,
+      details,
+    };
+  }
+
   if (normalized.statusCode === 429 || lowerMessage.includes("rate limit")) {
     return {
       title: "Rate limited",

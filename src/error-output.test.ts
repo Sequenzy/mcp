@@ -228,4 +228,27 @@ describe("formatMcpError", () => {
     expect(message).not.toContain("Resource already exists");
     expect(message).not.toContain("unique name or domain");
   });
+
+  it("redirects A/B variant write dead-ends at update_ab_test_variant", () => {
+    const message = formatMcpError(
+      new McpApiError(
+        'This copy belongs to an A/B test variant, so update_template cannot change it. Call update_ab_test_variant. Pass abTestId "ab-1". If update_ab_test_variant is not in your MCP tool list, enable it on the Sequenzy connector - do not retry with update_template, update_sequence_node, or any other email tool.',
+        400,
+        undefined,
+        "AB_TEST_VARIANT_CONTENT_EDIT"
+      )
+    );
+
+    expect(message).toContain(
+      "Sequenzy MCP error: A/B variant copy cannot be edited here"
+    );
+    expect(message).toContain("`update_ab_test_variant`");
+    expect(message).toContain("enable it on the Sequenzy connector");
+    expect(message).toContain("do not retry with `update_template`");
+    expect(message).toContain("confirmLiveChange");
+    expect(message).toContain("Safer agent access");
+    expect(message).toContain(
+      "https://docs.sequenzy.com/concepts/mcp#editing-the-content-of-a-sequence-ab-step"
+    );
+  });
 });

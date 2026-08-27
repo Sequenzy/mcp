@@ -31,7 +31,7 @@ export const abTestToolDefinitions: Tool[] = [
   {
     name: "get_ab_test",
     description:
-      "Get A/B test details, variants, and per-locale localization sync status. This is how you read the email copy of a sequence step whose nodeType is action_ab_test: the blocks live on each variant here, not on the sequence node, and get_sequence reports the abTestId to pass in.",
+      "Get A/B test details, variants, localization sync status, and settings. Sequence action_ab_test steps also expose each variant's blocks on get_sequence.sequence.emails[].abTest.variants; use this tool when you need the full test record rather than copy alone. Pass the abTestId from get_sequence.",
     inputSchema: {
       type: "object",
       properties: {
@@ -124,7 +124,7 @@ export const abTestToolDefinitions: Tool[] = [
   {
     name: "update_ab_test_variant",
     description:
-      "Update an A/B test variant, including the email body of a sequence step whose nodeType is action_ab_test - that content cannot be edited through update_sequence_node, and a change meant for the whole step has to be repeated on every variant. Campaign variants are editable only in draft. Sequence variants can be edited after activity with confirmLiveChange, but earlier sends stay unchanged and combined results may no longer be accurate. Provide at least one of subject, previewText, html, or blocks. Use either html or blocks, not both.",
+      "Update an A/B test variant, including the email body of a sequence step whose nodeType is action_ab_test - that content cannot be edited through update_sequence_node or update_template, and a change meant for the whole step has to be repeated on every variant. Take abTestId and variantId from get_sequence.sequence.emails[].abTest.variants (or get_ab_test). If this tool is not in the MCP tool list, enable it on the Sequenzy connector rather than writing through another email tool. Campaign variants are editable only in draft. Sequence variants can be edited after activity with confirmLiveChange, but earlier sends stay unchanged and combined results may no longer be accurate. Provide at least one of subject, previewText, html, or blocks. Use either html or blocks, not both.",
     inputSchema: {
       type: "object",
       properties: {
