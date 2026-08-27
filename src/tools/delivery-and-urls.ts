@@ -281,6 +281,7 @@ export const dashboardUrlToolNames = new Set([
   "delete_landing_page",
   "list_sequences",
   "get_sequence",
+  "simulate_sequence",
   "send_sequence_test_email",
   "create_sequence",
   "generate_sequence",

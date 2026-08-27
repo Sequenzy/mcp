@@ -69,6 +69,7 @@ export const READ_ONLY_TOOL_NAMES = new Set([
   "get_landing_page",
   "list_sequences",
   "get_sequence",
+  "simulate_sequence",
   "list_sequence_enrollments",
   "get_sequence_enrollment_realignment",
   "list_sequence_goals",

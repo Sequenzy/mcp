@@ -11654,6 +11654,107 @@ describe("enroll_subscribers_in_sequence tool", () => {
   });
 });
 
+describe("simulate_sequence tool", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("is a read-only dry run that does not require a subscriber", () => {
+    const tool = tools.find(
+      (candidate) => candidate.name === "simulate_sequence"
+    );
+    expect(tool?.annotations?.readOnlyHint).toBe(true);
+    expect(tool?.description).toContain("without sending mail");
+    expect(tool?.description).toContain("enable_sequence");
+    expect(tool?.description).toContain("subscribers:read");
+    expect(tool?.outputSchema?.properties).toHaveProperty("enrollment");
+    expect(tool?.outputSchema?.properties).toHaveProperty("readiness");
+    expect(tool?.outputSchema?.properties).toHaveProperty("path");
+    expect(tool?.inputSchema.properties?.["limit"]).toMatchObject({
+      type: "integer",
+      minimum: 1,
+      maximum: 25,
+    });
+  });
+
+  it("calls the simulate endpoint without a subscriber", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      sequenceId: "seq_123",
+      sequenceName: "Welcome",
+      status: "draft",
+      sendsMail: false,
+      enrollment: {
+        triggerType: "contact_added",
+        currentlyMatchingCount: 4,
+        autoEnrollOnActivateCount: 0,
+      },
+      readiness: { ready: true, errors: [], warnings: [] },
+      path: null,
+    });
+
+    const result = await handleToolCall("simulate_sequence", {
+      companyId: "company_123",
+      sequenceId: "seq_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/sequences/seq_123/simulate",
+      undefined,
+      "company_123"
+    );
+    expect(result.structuredContent?.["enrollment"]).toMatchObject({
+      currentlyMatchingCount: 4,
+    });
+  });
+
+  it("rejects subscriberId and email together before calling the API", async () => {
+    const result = await handleToolCall("simulate_sequence", {
+      sequenceId: "seq_123",
+      subscriberId: "sub_1",
+      email: "maya@example.com",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Pass `subscriberId` or `email`, not both"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("forwards a bounded sample limit", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true });
+
+    const result = await handleToolCall("simulate_sequence", {
+      sequenceId: "seq_123",
+      limit: 25,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/sequences/seq_123/simulate?limit=25",
+      undefined,
+      undefined
+    );
+  });
+
+  it("rejects an out-of-range sample limit", async () => {
+    const result = await handleToolCall("simulate_sequence", {
+      sequenceId: "seq_123",
+      limit: 26,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`limit` must be an integer between 1 and 25"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+});
+
 describe("send_sequence_test_email tool", () => {
   beforeEach(() => {
     mockApiRequest.mockClear();

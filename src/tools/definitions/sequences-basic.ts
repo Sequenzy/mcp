@@ -155,6 +155,44 @@ export const sequenceBasicToolDefinitions: Tool[] = [
     },
   },
   {
+    name: "simulate_sequence",
+    description:
+      "Dry-run a sequence without sending mail or enrolling anyone. Requires sequences:read and subscribers:read because aggregate results include contact samples. Nobody is auto-enrolled when you activate. Without a subscriber this reports last-24h trigger volume (how many people hit this recently), who currently matches (existing list/tag/segment matches are not auto-enrolled), and activation readiness errors. Frequency and inactivity current-match counts are unavailable because the hourly worker evaluates them. Pass subscriberId or email to also walk that stored contact's branch path - use this to check whether a paid user would get an upgrade email. Call this before enable_sequence.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        sequenceId: {
+          type: "string",
+          description: "Sequence ID to simulate.",
+        },
+        subscriberId: {
+          type: "string",
+          description:
+            "Optional stored subscriber to walk through the graph. Do not pass with email.",
+        },
+        email: {
+          type: "string",
+          description:
+            "Optional stored subscriber email to walk through the graph. Do not pass with subscriberId.",
+        },
+        limit: {
+          type: "integer",
+          minimum: 1,
+          maximum: 25,
+          description:
+            "Maximum contacts to include in each sample. Defaults to 10.",
+        },
+      },
+      required: ["sequenceId"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "send_sequence_test_email",
     description:
       "Queue a real test send for one saved action_email step in a sequence. Call get_sequence first and pass the target sequence.emails entry's nodeId only when nodeType is action_email; action_ab_test steps are not supported by this tool and their variants must be inspected with get_ab_test. Accepts 1-10 reviewer email addresses and returns one durable emailSendId per recipient for get_email_send delivery inspection. The sequence is not enabled and no subscribers are enrolled.",

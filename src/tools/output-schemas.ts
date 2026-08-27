@@ -1535,6 +1535,23 @@ export const outputPropertiesByToolName: Record<
     },
     pagination: objectOutputProperty("Pagination metadata."),
   },
+  simulate_sequence: {
+    sequenceId: stringOutputProperty("Sequence ID."),
+    sequenceName: stringOutputProperty("Sequence name."),
+    status: stringOutputProperty("Stored sequence status."),
+    sendsMail: booleanOutputProperty(
+      "Always false. Simulation never sends mail or enrolls anyone."
+    ),
+    enrollment: objectOutputProperty(
+      "Last-24h trigger volume, who currently matches, and the confirmation that nobody is auto-enrolled on activate. List, tag, and segment matches can still be enrolled by hand."
+    ),
+    readiness: objectOutputProperty(
+      "Activation checks: ready, errors that should be fixed before enable_sequence, and non-blocking warnings."
+    ),
+    path: nullableObjectOutputProperty(
+      "Walked graph for the optional stored subscriber, including branch verdicts, emailStepsOnPath (traversed email nodes), and emailsOnPath (emails deliverable for the subscriber's current email/status). Null when no subscriberId or email was passed."
+    ),
+  },
   send_sequence_test_email: {
     sequenceId: stringOutputProperty("Sequence ID."),
     nodeId: stringOutputProperty("Tested sequence email-step node ID."),

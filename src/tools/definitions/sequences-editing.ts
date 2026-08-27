@@ -1193,7 +1193,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
   {
     name: "enable_sequence",
     description:
-      "Enable/activate a sequence. IMPORTANT: Only call this when the user EXPLICITLY asks to enable or activate a sequence. Never enable sequences automatically after creation - the user must review the content first.",
+      "Enable/activate a sequence. IMPORTANT: Only call this when the user EXPLICITLY asks to enable or activate a sequence. Never enable sequences automatically after creation - the user must review the content first. Call simulate_sequence first to see last-24h trigger volume, who currently matches, and whether the sequence is ready. Nobody is auto-enrolled on activate.",
     inputSchema: {
       type: "object",
       properties: {
