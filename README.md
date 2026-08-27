@@ -17,7 +17,7 @@ Connect Sequenzy to Claude Desktop, Claude Code, Codex, Cursor, Windsurf, VS Cod
 - Cancel, pause, resume, duplicate, or delete campaigns and enroll contacts into sequences.
 - Manage transactional email templates and send transactional emails to shared To, Cc, and Bcc recipient lists.
 - Supply localized template variants or queue AI translation for enabled locales.
-- Create, edit, publish, unpublish, and delete landing pages.
+- Create, preview, edit, publish, unpublish, and delete landing pages.
 - Create list-scoped saved signup forms with responsive stack, row, grid, and
   single-image overlay block groups (including foreground gap controls), then
   return client-safe static-site embeds.
@@ -896,23 +896,27 @@ retaining exactly one required email field and one submit button. Setting
 
 ### Landing Pages
 
-| Tool                                  | Description                                                           |
-| ------------------------------------- | --------------------------------------------------------------------- |
-| `list_landing_pages`                  | List landing pages with status, metrics, content, and URLs.           |
-| `get_landing_page`                    | Get landing page details, builder content, metrics, and public URLs.  |
-| `create_landing_page`                 | Create a draft landing page from default template content or JSON.    |
-| `update_landing_page`                 | Edit a landing page name, slug, or full editor-compatible content.    |
-| `publish_landing_page`                | Publish a landing page, optionally saving edits first.                |
-| `unpublish_landing_page`              | Return a landing page to draft status, optionally saving edits first. |
-| `duplicate_landing_page`              | Duplicate a landing page into a new draft with a unique slug.         |
-| `delete_landing_page`                 | Delete an unpublished landing page.                                   |
-| `connect_landing_page_domain`         | Connect a custom landing page domain and return DNS setup details.    |
-| `update_landing_page_domain_settings` | Replace or verify landing page custom domain settings.                |
+| Tool                                  | Description                                                                                              |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `list_landing_pages`                  | List landing pages with status, metrics, content, and URLs.                                              |
+| `get_landing_page`                    | Get landing page details, builder content, metrics, public URLs, and a signed draft-capable preview URL. |
+| `render_landing_page`                 | Return a signed visitor-facing preview URL without publishing or collecting draft signups.               |
+| `create_landing_page`                 | Create a draft landing page from default template content or JSON.                                       |
+| `update_landing_page`                 | Edit a landing page name, slug, or full editor-compatible content.                                       |
+| `publish_landing_page`                | Publish a landing page, optionally saving edits first.                                                   |
+| `unpublish_landing_page`              | Return a landing page to draft status, optionally saving edits first.                                    |
+| `duplicate_landing_page`              | Duplicate a landing page into a new draft with a unique slug.                                            |
+| `delete_landing_page`                 | Delete an unpublished landing page.                                                                      |
+| `connect_landing_page_domain`         | Connect a custom landing page domain and return DNS setup details.                                       |
+| `update_landing_page_domain_settings` | Replace or verify landing page custom domain settings.                                                   |
 
 Landing page content uses Sequenzy's editor-compatible JSON schema with
 `version`, `template`, `seo`, `theme`, and `blocks`. SEO settings include
 `faviconUrl` and `hideFromSearchEngines`; hidden pages publish a `noindex`
-directive. Blocks render in slot order: `top`, `hero`, `form`, `body`, then
+directive. Use `render_landing_page` to review the current visitor-facing page
+before publishing. Its signed `previewUrl` is unlisted and not indexed; draft
+forms remain visible but do not collect contacts. Blocks render in slot order:
+`top`, `hero`, `form`, `body`, then
 `footer`; use `top` for a full-width announcement or banner above the hero.
 Button and pricing CTA URLs accept external HTTPS destinations or in-page
 anchors such as `#form`, `#section-<sectionId>`, `#block-<blockId>`, and

@@ -5755,6 +5755,7 @@ describe("landing page tools", () => {
 
     expect(toolNames).toContain("list_landing_pages");
     expect(toolNames).toContain("get_landing_page");
+    expect(toolNames).toContain("render_landing_page");
     expect(toolNames).toContain("create_landing_page");
     expect(toolNames).toContain("update_landing_page");
     expect(toolNames).toContain("duplicate_landing_page");
@@ -5801,6 +5802,35 @@ describe("landing page tools", () => {
     expect(mockApiRequest).toHaveBeenCalledWith(
       "GET",
       "/api/v1/landing-pages",
+      undefined,
+      "comp_123"
+    );
+  });
+
+  it("is registered as read-only and routes render_landing_page", async () => {
+    const tool = tools.find((entry) => entry.name === "render_landing_page");
+    expect(tool).toBeDefined();
+    expect(tool?.annotations?.readOnlyHint).toBe(true);
+    expect(tool?.description).toContain("previewUrl");
+    expect(tool?.description).toContain("without publishing");
+
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      landingPageId: "lp_123",
+      previewUrl: "https://sequenzy.com/lp/preview/lp_123?token=abc",
+      status: "draft",
+      published: false,
+    });
+
+    const result = await handleToolCall("render_landing_page", {
+      companyId: "comp_123",
+      landingPageId: "lp_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/landing-pages/lp_123/render",
       undefined,
       "comp_123"
     );

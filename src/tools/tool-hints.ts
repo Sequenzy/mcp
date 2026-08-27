@@ -67,6 +67,7 @@ export const READ_ONLY_TOOL_NAMES = new Set([
   "list_recipient_suppressions",
   "list_landing_pages",
   "get_landing_page",
+  "render_landing_page",
   "list_sequences",
   "get_sequence",
   "simulate_sequence",

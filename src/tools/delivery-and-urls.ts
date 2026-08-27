@@ -273,6 +273,7 @@ export const dashboardUrlToolNames = new Set([
   "resend_campaign_to_non_openers",
   "list_landing_pages",
   "get_landing_page",
+  "render_landing_page",
   "create_landing_page",
   "update_landing_page",
   "publish_landing_page",

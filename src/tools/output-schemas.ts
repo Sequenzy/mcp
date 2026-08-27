@@ -1371,6 +1371,25 @@ export const outputPropertiesByToolName: Record<
   get_landing_page: {
     landingPage: resourceOutputProperty("landing page"),
   },
+  render_landing_page: {
+    previewUrl: stringOutputProperty(
+      "Signed, unlisted visitor-facing preview of the current page content. Works for drafts. Not indexed. Share this URL to review layout and copy without publishing."
+    ),
+    publicUrl: nullableStringOutputProperty(
+      "Public visitor URL, or null until the page is published."
+    ),
+    landingPageId: stringOutputProperty("Landing page ID."),
+    name: stringOutputProperty("Landing page name."),
+    status: stringOutputProperty(
+      "draft or published. Drafts are only visible at previewUrl."
+    ),
+    published: booleanOutputProperty(
+      "Whether the page is live on publicUrl. False for drafts."
+    ),
+    title: stringOutputProperty(
+      "Visitor-facing title from SEO metadata or the first heading."
+    ),
+  },
   create_landing_page: {
     landingPage: resourceOutputProperty("landing page"),
   },
