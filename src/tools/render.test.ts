@@ -137,6 +137,19 @@ describe("render_email MCP tool", () => {
     );
   });
 
+  it("documents that action_ab_test sequence steps need variantId", () => {
+    const tool = tools.find((candidate) => candidate.name === "render_email");
+    const variantId = (
+      tool?.inputSchema as {
+        properties?: { variantId?: { description?: string } };
+      }
+    )?.properties?.variantId;
+
+    expect(tool?.description).toContain("action_ab_test");
+    expect(variantId?.description).toContain("action_ab_test");
+    expect(variantId?.description).toContain("ab_tests:read");
+  });
+
   it("documents that an unevaluated condition renders as false", () => {
     const tool = tools.find((candidate) => candidate.name === "render_email");
     const unevaluatedConditions = tool?.outputSchema?.properties?.[

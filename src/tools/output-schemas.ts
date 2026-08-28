@@ -1140,6 +1140,9 @@ export const outputPropertiesByToolName: Record<
   restart_ab_test: {
     abTest: resourceOutputProperty("A/B test"),
   },
+  select_ab_test_winner: {
+    abTest: resourceOutputProperty("A/B test with the selected winner"),
+  },
   update_ab_test_variant: {
     abTest: resourceOutputProperty("A/B test"),
     variant: resourceOutputProperty("A/B test variant"),
@@ -1387,10 +1390,7 @@ export const outputPropertiesByToolName: Record<
       "Whether the page is live on publicUrl. False for drafts."
     ),
     title: stringOutputProperty(
-      "Visitor-facing title from SEO metadata or the landing page name."
-    ),
-    expiresAt: stringOutputProperty(
-      "ISO timestamp after which previewUrl is no longer valid."
+      "Visitor-facing title from SEO metadata or the first heading."
     ),
   },
   create_landing_page: {

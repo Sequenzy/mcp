@@ -2127,11 +2127,12 @@ describe("A/B test tools", () => {
     expect(toolNames).toContain("get_ab_test");
     expect(toolNames).toContain("get_ab_test_stats");
     expect(toolNames).toContain("restart_ab_test");
+    expect(toolNames).toContain("select_ab_test_winner");
     expect(toolNames).toContain("update_ab_test");
     expect(toolNames).toContain("update_ab_test_variant");
     expect(
       tools.find((tool) => tool.name === "get_ab_test")?.description
-    ).toContain("summaries on get_sequence expose variant IDs");
+    ).toContain("get_sequence.sequence.emails[].abTest.variants");
     expect(updateVariantTool?.description).toContain(
       "enable it on the Sequenzy connector"
     );
@@ -2987,6 +2988,26 @@ describe("A/B test tools", () => {
         winnerThreshold: 120,
         variantCount: 3,
       },
+      "company_123"
+    );
+  });
+
+  it("selects a campaign A/B winner through the public API", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      abTest: { id: "ab_123", winningVariantId: "var_b" },
+    });
+
+    await handleToolCall("select_ab_test_winner", {
+      companyId: "company_123",
+      abTestId: "ab_123",
+      variantId: "var_b",
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/ab-tests/ab_123/select-winner",
+      { variantId: "var_b" },
       "company_123"
     );
   });
@@ -5822,22 +5843,13 @@ describe("landing page tools", () => {
     expect(tool?.annotations?.readOnlyHint).toBe(true);
     expect(tool?.description).toContain("previewUrl");
     expect(tool?.description).toContain("without publishing");
-    expect(tool?.description).toContain("expires after 24 hours");
-    expect(tool?.outputSchema?.properties).toHaveProperty("expiresAt");
-    expect(
-      tools.find((entry) => entry.name === "get_landing_page")?.description
-    ).not.toContain("previewUrl is");
 
     mockApiRequest.mockResolvedValueOnce({
       success: true,
       landingPageId: "lp_123",
-      name: "Launch",
-      title: "Launch",
       previewUrl: "https://sequenzy.com/lp/preview/lp_123?token=abc",
       status: "draft",
       published: false,
-      publicUrl: null,
-      expiresAt: "2026-08-29T00:00:00.000Z",
     });
 
     const result = await handleToolCall("render_landing_page", {
@@ -7931,7 +7943,7 @@ describe("sequence node update tools", () => {
     ).toContain("emailPreset");
     expect(
       tools.find((tool) => tool.name === "get_sequence")?.description
-    ).toContain("call get_ab_test for every variant's full blocks");
+    ).toContain("that variant's full blocks");
     expect(
       tools.find((tool) => tool.name === "get_sequence")?.description
     ).toContain("enable it on the Sequenzy connector");

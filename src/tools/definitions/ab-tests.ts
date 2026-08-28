@@ -31,7 +31,7 @@ export const abTestToolDefinitions: Tool[] = [
   {
     name: "get_ab_test",
     description:
-      "Get A/B test details, every variant's full blocks, localization sync status, and settings. Sequence action_ab_test summaries on get_sequence expose variant IDs, subjects, preview text, and blockCount only, so this tool is required to audit or rewrite all variant bodies. Pass the abTestId from get_sequence.",
+      "Get A/B test details, variants, localization sync status, and settings. Sequence action_ab_test steps also expose each variant's blocks on get_sequence.sequence.emails[].abTest.variants; use this tool when you need the full test record rather than copy alone. Pass the abTestId from get_sequence.",
     inputSchema: {
       type: "object",
       properties: {
@@ -118,6 +118,25 @@ export const abTestToolDefinitions: Tool[] = [
         },
       },
       required: ["abTestId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "select_ab_test_winner",
+    description:
+      "Select a winner for a campaign A/B test that is currently testing and queue the winning variant for the remaining audience. This starts external email delivery.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        abTestId: { type: "string", description: "Campaign A/B test ID" },
+        variantId: { type: "string", description: "Winning variant ID" },
+      },
+      required: ["abTestId", "variantId"],
       additionalProperties: false,
     },
   },

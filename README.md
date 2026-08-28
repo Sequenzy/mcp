@@ -335,6 +335,12 @@ for example, `{{ subscriber.frstName | default: "there" }}` renders a plausible
 greeting for every contact while bypassing stored first names. A recognized
 name that is blank for one contact is not reported when its default is used.
 
+To render a sequence step whose `nodeType` is `action_ab_test`, pass the
+step's `sequenceId` and `nodeId` together with a `variantId` from
+`get_sequence.sequence.emails[].abTest.variants`. These steps have no email of
+their own, so the variant is required; reading and rendering their competing
+copy also requires the `ab_tests:read` scope.
+
 For Supabase, `sync_integration` reuses the project, schema, table, list
 selection, and consent mappings saved in the dashboard. It cannot target an
 arbitrary table. Run it after installing the live database trigger to import
