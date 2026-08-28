@@ -1387,7 +1387,10 @@ export const outputPropertiesByToolName: Record<
       "Whether the page is live on publicUrl. False for drafts."
     ),
     title: stringOutputProperty(
-      "Visitor-facing title from SEO metadata or the first heading."
+      "Visitor-facing title from SEO metadata or the landing page name."
+    ),
+    expiresAt: stringOutputProperty(
+      "ISO timestamp after which previewUrl is no longer valid."
     ),
   },
   create_landing_page: {

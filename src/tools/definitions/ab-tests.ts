@@ -31,7 +31,7 @@ export const abTestToolDefinitions: Tool[] = [
   {
     name: "get_ab_test",
     description:
-      "Get A/B test details, variants, localization sync status, and settings. Sequence action_ab_test steps also expose each variant's blocks on get_sequence.sequence.emails[].abTest.variants; use this tool when you need the full test record rather than copy alone. Pass the abTestId from get_sequence.",
+      "Get A/B test details, every variant's full blocks, localization sync status, and settings. Sequence action_ab_test summaries on get_sequence expose variant IDs, subjects, preview text, and blockCount only, so this tool is required to audit or rewrite all variant bodies. Pass the abTestId from get_sequence.",
     inputSchema: {
       type: "object",
       properties: {

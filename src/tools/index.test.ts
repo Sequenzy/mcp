@@ -2131,7 +2131,7 @@ describe("A/B test tools", () => {
     expect(toolNames).toContain("update_ab_test_variant");
     expect(
       tools.find((tool) => tool.name === "get_ab_test")?.description
-    ).toContain("get_sequence.sequence.emails[].abTest.variants");
+    ).toContain("summaries on get_sequence expose variant IDs");
     expect(updateVariantTool?.description).toContain(
       "enable it on the Sequenzy connector"
     );
@@ -5822,13 +5822,22 @@ describe("landing page tools", () => {
     expect(tool?.annotations?.readOnlyHint).toBe(true);
     expect(tool?.description).toContain("previewUrl");
     expect(tool?.description).toContain("without publishing");
+    expect(tool?.description).toContain("expires after 24 hours");
+    expect(tool?.outputSchema?.properties).toHaveProperty("expiresAt");
+    expect(
+      tools.find((entry) => entry.name === "get_landing_page")?.description
+    ).not.toContain("previewUrl is");
 
     mockApiRequest.mockResolvedValueOnce({
       success: true,
       landingPageId: "lp_123",
+      name: "Launch",
+      title: "Launch",
       previewUrl: "https://sequenzy.com/lp/preview/lp_123?token=abc",
       status: "draft",
       published: false,
+      publicUrl: null,
+      expiresAt: "2026-08-29T00:00:00.000Z",
     });
 
     const result = await handleToolCall("render_landing_page", {
@@ -7922,7 +7931,7 @@ describe("sequence node update tools", () => {
     ).toContain("emailPreset");
     expect(
       tools.find((tool) => tool.name === "get_sequence")?.description
-    ).toContain("that variant's full blocks");
+    ).toContain("call get_ab_test for every variant's full blocks");
     expect(
       tools.find((tool) => tool.name === "get_sequence")?.description
     ).toContain("enable it on the Sequenzy connector");

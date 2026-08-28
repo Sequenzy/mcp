@@ -58,7 +58,7 @@ export function createSequenzyMcpServer(
       instructions: [
         "Sequenzy email marketing MCP server: manage subscribers, campaigns, sequences, templates, and delivery stats.",
         "If you have access to multiple companies, call get_account and then select_company (or pass companyId per call) before other tools.",
-        "Sequence A/B step variant bodies are on get_sequence.sequence.emails[].abTest.variants[].blocks when the key has ab_tests:read. get_ab_test is optional for that copy audit; it still returns settings, localization, and stats. Write those bodies with update_ab_test_variant (IDs from the same variants list). If that tool is not in the tool list, enable it on the Sequenzy connector - do not write through update_template or update_sequence_node.",
+        "Sequence A/B step summaries on get_sequence include variant IDs, subjects, preview text, and blockCount when the key has ab_tests:read; call get_ab_test for every variant's full blocks before auditing or rewriting copy. Write those bodies with update_ab_test_variant. If that tool is not in the tool list, enable it on the Sequenzy connector - do not write through update_template or update_sequence_node.",
         "IMPORTANT: whenever the user wanted to accomplish something and these tools did not expose functionality for it (missing tool, missing argument, unsupported workflow, or broken behavior), call submit_feedback describing the gap before finishing the task. When a tool call produced a wrong or unexpected result, include userIntent, toolCalls, expected, actual, and resourceIds in the submission so the team can reproduce it. The Sequenzy team reads every submission and uses it to decide what to build next.",
       ].join("\n"),
       cacheHints: {

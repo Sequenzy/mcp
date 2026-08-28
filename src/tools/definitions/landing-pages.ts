@@ -26,7 +26,7 @@ export const landingPageToolDefinitions: Tool[] = [
   {
     name: "get_landing_page",
     description:
-      "Get landing page details, content, metrics, and URLs. Drafts have publicUrl and appPublicUrl set to null; previewUrl is a signed, unlisted visitor-facing preview that works before publish. Use render_landing_page when you need that preview URL called out with publish-vs-draft guidance.",
+      "Get landing page details, builder content, metrics, and published URLs. Drafts have publicUrl and appPublicUrl set to null. Use render_landing_page to mint a temporary visitor-facing preview URL without publishing.",
     inputSchema: {
       type: "object",
       properties: {
@@ -47,7 +47,7 @@ export const landingPageToolDefinitions: Tool[] = [
   {
     name: "render_landing_page",
     description:
-      "Render a visitor-facing preview of a landing page without publishing it. Unlike get_landing_page, which returns builder JSON, this returns previewUrl: a signed, unlisted URL that shows the page with the same layout, theme, form, and #form button anchors visitors will see. Drafts keep publicUrl and appPublicUrl null until publish_landing_page; open previewUrl to check copy and layout on a draft instead of putting unreviewed content on the public domain. The preview is not indexed. Signup forms on a draft preview do not collect contacts. This is read-only and never publishes, unpublishes, or changes the page.",
+      "Render a visitor-facing preview of a landing page without publishing it. Unlike get_landing_page, which returns builder JSON, this returns previewUrl: a signed, unlisted URL that shows the page with the same layout, theme, form, and #form button anchors visitors will see. The URL expires after 24 hours. Drafts keep publicUrl and appPublicUrl null until publish_landing_page; open previewUrl to check copy and layout on a draft instead of putting unreviewed content on the public domain. The preview is not indexed, does not increment page views, and form submissions do not collect contacts. This is read-only and never publishes, unpublishes, or changes the page.",
     inputSchema: {
       type: "object",
       properties: {
