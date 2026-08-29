@@ -1008,6 +1008,8 @@ describe("read-only audit tools", () => {
       companyId: "company_123",
       openTrackingEnabled: false,
       clickTrackingEnabled: false,
+      transactionalOpenTrackingEnabled: false,
+      transactionalClickTrackingEnabled: false,
       autoUtmSettings: { source: "newsletter", term: null },
     });
 
@@ -1018,12 +1020,30 @@ describe("read-only audit tools", () => {
       {
         openTrackingEnabled: false,
         clickTrackingEnabled: false,
+        transactionalOpenTrackingEnabled: false,
+        transactionalClickTrackingEnabled: false,
         autoUtmSettings: { source: "newsletter", term: null },
       },
       "company_123"
     );
     expect(result.structuredContent?.["message"]).toBe(
       "Updated tracking settings: openTrackingEnabled."
+    );
+  });
+
+  it("publishes Transactional API defaults on update_tracking_settings", () => {
+    const tool = tools.find(
+      (candidate) => candidate.name === "update_tracking_settings"
+    );
+    const inputSchema = tool?.inputSchema as
+      | { properties?: Record<string, unknown> }
+      | undefined;
+
+    expect(inputSchema?.properties).toHaveProperty(
+      "transactionalOpenTrackingEnabled"
+    );
+    expect(inputSchema?.properties).toHaveProperty(
+      "transactionalClickTrackingEnabled"
     );
   });
 

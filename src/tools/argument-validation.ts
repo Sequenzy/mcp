@@ -432,6 +432,8 @@ export function buildUpdateCompanyBody(
 export const TRACKING_SETTINGS_UPDATE_FIELDS = [
   "openTrackingEnabled",
   "clickTrackingEnabled",
+  "transactionalOpenTrackingEnabled",
+  "transactionalClickTrackingEnabled",
   "strictBotFilteringEnabled",
   "unsubscribeTrackingEnabled",
   "defaultAttributionWindowHours",
@@ -482,6 +484,8 @@ export function buildUpdateTrackingSettingsBody(
   for (const key of [
     "openTrackingEnabled",
     "clickTrackingEnabled",
+    "transactionalOpenTrackingEnabled",
+    "transactionalClickTrackingEnabled",
     "strictBotFilteringEnabled",
     "unsubscribeTrackingEnabled",
     "doubleOptInEnabled",

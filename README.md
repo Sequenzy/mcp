@@ -300,8 +300,8 @@ sort options.
 | `list_integrations`                  | List connected integrations with connection and sync health, without returning credentials.                                                                                  |
 | `get_sending_status`                 | Diagnose active, paused, or suspended sending, including enforcement denominators, review gates, and remediation steps.                                                      |
 | `resume_sending`                     | Restore an eligible hard-bounce pause after explicitly confirming the list has been sanitized.                                                                               |
-| `get_tracking_settings`              | Read open, click, unsubscribe, attribution, UTM, click-domain, reply-tracking, and double-opt-in settings.                                                                   |
-| `update_tracking_settings`           | Update email tracking, attribution, UTM, and account-wide double-opt-in defaults.                                                                                            |
+| `get_tracking_settings`              | Read account-wide and Transactional API open/click defaults, unsubscribe, attribution, UTM, click-domain, reply-tracking, and double-opt-in settings.                        |
+| `update_tracking_settings`           | Update account-wide and Transactional API tracking defaults, attribution, UTM, and account-wide double opt-in.                                                               |
 | `get_integration_guide`              | Get framework-specific integration examples.                                                                                                                                 |
 | `get_integration`                    | Inspect one connected integration, its event wiring, list targeting, recent activity, and recommendations.                                                                   |
 | `list_integration_capabilities`      | Compare provider capabilities whether or not they are connected.                                                                                                             |
@@ -1214,10 +1214,13 @@ The optional `attachments` array accepts up to 10 files / 7MB total. Each item
 needs `filename` and exactly one of Base64 `content` or a public HTTP(S) `path`.
 Set `contentId` to embed a CID image referenced from the HTML and optionally set
 `contentType` to override MIME detection.
-Use `trackingSettings.clickTracking: false` or
+When `trackingSettings` is omitted, the company's Transactional API tracking
+defaults apply. Use `trackingSettings.clickTracking: false` or
 `trackingSettings.openTracking: false` to disable link rewriting or the open
 pixel for one send. These per-send options only opt out; they cannot enable
-tracking that the account has disabled.
+tracking disabled by an account-wide or Transactional API default. Use
+`get_tracking_settings` and `update_tracking_settings` to inspect or change
+those defaults.
 
 For agent and workflow retries, include a stable `idempotencyKey` (up to 255
 characters) in `send_email`. Use one key per logical email and send the same

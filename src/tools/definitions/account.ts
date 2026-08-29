@@ -977,7 +977,7 @@ Requires the companies:manage scope and owner or admin access to the company.`,
   {
     name: "get_tracking_settings",
     description:
-      "Get the company's email tracking and signup consent configuration: open/click/unsubscribe tracking flags, opt-in strict bot filtering, default attribution window, automatic UTM tagging, the dedicated click-tracking domain and its verification status, inbound reply-tracking settings, and whether double opt-in is required for new contacts. Use this to audit measurement readiness, to explain why opens or clicks may not be recorded, and to check how contacts enter the list before investigating bot or alias signups.",
+      "Get the company's email tracking and signup consent configuration: account-wide and Transactional API open/click defaults, unsubscribe tracking, opt-in strict bot filtering, default attribution window, automatic UTM tagging, the dedicated click-tracking domain and its verification status, inbound reply-tracking settings, and whether double opt-in is required for new contacts. Use this to audit measurement readiness, to explain why opens or clicks may not be recorded, and to check how contacts enter the list before investigating bot or alias signups.",
     inputSchema: {
       type: "object",
       properties: {
@@ -992,7 +992,7 @@ Requires the companies:manage scope and owner or admin access to the company.`,
   {
     name: "update_tracking_settings",
     description:
-      "Update the company's account-wide email tracking defaults: open, click, and unsubscribe tracking, opt-in strict bot filtering, the default attribution window, and automatic UTM tagging, plus the account-wide double opt-in requirement for new contacts. Applies to every campaign, sequence, and transactional email sent afterwards; already-sent emails keep the links they were rendered with. Provide at least one field. Reply tracking (inbound email, reply domain mode, reply forwarding) is on update_company, and the dedicated click-tracking domain is configured in the dashboard.",
+      "Update the company's email tracking defaults: account-wide open and click tracking, narrower open and click defaults for Transactional API sends, unsubscribe tracking, opt-in strict bot filtering, the default attribution window, and automatic UTM tagging, plus the account-wide double opt-in requirement for new contacts. Applies to emails sent afterwards; already-sent emails keep the links they were rendered with. Transactional API defaults cannot enable an account-wide setting that is off, and an individual send may opt out again. Provide at least one field. Reply tracking (inbound email, reply domain mode, reply forwarding) is on update_company, and the dedicated click-tracking domain is configured in the dashboard.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1010,6 +1010,16 @@ Requires the companies:manage scope and owner or admin access to the company.`,
           type: "boolean",
           description:
             "Whether to rewrite links through the click-tracking redirect. Turning this off stops click rates and click-based automation triggers.",
+        },
+        transactionalOpenTrackingEnabled: {
+          type: "boolean",
+          description:
+            "Whether Transactional API sends include the open-tracking pixel by default. This cannot enable opens when openTrackingEnabled is false; individual sends may still opt out.",
+        },
+        transactionalClickTrackingEnabled: {
+          type: "boolean",
+          description:
+            "Whether Transactional API sends rewrite links for click tracking by default. This cannot enable clicks when clickTrackingEnabled is false; individual sends may still opt out.",
         },
         strictBotFilteringEnabled: {
           type: "boolean",
