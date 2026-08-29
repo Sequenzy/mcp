@@ -34,6 +34,21 @@ describe("buildSequenzyAppUrls", () => {
     expect(appUrls.urls.emailSend).toBe(
       "https://app.example.com/dashboard/company/comp_123/sent-emails/send_123"
     );
+    expect(appUrls.urls.subscription).toBe(
+      "https://app.example.com/dashboard/company/comp_123/account?tab=subscription"
+    );
+  });
+
+  it("maps the historical billing settings alias to Account -> Subscription", () => {
+    const appUrls = buildSequenzyAppUrls(
+      { companyId: "comp_123", settingsTab: "billing" },
+      "https://app.example.com"
+    );
+
+    expect(appUrls.urls.settingsTab).toBe(appUrls.urls.subscription);
+    expect(appUrls.routeTemplates.subscription).toBe(
+      "/dashboard/company/{companyId}/account?tab=subscription"
+    );
   });
 
   it("exposes route templates for agents that only have IDs later", () => {

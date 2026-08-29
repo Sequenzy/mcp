@@ -237,6 +237,9 @@ export const dashboardUrlOutputProperties: OutputSchemaProperties = {
   ),
   url: stringOutputProperty("Primary dashboard URL for this result."),
   settingsUrl: stringOutputProperty("Company settings URL when available."),
+  subscriptionUrl: stringOutputProperty(
+    "Owner-facing subscription, upgrade, and billing-management URL when available."
+  ),
 };
 
 export const genericOutputProperties: OutputSchemaProperties = {
@@ -283,6 +286,10 @@ export const outputPropertiesByToolName: Record<
   },
   get_app_urls: {
     dashboard: stringOutputProperty("Company dashboard URL."),
+    account: stringOutputProperty("Company account URL."),
+    subscription: stringOutputProperty(
+      "Owner-facing subscription, upgrade, and billing-management URL."
+    ),
     settings: stringOutputProperty("Company settings URL."),
     campaign: stringOutputProperty("Campaign editor URL."),
     landingPage: stringOutputProperty("Landing page editor URL."),

@@ -12,11 +12,14 @@ import { sequenceEditingToolDefinitions } from "./definitions/sequences-editing"
 import {
   blockConditionsHint,
   blockFieldWarningsHint,
+  blockStylesHint,
   buttonColorHint,
+  companyEmailThemeSchema,
   emailBlocksDescription,
   pollBlockHint,
   rawHtmlContentWarning,
-  companyEmailThemeSchema,
+  replacementEmailBlocksDescription,
+  sequenceEmailBlocksDescription,
   sequenceNodeChangesSchema,
   sequenceStepBlocksFormatHint,
   sequenceStepBlocksFormatHintForNodeChanges,
@@ -84,6 +87,36 @@ describe("email authoring descriptions", () => {
     expect(buttonColorHint).toContain("buttonTextColor");
     expect(buttonColorHint).not.toContain("warnings");
     expect(emailBlocksDescription).toContain(blockFieldWarningsHint);
+  });
+
+  it("names textColor as a style alias so agents do not recolor copy in HTML", () => {
+    expect(blockStylesHint).toContain("`textColor`");
+    expect(blockStylesHint).toContain("`textAlign`");
+    expect(blockStylesHint).toContain("not with an inline `style`");
+    for (const description of [
+      emailBlocksDescription,
+      replacementEmailBlocksDescription,
+      sequenceEmailBlocksDescription,
+    ]) {
+      expect(description).toContain(blockStylesHint);
+    }
+  });
+
+  it("points at the schema tool and the surfaces that survive a partial grant", () => {
+    // `get_email_block_schema` is a reference tool clients drop from a
+    // "standard" grant. The write tools still have to name the connector
+    // enable path and the HTTP/resource/CLI fallbacks.
+    for (const description of [
+      emailBlocksDescription,
+      replacementEmailBlocksDescription,
+      sequenceEmailBlocksDescription,
+    ]) {
+      expect(description).toContain("get_email_block_schema");
+      expect(description).toContain("enable it on the Sequenzy connector");
+      expect(description).toContain("sequenzy://email-blocks");
+      expect(description).toContain("GET /api/v1/email-blocks");
+      expect(description).toContain("sequenzy blocks <type>");
+    }
   });
 
   it("documents poll styling fields on every block-authoring surface", () => {

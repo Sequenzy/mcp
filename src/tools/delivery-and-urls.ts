@@ -247,6 +247,7 @@ export function addCompanyUrls(value: unknown): unknown {
       ...item,
       url: appUrls.urls.dashboard,
       settingsUrl: appUrls.urls.settings,
+      subscriptionUrl: appUrls.urls.subscription,
     };
   });
 }
@@ -434,6 +435,7 @@ export async function addAppUrlsToToolResult(
           ...companyRecord,
           url: companyAppUrls.urls.dashboard,
           settingsUrl: companyAppUrls.urls.settings,
+          subscriptionUrl: companyAppUrls.urls.subscription,
         },
       }),
     ...(campaignRecord &&

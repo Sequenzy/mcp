@@ -27,6 +27,7 @@ Connect Sequenzy to Claude Desktop, Claude Code, Codex, Cursor, Windsurf, VS Cod
 - Manage team invitations, inbox conversations, and outbound webhook endpoints.
 - Generate email copy, subject lines, and multi-step sequences.
 - Inspect analytics, subscriber activity, deliverability health, company-level sending pauses, integrations, published event payload schemas, sending identities, tracking settings, and dashboard URLs.
+- Inspect whether "Sent with Sequenzy" is visible for a workspace, why the owner subscription does or does not remove it, and open the canonical subscription page for an upgrade or renewal. Entitlement changes apply to future sends from existing live sequences without editing their blocks.
 - Diagnose why sending is paused and restore eligible hard-bounce pauses after confirming list cleanup.
 - Inspect exact-recipient bounce, complaint, and email-hygiene suppression, and clean up eligible stale bounces without exposing the shared SES suppression list.
 - Configure company product info, account-wide sending identity defaults, rename individual sender and reply-to profiles, manage sender domains, and inspect integration examples for common frameworks.
@@ -278,9 +279,9 @@ sort options.
 | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `get_account`                        | Get account info, available companies, current key permissions, and the API Keys management URL.                                                                             |
 | `select_company`                     | Set the active company for future tool calls.                                                                                                                                |
-| `get_app_urls`                       | Build dashboard URLs for campaigns, landing pages, sequences, emails, settings, domains, and sent email details.                                                             |
+| `get_app_urls`                       | Build dashboard URLs for campaigns, landing pages, sequences, emails, settings, subscription management, domains, and sent email details. `settingsTab: "billing"` resolves to Account -> Subscription. |
 | `create_company`                     | Create a new company or brand.                                                                                                                                               |
-| `get_company`                        | Read company details, product info, brand context, localization, reply-tracking settings, and current From/Reply-To defaults; STO is explicitly identified as campaign-only. |
+| `get_company`                        | Read company details, product info, brand context, localization, reply-tracking settings, current From/Reply-To defaults, and the effective read-only `emailBranding` entitlement with plan/status reason and subscription URL; STO is explicitly identified as campaign-only. |
 | `update_company`                     | Edit product info, brand context, email theme, reply tracking, and account-wide From/Reply-To profile defaults or names.                                                     |
 | `get_sync_rules`                     | Read the company's event-to-tag rules and whether it uses the inherited platform preset.                                                                                     |
 | `update_sync_rules`                  | Replace all sync rules; pass `[]` to disable them or `null` to opt into the SaaS/ecommerce platform preset.                                                                  |

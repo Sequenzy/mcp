@@ -32,6 +32,8 @@ export const routeTemplates = {
   sequences: "/dashboard/company/{companyId}/sequences",
   sequence: "/dashboard/company/{companyId}/sequences/{sequenceId}",
   sequenceList: "/dashboard/company/{companyId}/sequences/list/{status}",
+  account: "/dashboard/company/{companyId}/account",
+  subscription: "/dashboard/company/{companyId}/account?tab=subscription",
   settings: "/dashboard/company/{companyId}/settings",
   settingsTab: "/dashboard/company/{companyId}/settings?tab={tab}",
   emails: "/dashboard/company/{companyId}/emails",
@@ -137,6 +139,8 @@ export function buildSequenzyAppUrls(
   urls.campaigns = joinUrl(appUrl, companyPath(companyId, "/campaign"));
   urls.landingPages = joinUrl(appUrl, companyPath(companyId, "/landing-pages"));
   urls.sequences = joinUrl(appUrl, companyPath(companyId, "/sequences"));
+  urls.account = joinUrl(appUrl, companyPath(companyId, "/account"));
+  urls.subscription = `${urls.account}?tab=subscription`;
   urls.settings = joinUrl(appUrl, companyPath(companyId, "/settings"));
   urls.emails = joinUrl(appUrl, companyPath(companyId, "/emails"));
   urls.subscribers = joinUrl(appUrl, companyPath(companyId, "/subscribers"));
@@ -221,7 +225,13 @@ export function buildSequenzyAppUrls(
 
   const settingsTab = clean(input.settingsTab);
   if (settingsTab) {
-    urls.settingsTab = settingsUrl(appUrl, companyId, settingsTab);
+    // Billing lives under Account, not Settings. Keep accepting the historical
+    // settingsTab input so agents that already ask for "billing" receive the
+    // real subscription page instead of a plausible-looking dead URL.
+    urls.settingsTab =
+      settingsTab === "billing" || settingsTab === "subscription"
+        ? urls.subscription
+        : settingsUrl(appUrl, companyId, settingsTab);
   }
 
   return {

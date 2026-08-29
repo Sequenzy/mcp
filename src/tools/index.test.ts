@@ -214,6 +214,8 @@ describe("account tools", () => {
         url: "https://sequenzy.com/dashboard/company/company_123",
         settingsUrl:
           "https://sequenzy.com/dashboard/company/company_123/settings",
+        subscriptionUrl:
+          "https://sequenzy.com/dashboard/company/company_123/account?tab=subscription",
       },
     ]);
   });
@@ -1704,6 +1706,8 @@ describe("update_company tool validation", () => {
 
     expect(getCompanyTool?.description).toContain("not an empty selection");
     expect(getCompanyTool?.description).toContain("update_company");
+    expect(getCompanyTool?.description).toContain("emailBranding");
+    expect(getCompanyTool?.description).toContain("existing live sequences");
     expect(getCompanyTool?.description).toContain(
       "PostHog history imports are different"
     );
@@ -1716,6 +1720,46 @@ describe("update_company tool validation", () => {
     expect(setTargetingTool?.description).toContain(
       "PostHog history imports are an exception"
     );
+  });
+
+  it("returns effective email branding status and the subscription handoff", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      company: {
+        id: "company_123",
+        name: "RS Works",
+        emailBranding: {
+          visible: true,
+          removalEntitled: false,
+          reason: "free_plan",
+          managedBy: "owner_subscription",
+          removalAction: "upgrade",
+          subscriptionTier: null,
+          subscriptionStatus: null,
+          subscriptionUrl:
+            "https://sequenzy.com/dashboard/company/company_123/account?tab=subscription",
+        },
+      },
+    });
+
+    const result = await handleToolCall("get_company", {
+      companyId: "company_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.structuredContent?.["company"]).toMatchObject({
+      emailBranding: {
+        visible: true,
+        reason: "free_plan",
+        removalAction: "upgrade",
+      },
+      subscriptionUrl:
+        "https://sequenzy.com/dashboard/company/company_123/account?tab=subscription",
+    });
+    expect(result.structuredContent?.["appUrls"]).toMatchObject({
+      subscription:
+        "https://sequenzy.com/dashboard/company/company_123/account?tab=subscription",
+    });
   });
 
   // The workspace default lists were previously unreachable from MCP, so an

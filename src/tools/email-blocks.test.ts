@@ -162,9 +162,11 @@ describe("block authoring guidance in tool schemas", () => {
       const blocksProperty = properties?.["blocks"] as
         | { description?: string }
         | undefined;
+      const description = blocksProperty?.description;
       return (
-        blocksProperty?.description?.startsWith("Sequenzy email blocks") ===
-        true
+        typeof description === "string" &&
+        (description.startsWith("Sequenzy email blocks") ||
+          description.startsWith("Replacement Sequenzy email blocks"))
       );
     });
 
@@ -184,6 +186,9 @@ describe("block authoring guidance in tool schemas", () => {
         '{"type":"steps","variant":"numbered","items":[{"title":"Step one","description":"What happens"},{"title":"Step two","description":"What happens next"}]}'
       );
       expect(description).toContain("get_email_block_schema");
+      expect(description).toContain("enable it on the Sequenzy connector");
+      expect(description).toContain("sequenzy://email-blocks");
+      expect(description).toContain("`textColor`");
     }
   });
 });

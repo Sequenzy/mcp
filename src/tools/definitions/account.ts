@@ -39,7 +39,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "get_app_urls",
     description:
-      "Generate Sequenzy dashboard URLs for known resource IDs. Use this when the user asks where to review or edit a generated sequence, campaign, template, or company settings. If companyId is omitted, the selected/current company is used when available.",
+      "Generate Sequenzy dashboard URLs for known resource IDs. Use this when the user asks where to review or edit a generated sequence, campaign, template, company settings, or subscription. The response always includes the canonical owner-facing subscription URL when a company is resolved. For compatibility, settingsTab billing or subscription also resolves to that Account page rather than a nonexistent Settings tab. If companyId is omitted, the selected/current company is used when available.",
     inputSchema: {
       type: "object",
       properties: {
@@ -87,7 +87,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
         settingsTab: {
           type: "string",
           description:
-            "Settings tab slug, e.g. integrations, domain, tracking, api-keys, team.",
+            "Settings tab slug, e.g. integrations, domain, tracking, api-keys, team. The billing and subscription aliases return the canonical Account -> Subscription page.",
         },
       },
     },
@@ -114,7 +114,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   },
   {
     name: "get_company",
-    description: `Get company details, processing status, product info, brand colors, AI writing context, reply-tracking settings, effective email localization settings, and defaultSubscriberListIds - the workspace default lists new contacts join when nothing targets them explicitly. A JSON null means every current and future list, not an empty selection; [] means no list at all; an array means exactly those lists. Change it with update_company. Read it before connecting an integration whose provider has no per-integration list targeting (Dodo Payments, PostHog, Polar, Paddle, and similar), because its live contacts and payment-provider backfills land there. PostHog history imports are different: contacts created by that import have no list memberships. ${
+    description: `Get company details, processing status, product info, brand colors, AI writing context, reply-tracking settings, effective email localization settings, and the read-only emailBranding entitlement. emailBranding says whether "Sent with Sequenzy" is visible, whether the owner subscription removes it, why, the current tier/status, the required upgrade or renewal action, and the canonical subscriptionUrl. Branding is injected at render/send time rather than stored in footer blocks, so a paid entitlement removes it from future sends by existing live sequences without editing their emails. Also returns defaultSubscriberListIds - the workspace default lists new contacts join when nothing targets them explicitly. A JSON null means every current and future list, not an empty selection; [] means no list at all; an array means exactly those lists. Change it with update_company. Read it before connecting an integration whose provider has no per-integration list targeting (Dodo Payments, PostHog, Polar, Paddle, and similar), because its live contacts and payment-provider backfills land there. PostHog history imports are different: contacts created by that import have no list memberships. ${
       campaignStoNotCompanyOrSequenceHint
     }`,
     inputSchema: {
