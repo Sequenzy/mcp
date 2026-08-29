@@ -700,7 +700,7 @@ Use `get_sequence.sequence.emails[].abTest.variants` to discover sequence varian
 | `create_campaign_goal`           | Add an event, subscriber-attribute, or tag-applied email-campaign conversion goal.                                               |
 | `update_campaign_goal`           | Update a persisted email-campaign conversion goal.                                                                               |
 | `delete_campaign_goal`           | Delete a persisted email-campaign conversion goal.                                                                               |
-| `list_email_sends`               | Search recent delivery history with resource IDs and URLs, optionally scoped to one sequence step.                               |
+| `list_email_sends`               | Search recent delivery history with resource IDs and URLs, optionally scoped to one sequence step. Successful live-test sends are omitted. |
 | `get_email_send`                 | Inspect a queued, test, sent, suppressed, or failed delivery by durable email-send ID.                                           |
 | `list_recipient_suppressions`    | List associated suppressed recipients, including protected global invalid addresses and complaints.                              |
 | `get_recipient_suppression`      | Check local bounce, complaint, email-hygiene, and regional SES suppression for one exact recipient.                              |
@@ -756,7 +756,10 @@ guidance in `warnings`.
 `list_email_sends` to discover recent IDs by subject/title, recipient, delivery
 status, type, bounce type, or source; pass an ID to `get_email_send` to inspect
 `status`, `errorMessage`, the stored body, and delivery events. Delivery-list
-rows are retained for 14 days. Queue jobs are internal execution details and
+rows are retained for 14 days. Successful live-test and other test sends are
+omitted so they do not bury real deliveries. Replies to those test sends show
+in `list_conversations` only when inbound reply capture is enabled. Queue jobs
+are internal execution details and
 are not exposed through the MCP contract. Every returned delivery has a direct
 dashboard `url`. Use `list_recipient_suppressions` to distinguish protected
 global invalid-recipient, protected company hard-bounce, and complaint rows from removable company soft-bounce
@@ -948,7 +951,7 @@ propagate.
 | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | `list_sequences`                         | List sequences with dashboard status, search, label, limit, and offset filters.                                                          |
 | `get_sequence`                           | Get sequence details, A/B variant IDs and block counts with `ab_tests:read`, nodes, edges, linked copy, and the sequence sending window. |
-| `list_sequence_enrollments`              | List contact enrollments with pagination and accurate list/tag/event/time-based entry attribution.                                       |
+| `list_sequence_enrollments`              | List contact enrollments with pagination and accurate list/tag/event/time-based entry attribution. Live sequence tests do not create enrollments. |
 | `send_sequence_test_email`               | Send one saved action_email step to 1-10 reviewers; A/B steps are inspected per variant.                                                 |
 | `create_sequence`                        | Create a blank dashboard draft or an AI-generated/explicit-step sequence.                                                                |
 | `update_sequence`                        | Update identity, settings, enrollment, existing steps, branch logic, or insert linear steps.                                             |
@@ -1014,7 +1017,9 @@ sequence.
 sources keep their stable ID in `value` and resolve a display `name`; tag and
 event sources retain their names in `value`. Time-based triggers report
 `inactivity` or `frequency` rather than being misidentified as ordinary
-received-event enrollments.
+received-event enrollments. Live sequence tests do not create enrollments;
+they send isolated test emails and record activity on the sequence test run
+instead.
 
 Example dynamic Shopify discount step:
 

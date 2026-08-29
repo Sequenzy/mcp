@@ -4180,6 +4180,7 @@ describe("update_campaign tool validation", () => {
       (candidate) => candidate.name === "list_email_sends"
     );
     expect(tool?.description).toContain("14 days");
+    expect(tool?.description).toContain("inbound reply capture is enabled");
     expect(tool?.inputSchema.properties).toHaveProperty("subject");
     expect(tool?.outputSchema?.properties).toHaveProperty("retentionDays");
     const payload = JSON.parse(result.content[0]?.text ?? "{}") as {
@@ -9488,6 +9489,9 @@ describe("list_sequence_enrollments tool", () => {
     expect(inputSchema?.properties).toHaveProperty("limit");
     expect(inputSchema?.properties).toHaveProperty("offset");
     expect(tool?.annotations?.readOnlyHint).toBe(true);
+    expect(tool?.description).toContain(
+      "Live sequence tests do not create enrollments"
+    );
 
     const enrollmentsSchema = tool?.outputSchema?.properties?.[
       "enrollments"
