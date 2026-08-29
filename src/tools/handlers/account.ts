@@ -239,6 +239,39 @@ export async function handleAccountTools(
       break;
     }
 
+    case "get_email_design_system": {
+      const companyId = args.companyId as string | undefined;
+      result = await apiRequest(
+        "GET",
+        "/api/v1/email-design-system",
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "update_email_design_system": {
+      const companyId = args.companyId as string | undefined;
+      const body: Record<string, unknown> = {};
+      if (args.designCode !== undefined) body["designCode"] = args.designCode;
+      if (args.compositionSpine !== undefined) {
+        body["compositionSpine"] = args.compositionSpine;
+      }
+      if (args.reset !== undefined) body["reset"] = args.reset;
+      if (Object.keys(body).length === 0) {
+        throw new Error(
+          "Pass at least one of `designCode`, `compositionSpine`, or `reset: true` when calling `update_email_design_system`."
+        );
+      }
+      result = await apiRequest(
+        "PATCH",
+        "/api/v1/email-design-system",
+        body,
+        companyId
+      );
+      break;
+    }
+
     case "get_shopify_automation_settings": {
       const companyId = args.companyId as string | undefined;
       result = await apiRequest(

@@ -512,6 +512,96 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
     },
   },
   {
+    name: "get_email_design_system",
+    description:
+      "Get the company's email design system: the visual identity every AI-generated email (campaigns and sequence steps) renders inside - design code (kicker style, title alignment, button shape, divider style, density, sanctioned opener treatments) plus the composition spine (hero-led | editorial | product-spec) that anchors email structure. The identity is stored as the company's emailDesignPrompt direction text; this tool returns the structured tokens parsed from that text (falling back to brand derivation per unstated token), the raw directionText, and isDefault (true while the identity is still purely derived from brand context).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "update_email_design_system",
+    description:
+      "Adjust the company's email design system (partial update - only pass the fields to change). Affects every future AI-generated email and sequence enrichment. designCode tokens: kickerStyle (chip | letterspaced | none), titleAlignment (left | center), buttonShape (rounded | pill), dividerStyle (line | space), density (airy | compact), openerTreatments (subset of hero-image, hero-color, header-hero, editorial-masthead, title-led). compositionSpine: hero-led | editorial | product-spec. The adjustment is written into the company's emailDesignPrompt direction text (the single source of truth): the new identity's sentences are prepended and any custom prose the text carried is preserved below them. Pass reset: true to clear the direction text and return to brand-derived defaults. Free-form prose edits belong on update_company's emailDesignPrompt instead.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        designCode: {
+          type: "object",
+          description:
+            "Partial visual grammar adjustment; omitted tokens keep their current value.",
+          properties: {
+            kickerStyle: {
+              type: "string",
+              enum: ["chip", "letterspaced", "none"],
+              description:
+                "How eyebrows above titles render: soft badge chips, letter-spaced uppercase text, or none.",
+            },
+            titleAlignment: {
+              type: "string",
+              enum: ["left", "center"],
+            },
+            buttonShape: {
+              type: "string",
+              enum: ["rounded", "pill"],
+            },
+            dividerStyle: {
+              type: "string",
+              enum: ["line", "space"],
+              description:
+                "Thin divider lines between sections, or whitespace only.",
+            },
+            density: {
+              type: "string",
+              enum: ["airy", "compact"],
+            },
+            openerTreatments: {
+              type: "array",
+              items: {
+                type: "string",
+                enum: [
+                  "hero-image",
+                  "hero-color",
+                  "header-hero",
+                  "editorial-masthead",
+                  "title-led",
+                ],
+              },
+              description:
+                "The opener treatments this company's emails may use, primary first.",
+            },
+          },
+          additionalProperties: false,
+        },
+        compositionSpine: {
+          type: "string",
+          enum: ["hero-led", "editorial", "product-spec"],
+          description:
+            "Which worked-example skeleton anchors generation: designed marketing sections, typography-first editorial, or information-dense product/spec.",
+        },
+        reset: {
+          type: "boolean",
+          description:
+            "true clears the direction text and returns to brand-derived defaults. Cannot be combined with designCode or compositionSpine.",
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
     name: "create_api_key",
     description:
       "Create a new API key for a company. Use this when setting up Sequenzy integration in a project. The returned key should be saved to the project's .env file as SEQUENZY_API_KEY. The key can only be retrieved once at creation time.",

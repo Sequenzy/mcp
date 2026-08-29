@@ -28,6 +28,7 @@ export const READ_ONLY_TOOL_NAMES = new Set([
   "list_sender_profiles",
   "get_notification_preferences",
   "get_tracking_settings",
+  "get_email_design_system",
   "get_sending_status",
   "check_website",
   "get_integration_guide",
@@ -95,6 +96,7 @@ export const READ_ONLY_TOOL_NAMES = new Set([
   "generate_subject_lines",
   "generate_sms",
   "get_sms_settings",
+  "get_sms_usage",
 ]);
 
 export const MUTATING_TOOL_NAMES = new Set([
@@ -104,7 +106,9 @@ export const MUTATING_TOOL_NAMES = new Set([
   "update_notification_preferences",
   "update_sender_profile",
   "update_tracking_settings",
+  "update_email_design_system",
   "update_sms_number_label",
+  "release_sms_number",
   "resume_sending",
   "update_sync_rules",
   "update_shopify_automation_settings",
@@ -343,6 +347,10 @@ export const DESTRUCTIVE_TOOL_NAMES = new Set([
   // already passed around is permanently dead.
   "unshare_campaign",
   "unshare_template",
+  // Hands the number back to the carrier - it cannot be recovered, and any
+  // campaign/sequence step still pinned to it starts skipping instead of
+  // sending.
+  "release_sms_number",
 ]);
 
 export function getRequiredToolHints(toolName: string): RequiredToolHints {

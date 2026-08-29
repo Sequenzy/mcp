@@ -824,6 +824,114 @@ describe("subscriber MCP tools", () => {
     );
   });
 
+  it("exposes enrollInSequences and REST customAttributes on add_subscriber", () => {
+    const tool = tools.find((candidate) => candidate.name === "add_subscriber");
+    const properties = tool?.inputSchema.properties as
+      | Record<string, Record<string, unknown>>
+      | undefined;
+
+    expect(properties?.["enrollInSequences"]?.["type"]).toBe("boolean");
+    expect(properties?.["customAttributes"]?.["type"]).toBe("object");
+    expect(String(properties?.["attributes"]?.["description"])).toContain(
+      "customAttributes"
+    );
+    expect(tool?.description).toContain("enrollInSequences");
+  });
+
+  it("forwards enrollInSequences from add_subscriber to the REST create body", async () => {
+    mockApiRequest.mockResolvedValue({
+      success: true,
+      subscriber: { email: "enrolled@example.com" },
+    });
+
+    const result = await handleToolCall("add_subscriber", {
+      email: "enrolled@example.com",
+      tags: ["lead.inflow"],
+      listIds: [],
+      enrollInSequences: true,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/subscribers",
+      {
+        email: "enrolled@example.com",
+        tags: ["lead.inflow"],
+        lists: [],
+        enrollInSequences: true,
+      },
+      undefined
+    );
+  });
+
+  it("forwards enrollInSequences false so create-and-tag can skip matching sequences", async () => {
+    mockApiRequest.mockResolvedValue({
+      success: true,
+      subscriber: { email: "tagged@example.com" },
+    });
+
+    await handleToolCall("add_subscriber", {
+      email: "tagged@example.com",
+      tags: ["lead.inflow"],
+      enrollInSequences: false,
+    });
+
+    expect(mockApiRequest.mock.calls[0]?.[2]).toEqual({
+      email: "tagged@example.com",
+      tags: ["lead.inflow"],
+      lists: undefined,
+      enrollInSequences: false,
+    });
+  });
+
+  it("accepts REST customAttributes on add_subscriber as an alias for attributes", async () => {
+    mockApiRequest.mockResolvedValue({
+      success: true,
+      subscriber: { email: "attrs@example.com" },
+    });
+
+    const result = await handleToolCall("add_subscriber", {
+      email: "attrs@example.com",
+      customAttributes: { plan: "pro" },
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest.mock.calls[0]?.[2]).toEqual({
+      email: "attrs@example.com",
+      customAttributes: { plan: "pro" },
+      tags: undefined,
+      lists: undefined,
+    });
+  });
+
+  it("rejects add_subscriber calls that send both attributes and customAttributes", async () => {
+    const result = await handleToolCall("add_subscriber", {
+      email: "both@example.com",
+      attributes: { plan: "pro" },
+      customAttributes: { plan: "pro" },
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Provide either `attributes` or `customAttributes`"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects a non-boolean enrollInSequences on add_subscriber", async () => {
+    const result = await handleToolCall("add_subscriber", {
+      email: "bad-flag@example.com",
+      enrollInSequences: "true",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`enrollInSequences` must be a boolean"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
   it("reports when add_subscriber cannot apply an existing contact's requested status", async () => {
     mockApiRequest.mockResolvedValue({
       success: true,
@@ -1095,6 +1203,42 @@ describe("subscriber MCP tools", () => {
         region: "us",
       },
     });
+  });
+
+  it("uses REST replacement semantics for customAttributes on update_subscriber", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true });
+
+    const result = await handleToolCall("update_subscriber", {
+      email: "detail@example.com",
+      customAttributes: { plan: "pro" },
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledTimes(1);
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/subscribers/detail%40example.com",
+      {
+        customAttributes: { plan: "pro" },
+      },
+      undefined
+    );
+  });
+
+  it("documents the distinct merge and replace semantics for update attributes", () => {
+    const tool = tools.find(
+      (candidate) => candidate.name === "update_subscriber"
+    );
+    const properties = tool?.inputSchema.properties as
+      | Record<string, Record<string, unknown>>
+      | undefined;
+
+    expect(String(properties?.["attributes"]?.["description"])).toContain(
+      "merge"
+    );
+    expect(String(properties?.["customAttributes"]?.["description"])).toContain(
+      "Replaces"
+    );
   });
 
   it("normalizes removed tags before diffing against the current subscriber tags", async () => {

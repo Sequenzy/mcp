@@ -54,7 +54,7 @@ export const subscriberToolDefinitions: Tool[] = [
   {
     name: "add_subscriber",
     description:
-      "Add one subscriber. Status is only applied when creating a new contact; use update_subscriber to change an existing contact's status. For multiple contacts or CRM records, use create_subscriber_import instead of looping this tool. For an email-only batch going into one list, add_subscribers_to_list is also available.",
+      "Add one subscriber. Status is only applied when creating a new contact; use update_subscriber to change an existing contact's status. Matching sequences enroll by default (REST enrollInSequences), including tag_added when tags are set in this call, without requiring a list; pass enrollInSequences false to skip, and automations:trigger is required for enrollment. For multiple contacts or CRM records, use create_subscriber_import instead of looping this tool. For an email-only batch going into one list, add_subscribers_to_list is also available.",
     inputSchema: {
       type: "object",
       properties: {
@@ -106,7 +106,14 @@ export const subscriberToolDefinitions: Tool[] = [
         attributes: {
           type: "object",
           description:
-            "Custom attributes (plan, company, etc.). Use firstName/lastName for names instead of attributes.",
+            "Custom attributes (plan, company, etc.). Same field as REST customAttributes; provide one or the other. Use firstName/lastName for names instead of attributes.",
+          additionalProperties: true,
+        },
+        customAttributes: {
+          type: "object",
+          description:
+            "REST name for attributes. Same custom-attribute map; provide attributes or customAttributes, not both.",
+          additionalProperties: true,
         },
         tags: {
           type: "array",
@@ -130,6 +137,11 @@ export const subscriberToolDefinitions: Tool[] = [
           enum: ["default", "confirmed", "double_opt_in"],
           description:
             "Consent mode: confirmed creates active immediately when consent is verified, double_opt_in sends a confirmation email before activation, and default obeys company double opt-in settings.",
+        },
+        enrollInSequences: {
+          type: "boolean",
+          description:
+            "Whether matching sequences may enroll this contact, including tag_added flows when tags are set in the same call. Same field as REST POST /api/v1/subscribers enrollInSequences. Defaults to true unless createdAt is supplied. Requires automations:trigger. Pass false to create and tag without enrollment. List membership is not required.",
         },
         createdAt: {
           type: "string",
@@ -290,7 +302,14 @@ export const subscriberToolDefinitions: Tool[] = [
         attributes: {
           type: "object",
           description:
-            "Custom attributes to update. Use firstName/lastName for names instead of attributes.",
+            "Custom attributes to merge into the existing map. This is the legacy MCP spelling; provide attributes or customAttributes, not both. Use firstName/lastName for names instead of attributes.",
+          additionalProperties: true,
+        },
+        customAttributes: {
+          type: "object",
+          description:
+            "REST spelling for custom attributes. Replaces the existing public custom-attribute map, matching REST PATCH semantics; provide attributes instead when you want to retain unspecified keys. Provide attributes or customAttributes, not both.",
+          additionalProperties: true,
         },
         addTags: {
           type: "array",

@@ -1,6 +1,10 @@
 import { apiRequest } from "../runtime.js";
 
-import { optionalString, requiredString } from "./common-primitives.js";
+import {
+  isRecord,
+  optionalString,
+  requiredString,
+} from "./common-primitives.js";
 import {
   ADD_SUBSCRIBERS_TO_LIST_EMAIL_LIMIT,
   SEQUENCE_ENROLLMENT_TARGET_LIMIT,
@@ -77,6 +81,48 @@ export interface DetailedSubscriberResult {
 
 export function normalizeSubscriberTag(tag: string): string {
   return tag.trim().toLowerCase().replace(/\s+/g, "-");
+}
+
+/**
+ * REST names this map `customAttributes`; MCP historically used `attributes`.
+ * Accept either so a published cURL example can be translated without a
+ * rejected-field dead end, but not both in the same call. The source is kept
+ * because update_subscriber intentionally gives the legacy spelling merge
+ * semantics and the REST spelling replacement semantics.
+ */
+export function resolveSubscriberCustomAttributes(
+  toolName: string,
+  args: Record<string, unknown>
+):
+  | {
+      value: Record<string, unknown>;
+      source: "attributes" | "customAttributes";
+    }
+  | undefined {
+  const fromAttributes = args.attributes;
+  const fromCustomAttributes = args.customAttributes;
+  const attributesProvided = fromAttributes !== undefined;
+  const customAttributesProvided = fromCustomAttributes !== undefined;
+
+  if (attributesProvided && customAttributesProvided) {
+    throw new Error(
+      `Provide either \`attributes\` or \`customAttributes\` when calling \`${toolName}\`, not both. They are the same field; the REST API names it customAttributes.`
+    );
+  }
+
+  const value = attributesProvided ? fromAttributes : fromCustomAttributes;
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!isRecord(value)) {
+    throw new Error(
+      `\`attributes\` (REST: customAttributes) must be an object when calling \`${toolName}\`.`
+    );
+  }
+  return {
+    value,
+    source: attributesProvided ? "attributes" : "customAttributes",
+  };
 }
 
 /**

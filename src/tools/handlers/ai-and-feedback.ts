@@ -52,6 +52,17 @@ export async function handleAiAndFeedbackTools(
       break;
     }
 
+    case "get_sms_usage": {
+      const companyId = args.companyId as string | undefined;
+      result = await apiRequest(
+        "GET",
+        "/api/v1/sms/usage",
+        undefined,
+        companyId
+      );
+      break;
+    }
+
     case "update_sms_number_label": {
       const companyId = args.companyId as string | undefined;
       const numberId = requiredString(
@@ -93,12 +104,24 @@ export async function handleAiAndFeedbackTools(
       break;
     }
 
+    case "release_sms_number": {
+      const companyId = args.companyId as string | undefined;
+      const numberId = requiredString("release_sms_number", args, "numberId");
+      result = await apiRequest(
+        "DELETE",
+        `/api/v1/sms/numbers/${encodeURIComponent(numberId)}`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
     case "send_test_sms": {
       const companyId = args.companyId as string | undefined;
       const body: Record<string, unknown> = {
         to: requiredString("send_test_sms", args, "to"),
       };
-      for (const key of ["text", "imageUrls", "blocks"]) {
+      for (const key of ["text", "imageUrls", "blocks", "fromNumberId"]) {
         if (args[key] !== undefined) {
           body[key] = args[key];
         }

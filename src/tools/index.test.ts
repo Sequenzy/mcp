@@ -12676,6 +12676,37 @@ describe("update_sms_number_label tool", () => {
   });
 });
 
+describe("release_sms_number tool", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("calls the DELETE endpoint for the given number", async () => {
+    mockApiRequest.mockResolvedValue({ success: true });
+
+    await handleToolCall("release_sms_number", {
+      companyId: "comp_123",
+      numberId: "num/123",
+    });
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "DELETE",
+      "/api/v1/sms/numbers/num%2F123",
+      undefined,
+      "comp_123"
+    );
+
+    await handleToolCall("release_sms_number", {
+      numberId: "num_123",
+    });
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "DELETE",
+      "/api/v1/sms/numbers/num_123",
+      undefined,
+      undefined
+    );
+  });
+});
+
 describe("recipient suppression tools", () => {
   beforeEach(() => {
     mockApiRequest.mockClear();

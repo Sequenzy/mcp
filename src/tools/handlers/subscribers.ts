@@ -10,6 +10,7 @@ import {
   fetchDetailedSubscriberByIdentifier,
   optionalAllowedString,
   requiredString,
+  resolveSubscriberCustomAttributes,
 } from "../internal.js";
 
 function requireStringArray(
@@ -108,6 +109,18 @@ export async function handleSubscriberTools(
         "optInMode",
         ["default", "confirmed", "double_opt_in"] as const
       );
+      if (
+        args.enrollInSequences !== undefined &&
+        typeof args.enrollInSequences !== "boolean"
+      ) {
+        throw new Error(
+          "`enrollInSequences` must be a boolean when calling `add_subscriber`."
+        );
+      }
+      const resolvedCustomAttributes = resolveSubscriberCustomAttributes(
+        "add_subscriber",
+        args
+      );
       result = await apiRequest(
         "POST",
         "/api/v1/subscribers",
@@ -126,11 +139,16 @@ export async function handleSubscriberTools(
           ...(typeof args.timezone === "string" && {
             timezone: args.timezone.trim() || null,
           }),
-          customAttributes: args.attributes,
+          ...(resolvedCustomAttributes !== undefined && {
+            customAttributes: resolvedCustomAttributes.value,
+          }),
           tags: args.tags,
           lists: args.listIds,
           ...(status !== undefined && { status }),
           ...(optInMode !== undefined && { optInMode }),
+          ...(typeof args.enrollInSequences === "boolean" && {
+            enrollInSequences: args.enrollInSequences,
+          }),
           ...(args.createdAt !== undefined && { createdAt: args.createdAt }),
         },
         companyId
@@ -243,8 +261,12 @@ export async function handleSubscriberTools(
         "status",
         ["active", "unsubscribed", "bounced"] as const
       );
+      const resolvedCustomAttributes = resolveSubscriberCustomAttributes(
+        "update_subscriber",
+        args
+      );
       const needsCurrentProfile =
-        isRecord(args.attributes) ||
+        resolvedCustomAttributes?.source === "attributes" ||
         args.addTags !== undefined ||
         args.removeTags !== undefined;
       const detail = needsCurrentProfile
@@ -309,13 +331,16 @@ export async function handleSubscriberTools(
       if (status !== undefined) {
         body.status = status;
       }
-      if (isRecord(args.attributes)) {
-        body.customAttributes = {
-          ...(isRecord(detail?.subscriber.customAttributes)
-            ? detail.subscriber.customAttributes
-            : {}),
-          ...args.attributes,
-        };
+      if (resolvedCustomAttributes !== undefined) {
+        body.customAttributes =
+          resolvedCustomAttributes.source === "attributes"
+            ? {
+                ...(isRecord(detail?.subscriber.customAttributes)
+                  ? detail.subscriber.customAttributes
+                  : {}),
+                ...resolvedCustomAttributes.value,
+              }
+            : resolvedCustomAttributes.value;
       }
       if (args.addTags || args.removeTags) {
         body.tags = nextTags;

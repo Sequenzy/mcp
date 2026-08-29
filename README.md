@@ -265,7 +265,7 @@ build a list as well as create it. Imports that apply `listIds` also need
 
 ## Tools
 
-This server currently exposes 232 MCP tools.
+This server currently exposes 239 MCP tools.
 
 Tools reject arguments they do not declare instead of silently ignoring them.
 Errors name the unsupported fields, list the supported arguments, and provide
@@ -1348,6 +1348,23 @@ Prompt-based campaigns inherit the company's configured email font. Generated
 content is returned as draft content for review. Use `create_sequence` to
 generate and persist a disabled sequence draft that appears in
 `list_sequences`; the deprecated `generate_sequence` alias does the same.
+
+### SMS
+
+| Tool                      | Description                                                                                     |
+| ------------------------- | ----------------------------------------------------------------------------------------------- |
+| `generate_sms`            | Generate SMS copy from a prompt.                                                                |
+| `get_sms_settings`        | Read SMS add-on readiness, credits, defaults, and provisioned numbers.                           |
+| `get_sms_usage`           | Compare sends, delivery outcomes, charged credits, last activity, and test sends by number.      |
+| `update_sms_number_label` | Update a number's label or per-number brand-prefix override.                                     |
+| `release_sms_number`      | Permanently return a number to the carrier and free its workspace slot.                          |
+| `send_test_sms`           | Send a test message, optionally choosing a provisioned sender with `fromNumberId`.                |
+
+`release_sms_number` is irreversible. Campaign or sequence steps pinned to a
+released number will skip their SMS sends until they are repointed to an active
+number. `get_sms_usage` reports production totals separately from `testSends`.
+When `send_test_sms` omits `fromNumberId`, it uses the same oldest-active-number
+default as production sends.
 
 ### Product Feedback
 

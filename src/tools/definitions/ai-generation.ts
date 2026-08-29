@@ -146,6 +146,21 @@ export const aiGenerationToolDefinitions: Tool[] = [
     },
   },
   {
+    name: "get_sms_usage",
+    description:
+      "Get per-number SMS usage for the company: sends, delivered, failed, credits charged, last-sent time, and test-send count for each phone number the workspace has sent from. Use it to compare how the workspace's numbers are performing or to check what a number was used for before releasing it.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+      },
+    },
+  },
+  {
     name: "update_sms_number_label",
     description:
       "Update one SMS number's settings: the user-facing label and/or its brand prefix override. Use get_sms_settings to find the number ID. Omitted fields keep their value; pass an empty string to clear one. Requires workspace-management permission.",
@@ -170,6 +185,26 @@ export const aiGenerationToolDefinitions: Tool[] = [
           type: "string",
           description:
             'Per-number brand prefix override up to 100 characters; messages go out as "{prefix}: your message". Pass an empty string to clear it back to the account-wide prefix.',
+        },
+      },
+      required: ["numberId"],
+    },
+  },
+  {
+    name: "release_sms_number",
+    description:
+      "Release an SMS number: hand it back to the carrier and mark it released. This is IRREVERSIBLE - the number cannot be recovered afterward, any campaign/sequence still explicitly set to send from it will SKIP its SMS sends until repointed at another number, and it stops counting toward the workspace's number limit (freeing a slot for a new purchase). Use get_sms_settings to find the number ID. Requires workspace-management permission.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        numberId: {
+          type: "string",
+          description: "SMS number ID returned by get_sms_settings.",
         },
       },
       required: ["numberId"],
@@ -208,6 +243,11 @@ export const aiGenerationToolDefinitions: Tool[] = [
           items: { type: "object" },
           description:
             "SMS content blocks (text + image subset). Provide text or blocks, not both.",
+        },
+        fromNumberId: {
+          type: "string",
+          description:
+            "Active SMS number ID to send from (see get_sms_settings). Defaults to the company's oldest active number - the same default real sends use.",
         },
       },
       required: ["to"],

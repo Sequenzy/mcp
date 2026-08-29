@@ -325,6 +325,33 @@ export const outputPropertiesByToolName: Record<
       "Whether the company now uses the inherited SaaS/ecommerce platform preset."
     ),
   },
+  get_email_design_system: {
+    designSystem: objectOutputProperty(
+      "The effective email design system parsed from the direction text: designCode (visual grammar tokens), compositionSpine, and source (derived | custom)."
+    ),
+    directionText: {
+      type: ["string", "null"],
+      description:
+        "The raw emailDesignPrompt direction text the tokens were parsed from; null when the company has none yet.",
+    },
+    isDefault: booleanOutputProperty(
+      "True while the identity is purely derived from brand context."
+    ),
+  },
+  update_email_design_system: {
+    message: messageOutputProperty,
+    designSystem: objectOutputProperty(
+      "The email design system now in effect after the update or reset."
+    ),
+    directionText: {
+      type: ["string", "null"],
+      description:
+        "The rewritten direction text now stored on the company; null after a reset.",
+    },
+    isDefault: booleanOutputProperty(
+      "True when the resulting identity is the pure brand-derived one - after an explicit reset, or when an adjustment resolved to the derived defaults."
+    ),
+  },
   get_shopify_automation_settings: {
     browseAbandonment: objectOutputProperty(
       "Effective browse-abandonment settings (defaults applied)."
@@ -1293,6 +1320,9 @@ export const outputPropertiesByToolName: Record<
       "updated SMS number (label + brandPrefix override)"
     ),
   },
+  release_sms_number: {
+    number: resourceOutputProperty("released SMS number (id + status)"),
+  },
   cancel_campaign: {
     campaign: resourceOutputProperty("campaign"),
   },
@@ -2248,6 +2278,11 @@ export const outputPropertiesByToolName: Record<
   get_sms_settings: {
     sms: objectOutputProperty(
       "SMS add-on status: enabled, planEligible, creditsBalance, brandPrefix (account-wide default), numbers (each with id, e164, label tag, brandPrefix override, status), readyToSend (paid plan or credits plus an active number)."
+    ),
+  },
+  get_sms_usage: {
+    usage: arrayOutputProperty(
+      "Per-number SMS usage entries: fromNumber (E.164), totalSends, delivered, failed, creditsCharged, lastSentAt, testSends. Totals exclude test sends; test sends are counted separately."
     ),
   },
   submit_feedback: {},
