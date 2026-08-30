@@ -12,14 +12,14 @@ export const integrationToolDefinitions: Tool[] = [
   {
     name: "connect_integration",
     description:
-      "Connect an API-key / webhook-secret integration: polar, paddle, dodo, whop, creem, chargebee, clerk, posthog, segment, or affonso. Check list_integration_capabilities first - each connectable provider lists its exact connectFields there. Credentials are validated against the provider where possible, stored encrypted, and never returned; payment providers queue their initial revenue backfill automatically. The response includes the webhookUrl the user must configure at the provider with the same secret - always relay it. Reconnecting an already-connected provider replaces its stored credentials. OAuth and app-install providers (Stripe, Shopify, Supabase, GitHub, WooCommerce, Meta) are rejected with guidance: their flows need a human in the dashboard. SECURITY: only pass credentials the user explicitly provided for this purpose; suggest the CLI (`sequenzy integrations connect`) or dashboard when the user prefers keeping secrets out of the conversation.",
+      "Connect an API-key / webhook-secret integration: polar, paddle, dodo, whop, creem, chargebee, clerk, posthog, segment, affonso, or attio. Check list_integration_capabilities first - each connectable provider lists its exact connectFields there. Credentials are validated against the provider where possible, stored encrypted, and never returned; payment providers queue their initial revenue backfill automatically. Attio is outbound-only and has no webhookUrl. For every other connectable provider the response includes the webhookUrl the user must configure at the provider with the same secret - always relay it. Reconnecting an already-connected provider replaces its stored credentials. OAuth and app-install providers (Stripe, Shopify, Supabase, GitHub, WooCommerce, Meta) are rejected with guidance: their flows need a human in the dashboard. SECURITY: only pass credentials the user explicitly provided for this purpose; suggest the CLI (`sequenzy integrations connect`) or dashboard when the user prefers keeping secrets out of the conversation.",
     inputSchema: {
       type: "object",
       properties: {
         provider: {
           type: "string",
           description:
-            "Provider to connect: polar, paddle, dodo, whop, creem, chargebee, clerk, posthog, segment, or affonso.",
+            "Provider to connect: polar, paddle, dodo, whop, creem, chargebee, clerk, posthog, segment, affonso, or attio.",
           enum: [
             "polar",
             "paddle",
@@ -31,17 +31,18 @@ export const integrationToolDefinitions: Tool[] = [
             "posthog",
             "segment",
             "affonso",
+            "attio",
           ],
         },
         apiKey: {
           type: "string",
           description:
-            "Provider API key. Required for every provider except clerk, posthog, and segment.",
+            "Provider API key. Required for polar, paddle, dodo, whop, creem, chargebee, affonso, and attio. Attio uses the workspace access token from Settings → Developers.",
         },
         webhookSecret: {
           type: "string",
           description:
-            "Signing secret of the webhook you create at the provider, pointed at the returned webhookUrl. Required for every provider. For Chargebee, pass the webhook's basic-auth credentials as username:password. For segment, the secret is your own choice and must be 16-153 UTF-8 bytes.",
+            "Signing secret of the webhook you create at the provider, pointed at the returned webhookUrl. Required for every provider except attio, which is outbound-only. For Chargebee, pass the webhook's basic-auth credentials as username:password. For segment, the secret is your own choice and must be 16-153 UTF-8 bytes.",
         },
         providerAccountId: {
           type: "string",
@@ -51,7 +52,7 @@ export const integrationToolDefinitions: Tool[] = [
         settings: {
           type: "object",
           description:
-            "PostHog and Segment only: event delivery scope. PostHog defaults to syncing every non-internal event. New Segment connections sync track and identify calls but skip automatic page/screen calls unless those names are explicitly allowlisted.",
+            "PostHog and Segment: event delivery scope. New Segment connections skip automatic page/screen calls unless those names are explicitly allowlisted. Attio: listMap (Sequenzy list id → Attio list id or slug) and syncCompanyFromDomain (default true).",
           properties: {
             syncAllEvents: {
               type: "boolean",
@@ -62,6 +63,17 @@ export const integrationToolDefinitions: Tool[] = [
               items: { type: "string" },
               description:
                 "Only sync these event names. Set syncAllEvents to false when using this.",
+            },
+            listMap: {
+              type: "object",
+              additionalProperties: { type: "string" },
+              description:
+                "Attio only. Optional map of Sequenzy list id to Attio people-list UUID or api slug. When omitted, connect first and configure mappings later in the dashboard.",
+            },
+            syncCompanyFromDomain: {
+              type: "boolean",
+              description:
+                "Attio only. When true, upsert a company from the person's non-free-mail email domain.",
             },
           },
         },
@@ -102,7 +114,7 @@ export const integrationToolDefinitions: Tool[] = [
             "Company ID. If not provided, uses the currently selected company.",
         },
       },
-      required: ["provider", "webhookSecret"],
+      required: ["provider"],
     },
   },
   {
@@ -140,7 +152,7 @@ export const integrationToolDefinitions: Tool[] = [
         category: {
           type: "string",
           description:
-            "Filter by category: payments, ecommerce, auth, analytics, ads, affiliate, cms, developer.",
+            "Filter by category: payments, ecommerce, auth, analytics, ads, affiliate, cms, crm, developer.",
         },
         companyId: {
           type: "string",

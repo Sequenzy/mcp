@@ -158,11 +158,8 @@ describe("integration tool definitions", () => {
     expect(byName.get("sync_integration")?.inputSchema.required).toEqual([
       "integrationId",
     ]);
-    // Every connectable provider needs a webhook secret; everything else is
-    // provider-specific and validated server-side.
     expect(byName.get("connect_integration")?.inputSchema.required).toEqual([
       "provider",
-      "webhookSecret",
     ]);
     // The catalog must be callable with no arguments - it is the discovery
     // tool used before anything is connected.
@@ -197,6 +194,7 @@ describe("integration tool definitions", () => {
     ] as { description?: string } | undefined;
 
     expect(providerSchema?.enum).toContain("segment");
+    expect(providerSchema?.enum).toContain("attio");
     expect(historyInput?.properties).toHaveProperty("region");
     expect(historyInput?.properties).toHaveProperty("spaceId");
     expect(historyInput?.properties).toHaveProperty("profileApiToken");
@@ -566,6 +564,61 @@ describe("integration tool routing", () => {
   it("rejects a connect without a webhook secret before calling the API", async () => {
     const result = await handleToolCall("connect_integration", {
       provider: "clerk",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("connects Attio with an access token and no webhook secret", async () => {
+    await handleToolCall("connect_integration", {
+      provider: "attio",
+      apiKey: "attio_live",
+      settings: {
+        listMap: { list_seq: "field-guide" },
+        syncCompanyFromDomain: false,
+      },
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/integrations/connect",
+      {
+        provider: "attio",
+        apiKey: "attio_live",
+        settings: {
+          listMap: { list_seq: "field-guide" },
+          syncCompanyFromDomain: false,
+        },
+      },
+      undefined
+    );
+  });
+
+  it("connects Attio without a list mapping", async () => {
+    await handleToolCall("connect_integration", {
+      provider: "attio",
+      apiKey: "attio_live",
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/integrations/connect",
+      {
+        provider: "attio",
+        apiKey: "attio_live",
+      },
+      undefined
+    );
+  });
+
+  it("rejects malformed Attio list mappings without clearing them", async () => {
+    const result = await handleToolCall("connect_integration", {
+      provider: "attio",
+      apiKey: "attio_live",
+      settings: {
+        listMap: { list_seq: 123 },
+      },
     });
 
     expect(result.isError).toBe(true);

@@ -306,7 +306,7 @@ sort options.
 | `get_integration_guide`              | Get framework-specific integration examples.                                                                                                                                 |
 | `get_integration`                    | Inspect one connected integration, its event wiring, list targeting, recent activity, and recommendations.                                                                   |
 | `list_integration_capabilities`      | Compare provider capabilities whether or not they are connected.                                                                                                             |
-| `connect_integration`                | Connect supported API-key or webhook-secret providers, including Segment and optional PostHog/Segment history import.                                                        |
+| `connect_integration`                | Connect supported API-key or webhook-secret providers, including outbound-only Attio and optional PostHog/Segment history import.                                           |
 | `get_event_schema`                   | Inspect published event payload examples, property paths, types, and merge tags by provider.                                                                                 |
 | `list_integration_activity`          | Read the retained integration-specific webhook and sync activity log.                                                                                                        |
 | `set_integration_sync_enabled`       | Enable or disable bulk imports and backfills while leaving live webhooks connected.                                                                                          |
@@ -370,6 +370,13 @@ contacts without a matching profile, and safely deduplicates retries and live
 webhook overlap. New connections skip automatic page/screen calls unless those
 names are explicitly allowlisted. Segment webhook secrets must be 16-153 UTF-8
 bytes. Use `sync_integration` to retry with the saved credentials.
+
+For Attio, `connect_integration` accepts a workspace access token without a
+webhook secret. Optionally pass `settings.listMap` as a map of Sequenzy list IDs
+to Attio people-list UUIDs or API slugs, plus `syncCompanyFromDomain` to control
+company matching from non-free-mail domains. The integration is outbound-only:
+new joins to mapped Sequenzy lists upsert the person and add them to the Attio
+list; list removals do not remove records from Attio.
 
 Call `get_event_schema` before writing an `{{event.*}}` merge tag or an event
 property filter. Omit `eventName` to list documented built-in events; provide

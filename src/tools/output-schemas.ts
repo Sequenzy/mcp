@@ -536,7 +536,7 @@ export const outputPropertiesByToolName: Record<
         "The connected integration: id, provider, name, providerAccountId, sync state, and safe (non-credential) details.",
     },
     webhookUrl: stringOutputProperty(
-      "URL to configure in the provider's webhook settings with the same secret. Always relay this to the user - delivery does not start until it is configured."
+      "URL to configure in the provider's webhook settings with the same secret. Empty for Attio, which is outbound-only. For other providers, always relay this to the user - delivery does not start until it is configured."
     ),
     revenueSyncQueued: booleanOutputProperty(
       "Payment providers only: whether the initial revenue backfill was queued."

@@ -1,6 +1,26 @@
 import { apiRequest } from "../../runtime.js";
 import { requiredString } from "../internal.js";
 
+function readAttioListMap(value: unknown): Record<string, string> | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(
+      "`settings.listMap` must be an object when calling `connect_integration`."
+    );
+  }
+
+  const listMap: Record<string, string> = {};
+  for (const [listId, target] of Object.entries(value)) {
+    if (!listId.trim() || typeof target !== "string" || !target.trim()) {
+      throw new Error(
+        "`settings.listMap` must map non-empty Sequenzy list IDs to non-empty Attio list IDs or slugs when calling `connect_integration`."
+      );
+    }
+    listMap[listId] = target;
+  }
+  return listMap;
+}
+
 /**
  * Integration inspection and management tools.
  *
@@ -17,17 +37,31 @@ export async function handleIntegrationTools(
   switch (name) {
     case "connect_integration": {
       const provider = requiredString("connect_integration", args, "provider");
-      const webhookSecret = requiredString(
-        "connect_integration",
-        args,
-        "webhookSecret"
-      );
+      // Attio is outbound-only and has no webhook secret. Every other
+      // connectable provider still needs one so the agent fails locally
+      // instead of round-tripping a 400.
+      if (provider !== "attio") {
+        requiredString("connect_integration", args, "webhookSecret");
+      }
+      if (provider === "attio") {
+        requiredString("connect_integration", args, "apiKey");
+      }
+      const webhookSecret =
+        typeof args.webhookSecret === "string" ? args.webhookSecret : undefined;
+      const settings =
+        args.settings !== undefined &&
+        typeof args.settings === "object" &&
+        args.settings !== null &&
+        !Array.isArray(args.settings)
+          ? (args.settings as Record<string, unknown>)
+          : undefined;
+      const attioListMap = readAttioListMap(settings?.listMap);
       result = await apiRequest(
         "POST",
         "/api/v1/integrations/connect",
         {
           provider,
-          webhookSecret,
+          ...(webhookSecret ? { webhookSecret } : {}),
           ...(typeof args.apiKey === "string" && args.apiKey
             ? { apiKey: args.apiKey }
             : {}),
@@ -35,7 +69,30 @@ export async function handleIntegrationTools(
           args.providerAccountId
             ? { providerAccountId: args.providerAccountId }
             : {}),
-          ...(args.settings !== undefined ? { settings: args.settings } : {}),
+          ...(settings
+            ? {
+                settings: {
+                  ...(typeof settings.syncAllEvents === "boolean"
+                    ? { syncAllEvents: settings.syncAllEvents }
+                    : {}),
+                  ...(Array.isArray(settings.eventAllowlist)
+                    ? {
+                        eventAllowlist: settings.eventAllowlist.filter(
+                          (name): name is string => typeof name === "string"
+                        ),
+                      }
+                    : {}),
+                  ...(attioListMap !== undefined
+                    ? { listMap: attioListMap }
+                    : {}),
+                  ...(typeof settings.syncCompanyFromDomain === "boolean"
+                    ? {
+                        syncCompanyFromDomain: settings.syncCompanyFromDomain,
+                      }
+                    : {}),
+                },
+              }
+            : {}),
           ...(args.historyImport !== undefined
             ? { historyImport: args.historyImport }
             : {}),
