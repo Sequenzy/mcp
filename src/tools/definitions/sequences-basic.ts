@@ -83,7 +83,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
   {
     name: "list_sequence_enrollments",
     description:
-      "List the individual contacts currently enrolled in a sequence, with the node each one is sitting on. Use this when get_sequence_stats gives you enrollmentCounts and you need the actual subscribers behind a number, such as everyone waiting at one step. Filter by currentNodeId (take the ID from get_sequence_stats enrollmentCounts.byCurrentNode or get_sequence nodes), status, subscriberId, or email, and page with limit/offset to export the full list. The response always echoes the sequence's single configured stopCondition, including matchConfig filters or comparisons. A stop condition does not cancel a waiting enrollment when its event arrives: it is re-evaluated when the enrollment next runs a step, so an enrollment parked on a delay keeps reporting `waiting` until that delay expires. Pass stopConditionMatch true to see whether each in-flight enrollment's stop condition matches right now. This is a non-atomic snapshot: a step already past its stop check may still finish. Each enrollment also reports enteredVia - the list, tag, segment, event, inactivity check, or frequency check that enrolled it - which is how you tell apart contacts entering a sequence whose trigger covers several lists or tags. Live sequence tests do not create enrollments; they send isolated test emails and record activity on the sequence test run instead.",
+      "List the individual contacts currently enrolled in a sequence, with the node each one is sitting on. Use this when get_sequence_stats gives you enrollmentCounts and you need the actual subscribers behind a number, such as everyone waiting at one step. Filter by currentNodeId (take the ID from get_sequence_stats enrollmentCounts.byCurrentNode or get_sequence nodes), status, subscriberId, or email, and page with limit/offset to export the full list. The response always echoes the sequence's single configured stopCondition, including matchConfig filters or comparisons. A stop condition does not cancel a waiting enrollment when its event arrives: it is re-evaluated when the enrollment next runs a step, so an enrollment parked on a delay keeps reporting `waiting` until that delay expires. Pass stopConditionMatch true to see whether each in-flight enrollment's stop condition matches right now. This is a non-atomic snapshot: a step already past its stop check may still finish. Each enrollment also reports enteredVia - the list, tag, segment, event, inactivity check, or frequency check that enrolled it - which is how you tell apart contacts entering a sequence whose trigger covers several lists or tags. entryContext adds the event id, property keys (never values), and trigger type. branchDecisions records the bounded retained if/else (or random split) verdicts, including the compared field name and a redacted value summary (missing/empty/nonempty/equals_expected); branchDecisionCount and branchDecisionsTruncated tell you when older verdicts were omitted. For the ClickHouse graph walk of one completed token, use get_sequence_enrollment. Live sequence tests do not create enrollments; they send isolated test emails and record activity on the sequence test run instead.",
     inputSchema: {
       type: "object",
       properties: {
@@ -150,6 +150,32 @@ export const sequenceBasicToolDefinitions: Tool[] = [
         },
       },
       required: ["sequenceId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_sequence_enrollment",
+    description:
+      "Read one sequence enrollment token, including how it entered and which branches it already took. Use this after list_sequence_enrollments when a completed token shows enteredVia unknown or Sequence completed with no email: nodeHistory is the bounded ClickHouse graph walk (redacted), and nodeHistoryTruncated tells you when more events exist. branchDecisionCount and branchDecisionsTruncated report whether the token's bounded decision array omitted older decisions. A legacy token whose first unmatched branch went straight to completion still reports the compared field name and a safe value summary (missing/empty/nonempty/equals_expected) rather than the raw recipient value. entryContext lists event property keys, never values. Requires sequences:read.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        sequenceId: {
+          type: "string",
+          description: "Sequence ID that owns the enrollment.",
+        },
+        enrollmentId: {
+          type: "string",
+          description:
+            "Enrollment token ID from list_sequence_enrollments (enrollmentId).",
+        },
+      },
+      required: ["sequenceId", "enrollmentId"],
       additionalProperties: false,
     },
   },

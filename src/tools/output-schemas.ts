@@ -644,6 +644,69 @@ export const outputPropertiesByToolName: Record<
     ),
     message: messageOutputProperty,
   },
+  get_attio_mapping: {
+    integrationId: stringOutputProperty("The Attio integration inspected."),
+    provider: stringOutputProperty("Always `attio`."),
+    listMap: objectOutputProperty(
+      "Saved Sequenzy list id → Attio list UUID or api slug. Empty when nothing is mapped."
+    ),
+    mappedListCount: numberOutputProperty(
+      "Number of saved mappings whose Sequenzy source and Attio target lists both still exist. Stale saved entries remain in listMap but are not counted. Zero means list joins are not synced."
+    ),
+    syncCompanyFromDomain: booleanOutputProperty(
+      "Whether a company is upserted from the person's non-free-mail email domain."
+    ),
+    sequenzyLists: {
+      type: "array",
+      description: "This company's Sequenzy lists (id and name).",
+      items: objectOutputProperty("A Sequenzy list: id and name."),
+    },
+    attioLists: {
+      type: "array",
+      description:
+        "Attio people-lists the stored token can write, read live from Attio (id, apiSlug, name).",
+      items: objectOutputProperty(
+        "An Attio people-list: id, apiSlug, and name."
+      ),
+    },
+    message: messageOutputProperty,
+  },
+  update_attio_settings: {
+    integrationId: stringOutputProperty("The Attio integration updated."),
+    provider: stringOutputProperty("Always `attio`."),
+    listMap: objectOutputProperty(
+      "Saved Sequenzy list id → Attio list UUID or api slug after the update."
+    ),
+    mappedListCount: numberOutputProperty(
+      "Number of saved mappings whose Sequenzy source and Attio target lists both still exist after the update. Stale preserved entries are not counted."
+    ),
+    syncCompanyFromDomain: booleanOutputProperty(
+      "Whether company matching from work-email domains is on after the update."
+    ),
+    sequenzyLists: {
+      type: "array",
+      description: "This company's Sequenzy lists (id and name).",
+      items: objectOutputProperty("A Sequenzy list: id and name."),
+    },
+    attioLists: {
+      type: "array",
+      description:
+        "Attio people-lists the stored token can write, read live from Attio (id, apiSlug, name).",
+      items: objectOutputProperty(
+        "An Attio people-list: id, apiSlug, and name."
+      ),
+    },
+    changed: booleanOutputProperty(
+      "False when the integration was already in the requested state."
+    ),
+    changedFields: {
+      type: "array",
+      description:
+        "Which settings actually moved: listMap and/or syncCompanyFromDomain.",
+      items: stringOutputProperty("Field name."),
+    },
+    message: messageOutputProperty,
+  },
   list_web_tracking_keys: {
     success: successOutputProperty,
     keys: {
@@ -1411,6 +1474,11 @@ export const outputPropertiesByToolName: Record<
   get_landing_page: {
     landingPage: resourceOutputProperty("landing page"),
   },
+  get_landing_page_stats: {
+    stats: objectOutputProperty(
+      "Landing page analytics for the requested window: visits, uniqueVisits, clicks, subscribes, conversionRate (subscribes / uniqueVisits), botVisits, dataAvailableFrom, a daily histogram, referrers, and UTM sources. Default counts exclude known crawlers. Preview URLs and the editor are never counted."
+    ),
+  },
   render_landing_page: {
     previewUrl: stringOutputProperty(
       "Signed, unlisted visitor-facing preview of the current page content. Works for drafts. Not indexed. Share this URL to review layout and copy without publishing."
@@ -1579,6 +1647,55 @@ export const outputPropertiesByToolName: Record<
             required: ["kind", "value", "name", "description"],
             additionalProperties: true,
           },
+          entryContext: {
+            type: "object",
+            description:
+              "Event or manual-enrollment context captured at entry. Property keys only; values are never returned.",
+            properties: {
+              triggerType: nullableStringOutputProperty(
+                "Stored entryTriggerType, such as event_received or manual_enrollment. Null when never stamped."
+              ),
+              eventId: nullableStringOutputProperty(
+                "Durable ID of the enrolling event, or null."
+              ),
+              eventName: nullableStringOutputProperty(
+                "Enrolling event name, or null."
+              ),
+              hasEventProperties: booleanOutputProperty(
+                "Whether any event property keys were stored on this enrollment."
+              ),
+              eventPropertyKeys: {
+                type: "array",
+                description:
+                  "Keys present on the enrolling event payload. Values are omitted.",
+                items: { type: "string", description: "Event property key." },
+              },
+              hasFieldSnapshots: booleanOutputProperty(
+                "Whether subscriber field snapshots were stored at enrollment."
+              ),
+              fieldSnapshotKeys: {
+                type: "array",
+                description:
+                  "Subscriber field paths snapshotted at enrollment. Values are omitted.",
+                items: { type: "string", description: "Field path." },
+              },
+            },
+            additionalProperties: true,
+          },
+          branchDecisions: {
+            type: "array",
+            description:
+              "Bounded redacted if/else and random-split verdicts, oldest first within the retained window. Compared values are summaries (missing, empty, nonempty, equals_expected), never the raw field or event-property value. Empty on enrollments recorded before this field existed; use get_sequence_enrollment to reconstruct those from ClickHouse.",
+            items: objectOutputProperty(
+              "One branch or condition decision, including selectedPath and per-branch evaluations."
+            ),
+          },
+          branchDecisionCount: numberOutputProperty(
+            "Total branch and condition decisions taken, including decisions omitted from the bounded array."
+          ),
+          branchDecisionsTruncated: booleanOutputProperty(
+            "Whether older decisions were omitted from branchDecisions."
+          ),
         },
         // `failedReason` is deliberately absent, like every other field this
         // package added after the fact: clients validate structuredContent
@@ -1598,6 +1715,28 @@ export const outputPropertiesByToolName: Record<
       },
     },
     pagination: objectOutputProperty("Pagination metadata."),
+  },
+  get_sequence_enrollment: {
+    sequenceId: stringOutputProperty("Sequence ID."),
+    sequenceName: stringOutputProperty("Sequence name."),
+    stopCondition: objectOutputProperty(
+      "The sequence's single configured stop condition."
+    ),
+    enrollment: objectOutputProperty(
+      "The enrollment token: enteredVia, entryContext (event keys, never values), and branchDecisions (redacted)."
+    ),
+    nodeHistory: arrayOutputProperty(
+      "ClickHouse graph-walk events for this token, oldest first. Each item may include a redacted branchDecision reconstructed from stored metadata when the token itself has none."
+    ),
+    nodeHistoryTruncated: booleanOutputProperty(
+      "Whether additional node events exist beyond the returned bounded history."
+    ),
+    nodeHistoryLimit: numberOutputProperty(
+      "Maximum number of node events returned."
+    ),
+    historySource: stringOutputProperty(
+      "Where the branch history came from: node_events, token_context, both, or none."
+    ),
   },
   simulate_sequence: {
     sequenceId: stringOutputProperty("Sequence ID."),

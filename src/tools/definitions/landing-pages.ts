@@ -26,7 +26,7 @@ export const landingPageToolDefinitions: Tool[] = [
   {
     name: "get_landing_page",
     description:
-      "Get landing page details, content, metrics, and URLs. Drafts have publicUrl and appPublicUrl set to null; previewUrl is a signed, unlisted visitor-facing preview that works before publish. Use render_landing_page when you need that preview URL called out with publish-vs-draft guidance.",
+      "Get landing page details, content, metrics, and URLs. Drafts have publicUrl and appPublicUrl set to null; previewUrl is a signed, unlisted visitor-facing preview that works before publish. Use render_landing_page when you need that preview URL called out with publish-vs-draft guidance. viewCount and conversionCount are lifetime totals; use get_landing_page_stats for unique visits, referrers, a date histogram, and whether crawlers were counted.",
     inputSchema: {
       type: "object",
       properties: {
@@ -38,6 +38,46 @@ export const landingPageToolDefinitions: Tool[] = [
         landingPageId: {
           type: "string",
           description: "Landing page ID.",
+        },
+      },
+      required: ["landingPageId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_landing_page_stats",
+    description:
+      "Get Mailchimp-style landing page analytics: visits, unique visits, clicks, subscribes, conversion rate, a daily histogram, referrers, and UTM sources. Default counts exclude known crawlers; preview URLs and the editor are never counted. Opening the public URL while building the page does count. Pass includeBots to include crawler hits in visits. period defaults to all retained events with a 90-day histogram; dataAvailableFrom identifies the beginning of retained coverage, which may be later than the page's lifetime counters.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        landingPageId: {
+          type: "string",
+          description: "Landing page ID.",
+        },
+        period: {
+          type: "string",
+          description: "Time window: 7d, 30d, 90d, or all (default: all).",
+        },
+        start: {
+          type: "string",
+          description:
+            "Custom range start as an ISO 8601 timestamp; provide end too. Maximum range is 365 days.",
+        },
+        end: {
+          type: "string",
+          description:
+            "Custom range end as an ISO 8601 timestamp; provide start too.",
+        },
+        includeBots: {
+          type: "boolean",
+          description:
+            "Include known crawlers in visits, unique visits, clicks, referrers, and the histogram. Bot hits are always returned separately as botVisits.",
         },
       },
       required: ["landingPageId"],

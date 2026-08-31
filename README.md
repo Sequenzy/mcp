@@ -1380,7 +1380,9 @@ generate and persist a disabled sequence draft that appears in
 released number will skip their SMS sends until they are repointed to an active
 number. `get_sms_usage` reports production totals separately from `testSends`.
 When `send_test_sms` omits `fromNumberId`, it uses the same oldest-active-number
-default as production sends.
+default as production sends. Test sends are real, credit-charged messages that
+bypass quiet hours and are limited to 100 per company in a rolling 24-hour
+window.
 
 ### Product Feedback
 

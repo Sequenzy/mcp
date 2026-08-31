@@ -148,6 +148,19 @@ export async function handleSequenceTools(
       break;
     }
 
+    case "get_sequence_enrollment": {
+      const companyId = args.companyId as string | undefined;
+      const sequenceId = requiredString(name, args, "sequenceId");
+      const enrollmentId = requiredString(name, args, "enrollmentId");
+      result = await apiRequest(
+        "GET",
+        `/api/v1/sequences/${encodeURIComponent(sequenceId)}/enrollments/${encodeURIComponent(enrollmentId)}`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
     case "simulate_sequence": {
       const companyId = args.companyId as string | undefined;
       const sequenceId = requiredString(name, args, "sequenceId");

@@ -213,7 +213,7 @@ export const aiGenerationToolDefinitions: Tool[] = [
   {
     name: "send_test_sms",
     description:
-      "Send a test SMS to a phone number. IMPORTANT: sends a real text message and charges SMS credits - only call when the user explicitly asks for a test send. Requires the SMS add-on with a verified number (check get_sms_settings). Limited to 5 test sends per hour; bypasses quiet hours; excluded from step stats.",
+      "Send a test SMS to a phone number. IMPORTANT: sends a real text message and charges SMS credits - only call when the user explicitly asks for a test send. Requires the SMS add-on with a verified number (check get_sms_settings). Limited to 100 test sends per company per rolling 24 hours; bypasses quiet hours; excluded from step stats.",
     inputSchema: {
       type: "object",
       properties: {

@@ -1,11 +1,15 @@
 import { apiRequest } from "../../runtime.js";
 import { requiredString } from "../internal.js";
 
-function readAttioListMap(value: unknown): Record<string, string> | undefined {
+function readAttioListMap(
+  value: unknown,
+  fieldPath: string,
+  toolName: string
+): Record<string, string> | undefined {
   if (value === undefined) return undefined;
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new Error(
-      "`settings.listMap` must be an object when calling `connect_integration`."
+      `\`${fieldPath}\` must be an object when calling \`${toolName}\`.`
     );
   }
 
@@ -13,7 +17,7 @@ function readAttioListMap(value: unknown): Record<string, string> | undefined {
   for (const [listId, target] of Object.entries(value)) {
     if (!listId.trim() || typeof target !== "string" || !target.trim()) {
       throw new Error(
-        "`settings.listMap` must map non-empty Sequenzy list IDs to non-empty Attio list IDs or slugs when calling `connect_integration`."
+        `\`${fieldPath}\` must map non-empty Sequenzy list IDs to non-empty Attio list IDs or slugs when calling \`${toolName}\`.`
       );
     }
     listMap[listId] = target;
@@ -55,7 +59,11 @@ export async function handleIntegrationTools(
         !Array.isArray(args.settings)
           ? (args.settings as Record<string, unknown>)
           : undefined;
-      const attioListMap = readAttioListMap(settings?.listMap);
+      const attioListMap = readAttioListMap(
+        settings?.listMap,
+        "settings.listMap",
+        "connect_integration"
+      );
       result = await apiRequest(
         "POST",
         "/api/v1/integrations/connect",
@@ -249,6 +257,54 @@ export async function handleIntegrationTools(
         "POST",
         `/api/v1/integrations/${encodeURIComponent(integrationId)}/sync`,
         undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "get_attio_mapping": {
+      const integrationId = requiredString(
+        "get_attio_mapping",
+        args,
+        "integrationId"
+      );
+      result = await apiRequest(
+        "GET",
+        `/api/v1/integrations/${encodeURIComponent(integrationId)}/attio`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "update_attio_settings": {
+      const integrationId = requiredString(
+        "update_attio_settings",
+        args,
+        "integrationId"
+      );
+      const listMap = readAttioListMap(
+        args.listMap,
+        "listMap",
+        "update_attio_settings"
+      );
+      if (
+        listMap === undefined &&
+        typeof args.syncCompanyFromDomain !== "boolean"
+      ) {
+        throw new Error(
+          "Provide at least one of `listMap` or `syncCompanyFromDomain` when calling `update_attio_settings`."
+        );
+      }
+      result = await apiRequest(
+        "PATCH",
+        `/api/v1/integrations/${encodeURIComponent(integrationId)}/attio`,
+        {
+          ...(listMap !== undefined ? { listMap } : {}),
+          ...(typeof args.syncCompanyFromDomain === "boolean"
+            ? { syncCompanyFromDomain: args.syncCompanyFromDomain }
+            : {}),
+        },
         companyId
       );
       break;

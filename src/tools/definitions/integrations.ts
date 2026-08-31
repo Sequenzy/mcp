@@ -68,7 +68,7 @@ export const integrationToolDefinitions: Tool[] = [
               type: "object",
               additionalProperties: { type: "string" },
               description:
-                "Attio only. Optional map of Sequenzy list id to Attio people-list UUID or api slug. When omitted, connect first and configure mappings later in the dashboard.",
+                "Attio only. Optional map of Sequenzy list id to Attio people-list UUID or api slug. When omitted, connect first and configure mappings later with update_attio_settings — do not ask the user to re-paste the access token just to map lists.",
             },
             syncCompanyFromDomain: {
               type: "boolean",
@@ -120,7 +120,7 @@ export const integrationToolDefinitions: Tool[] = [
   {
     name: "get_integration",
     description:
-      "Inspect one connected integration in depth: what the provider syncs, every event it can emit and when, every matching tag rule, which sequences trigger on those events, recent integration-specific activity, and prioritized recommendations. `observedByAccount` and `accountLastSeenAt` are account-wide because event definitions can also be updated by another integration or the public events API; use the retained activity log for connection-specific delivery diagnosis. Read-only; credentials are never returned. Get the id from list_integrations.",
+      "Inspect one connected integration in depth: what the provider syncs, every event it can emit and when, every matching tag rule, which sequences trigger on those events, recent integration-specific activity, and prioritized recommendations. `observedByAccount` and `accountLastSeenAt` are account-wide because event definitions can also be updated by another integration or the public events API; use the retained activity log for connection-specific delivery diagnosis. For Attio, `details.mappedListCount` 0 and an `attio_lists_unmapped` recommendation mean list joins are not synced — use get_attio_mapping then update_attio_settings; do not reconnect for that. Read-only; credentials are never returned. Get the id from list_integrations.",
     inputSchema: {
       type: "object",
       properties: {
@@ -298,6 +298,59 @@ export const integrationToolDefinitions: Tool[] = [
         integrationId: {
           type: "string",
           description: "Integration ID from list_integrations.",
+        },
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+      },
+      required: ["integrationId"],
+    },
+  },
+  {
+    name: "get_attio_mapping",
+    description:
+      "Inspect a connected Attio integration's list mapping: every Sequenzy list, every Attio people-list the stored token can write (id, api slug, name), the saved listMap, mappedListCount, and whether company matching from work-email domains is on. THIS IS THE TOOL FOR 'Attio is connected but mappedListCount is 0'. Call it before update_attio_settings so you have Attio list ids or slugs instead of asking the user to paste UUIDs. Reads Attio live on every call. Credentials are never returned. Attio only; other providers return a clear error. Check get_integration first — availableActions includes update_attio_settings when mapping can be saved without reconnecting.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        integrationId: {
+          type: "string",
+          description:
+            "Attio integration ID from list_integrations or get_integration.",
+        },
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+      },
+      required: ["integrationId"],
+    },
+  },
+  {
+    name: "update_attio_settings",
+    description:
+      "Set which Sequenzy lists sync into which Attio people-lists on an already-connected Attio integration, using the stored access token. THIS DOES NOT REQUIRE THE SECRET AGAIN: do not call connect_integration just to change mappings, and do not ask the user for the Attio access token. listMap is a full replacement — pass the complete desired map, `{}` to unmap every list, or omit listMap to leave mappings unchanged. Unmapped Sequenzy lists are not synced. Optionally set syncCompanyFromDomain. Provide at least one field. Idempotent: asking for the current state succeeds with changed: false. Does not backfill people already on a list; add-only, so unmapping does not remove anyone from Attio. Check get_attio_mapping first for Sequenzy list ids and live Attio list ids/slugs. Attio only. Requires an API key with the `integrations:manage` scope, which agent-safe keys deliberately do not carry - without it, report the dashboard path (Settings -> Integrations -> Attio -> Map lists) instead of retrying.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        integrationId: {
+          type: "string",
+          description:
+            "Attio integration ID from list_integrations or get_integration.",
+        },
+        listMap: {
+          type: "object",
+          additionalProperties: { type: "string" },
+          description:
+            "Complete map of Sequenzy list id to Attio people-list UUID or api slug. Replaces the saved map. Pass `{}` to clear every mapping. Omit to leave mappings unchanged.",
+        },
+        syncCompanyFromDomain: {
+          type: "boolean",
+          description:
+            "When true, upsert a company from the person's non-free-mail email domain. Omit to leave the current setting unchanged.",
         },
         companyId: {
           type: "string",

@@ -1268,6 +1268,56 @@ describe("nullable structured output", () => {
     expect(result.valid).toBe(true);
   });
 
+  it("accepts a sequence enrollment history payload", () => {
+    const result = validateStructuredContent("get_sequence_enrollment", {
+      success: true,
+      sequenceId: "seq_abc123",
+      sequenceName: "Activation",
+      stopCondition: { type: "none", value: null, matchConfig: null },
+      historySource: "node_events",
+      enrollment: {
+        enrollmentId: "tok_abc123",
+        sequenceId: "seq_abc123",
+        subscriberId: "sub_abc123",
+        status: "completed",
+        currentNodeId: "node_complete",
+        currentNodeMissing: false,
+        enrollmentStartedAt: "2026-01-01T00:00:00.000Z",
+        enteredVia: {
+          kind: "event",
+          value: "producer.activation.needed",
+          name: null,
+          description: 'Event "producer.activation.needed"',
+        },
+        entryContext: {
+          triggerType: "event_received",
+          eventId: "evt_1",
+          eventName: "producer.activation.needed",
+          hasEventProperties: true,
+          eventPropertyKeys: ["catalogueStage"],
+          hasFieldSnapshots: false,
+          fieldSnapshotKeys: [],
+        },
+        branchDecisions: [],
+        branchDecisionCount: 0,
+        branchDecisionsTruncated: false,
+      },
+      nodeHistory: [
+        {
+          nodeId: "node_branch",
+          eventType: "completed",
+          eventTime: "2026-08-22T00:00:01.234Z",
+          branchDecision: { selectedPath: "else" },
+        },
+      ],
+      nodeHistoryTruncated: false,
+      nodeHistoryLimit: 200,
+    });
+
+    expect(result.errorMessage).toBeUndefined();
+    expect(result.valid).toBe(true);
+  });
+
   it("accepts realignment output with no sequence-level sending window", () => {
     const result = validateStructuredContent("realign_sequence_enrollments", {
       success: true,
@@ -5850,6 +5900,7 @@ describe("landing page tools", () => {
 
     expect(toolNames).toContain("list_landing_pages");
     expect(toolNames).toContain("get_landing_page");
+    expect(toolNames).toContain("get_landing_page_stats");
     expect(toolNames).toContain("render_landing_page");
     expect(toolNames).toContain("create_landing_page");
     expect(toolNames).toContain("update_landing_page");
@@ -5897,6 +5948,38 @@ describe("landing page tools", () => {
     expect(mockApiRequest).toHaveBeenCalledWith(
       "GET",
       "/api/v1/landing-pages",
+      undefined,
+      "comp_123"
+    );
+  });
+
+  it("routes get_landing_page_stats with period and bot inclusion", async () => {
+    const tool = tools.find((entry) => entry.name === "get_landing_page_stats");
+    expect(tool?.annotations?.readOnlyHint).toBe(true);
+
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      stats: {
+        visits: 12,
+        uniqueVisits: 8,
+        clicks: 3,
+        subscribes: 2,
+        conversionRate: 25,
+        botVisits: 4,
+      },
+    });
+
+    const result = await handleToolCall("get_landing_page_stats", {
+      companyId: "comp_123",
+      landingPageId: "lp_123",
+      period: "30d",
+      includeBots: true,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/landing-pages/lp_123/stats?period=30d&includeBots=true",
       undefined,
       "comp_123"
     );
@@ -9545,6 +9628,10 @@ describe("list_sequence_enrollments tool", () => {
         }
       | undefined;
     expect(enrollmentsSchema?.items?.properties).toHaveProperty("enteredVia");
+    expect(enrollmentsSchema?.items?.properties).toHaveProperty("entryContext");
+    expect(enrollmentsSchema?.items?.properties).toHaveProperty(
+      "branchDecisions"
+    );
   });
 
   it("lists enrollments without filters", async () => {
@@ -9602,6 +9689,58 @@ describe("list_sequence_enrollments tool", () => {
 
     expect(result.isError).toBe(true);
     expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+});
+
+describe("get_sequence_enrollment tool", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("is published as a read-only tool requiring sequenceId and enrollmentId", () => {
+    const tool = tools.find(
+      (candidate) => candidate.name === "get_sequence_enrollment"
+    );
+    const inputSchema = tool?.inputSchema as
+      | {
+          required?: string[];
+          properties?: Record<string, unknown>;
+        }
+      | undefined;
+
+    expect(inputSchema?.required).toEqual(["sequenceId", "enrollmentId"]);
+    expect(tool?.annotations?.readOnlyHint).toBe(true);
+    expect(tool?.description).toContain("nodeHistory");
+    expect(tool?.outputSchema?.properties).toHaveProperty("nodeHistory");
+    expect(tool?.outputSchema?.properties).toHaveProperty(
+      "nodeHistoryTruncated"
+    );
+    expect(tool?.outputSchema?.properties).toHaveProperty("nodeHistoryLimit");
+    expect(tool?.outputSchema?.properties).toHaveProperty("historySource");
+  });
+
+  it("gets one enrollment", async () => {
+    mockApiRequest.mockResolvedValue({
+      success: true,
+      sequenceId: "seq_123",
+      enrollment: { enrollmentId: "tok_123" },
+      nodeHistory: [],
+      historySource: "none",
+    });
+
+    const result = await handleToolCall("get_sequence_enrollment", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      enrollmentId: "tok_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/sequences/seq_123/enrollments/tok_123",
+      undefined,
+      "comp_123"
+    );
   });
 });
 
@@ -12676,6 +12815,15 @@ describe("audience sync tools", () => {
 describe("send_test_sms tool", () => {
   beforeEach(() => {
     mockApiRequest.mockClear();
+  });
+
+  it("publishes the company rolling-day test-send limit", () => {
+    const tool = tools.find((candidate) => candidate.name === "send_test_sms");
+
+    expect(tool?.description).toContain(
+      "100 test sends per company per rolling 24 hours"
+    );
+    expect(tool?.description).not.toContain("per hour");
   });
 
   it("posts a test SMS send", async () => {

@@ -29,6 +29,8 @@ const INTEGRATION_TOOL_NAMES = [
   "sync_integration",
   "get_integration_pixel",
   "activate_integration_pixel",
+  "get_attio_mapping",
+  "update_attio_settings",
 ];
 
 describe("integration tool definitions", () => {
@@ -50,6 +52,7 @@ describe("integration tool definitions", () => {
       "list_integration_capabilities",
       "list_integration_activity",
       "get_integration_pixel",
+      "get_attio_mapping",
     ]) {
       expect({
         name,
@@ -81,6 +84,18 @@ describe("integration tool definitions", () => {
     // Installing a pixel only adds tracking; nothing existing is removed.
     expect(
       byName.get("activate_integration_pixel")?.annotations?.destructiveHint
+    ).toBe(false);
+    expect(byName.get("update_attio_settings")?.annotations?.readOnlyHint).toBe(
+      false
+    );
+    expect(byName.get("update_attio_settings")?.annotations?.openWorldHint).toBe(
+      true
+    );
+    expect(byName.get("get_attio_mapping")?.annotations?.openWorldHint).toBe(
+      true
+    );
+    expect(
+      byName.get("update_attio_settings")?.annotations?.destructiveHint
     ).toBe(false);
     // Retargeting silently changes who future contacts get mailed as, and
     // contacts created under the old targeting are not moved.
@@ -136,6 +151,7 @@ describe("integration tool definitions", () => {
     for (const name of [
       "set_integration_sync_enabled",
       "set_integration_list_targeting",
+      "update_attio_settings",
     ]) {
       expect({
         name,
@@ -156,6 +172,12 @@ describe("integration tool definitions", () => {
       byName.get("set_integration_sync_enabled")?.inputSchema.required
     ).toEqual(["integrationId", "syncEnabled"]);
     expect(byName.get("sync_integration")?.inputSchema.required).toEqual([
+      "integrationId",
+    ]);
+    expect(byName.get("get_attio_mapping")?.inputSchema.required).toEqual([
+      "integrationId",
+    ]);
+    expect(byName.get("update_attio_settings")?.inputSchema.required).toEqual([
       "integrationId",
     ]);
     expect(byName.get("connect_integration")?.inputSchema.required).toEqual([
@@ -428,6 +450,41 @@ describe("integration tool routing", () => {
       undefined,
       "comp_1"
     );
+  });
+
+  it("reads Attio mapping without writing", async () => {
+    await handleToolCall("get_attio_mapping", { integrationId: "int_123" });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/integrations/int_123/attio",
+      undefined,
+      undefined
+    );
+  });
+
+  it("saves Attio mappings as a PATCH without reconnecting", async () => {
+    await handleToolCall("update_attio_settings", {
+      integrationId: "int_123",
+      listMap: { list_seq: "field-guide" },
+      companyId: "comp_1",
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/integrations/int_123/attio",
+      { listMap: { list_seq: "field-guide" } },
+      "comp_1"
+    );
+  });
+
+  it("rejects update_attio_settings with neither listMap nor syncCompanyFromDomain", async () => {
+    const result = await handleToolCall("update_attio_settings", {
+      integrationId: "int_123",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
   it("sends list targeting, including the clear-to-default null", async () => {

@@ -33,6 +33,31 @@ export async function handleLandingPageTools(
       break;
     }
 
+    case "get_landing_page_stats": {
+      const companyId = args.companyId as string | undefined;
+      const params = new URLSearchParams();
+      if (typeof args.period === "string") {
+        params.set("period", args.period);
+      }
+      if (typeof args.start === "string") {
+        params.set("start", args.start);
+      }
+      if (typeof args.end === "string") {
+        params.set("end", args.end);
+      }
+      if (args.includeBots === true) {
+        params.set("includeBots", "true");
+      }
+      const query = params.toString();
+      result = await apiRequest(
+        "GET",
+        `/api/v1/landing-pages/${args.landingPageId}/stats${query ? `?${query}` : ""}`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
     case "render_landing_page": {
       const companyId = args.companyId as string | undefined;
       result = await apiRequest(
