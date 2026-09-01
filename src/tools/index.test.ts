@@ -10351,6 +10351,12 @@ describe("create_segment tool", () => {
     expect(
       inputSchema?.properties?.filters?.items?.properties?.value?.description
     ).toContain('{"v":1,"campaignId":"camp_123","blockId":"poll_1"');
+    expect(
+      inputSchema?.properties?.filters?.items?.properties?.value?.description
+    ).toContain("one shared element");
+    expect(createSegmentTool?.description).toContain(
+      "requires one array element to satisfy every condition"
+    );
   });
 
   it("rejects create_segment calls without filters or root before hitting the API", async () => {
@@ -11753,9 +11759,14 @@ describe("update_segment tool", () => {
     expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
-  it("deletes a segment", async () => {
-    mockApiRequest.mockResolvedValueOnce({ success: true });
+  it("documents that delete_segment requires segments:delete", () => {
+    const tool = tools.find((candidate) => candidate.name === "delete_segment");
+    expect(tool?.description).toContain(
+      "Requires the segments:delete scope; segments:write is not enough."
+    );
+  });
 
+  it("deletes a segment", async () => {
     const result = await handleToolCall("delete_segment", {
       companyId: "comp_123",
       segmentId: "seg_123",

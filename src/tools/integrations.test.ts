@@ -88,9 +88,9 @@ describe("integration tool definitions", () => {
     expect(byName.get("update_attio_settings")?.annotations?.readOnlyHint).toBe(
       false
     );
-    expect(byName.get("update_attio_settings")?.annotations?.openWorldHint).toBe(
-      true
-    );
+    expect(
+      byName.get("update_attio_settings")?.annotations?.openWorldHint
+    ).toBe(true);
     expect(byName.get("get_attio_mapping")?.annotations?.openWorldHint).toBe(
       true
     );

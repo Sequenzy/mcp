@@ -266,7 +266,7 @@ export const tagListSegmentToolDefinitions: Tool[] = [
   {
     name: "create_segment",
     description:
-      'Create a new segment from explicit filter rules. Use `filters` plus `filterJoinOperator` for flat legacy rules, or `root` for nested AND/OR groups such as `{ "kind": "group", "joinOperator": "and", "children": [{ "kind": "filter", "field": "attribute", "operator": "gte", "value": "mrr:50" }, { "kind": "group", "joinOperator": "or", "children": [{ "kind": "filter", "field": "tag", "operator": "contains", "value": "vip" }, { "kind": "filter", "field": "event", "operator": "is_not", "value": "saas.purchase:30d" }] }] }`. Supports `event` and `segment` fields, Stripe product purchase/current/trial/date filters, and campaign- or delivery-policy-scoped engagement filters such as `emailOpened is marketing:all`.',
+      'Create a new segment from explicit filter rules. Use `filters` plus `filterJoinOperator` for flat legacy rules, or `root` for nested AND/OR groups such as `{ "kind": "group", "joinOperator": "and", "children": [{ "kind": "filter", "field": "attribute", "operator": "gte", "value": "mrr:50" }, { "kind": "group", "joinOperator": "or", "children": [{ "kind": "filter", "field": "tag", "operator": "contains", "value": "vip" }, { "kind": "filter", "field": "event", "operator": "is_not", "value": "saas.purchase:30d" }] }] }`. AND of two or more attribute filters on the same array path (e.g. `history_events[].eventvenue_id` and `history_events[].showing_date`) requires one array element to satisfy every condition — a 2010 visit at that venue plus an unrelated recent booking elsewhere does not match. Supports `event` and `segment` fields, Stripe product purchase/current/trial/date filters, and campaign- or delivery-policy-scoped engagement filters such as `emailOpened is marketing:all`.',
     inputSchema: {
       type: "object",
       properties: {
@@ -346,7 +346,7 @@ export const tagListSegmentToolDefinitions: Tool[] = [
   {
     name: "delete_segment",
     description:
-      "Permanently delete a segment. This cannot be undone. Subscribers are not affected.",
+      "Permanently delete a segment. This cannot be undone. Subscribers are not affected. Requires the segments:delete scope; segments:write is not enough.",
     inputSchema: {
       type: "object",
       properties: {
