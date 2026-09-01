@@ -9,6 +9,9 @@ export const pollBlockHint =
 export const imageBlockHint =
   ' For a new image, call `upload_image_asset` first and insert its returned `imageBlock`. A responsive fixed-height screenshot crop uses { "type": "image", "src": "https://...", "alt": "Product dashboard", "width": 100, "widthType": "percent", "height": 320, "objectFit": "cover", "align": "center" }.';
 
+export const videoBlockHint =
+  ' A YouTube video block can override its still with { "type": "video", "videoUrl": "https://www.youtube.com/watch?v=...", "thumbnailUrl": "https://cdn.example.com/cover.jpg", "alt": "Watch the product tour" }. Replacing the blocks array without `thumbnailUrl` restores YouTube\'s own thumbnail; the video destination remains `videoUrl`.';
+
 export const rawHtmlContentWarning =
   "Raw HTML is stored as one opaque block. Sequenzy preserves that markup but does not add a company logo, branded native sections, or theme-driven block design. Use blocks for editor-native design, or a drafting prompt when you want Sequenzy to compose a new branded email.";
 
@@ -62,7 +65,7 @@ export const blockFieldWarningsHint =
 
 export const emailBlocksDescription = `Sequenzy email blocks. Use this for editor-compatible content, including conditional and repeat blocks. For provider-migrated HTML from another email platform, prefer the \`html\` field instead; Sequenzy stores it as one raw HTML block to preserve the original design. ${blockStylesHint} Repeat blocks use { type: 'repeat', source: 'items', itemAlias: 'item', children: [...] }.${rawHtmlMergeTagHint}${
   blockConditionsHint
-}${buttonColorHint}${blockFieldWarningsHint}${pollBlockHint}${imageBlockHint}${coreEmailBlockExamples}`;
+}${buttonColorHint}${blockFieldWarningsHint}${pollBlockHint}${imageBlockHint}${videoBlockHint}${coreEmailBlockExamples}`;
 
 /**
  * Sequence email steps are the only blocks route that re-applies managed chrome
@@ -84,11 +87,11 @@ export const sequenceStepBlocksFormatHintForNodeChanges = ` For action_email:${s
 
 export const replacementEmailBlocksDescription = `Replacement Sequenzy email blocks. ${blockStylesHint}${rawHtmlMergeTagHint}${
   blockConditionsHint
-}${buttonColorHint}${blockFieldWarningsHint}${pollBlockHint}${imageBlockHint}${coreEmailBlockExamples}`;
+}${buttonColorHint}${blockFieldWarningsHint}${pollBlockHint}${imageBlockHint}${videoBlockHint}${coreEmailBlockExamples}`;
 
 export const sequenceEmailBlocksDescription = `Sequenzy email blocks. Provide blocks or html for email steps. For migrated provider HTML, prefer \`html\`; Sequenzy stores it as one raw HTML block and does not recreate it as native blocks. ${blockStylesHint} Blocks can include repeat blocks over array variables such as items.${rawHtmlMergeTagHint}${
   blockConditionsHint
-}${buttonColorHint}${blockFieldWarningsHint}${pollBlockHint}${imageBlockHint}${coreEmailBlockExamples}`;
+}${buttonColorHint}${blockFieldWarningsHint}${pollBlockHint}${imageBlockHint}${videoBlockHint}${coreEmailBlockExamples}`;
 
 /**
  * A mailbox may carry several From display names, so `fromName` selects one

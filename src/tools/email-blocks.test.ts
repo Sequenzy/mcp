@@ -188,6 +188,8 @@ describe("block authoring guidance in tool schemas", () => {
       expect(description).toContain("get_email_block_schema");
       expect(description).toContain("enable it on the Sequenzy connector");
       expect(description).toContain("sequenzy://email-blocks");
+      expect(description).toContain('"thumbnailUrl"');
+      expect(description).toContain("restores YouTube's own thumbnail");
       expect(description).toContain("`textColor`");
     }
   });

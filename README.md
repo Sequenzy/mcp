@@ -798,6 +798,12 @@ Core block shapes are `{ "type": "heading", "content": "Title", "level": 1
 alias for `text` and default to the `primary` variant. Image `widthType` accepts
 `percent` or `px`.
 
+YouTube video blocks accept an optional custom cover: `{ "type": "video",
+"videoUrl": "https://www.youtube.com/watch?v=...", "thumbnailUrl":
+"https://cdn.example.com/cover.jpg", "alt": "Watch the product tour" }`.
+Replacing blocks without `thumbnailUrl` restores YouTube's own still while
+keeping `videoUrl` as the click destination.
+
 Raw `html` is stored as one opaque block. It preserves supplied markup but does
 not add a company logo, native branded sections, or theme-driven block design.
 Use `prompt` for a new branded draft or `blocks` for editor-native design; MCP

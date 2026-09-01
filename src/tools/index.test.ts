@@ -4376,6 +4376,30 @@ describe("update_campaign tool validation", () => {
     );
   });
 
+  it("forwards a custom video thumbnail in campaign blocks", async () => {
+    const blocks = [
+      {
+        type: "video",
+        videoUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        thumbnailUrl: "https://cdn.example.com/product-tour.jpg",
+      },
+    ];
+
+    const result = await handleToolCall("update_campaign", {
+      companyId: "comp_123",
+      campaignId: "camp_123",
+      blocks,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/campaigns/camp_123",
+      expect.objectContaining({ blocks }),
+      "comp_123"
+    );
+  });
+
   it("rejects update_campaign calls that combine segmentId and targetLists", async () => {
     const result = await handleToolCall("update_campaign", {
       campaignId: "camp_123",
