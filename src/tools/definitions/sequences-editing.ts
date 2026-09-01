@@ -1331,7 +1331,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
   {
     name: "enroll_subscribers_in_sequence",
     description:
-      "Manually enroll subscribers in a sequence by email address or subscriber ID. Maximum 500 total targets per call across emails and subscriberIds. Only active subscribers are enrolled: unknown emails are returned in `notFound`, while inactive, unavailable, and already actively enrolled subscribers are counted in `skipped`. By default enrollment starts at the first step after the trigger; pass targetNodeId to start at a specific step.",
+      "Manually enroll subscribers in a sequence by email address or subscriber ID. Maximum 500 total targets per call across emails and subscriberIds. Only active subscribers are enrolled: unknown emails are returned in `notFound`, while inactive, unavailable, and already actively enrolled subscribers are counted in `skipped`. By default enrollment starts at the first step after the trigger; pass targetNodeId to start at a specific step. For a confirmed batch, generate idempotencyKey once and reuse that exact key with identical targets and targetNodeId if the call must be retried within 14 days; a replay returns the original counters and sets idempotentReplay true.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1360,6 +1360,11 @@ export const sequenceEditingToolDefinitions: Tool[] = [
           type: "string",
           description:
             "Optional node ID to start enrollment at. Use a non-trigger nodeId from get_sequence. Defaults to the first step after the trigger.",
+        },
+        idempotencyKey: {
+          type: "string",
+          description:
+            "Optional retry key, 1-255 characters. Generate it once for this confirmed batch and reuse it only with identical emails, subscriberIds, and targetNodeId for 14 days.",
         },
       },
       required: ["sequenceId"],

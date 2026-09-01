@@ -10378,9 +10378,16 @@ describe("create_segment tool", () => {
     expect(
       inputSchema?.properties?.filters?.items?.properties?.value?.description
     ).toContain("one shared element");
+    expect(
+      inputSchema?.properties?.filters?.items?.properties?.value?.description
+    ).toContain("negative filters like is_not/not_contains/is_empty");
+    expect(createSegmentTool?.description).toContain(
+      "positive attribute filters on the same array path"
+    );
     expect(createSegmentTool?.description).toContain(
       "requires one array element to satisfy every condition"
     );
+    expect(createSegmentTool?.description).toContain("combine independently");
   });
 
   it("rejects create_segment calls without filters or root before hitting the API", async () => {
@@ -11934,6 +11941,55 @@ describe("enroll_subscribers_in_sequence tool", () => {
     expect(inputSchema?.properties).toHaveProperty("emails");
     expect(inputSchema?.properties).toHaveProperty("subscriberIds");
     expect(inputSchema?.properties).toHaveProperty("targetNodeId");
+    expect(inputSchema?.properties).toHaveProperty("idempotencyKey");
+    expect(tool?.description).toContain("generate idempotencyKey once");
+    expect(tool?.outputSchema?.properties).toHaveProperty("notFound");
+    expect(tool?.outputSchema?.properties).toHaveProperty("targetNodeId");
+    expect(tool?.outputSchema?.properties).toHaveProperty("scheduledFor");
+    expect(tool?.outputSchema?.properties).toHaveProperty("idempotentReplay");
+  });
+
+  it("forwards a normalized idempotency key and preserves replay fields", async () => {
+    const replay = {
+      success: true,
+      enrolled: 15,
+      skipped: 0,
+      notFound: [],
+      targetNodeId: "node_email_1",
+      scheduledFor: "2026-09-01T12:00:00.000Z",
+      idempotentReplay: true,
+    };
+    mockApiRequest.mockResolvedValueOnce(replay);
+
+    const result = await handleToolCall("enroll_subscribers_in_sequence", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      emails: ["a@example.com"],
+      idempotencyKey: " confirmed-batch ",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.structuredContent).toEqual(replay);
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/sequences/seq_123/enroll",
+      { emails: ["a@example.com"] },
+      "comp_123",
+      { "Idempotency-Key": "confirmed-batch" }
+    );
+  });
+
+  it("rejects blank and oversized idempotency keys before calling the API", async () => {
+    for (const idempotencyKey of [" ", "x".repeat(256)]) {
+      const result = await handleToolCall("enroll_subscribers_in_sequence", {
+        sequenceId: "seq_123",
+        emails: ["a@example.com"],
+        idempotencyKey,
+      });
+      expect(result.isError).toBe(true);
+    }
+
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
   it("enrolls subscribers with a target node", async () => {
