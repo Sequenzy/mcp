@@ -275,55 +275,55 @@ sort options.
 
 ### Account, Companies, Setup
 
-| Tool                                 | Description                                                                                                                                                                  |
-| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `get_account`                        | Get account info, available companies, current key permissions, and the API Keys management URL.                                                                             |
-| `select_company`                     | Set the active company for future tool calls.                                                                                                                                |
-| `get_app_urls`                       | Build dashboard URLs for campaigns, landing pages, sequences, emails, settings, subscription management, domains, and sent email details. `settingsTab: "billing"` resolves to Account -> Subscription. |
-| `create_company`                     | Create a new company or brand.                                                                                                                                               |
+| Tool                                 | Description                                                                                                                                                                                                                                                                    |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `get_account`                        | Get account info, available companies, current key permissions, and the API Keys management URL.                                                                                                                                                                               |
+| `select_company`                     | Set the active company for future tool calls.                                                                                                                                                                                                                                  |
+| `get_app_urls`                       | Build dashboard URLs for campaigns, landing pages, sequences, emails, settings, subscription management, domains, and sent email details. `settingsTab: "billing"` resolves to Account -> Subscription.                                                                        |
+| `create_company`                     | Create a new company or brand.                                                                                                                                                                                                                                                 |
 | `get_company`                        | Read company details, product info, brand context, localization, reply-tracking settings, current From/Reply-To defaults, and the effective read-only `emailBranding` entitlement with plan/status reason and subscription URL; STO is explicitly identified as campaign-only. |
-| `update_company`                     | Edit product info, brand context, email theme, reply tracking, and account-wide From/Reply-To profile defaults or names.                                                     |
-| `get_sync_rules`                     | Read the company's event-to-tag rules and whether it uses the inherited platform preset.                                                                                     |
-| `update_sync_rules`                  | Replace all sync rules; pass `[]` to disable them or `null` to opt into the SaaS/ecommerce platform preset.                                                                  |
-| `get_shopify_automation_settings`    | Read browse-abandonment, cart-abandonment, and price-drop settings for the connected Shopify store.                                                                          |
-| `update_shopify_automation_settings` | Partially update Shopify automation settings or reset an individual section to its platform defaults.                                                                        |
-| `create_api_key`                     | Create an API key for a company, with optional permission preset or explicit scopes.                                                                                         |
-| `request_api_key_handoff`            | Prepare an owner-reviewed create/rotation URL when the active key cannot manage API keys itself.                                                                             |
-| `list_api_keys`                      | List company API keys as non-secret metadata for safe identification and cleanup.                                                                                            |
-| `update_api_key`                     | Rename a company API key or replace its permission preset or scopes without changing the key value.                                                                          |
-| `revoke_api_key`                     | Permanently revoke an exact company API key by ID after checking it with `list_api_keys`.                                                                                    |
-| `delete_api_key`                     | Compatibility alias for `revoke_api_key`.                                                                                                                                    |
-| `list_websites`                      | List sending domains with stored aggregate, SPF, DKIM, and MAIL FROM status.                                                                                                 |
-| `add_sending_domain`                 | Add a sending domain and return its cohort-specific DNS setup records.                                                                                                       |
-| `add_website`                        | Compatibility alias for `add_sending_domain`.                                                                                                                                |
-| `check_website`                      | Read a sending domain's stored SPF, DKIM, MAIL FROM, and aggregate verification details.                                                                                     |
-| `verify_sending_domain`              | Run a fresh sending-domain DNS/provider verification and return current status and diagnostics.                                                                              |
-| `list_integrations`                  | List connected integrations with connection and sync health, without returning credentials.                                                                                  |
-| `get_sending_status`                 | Diagnose active, paused, or suspended sending, including enforcement denominators, review gates, and remediation steps.                                                      |
-| `resume_sending`                     | Restore an eligible hard-bounce pause after explicitly confirming the list has been sanitized.                                                                               |
-| `get_tracking_settings`              | Read account-wide and Transactional API open/click defaults, unsubscribe, attribution, UTM, click-domain, reply-tracking, and double-opt-in settings.                        |
-| `update_tracking_settings`           | Update account-wide and Transactional API tracking defaults, attribution, UTM, and account-wide double opt-in.                                                               |
-| `get_integration_guide`              | Get framework-specific integration examples.                                                                                                                                 |
-| `get_integration`                    | Inspect one connected integration, its event wiring, list targeting, recent activity, and recommendations.                                                                   |
-| `list_integration_capabilities`      | Compare provider capabilities whether or not they are connected.                                                                                                             |
-| `connect_integration`                | Connect supported API-key or webhook-secret providers, including outbound-only Attio and optional PostHog/Segment history import.                                           |
-| `get_event_schema`                   | Inspect published event payload examples, property paths, types, and merge tags by provider.                                                                                 |
-| `list_integration_activity`          | Read the retained integration-specific webhook and sync activity log.                                                                                                        |
-| `set_integration_sync_enabled`       | Enable or disable bulk imports and backfills while leaving live webhooks connected.                                                                                          |
-| `set_integration_list_targeting`     | Choose which lists contacts created by a supported integration join on future provider writes.                                                                               |
-| `sync_integration`                   | Queue payment revenue, Supabase users, or a PostHog/Segment event-history import using the saved integration configuration.                                                  |
-| `get_integration_pixel`              | Read Shopify's live pixel/configuration state and distinguish confirmed dark events from an unknown read.                                                                    |
-| `activate_integration_pixel`         | Install or repoint Shopify's storefront pixel; idempotent when it is already current.                                                                                        |
-| `list_web_tracking_keys`             | List publishable website-tracking keys, origin restrictions, usage state, and install snippets.                                                                              |
-| `get_web_tracking_key`               | Get one website-tracking key with its exact install snippet and ingest endpoint.                                                                                             |
-| `create_web_tracking_key`            | Create a publishable tracking key for a non-Shopify storefront or website.                                                                                                   |
-| `update_web_tracking_key`            | Rename, restrict, revoke, or re-enable a website-tracking key.                                                                                                               |
-| `delete_web_tracking_key`            | Permanently delete a website-tracking key after its snippet has been removed.                                                                                                |
-| `list_sender_profiles`               | List sender and reply-to profiles, defaults, and sending-domain readiness.                                                                                                   |
-| `update_sender_profile`              | Rename one sender or reply-to profile without changing the account defaults.                                                                                                 |
-| `get_notification_preferences`       | Read the current user's per-company account notification settings and supported modes.                                                                                       |
-| `update_notification_preferences`    | Update the current user's account notification delivery modes without affecting teammates.                                                                                   |
-| `render_email`                       | Render final email-safe HTML and diagnose unresolved merge tags, including typos hidden by defaults.                                                                         |
+| `update_company`                     | Edit product info, brand context, email theme, reply tracking, and account-wide From/Reply-To profile defaults or names.                                                                                                                                                       |
+| `get_sync_rules`                     | Read the company's event-to-tag rules and whether it uses the inherited platform preset.                                                                                                                                                                                       |
+| `update_sync_rules`                  | Replace all sync rules; pass `[]` to disable them or `null` to opt into the SaaS/ecommerce platform preset.                                                                                                                                                                    |
+| `get_shopify_automation_settings`    | Read browse-abandonment, cart-abandonment, and price-drop settings for the connected Shopify store.                                                                                                                                                                            |
+| `update_shopify_automation_settings` | Partially update Shopify automation settings or reset an individual section to its platform defaults.                                                                                                                                                                          |
+| `create_api_key`                     | Create an API key for a company, with optional permission preset or explicit scopes.                                                                                                                                                                                           |
+| `request_api_key_handoff`            | Prepare an owner-reviewed create/rotation URL when the active key cannot manage API keys itself.                                                                                                                                                                               |
+| `list_api_keys`                      | List company API keys as non-secret metadata for safe identification and cleanup.                                                                                                                                                                                              |
+| `update_api_key`                     | Rename a company API key or replace its permission preset or scopes without changing the key value.                                                                                                                                                                            |
+| `revoke_api_key`                     | Permanently revoke an exact company API key by ID after checking it with `list_api_keys`.                                                                                                                                                                                      |
+| `delete_api_key`                     | Compatibility alias for `revoke_api_key`.                                                                                                                                                                                                                                      |
+| `list_websites`                      | List sending domains with stored aggregate, SPF, DKIM, and MAIL FROM status.                                                                                                                                                                                                   |
+| `add_sending_domain`                 | Add a sending domain and return its cohort-specific DNS setup records.                                                                                                                                                                                                         |
+| `add_website`                        | Compatibility alias for `add_sending_domain`.                                                                                                                                                                                                                                  |
+| `check_website`                      | Read a sending domain's stored SPF, DKIM, MAIL FROM, and aggregate verification details.                                                                                                                                                                                       |
+| `verify_sending_domain`              | Run a fresh sending-domain DNS/provider verification and return current status and diagnostics.                                                                                                                                                                                |
+| `list_integrations`                  | List connected integrations with connection and sync health, without returning credentials.                                                                                                                                                                                    |
+| `get_sending_status`                 | Diagnose active, paused, or suspended sending, including enforcement denominators, review gates, and remediation steps.                                                                                                                                                        |
+| `resume_sending`                     | Restore an eligible hard-bounce pause after explicitly confirming the list has been sanitized.                                                                                                                                                                                 |
+| `get_tracking_settings`              | Read account-wide and Transactional API open/click defaults, unsubscribe, attribution, UTM, click-domain, reply-tracking, and double-opt-in settings.                                                                                                                          |
+| `update_tracking_settings`           | Update account-wide and Transactional API tracking defaults, attribution, UTM, and account-wide double opt-in.                                                                                                                                                                 |
+| `get_integration_guide`              | Get framework-specific integration examples.                                                                                                                                                                                                                                   |
+| `get_integration`                    | Inspect one connected integration, its event wiring, list targeting, recent activity, and recommendations.                                                                                                                                                                     |
+| `list_integration_capabilities`      | Compare provider capabilities whether or not they are connected.                                                                                                                                                                                                               |
+| `connect_integration`                | Connect supported API-key or webhook-secret providers, including outbound-only Attio and optional PostHog/Segment history import.                                                                                                                                              |
+| `get_event_schema`                   | Inspect published event payload examples, property paths, types, and merge tags by provider.                                                                                                                                                                                   |
+| `list_integration_activity`          | Read the retained integration-specific webhook and sync activity log.                                                                                                                                                                                                          |
+| `set_integration_sync_enabled`       | Enable or disable bulk imports and backfills while leaving live webhooks connected.                                                                                                                                                                                            |
+| `set_integration_list_targeting`     | Choose which lists contacts created by a supported integration join on future provider writes.                                                                                                                                                                                 |
+| `sync_integration`                   | Queue payment revenue, Supabase users, or a PostHog/Segment event-history import using the saved integration configuration.                                                                                                                                                    |
+| `get_integration_pixel`              | Read Shopify's live pixel/configuration state and distinguish confirmed dark events from an unknown read.                                                                                                                                                                      |
+| `activate_integration_pixel`         | Install or repoint Shopify's storefront pixel; idempotent when it is already current.                                                                                                                                                                                          |
+| `list_web_tracking_keys`             | List publishable website-tracking keys, origin restrictions, usage state, and install snippets.                                                                                                                                                                                |
+| `get_web_tracking_key`               | Get one website-tracking key with its exact install snippet and ingest endpoint.                                                                                                                                                                                               |
+| `create_web_tracking_key`            | Create a publishable tracking key for a non-Shopify storefront or website.                                                                                                                                                                                                     |
+| `update_web_tracking_key`            | Rename, restrict, revoke, or re-enable a website-tracking key.                                                                                                                                                                                                                 |
+| `delete_web_tracking_key`            | Permanently delete a website-tracking key after its snippet has been removed.                                                                                                                                                                                                  |
+| `list_sender_profiles`               | List sender and reply-to profiles, defaults, and sending-domain readiness.                                                                                                                                                                                                     |
+| `update_sender_profile`              | Rename one sender or reply-to profile without changing the account defaults.                                                                                                                                                                                                   |
+| `get_notification_preferences`       | Read the current user's per-company account notification settings and supported modes.                                                                                                                                                                                         |
+| `update_notification_preferences`    | Update the current user's account notification delivery modes without affecting teammates.                                                                                                                                                                                     |
+| `render_email`                       | Render final email-safe HTML and diagnose unresolved merge tags, including typos hidden by defaults.                                                                                                                                                                           |
 
 `get_sending_status` keeps the Postgres-backed pause state, review gates, and
 remediation available when sender-health analytics are temporarily unavailable;
@@ -550,9 +550,9 @@ origin.
 | `add_subscribers_to_list`      | Add up to 500 subscribers to a list from an email array.    |
 | `remove_subscribers_from_list` | Remove up to 500 subscribers from a list.                   |
 | `list_segments`                | List saved segments and counts.                             |
-| `create_segment`               | Create saved segments from filters or nested AND/OR groups. |
+| `create_segment`               | Create nested or same-element array-filtered segments.      |
 | `update_segment`               | Update segment name, filters, root group, or join operator. |
-| `delete_segment`               | Delete a saved segment.                                     |
+| `delete_segment`               | Delete a segment (requires `segments:delete`).              |
 | `get_segment_count`            | Preview the active subscriber count for a segment.          |
 
 For subscriber exports, `search_subscribers` accepts `listId`, exact `listName`,
@@ -580,6 +580,13 @@ For bulk list population, use `add_subscribers_to_list`; the backing API endpoin
 Send at most 500 emails per request. Standard API rate limits still apply: 100 requests per minute per API key and 20 requests per second burst. For CSV-driven CLI imports, accepted email headers include `email`, `e-mail`, `email address`, and `mail`; if no recognized header exists, the CLI reads the first column.
 
 Segment filters support attributes, events, saved segment membership, engagement events, Stripe product purchase rules, and commerce product purchase rules. Use `filterJoinOperator: "or"` for match-any segments, or pass a v2 `root` group for nested logic.
+
+For array-of-object attributes, use wildcard paths such as
+`history_events[].eventvenue_id:2103`. When an AND group also filters
+`history_events[].showing_date`, both conditions must match one shared
+`history_events[]` element; values from unrelated history entries are not
+combined. Deleting a segment requires `segments:delete`; `segments:write` is
+not sufficient.
 
 Each segment filter field validates its own operators:
 
@@ -699,31 +706,31 @@ Use `get_sequence.sequence.emails[].abTest.variants` to discover sequence varian
 
 ### Campaigns
 
-| Tool                             | Description                                                                                                                      |
-| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `list_campaigns`                 | List paginated campaigns by status or label, including reviewer feedback and delivery-pacing fields for account-wide STO audits. |
-| `get_campaign`                   | Get details, stats, reviewer feedback, and recorded delivery pacing for a campaign.                                              |
-| `get_campaign_audience`          | Resolve saved targeting, missing references, a plain-language summary, and live recipient count.                                 |
-| `list_campaign_goals`            | List the conversion goals persisted for one email campaign (SMS is unsupported).                                                 |
-| `create_campaign_goal`           | Add an event, subscriber-attribute, or tag-applied email-campaign conversion goal.                                               |
-| `update_campaign_goal`           | Update a persisted email-campaign conversion goal.                                                                               |
-| `delete_campaign_goal`           | Delete a persisted email-campaign conversion goal.                                                                               |
+| Tool                             | Description                                                                                                                                |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `list_campaigns`                 | List paginated campaigns by status or label, including reviewer feedback and delivery-pacing fields for account-wide STO audits.           |
+| `get_campaign`                   | Get details, stats, reviewer feedback, and recorded delivery pacing for a campaign.                                                        |
+| `get_campaign_audience`          | Resolve saved targeting, missing references, a plain-language summary, and live recipient count.                                           |
+| `list_campaign_goals`            | List the conversion goals persisted for one email campaign (SMS is unsupported).                                                           |
+| `create_campaign_goal`           | Add an event, subscriber-attribute, or tag-applied email-campaign conversion goal.                                                         |
+| `update_campaign_goal`           | Update a persisted email-campaign conversion goal.                                                                                         |
+| `delete_campaign_goal`           | Delete a persisted email-campaign conversion goal.                                                                                         |
 | `list_email_sends`               | Search recent delivery history with resource IDs and URLs, optionally scoped to one sequence step. Successful live-test sends are omitted. |
-| `get_email_send`                 | Inspect a queued, test, sent, suppressed, or failed delivery by durable email-send ID.                                           |
-| `list_recipient_suppressions`    | List associated suppressed recipients, including protected global invalid addresses and complaints.                              |
-| `get_recipient_suppression`      | Check local bounce, complaint, email-hygiene, and regional SES suppression for one exact recipient.                              |
-| `remove_recipient_suppression`   | Remove a workspace soft-bounce escalation while preserving global, hard-bounce, and complaint protections.                       |
-| `create_campaign`                | Create a campaign with content, data, and optional From/Reply-To identity overrides.                                             |
-| `update_campaign`                | Update a draft campaign, including content, data, identities, audience, and persisted STO configuration.                         |
-| `schedule_campaign`              | Schedule or reschedule a campaign, optionally overriding STO and its 1-24 hour delivery window.                                  |
-| `send_test_email`                | Send a test email to one address.                                                                                                |
-| `render_email`                   | Render exact email-safe HTML and report unresolved tags, including typos hidden by defaults.                                     |
-| `cancel_campaign`                | Cancel a scheduled or sending campaign.                                                                                          |
-| `pause_campaign`                 | Pause a sending campaign.                                                                                                        |
-| `resume_campaign`                | Resume a paused campaign, optionally spreading delivery over time.                                                               |
-| `delete_campaign`                | Delete a campaign.                                                                                                               |
-| `duplicate_campaign`             | Duplicate a campaign into a new draft.                                                                                           |
-| `resend_campaign_to_non_openers` | Create a draft resend for the original audience members who did not open a sent campaign.                                        |
+| `get_email_send`                 | Inspect a queued, test, sent, suppressed, or failed delivery by durable email-send ID.                                                     |
+| `list_recipient_suppressions`    | List associated suppressed recipients, including protected global invalid addresses and complaints.                                        |
+| `get_recipient_suppression`      | Check local bounce, complaint, email-hygiene, and regional SES suppression for one exact recipient.                                        |
+| `remove_recipient_suppression`   | Remove a workspace soft-bounce escalation while preserving global, hard-bounce, and complaint protections.                                 |
+| `create_campaign`                | Create a campaign with content, data, and optional From/Reply-To identity overrides.                                                       |
+| `update_campaign`                | Update a draft campaign, including content, data, identities, audience, and persisted STO configuration.                                   |
+| `schedule_campaign`              | Schedule or reschedule a campaign, optionally overriding STO and its 1-24 hour delivery window.                                            |
+| `send_test_email`                | Send a test email to one address.                                                                                                          |
+| `render_email`                   | Render exact email-safe HTML and report unresolved tags, including typos hidden by defaults.                                               |
+| `cancel_campaign`                | Cancel a scheduled or sending campaign.                                                                                                    |
+| `pause_campaign`                 | Pause a sending campaign.                                                                                                                  |
+| `resume_campaign`                | Resume a paused campaign, optionally spreading delivery over time.                                                                         |
+| `delete_campaign`                | Delete a campaign.                                                                                                                         |
+| `duplicate_campaign`             | Duplicate a campaign into a new draft.                                                                                                     |
+| `resend_campaign_to_non_openers` | Create a draft resend for the original audience members who did not open a sent campaign.                                                  |
 
 Prompt-created campaigns are generated and persisted in one API request and
 remain drafts. Use `templateId`, `blocks`, or `html` only when copying or
@@ -961,38 +968,38 @@ propagate.
 
 ### Sequences
 
-| Tool                                     | Description                                                                                                                              |
-| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `list_sequences`                         | List sequences with dashboard status, search, label, limit, and offset filters.                                                          |
-| `get_sequence`                           | Get sequence details, A/B variant IDs and block counts with `ab_tests:read`, nodes, edges, linked copy, and the sequence sending window. |
+| Tool                                     | Description                                                                                                                                       |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `list_sequences`                         | List sequences with dashboard status, search, label, limit, and offset filters.                                                                   |
+| `get_sequence`                           | Get sequence details, A/B variant IDs and block counts with `ab_tests:read`, nodes, edges, linked copy, and the sequence sending window.          |
 | `list_sequence_enrollments`              | List contact enrollments with pagination and accurate list/tag/event/time-based entry attribution. Live sequence tests do not create enrollments. |
-| `send_sequence_test_email`               | Send one saved action_email step to 1-10 reviewers; A/B steps are inspected per variant.                                                 |
-| `create_sequence`                        | Create a blank dashboard draft or an AI-generated/explicit-step sequence.                                                                |
-| `update_sequence`                        | Update identity, settings, enrollment, existing steps, branch logic, or insert linear steps.                                             |
-| `update_sequence_node`                   | Type-aware patch of one existing sequence node.                                                                                          |
-| `update_sequence_nodes`                  | Atomically patch multiple existing sequence nodes.                                                                                       |
-| `insert_sequence_step`                   | Insert any typed dashboard step, including AI generation, outbound webhooks, waits, and wired branches.                                  |
-| `edit_sequence_graph`                    | Move, reconnect, delete, or duplicate graph nodes; reports recipients moved or completed.                                                |
-| `simulate_sequence`                      | Dry-run current matches, activation readiness, and an optional contact's branch path without enrolling or sending.                       |
-| `enable_sequence`                        | Activate a sequence.                                                                                                                     |
-| `disable_sequence`                       | Freeze a sequence, blocking new enrollments and holding current recipients.                                                              |
-| `duplicate_sequence`                     | Create an independent draft copy of the graph, emails, and sequence A/B tests.                                                           |
-| `archive_sequence`                       | Move a sequence into the dashboard archive and stop new enrollments.                                                                     |
-| `unarchive_sequence`                     | Restore an archived sequence as a disabled draft.                                                                                        |
-| `list_sequence_goals`                    | List the event, subscriber-attribute, and tag-applied conversion goals persisted for a sequence.                                         |
-| `create_sequence_goal`                   | Add an event, subscriber-attribute, or tag-applied conversion goal.                                                                      |
-| `update_sequence_goal`                   | Update a persisted sequence conversion goal.                                                                                             |
-| `delete_sequence_goal`                   | Delete a persisted sequence conversion goal.                                                                                             |
-| `get_sequence_inbound_webhook`           | Read the endpoint and setup state for an inbound-webhook sequence.                                                                       |
-| `configure_sequence_inbound_webhook`     | Configure field mapping, sample payload, and integration metadata.                                                                       |
-| `rotate_sequence_inbound_webhook_secret` | Rotate an inbound sequence endpoint's secret path.                                                                                       |
-| `pause_sequence_enrollments`             | Stop new enrollments for an active sequence while current recipients continue.                                                           |
-| `resume_sequence_enrollments`            | Reopen new enrollments for an active sequence without changing current recipients.                                                       |
-| `enroll_subscribers_in_sequence`         | Enroll up to 500 subscribers by email, subscriber ID, or both, optionally at a target node.                                              |
-| `cancel_sequence_enrollments`            | Stop active or waiting enrollments by subscriber or entry-event field values.                                                            |
-| `realign_sequence_enrollments`           | Preview or queue moving live waits earlier to their sending-window opening.                                                              |
-| `get_sequence_enrollment_realignment`    | Poll an applied realignment job and read its completed result or continuation cursor.                                                    |
-| `delete_sequence`                        | Delete a sequence.                                                                                                                       |
+| `send_sequence_test_email`               | Send one saved action_email step to 1-10 reviewers; A/B steps are inspected per variant.                                                          |
+| `create_sequence`                        | Create a blank dashboard draft or an AI-generated/explicit-step sequence.                                                                         |
+| `update_sequence`                        | Update identity, settings, enrollment, existing steps, branch logic, or insert linear steps.                                                      |
+| `update_sequence_node`                   | Type-aware patch of one existing sequence node.                                                                                                   |
+| `update_sequence_nodes`                  | Atomically patch multiple existing sequence nodes.                                                                                                |
+| `insert_sequence_step`                   | Insert any typed dashboard step, including AI generation, outbound webhooks, waits, and wired branches.                                           |
+| `edit_sequence_graph`                    | Move, reconnect, delete, or duplicate graph nodes; reports recipients moved or completed.                                                         |
+| `simulate_sequence`                      | Dry-run current matches, activation readiness, and an optional contact's branch path without enrolling or sending.                                |
+| `enable_sequence`                        | Activate a sequence.                                                                                                                              |
+| `disable_sequence`                       | Freeze a sequence, blocking new enrollments and holding current recipients.                                                                       |
+| `duplicate_sequence`                     | Create an independent draft copy of the graph, emails, and sequence A/B tests.                                                                    |
+| `archive_sequence`                       | Move a sequence into the dashboard archive and stop new enrollments.                                                                              |
+| `unarchive_sequence`                     | Restore an archived sequence as a disabled draft.                                                                                                 |
+| `list_sequence_goals`                    | List the event, subscriber-attribute, and tag-applied conversion goals persisted for a sequence.                                                  |
+| `create_sequence_goal`                   | Add an event, subscriber-attribute, or tag-applied conversion goal.                                                                               |
+| `update_sequence_goal`                   | Update a persisted sequence conversion goal.                                                                                                      |
+| `delete_sequence_goal`                   | Delete a persisted sequence conversion goal.                                                                                                      |
+| `get_sequence_inbound_webhook`           | Read the endpoint and setup state for an inbound-webhook sequence.                                                                                |
+| `configure_sequence_inbound_webhook`     | Configure field mapping, sample payload, and integration metadata.                                                                                |
+| `rotate_sequence_inbound_webhook_secret` | Rotate an inbound sequence endpoint's secret path.                                                                                                |
+| `pause_sequence_enrollments`             | Stop new enrollments for an active sequence while current recipients continue.                                                                    |
+| `resume_sequence_enrollments`            | Reopen new enrollments for an active sequence without changing current recipients.                                                                |
+| `enroll_subscribers_in_sequence`         | Enroll up to 500 subscribers by email, subscriber ID, or both, optionally at a target node.                                                       |
+| `cancel_sequence_enrollments`            | Stop active or waiting enrollments by subscriber or entry-event field values.                                                                     |
+| `realign_sequence_enrollments`           | Preview or queue moving live waits earlier to their sending-window opening.                                                                       |
+| `get_sequence_enrollment_realignment`    | Poll an applied realignment job and read its completed result or continuation cursor.                                                             |
+| `delete_sequence`                        | Delete a sequence.                                                                                                                                |
 
 Sequence creation supports:
 
@@ -1373,14 +1380,14 @@ generate and persist a disabled sequence draft that appears in
 
 ### SMS
 
-| Tool                      | Description                                                                                     |
-| ------------------------- | ----------------------------------------------------------------------------------------------- |
-| `generate_sms`            | Generate SMS copy from a prompt.                                                                |
-| `get_sms_settings`        | Read SMS add-on readiness, credits, defaults, and provisioned numbers.                           |
-| `get_sms_usage`           | Compare sends, delivery outcomes, charged credits, last activity, and test sends by number.      |
-| `update_sms_number_label` | Update a number's label or per-number brand-prefix override.                                     |
-| `release_sms_number`      | Permanently return a number to the carrier and free its workspace slot.                          |
-| `send_test_sms`           | Send a test message, optionally choosing a provisioned sender with `fromNumberId`.                |
+| Tool                      | Description                                                                                 |
+| ------------------------- | ------------------------------------------------------------------------------------------- |
+| `generate_sms`            | Generate SMS copy from a prompt.                                                            |
+| `get_sms_settings`        | Read SMS add-on readiness, credits, defaults, and provisioned numbers.                      |
+| `get_sms_usage`           | Compare sends, delivery outcomes, charged credits, last activity, and test sends by number. |
+| `update_sms_number_label` | Update a number's label or per-number brand-prefix override.                                |
+| `release_sms_number`      | Permanently return a number to the carrier and free its workspace slot.                     |
+| `send_test_sms`           | Send a test message, optionally choosing a provisioned sender with `fromNumberId`.          |
 
 `release_sms_number` is irreversible. Campaign or sequence steps pinned to a
 released number will skip their SMS sends until they are repointed to an active

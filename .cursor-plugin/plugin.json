@@ -10,13 +10,7 @@
   "homepage": "https://sequenzy.com",
   "repository": "https://github.com/Sequenzy/mcp",
   "license": "MIT",
-  "keywords": [
-    "email-marketing",
-    "lifecycle-email",
-    "transactional-email",
-    "campaigns",
-    "mcp"
-  ],
+  "keywords": ["email-marketing", "lifecycle-email", "transactional-email", "campaigns", "mcp"],
   "logo": "assets/logo.png",
   "mcpServers": "mcp.json"
 }
