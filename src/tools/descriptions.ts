@@ -586,6 +586,7 @@ export const OUTBOUND_WEBHOOK_EVENT_TYPES = [
   "sms.delivered",
   "sms.failed",
   "sms.opted_out",
+  "campaign.sent",
   "subscriber.invalid",
   "subscriber.created",
   "subscriber.updated",

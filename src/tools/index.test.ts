@@ -12677,7 +12677,31 @@ describe("outbound webhook tools", () => {
     expect(payload.signingSecret).toBe("whsec_test");
   });
 
-  it("rejects unsupported webhook event types before hitting the API", async () => {
+  it("accepts campaign.sent and rejects unsupported webhook event types before hitting the API", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      webhook: { id: "wh_123", signingSecret: "whsec_test" },
+    });
+
+    const accepted = await handleToolCall("create_webhook", {
+      name: "Prod",
+      url: "https://example.com/webhooks/sequenzy",
+      events: ["email.delivered", "campaign.sent"],
+    });
+
+    expect(accepted.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/webhooks",
+      {
+        name: "Prod",
+        url: "https://example.com/webhooks/sequenzy",
+        events: ["email.delivered", "campaign.sent"],
+      },
+      undefined
+    );
+    mockApiRequest.mockClear();
+
     const result = await handleToolCall("create_webhook", {
       name: "Prod",
       url: "https://example.com/webhooks/sequenzy",

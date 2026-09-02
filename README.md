@@ -1364,9 +1364,9 @@ include the change `source` (for example `preferences_page`, `dashboard`,
 Use the `email.failed` event for terminal delivery failures such as exhausted
 MTA transport paths. Recipient bounces continue to use `email.bounced`.
 
-Use the opt-in `campaign.sent` event for one aggregate completion event when an
-email campaign reaches `sent`, including empty audiences and completed A/B
-tests. It does not fire per recipient or for SMS campaigns.
+Use the explicit-only `campaign.sent` event when a workflow needs one terminal
+notification after an email or SMS campaign settles, including a valid
+zero-recipient send. It is not added when `create_webhook` omits `events`.
 
 ### AI Generation
 
