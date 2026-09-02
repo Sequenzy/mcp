@@ -1890,6 +1890,20 @@ export const outputPropertiesByToolName: Record<
     enrollments: resourceListOutputProperty("sequence enrollment"),
     enrolled: numberOutputProperty("Number of subscribers enrolled."),
     skipped: numberOutputProperty("Number of subscribers skipped."),
+    notFound: {
+      type: "array",
+      description: "Normalized email targets that were not found.",
+      items: { type: "string" },
+    },
+    targetNodeId: stringOutputProperty(
+      "Sequence node where the subscribers were enrolled."
+    ),
+    scheduledFor: stringOutputProperty(
+      "ISO timestamp at which processing is scheduled to begin."
+    ),
+    idempotentReplay: booleanOutputProperty(
+      "Whether this is the stored response from a prior request with the same idempotency key."
+    ),
   },
   cancel_sequence_enrollments: {
     sequenceId: stringOutputProperty("Sequence ID."),

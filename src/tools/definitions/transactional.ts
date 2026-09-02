@@ -116,7 +116,7 @@ export const transactionalToolDefinitions: Tool[] = [
         style: {
           type: "string",
           description:
-            "Prompt generation style: minimal, branded, promotional. Only used with `prompt`.",
+            "Prompt generation style. Only used with `prompt`. Pass 'designed' or 'plain' to force the designed or plain-text email style; other values (minimal, branded, promotional) are freeform prompt guidance. Defaults to the company's email style preference.",
         },
         tone: {
           type: "string",

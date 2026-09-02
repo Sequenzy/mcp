@@ -99,7 +99,8 @@ export const templateToolDefinitions: Tool[] = [
         },
         style: {
           type: "string",
-          description: "Generation style; valid only with `prompt`.",
+          description:
+            "Generation style; valid only with `prompt`. Pass 'designed' or 'plain' to force the designed or plain-text email style; other values are freeform prompt guidance. Defaults to the company's email style preference.",
         },
         tone: {
           type: "string",

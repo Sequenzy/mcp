@@ -350,7 +350,7 @@ export const campaignToolDefinitions: Tool[] = [
         style: {
           type: "string",
           description:
-            "Prompt generation style: minimal, branded, promotional. Only used with `prompt`; this is not Style > Format. Use `emailPreset` to set branded or minimal chrome on native blocks.",
+            "Prompt generation style. Only used with `prompt`; this is not Style > Format. Pass 'designed' or 'plain' to force the designed or plain-text email style; other values (minimal, branded, promotional) are freeform prompt guidance and the company's email style preference decides. Use `emailPreset` to set branded or minimal chrome on native blocks.",
         },
         tone: {
           type: "string",

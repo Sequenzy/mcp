@@ -22,7 +22,8 @@ export const aiGenerationToolDefinitions: Tool[] = [
         },
         style: {
           type: "string",
-          description: "Style: minimal, branded, promotional",
+          description:
+            "Style guidance. Pass 'designed' or 'plain' to force the designed or plain-text email style; other values (minimal, branded, promotional) are freeform prompt guidance. Defaults to the company's email style preference.",
         },
         tone: {
           type: "string",

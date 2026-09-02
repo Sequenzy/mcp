@@ -661,13 +661,34 @@ export async function handleSequenceTools(
         "sequenceId"
       );
       const body = buildSequenceEnrollmentBody(args);
+      const idempotencyKey =
+        args.idempotencyKey === undefined
+          ? undefined
+          : requiredString(
+              "enroll_subscribers_in_sequence",
+              args,
+              "idempotencyKey"
+            );
+      if (idempotencyKey && idempotencyKey.length > 255) {
+        throw new Error(
+          "`idempotencyKey` must be no more than 255 characters when calling `enroll_subscribers_in_sequence`."
+        );
+      }
 
-      result = await apiRequest(
-        "POST",
-        `/api/v1/sequences/${encodeURIComponent(sequenceId)}/enroll`,
-        body,
-        companyId
-      );
+      result = idempotencyKey
+        ? await apiRequest(
+            "POST",
+            `/api/v1/sequences/${encodeURIComponent(sequenceId)}/enroll`,
+            body,
+            companyId,
+            { "Idempotency-Key": idempotencyKey }
+          )
+        : await apiRequest(
+            "POST",
+            `/api/v1/sequences/${encodeURIComponent(sequenceId)}/enroll`,
+            body,
+            companyId
+          );
       break;
     }
 
