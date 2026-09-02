@@ -217,6 +217,7 @@ describe("integration tool definitions", () => {
 
     expect(providerSchema?.enum).toContain("segment");
     expect(providerSchema?.enum).toContain("attio");
+    expect(providerSchema?.enum).toContain("lemon_squeezy");
     expect(historyInput?.properties).toHaveProperty("region");
     expect(historyInput?.properties).toHaveProperty("spaceId");
     expect(historyInput?.properties).toHaveProperty("profileApiToken");
@@ -575,6 +576,25 @@ describe("integration tool routing", () => {
         webhookSecret: "pdl_whsec",
         apiKey: "pdl_key",
         providerAccountId: "seller-1",
+      },
+      undefined
+    );
+  });
+
+  it("allows Lemon Squeezy managed webhook provisioning", async () => {
+    await handleToolCall("connect_integration", {
+      provider: "lemon_squeezy",
+      apiKey: "ls_key",
+      providerAccountId: "12345",
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/integrations/connect",
+      {
+        provider: "lemon_squeezy",
+        apiKey: "ls_key",
+        providerAccountId: "12345",
       },
       undefined
     );

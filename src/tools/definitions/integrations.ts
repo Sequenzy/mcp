@@ -12,18 +12,19 @@ export const integrationToolDefinitions: Tool[] = [
   {
     name: "connect_integration",
     description:
-      "Connect an API-key / webhook-secret integration: polar, paddle, dodo, whop, creem, chargebee, clerk, posthog, segment, affonso, or attio. Check list_integration_capabilities first - each connectable provider lists its exact connectFields there. Credentials are validated against the provider where possible, stored encrypted, and never returned; payment providers queue their initial revenue backfill automatically. Attio is outbound-only and has no webhookUrl. For every other connectable provider the response includes the webhookUrl the user must configure at the provider with the same secret - always relay it. Reconnecting an already-connected provider replaces its stored credentials. OAuth and app-install providers (Stripe, Shopify, Supabase, GitHub, WooCommerce, Meta) are rejected with guidance: their flows need a human in the dashboard. SECURITY: only pass credentials the user explicitly provided for this purpose; suggest the CLI (`sequenzy integrations connect`) or dashboard when the user prefers keeping secrets out of the conversation.",
+      "Connect an API-key / webhook-secret integration: polar, paddle, dodo, lemon_squeezy, whop, creem, chargebee, clerk, posthog, segment, affonso, or attio. Check list_integration_capabilities first - each connectable provider lists its exact connectFields there. Credentials are validated, stored encrypted, and never returned; payment providers queue their initial revenue backfill automatically. Lemon Squeezy creates a managed signed webhook when webhookSecret is omitted, or uses the supplied secret for manual setup. Attio is outbound-only and has no webhookUrl. Reconnecting replaces stored credentials. OAuth and app-install providers (Stripe, Shopify, Supabase, GitHub, WooCommerce, Meta) are rejected with guidance: their flows need a human in the dashboard. SECURITY: only pass credentials the user explicitly provided for this purpose; suggest the CLI (`sequenzy integrations connect`) or dashboard when the user prefers keeping secrets out of the conversation.",
     inputSchema: {
       type: "object",
       properties: {
         provider: {
           type: "string",
           description:
-            "Provider to connect: polar, paddle, dodo, whop, creem, chargebee, clerk, posthog, segment, affonso, or attio.",
+            "Provider to connect: polar, paddle, dodo, lemon_squeezy, whop, creem, chargebee, clerk, posthog, segment, affonso, or attio.",
           enum: [
             "polar",
             "paddle",
             "dodo",
+            "lemon_squeezy",
             "whop",
             "creem",
             "chargebee",
@@ -37,17 +38,17 @@ export const integrationToolDefinitions: Tool[] = [
         apiKey: {
           type: "string",
           description:
-            "Provider API key. Required for polar, paddle, dodo, whop, creem, chargebee, affonso, and attio. Attio uses the workspace access token from Settings → Developers.",
+            "Provider API key. Required for polar, paddle, dodo, lemon_squeezy, whop, creem, chargebee, affonso, and attio. Attio uses the workspace access token from Settings → Developers.",
         },
         webhookSecret: {
           type: "string",
           description:
-            "Signing secret of the webhook you create at the provider, pointed at the returned webhookUrl. Required for every provider except attio, which is outbound-only. For Chargebee, pass the webhook's basic-auth credentials as username:password. For segment, the secret is your own choice and must be 16-153 UTF-8 bytes.",
+            "Signing secret for the provider webhook. Optional for lemon_squeezy: omit it for managed provisioning, or provide it for manual fallback. Required for every other provider except attio, which is outbound-only. For Chargebee, pass username:password. For segment, use 16-153 UTF-8 bytes.",
         },
         providerAccountId: {
           type: "string",
           description:
-            "Provider account id, required for paddle (seller ID), dodo (business ID), whop (company ID, biz_...), creem (store ID), and chargebee (site name). Polar resolves it from the API key; clerk, posthog, segment, and affonso do not use one.",
+            "Provider account id, required for paddle (seller ID), dodo (business ID), lemon_squeezy (numeric store ID), whop (company ID, biz_...), creem (store ID), and chargebee (site name). Polar resolves it from the API key; clerk, posthog, segment, and affonso do not use one.",
         },
         settings: {
           type: "object",

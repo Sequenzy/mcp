@@ -536,7 +536,13 @@ export const outputPropertiesByToolName: Record<
         "The connected integration: id, provider, name, providerAccountId, sync state, and safe (non-credential) details.",
     },
     webhookUrl: stringOutputProperty(
-      "URL to configure in the provider's webhook settings with the same secret. Empty for Attio, which is outbound-only. For other providers, always relay this to the user - delivery does not start until it is configured."
+      "Provider webhook URL. Lemon Squeezy may already have it installed when webhookProvisioning is managed; manual mode uses the supplied secret. Empty for outbound-only Attio."
+    ),
+    webhookProvisioning: stringOutputProperty(
+      "Lemon Squeezy only: managed when Sequenzy provisioned the webhook, or manual when the caller supplied its signing secret."
+    ),
+    testMode: booleanOutputProperty(
+      "Lemon Squeezy only: true when the connected API key/store is in test mode."
     ),
     revenueSyncQueued: booleanOutputProperty(
       "Payment providers only: whether the initial revenue backfill was queued."

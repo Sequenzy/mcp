@@ -44,7 +44,7 @@ export async function handleIntegrationTools(
       // Attio is outbound-only and has no webhook secret. Every other
       // connectable provider still needs one so the agent fails locally
       // instead of round-tripping a 400.
-      if (provider !== "attio") {
+      if (provider !== "attio" && provider !== "lemon_squeezy") {
         requiredString("connect_integration", args, "webhookSecret");
       }
       if (provider === "attio") {

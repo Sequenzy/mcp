@@ -367,7 +367,7 @@ sort options.
 | `get_integration_guide`              | Get framework-specific integration examples.                                                                                                                                                                                                                                   |
 | `get_integration`                    | Inspect one connected integration, its event wiring, list targeting, recent activity, and recommendations.                                                                                                                                                                     |
 | `list_integration_capabilities`      | Compare provider capabilities whether or not they are connected.                                                                                                                                                                                                               |
-| `connect_integration`                | Connect supported API-key or webhook-secret providers on standard MCP; omitted from the OpenAI-reviewed route.                                                                                                                                                                 |
+| `connect_integration`                | Connect supported API-key or webhook-secret providers on standard MCP, including managed Lemon Squeezy webhooks, outbound-only Attio, and optional PostHog/Segment history import; omitted from the OpenAI-reviewed route.                                                      |
 | `get_event_schema`                   | Inspect published event payload examples, property paths, types, and merge tags by provider.                                                                                                                                                                                   |
 | `list_integration_activity`          | Read the retained integration-specific webhook and sync activity log.                                                                                                                                                                                                          |
 | `set_integration_sync_enabled`       | Enable or disable bulk imports and backfills while leaving live webhooks connected.                                                                                                                                                                                            |
@@ -437,6 +437,12 @@ those names are explicitly allowlisted. Segment webhook secrets must be 16-153
 UTF-8 bytes. On the OpenAI-reviewed route, which omits `connect_integration`,
 connect Segment in the dashboard or local CLI instead. Use `sync_integration`
 to retry with the saved credentials.
+
+For Lemon Squeezy, pass `provider: "lemon_squeezy"`, an API key, and the
+numeric store ID as `providerAccountId`. Omit `webhookSecret` for the default
+managed setup; the response reports `webhookProvisioning` and `testMode`.
+Provide a signing secret only for manual webhook setup, using the returned
+`webhookUrl`. Credentials are never returned.
 
 For Attio, `connect_integration` on standard MCP accepts a workspace access
 token without a webhook secret, with optional `settings.listMap` as a map of
