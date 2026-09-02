@@ -764,10 +764,10 @@ export const outputPropertiesByToolName: Record<
   },
   get_notification_preferences: {
     notificationPreferences: arrayOutputProperty(
-      "One entry per notification event with its current mode: off, instant, or daily. Every event is always present; an event the user has never configured reports the platform default."
+      "One entry per notification event with its current mode: off, instant, daily, or weekly. Every event is always present; an event the user has never configured reports the platform default."
     ),
     supportedModes: objectOutputProperty(
-      "Modes each event accepts, keyed by event. form_submitted and campaign_completed do not accept daily."
+      "Modes each event accepts, keyed by event. form_submitted and campaign_completed do not accept daily; weekly_report accepts only off or weekly."
     ),
     defaults: objectOutputProperty(
       "Mode each event uses when the user has never configured it."
@@ -778,7 +778,7 @@ export const outputPropertiesByToolName: Record<
       "Every notification event with its mode after the update, not only the events that were changed."
     ),
     supportedModes: objectOutputProperty(
-      "Modes each event accepts, keyed by event. form_submitted and campaign_completed do not accept daily."
+      "Modes each event accepts, keyed by event. form_submitted and campaign_completed do not accept daily; weekly_report accepts only off or weekly."
     ),
     defaults: objectOutputProperty(
       "Mode each event uses when the user has never configured it."

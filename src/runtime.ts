@@ -1,5 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 
+import packageJson from "../package.json";
+
 import {
   formatMcpError,
   McpApiError,
@@ -102,6 +104,8 @@ function buildApiHeaders(
   const headers: Record<string, string> = {
     "Content-Type": contentType,
     Authorization: `Bearer ${apiKey}`,
+    // Identifies this build to the API for response compatibility gating.
+    "x-sequenzy-client": `mcp/${packageJson.version}`,
   };
   const effectiveCompanyId =
     companyIdOverride === null

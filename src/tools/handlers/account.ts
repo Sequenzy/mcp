@@ -29,6 +29,43 @@ function readCompanyIds(value: unknown): string[] | null {
   );
 }
 
+const NOTIFICATION_MODES_BY_EVENT = {
+  new_subscriber: ["off", "instant", "daily"],
+  form_submitted: ["off", "instant"],
+  campaign_completed: ["off", "instant"],
+  weekly_report: ["off", "weekly"],
+} as const;
+
+function validateNotificationPreferences(value: unknown): void {
+  if (!Array.isArray(value)) {
+    return;
+  }
+
+  for (const preference of value) {
+    if (!isRecord(preference)) {
+      continue;
+    }
+    const event = preference.event;
+    const mode = preference.mode;
+    if (
+      typeof event !== "string" ||
+      typeof mode !== "string" ||
+      !Object.prototype.hasOwnProperty.call(NOTIFICATION_MODES_BY_EVENT, event)
+    ) {
+      continue;
+    }
+
+    const supportedModes = NOTIFICATION_MODES_BY_EVENT[
+      event as keyof typeof NOTIFICATION_MODES_BY_EVENT
+    ] as readonly string[];
+    if (!supportedModes.includes(mode)) {
+      throw new Error(
+        `Invalid mode "${mode}" for ${event}. Use one of: ${supportedModes.join(", ")}.`
+      );
+    }
+  }
+}
+
 export async function handleAccountTools(
   name: string,
   args: Record<string, unknown>
@@ -549,6 +586,7 @@ export async function handleAccountTools(
 
     case "update_notification_preferences": {
       const companyId = args.companyId as string | undefined;
+      validateNotificationPreferences(args.notificationPreferences);
       result = await apiRequest(
         "PATCH",
         "/api/v1/notification-preferences",

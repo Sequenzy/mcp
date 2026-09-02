@@ -323,14 +323,32 @@ describe("account tools", () => {
       "new_subscriber",
       "form_submitted",
       "campaign_completed",
+      "weekly_report",
     ]);
     expect(preferencesSchema?.items?.properties?.["mode"]?.enum).toEqual([
       "off",
       "instant",
       "daily",
+      "weekly",
     ]);
     expect(tool?.annotations?.readOnlyHint).toBe(false);
     expect(tool?.annotations?.destructiveHint).toBe(false);
+  });
+
+  it("rejects notification modes that the selected event does not support", async () => {
+    for (const notificationPreferences of [
+      [{ event: "new_subscriber", mode: "weekly" }],
+      [{ event: "weekly_report", mode: "instant" }],
+    ]) {
+      const result = await handleToolCall("update_notification_preferences", {
+        companyId: "company_123",
+        notificationPreferences,
+      });
+
+      expect(result.isError).toBe(true);
+    }
+
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 });
 
