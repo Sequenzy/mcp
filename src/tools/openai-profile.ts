@@ -62,16 +62,29 @@ const PROTECTED_INPUTS_BY_TOOL: Readonly<
     { name: "root", scanText: true },
   ],
   create_campaign: [
+    { name: "blocks" },
     { name: "targetLists", scanText: true },
     { name: "campaignData", scanText: true },
     { name: "computedLists", scanText: true },
   ],
   update_campaign: [
+    { name: "blocks" },
     { name: "targetLists", scanText: true },
     { name: "campaignData", scanText: true },
     { name: "computedLists", scanText: true },
   ],
   schedule_campaign: [{ name: "targetLists", scanText: true }],
+  create_template: [{ name: "blocks" }],
+  update_template: [{ name: "blocks" }],
+  set_template_localization: [{ name: "blocks" }],
+  set_default_email_component: [{ name: "blocks" }],
+  create_email_component: [{ name: "blocks" }],
+  update_email_component: [{ name: "blocks" }],
+  update_ab_test_variant: [{ name: "blocks" }],
+  create_ab_test: [{ name: "variants" }],
+  add_ab_test_variant: [{ name: "blocks" }],
+  create_transactional_email: [{ name: "blocks" }],
+  update_transactional_email: [{ name: "blocks" }],
   create_campaign_goal: [
     { name: "attributePath", scanAttributePath: true },
     { name: "attributeValue", scanText: true },
@@ -121,6 +134,8 @@ const PROTECTED_INPUTS_BY_TOOL: Readonly<
     { name: "trigger", scanText: true },
     { name: "propertyFilters", scanText: true },
     { name: "customIntegration", scanText: true },
+    { name: "emails" },
+    { name: "steps" },
     { name: "branch" },
     { name: "insertSteps" },
     { name: "subscriberUpdateSteps" },
@@ -129,6 +144,7 @@ const PROTECTED_INPUTS_BY_TOOL: Readonly<
   update_sequence_node: [{ name: "changes" }],
   update_sequence_nodes: [{ name: "updates" }],
   insert_sequence_step: [
+    { name: "blocks" },
     { name: "config", scanText: true },
     { name: "url", scanText: true },
     { name: "headers", scanText: true },
@@ -143,6 +159,11 @@ const PROTECTED_INPUTS_BY_TOOL: Readonly<
   configure_sequence_inbound_webhook: [
     { name: "fieldMapping", scanText: true },
     { name: "samplePayload", scanText: true },
+  ],
+  cancel_sequence_enrollments: [
+    { name: "fieldPath", scanAttributePath: true },
+    { name: "fieldValues", scanText: true },
+    { name: "reason", scanText: true },
   ],
   submit_feedback: [
     { name: "message", scanText: true },
@@ -268,6 +289,13 @@ const OMITTED_OUTPUT_FIELDS = new Set([
   "userid",
 ]);
 
+const RESTRICTED_ATTRIBUTE_PATH_ARRAY_FIELDS = new Set([
+  "customAttributeKeys",
+  "entryEventPropertyKeys",
+  "eventPropertyKeys",
+  "fieldSnapshotKeys",
+]);
+
 const SECRET_ENDPOINT_TOOLS = new Set([
   "get_sequence_inbound_webhook",
   "configure_sequence_inbound_webhook",
@@ -282,7 +310,6 @@ function normalizeFieldName(value: string): string {
 function isOmittedOutputField(normalizedFieldName: string): boolean {
   if (OMITTED_OUTPUT_FIELDS.has(normalizedFieldName)) return true;
   return [
-    "accountid",
     "internalid",
     "requestid",
     "sessionid",
@@ -353,22 +380,26 @@ function restrictedSemanticField(
     if (category) return { category, path: `${path}.value` };
   }
 
-  for (const fieldName of ["fieldName", "attributeKey"] as const) {
+  if (
+    /(?:^|\.)propertyFilters\[\d+\]$/.test(path) &&
+    typeof record.path === "string"
+  ) {
+    const category = restrictedAttributePathCategory(record.path);
+    if (category) return { category, path: `${path}.path` };
+  }
+
+  for (const fieldName of ["entryFieldPath", "eventFieldPath"] as const) {
     const fieldValue = record[fieldName];
     if (typeof fieldValue !== "string") continue;
     const category = restrictedAttributePathCategory(fieldValue);
     if (category) return { category, path: `${path}.${fieldName}` };
   }
 
-  if (Array.isArray(record.customAttributeKeys)) {
-    for (let index = 0; index < record.customAttributeKeys.length; index++) {
-      const key = record.customAttributeKeys[index];
-      if (typeof key !== "string") continue;
-      const category = restrictedAttributePathCategory(key);
-      if (category) {
-        return { category, path: `${path}.customAttributeKeys[${index}]` };
-      }
-    }
+  for (const fieldName of ["fieldName", "attributeKey"] as const) {
+    const fieldValue = record[fieldName];
+    if (typeof fieldValue !== "string") continue;
+    const category = restrictedAttributePathCategory(fieldValue);
+    if (category) return { category, path: `${path}.${fieldName}` };
   }
 
   if (record.kind === "form-field") {
@@ -396,6 +427,25 @@ function restrictedSemanticField(
     if (category) return { category, path: `${path}.key` };
   }
 
+  return undefined;
+}
+
+function restrictedAttributePathArrayIssue(
+  record: Record<string, unknown>,
+  path: string
+): { category: RestrictedCategory; path: string } | undefined {
+  for (const fieldName of RESTRICTED_ATTRIBUTE_PATH_ARRAY_FIELDS) {
+    const values = record[fieldName];
+    if (!Array.isArray(values)) continue;
+    for (let index = 0; index < values.length; index++) {
+      const value = values[index];
+      if (typeof value !== "string") continue;
+      const category = restrictedAttributePathCategory(value);
+      if (category) {
+        return { category, path: `${path}.${fieldName}[${index}]` };
+      }
+    }
+  }
   return undefined;
 }
 
@@ -429,6 +479,11 @@ function scanProtectedValue(
   const record = value as Record<string, unknown>;
   const semanticIssue = restrictedSemanticField(record, path);
   if (semanticIssue) return semanticIssue;
+  const attributePathArrayIssue = restrictedAttributePathArrayIssue(
+    record,
+    path
+  );
+  if (attributePathArrayIssue) return attributePathArrayIssue;
 
   for (const [key, nestedValue] of Object.entries(record)) {
     const nestedPath = `${path}.${key}`;
@@ -475,9 +530,16 @@ export function withOpenAiToolProfile(tool: Tool): Tool | null {
     for (const { name } of PROTECTED_INPUTS_BY_TOOL[tool.name] ?? []) {
       const property = properties[name];
       if (property === null || typeof property !== "object") continue;
-      properties[name] = appendOpenAiRestrictedDataNotice(
+      const profiledProperty = appendOpenAiRestrictedDataNotice(
         property as JsonSchemaObject
       );
+      properties[name] =
+        tool.name === "cancel_sequence_enrollments" && name === "fieldValues"
+          ? {
+              ...profiledProperty,
+              description: `${profiledProperty.description ?? ""} On this MCP surface, fieldPath is required whenever fieldValues is provided.`,
+            }
+          : profiledProperty;
     }
     inputSchema = { ...inputSchema, properties };
   }
@@ -507,6 +569,16 @@ export function assertOpenAiInputPolicy(
   toolName: string,
   args: Record<string, unknown>
 ): void {
+  if (
+    toolName === "cancel_sequence_enrollments" &&
+    args.fieldValues !== undefined &&
+    (typeof args.fieldPath !== "string" || !args.fieldPath.trim())
+  ) {
+    throw new Error(
+      "`fieldPath` is required with `fieldValues` on this MCP surface so restricted personal-data selectors can be checked before cancellation."
+    );
+  }
+
   for (const input of PROTECTED_INPUTS_BY_TOOL[toolName] ?? []) {
     const value = args[input.name];
     if (value === undefined) continue;
@@ -595,6 +667,18 @@ function sanitizeOutputValue(
       nestedValue !== null &&
       typeof nestedValue === "object";
     if (restrictedFieldCategory(key) && !metadataApiKey) continue;
+
+    if (
+      RESTRICTED_ATTRIBUTE_PATH_ARRAY_FIELDS.has(key) &&
+      Array.isArray(nestedValue)
+    ) {
+      sanitized[key] = nestedValue.filter(
+        (item) =>
+          typeof item !== "string" ||
+          restrictedAttributePathCategory(item) === undefined
+      );
+      continue;
+    }
 
     const nestedPath = path ? `${path}.${key}` : key;
     const sanitizedValue = sanitizeOutputValue(

@@ -322,6 +322,100 @@ describe("OpenAI MCP profile", () => {
         },
       })
     ).toThrow("government identifiers");
+
+    expect(() =>
+      assertOpenAiInputPolicy("create_sequence", {
+        propertyFilters: [
+          { path: "diagnosis", operator: "equals", value: "asthma" },
+        ],
+      })
+    ).toThrow("health or medical data");
+
+    expect(() =>
+      assertOpenAiInputPolicy("update_sequence", {
+        stopCondition: {
+          type: "event_received",
+          matchConfig: {
+            mode: "event_property",
+            rules: [
+              {
+                entryFieldPath: "profile.ssn",
+                eventFieldPath: "checkout.ssn",
+              },
+            ],
+          },
+        },
+      })
+    ).toThrow("government identifiers");
+  });
+
+  it("blocks restricted attribute conditions in every block-bearing write shape", () => {
+    const restrictedBlock = {
+      id: "block-1",
+      type: "text",
+      content: "General marketing copy",
+      conditions: [
+        {
+          id: "condition-1",
+          field: "attribute",
+          operator: "is",
+          value: "ssn:111-22-3333",
+        },
+      ],
+    };
+
+    for (const toolName of [
+      "create_campaign",
+      "update_campaign",
+      "create_template",
+      "update_template",
+      "set_template_localization",
+      "set_default_email_component",
+      "create_email_component",
+      "update_email_component",
+      "update_ab_test_variant",
+      "add_ab_test_variant",
+      "create_transactional_email",
+      "update_transactional_email",
+    ]) {
+      expect(() =>
+        assertOpenAiInputPolicy(toolName, { blocks: [restrictedBlock] })
+      ).toThrow("government identifiers");
+    }
+
+    expect(() =>
+      assertOpenAiInputPolicy("create_ab_test", {
+        variants: [{ name: "A", blocks: [restrictedBlock] }],
+      })
+    ).toThrow("government identifiers");
+
+    expect(() =>
+      assertOpenAiInputPolicy("insert_sequence_step", {
+        type: "email",
+        subject: "Welcome",
+        blocks: [restrictedBlock],
+      })
+    ).toThrow("government identifiers");
+
+    for (const field of ["emails", "steps"] as const) {
+      expect(() =>
+        assertOpenAiInputPolicy("update_sequence", {
+          [field]: [{ nodeId: "node-1", blocks: [restrictedBlock] }],
+        })
+      ).toThrow("government identifiers");
+    }
+
+    expect(() =>
+      assertOpenAiInputPolicy("create_campaign", {
+        blocks: [
+          {
+            id: "block-1",
+            type: "text",
+            content: "Diagnosis: early detection matters.",
+          },
+        ],
+      })
+    ).not.toThrow();
   });
 
   it("blocks restricted data in alternate personalization and sequence-step shapes", () => {
@@ -443,6 +537,45 @@ describe("OpenAI MCP profile", () => {
         url: "https://hooks.example.test/receive?source=sequenzy",
       })
     ).not.toThrow();
+  });
+
+  it("blocks restricted enrollment cancellation selectors and reasons", () => {
+    const standard = toolDefinitions.find(
+      (tool) => tool.name === "cancel_sequence_enrollments"
+    );
+    const openAi = withOpenAiToolProfile(
+      withToolOutputSchema(standard as NonNullable<typeof standard>)
+    );
+    expect(
+      (
+        openAi?.inputSchema.properties?.fieldValues as
+          | { description?: string }
+          | undefined
+      )?.description
+    ).toContain("fieldPath is required");
+
+    expect(() =>
+      assertOpenAiInputPolicy("cancel_sequence_enrollments", {
+        fieldPath: "profile.ssn",
+        fieldValues: ["111-22-3333"],
+        dryRun: false,
+      })
+    ).toThrow("government identifiers");
+
+    expect(() =>
+      assertOpenAiInputPolicy("cancel_sequence_enrollments", {
+        fieldValues: ["111-22-3333"],
+        dryRun: false,
+      })
+    ).toThrow("`fieldPath` is required");
+
+    expect(() =>
+      assertOpenAiInputPolicy("cancel_sequence_enrollments", {
+        subscriberIds: ["subscriber-1"],
+        reason: "Diagnosis: asthma",
+        dryRun: false,
+      })
+    ).toThrow("health or medical data");
   });
 
   it("projects account identity and strips nested secrets and diagnostics", () => {
@@ -617,6 +750,45 @@ describe("OpenAI MCP profile", () => {
             },
           ],
         },
+      },
+    });
+  });
+
+  it("filters restricted enrollment property names but preserves safe context", () => {
+    expect(
+      projectOpenAiToolResult("get_sequence_enrollment", {
+        enrollment: {
+          entryContext: {
+            eventName: "checkout.completed",
+            eventPropertyKeys: ["plan", "diagnosis", "profile.ssn"],
+            fieldSnapshotKeys: ["company", "profile.passport_number"],
+          },
+        },
+      })
+    ).toEqual({
+      enrollment: {
+        entryContext: {
+          eventName: "checkout.completed",
+          eventPropertyKeys: ["plan"],
+          fieldSnapshotKeys: ["company"],
+        },
+      },
+    });
+  });
+
+  it("preserves provider account IDs while removing internal account IDs", () => {
+    expect(
+      projectOpenAiToolResult("get_integration", {
+        integration: {
+          id: "integration-1",
+          providerAccountId: "acct_123",
+          accountId: "internal-account-1",
+        },
+      })
+    ).toEqual({
+      integration: {
+        id: "integration-1",
+        providerAccountId: "acct_123",
       },
     });
   });
