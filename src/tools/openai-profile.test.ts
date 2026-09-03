@@ -440,9 +440,7 @@ describe("OpenAI MCP profile", () => {
 
     expect(() =>
       assertOpenAiInputPolicy("update_campaign", {
-        computedLists: [
-          { name: "patients", filter: { diagnosis: "asthma" } },
-        ],
+        computedLists: [{ name: "patients", filter: { diagnosis: "asthma" } }],
       })
     ).toThrow("health or medical data");
 
@@ -537,6 +535,160 @@ describe("OpenAI MCP profile", () => {
         url: "https://hooks.example.test/receive?source=sequenzy",
       })
     ).not.toThrow();
+  });
+
+  it("blocks restricted attribute keys written as dotted or bracketed paths", () => {
+    // Custom attribute keys may be nested paths. Flattening `profile.ssn` to
+    // `profilessn` matches no rule, so every path segment must be checked on
+    // both ingress and egress.
+    expect(() =>
+      assertOpenAiInputPolicy("add_subscriber", {
+        customAttributes: { "profile.ssn": "111-22-3333" },
+      })
+    ).toThrow("government identifiers");
+
+    expect(() =>
+      assertOpenAiInputPolicy("update_subscriber", {
+        attributes: { "billing[cardNumber]": "4111111111111111" },
+      })
+    ).toThrow("payment or financial-account data");
+
+    expect(() =>
+      assertOpenAiInputPolicy("trigger_subscriber_event", {
+        properties: { "account.profile.plan": "pro" },
+      })
+    ).not.toThrow();
+
+    const projected = projectOpenAiToolResult("get_subscriber", {
+      subscriber: {
+        email: "person@example.com",
+        customAttributes: {
+          "profile.ssn": "111-22-3333",
+          "billing[cardNumber]": "4111111111111111",
+          "profile.plan": "pro",
+        },
+      },
+    }) as { subscriber: { customAttributes: Record<string, unknown> } };
+    expect(projected.subscriber.customAttributes).toEqual({
+      "profile.plan": "pro",
+    });
+  });
+
+  it("blocks common coordinate key shapes as precise geolocation", () => {
+    for (const attributes of [
+      { lat: 38.7223, lng: -9.1393 },
+      { lat: 38.7223, lon: -9.1393 },
+      { latitude: 38.7223, long: -9.1393 },
+      { coords: "38.7223,-9.1393" },
+      { geopoint: { lat: 38.7223, lng: -9.1393 } },
+    ]) {
+      expect(() =>
+        assertOpenAiInputPolicy("add_subscriber", {
+          customAttributes: attributes,
+        })
+      ).toThrow("precise geolocation");
+    }
+
+    expect(() =>
+      assertOpenAiInputPolicy("add_subscriber", {
+        customAttributes: { platform: "ios", latency_ms: 12, country: "PT" },
+      })
+    ).not.toThrow();
+
+    const projected = projectOpenAiToolResult("get_subscriber", {
+      subscriber: {
+        customAttributes: { lat: 38.7223, lng: -9.1393, city: "Lisbon" },
+      },
+    }) as { subscriber: { customAttributes: Record<string, unknown> } };
+    expect(projected.subscriber.customAttributes).toEqual({ city: "Lisbon" });
+  });
+
+  it("blocks credentials embedded in any URL argument, not only protected inputs", () => {
+    expect(() =>
+      assertOpenAiInputPolicy("create_form", {
+        name: "Signup",
+        redirectUrl: "https://example.test/done?access_token=private-token",
+      })
+    ).toThrow("authentication credentials or secrets");
+
+    expect(() =>
+      assertOpenAiInputPolicy("update_form", {
+        id: "form-1",
+        redirectUrl: "https://user:private-password@example.test/done",
+      })
+    ).toThrow("authentication credentials or secrets");
+
+    expect(() =>
+      assertOpenAiInputPolicy("create_popup", {
+        name: "Welcome",
+        redirectUrl: "https://example.test/done?api_key=private-key",
+      })
+    ).toThrow("authentication credentials or secrets");
+
+    expect(() =>
+      assertOpenAiInputPolicy("update_popup", {
+        id: "popup-1",
+        settings: {
+          redirectUrl: "https://example.test/done?token=private-token",
+        },
+      })
+    ).toThrow("authentication credentials or secrets");
+
+    expect(() =>
+      assertOpenAiInputPolicy("update_company", {
+        logoUrl: "https://cdn.example.test/logo.png?secret=private-secret",
+      })
+    ).toThrow("authentication credentials or secrets");
+
+    expect(() =>
+      assertOpenAiInputPolicy("create_form", {
+        name: "Signup",
+        redirectUrl: "https://example.test/thanks?utm_source=sequenzy",
+      })
+    ).not.toThrow();
+
+    expect(() =>
+      assertOpenAiInputPolicy("update_company", {
+        logoUrl: "https://cdn.example.test/logo.png?X-Amz-Signature=abc",
+      })
+    ).not.toThrow();
+  });
+
+  it("blocks subscriber and account identifiers in OpenAI feedback", () => {
+    expect(() =>
+      assertOpenAiInputPolicy("submit_feedback", {
+        message: "Campaign for person@example.com failed",
+      })
+    ).toThrow("an email address");
+
+    expect(() =>
+      assertOpenAiInputPolicy("submit_feedback", {
+        message: "Scheduling failed",
+        context: "Tried update_campaign on tz4a98xxat96iws9zmbrgj3a",
+      })
+    ).toThrow("a resource ID");
+
+    expect(() =>
+      assertOpenAiInputPolicy("submit_feedback", {
+        message: "Subscriber 6f1c2d3e-4b5a-4c6d-8e7f-9a0b1c2d3e4f was skipped",
+      })
+    ).toThrow("a UUID");
+
+    expect(() =>
+      assertOpenAiInputPolicy("submit_feedback", {
+        message:
+          "schedule_campaign rejected a 2026-09-03 send even though the campaign was ready.",
+        category: "bug",
+        context: "Tried schedule_campaign then update_campaign.",
+      })
+    ).not.toThrow();
+
+    // Standard MCP keeps its structured resourceIds field; only the OpenAI
+    // profile promises identifier-free feedback.
+    const standard = toolDefinitions.find(
+      (tool) => tool.name === "submit_feedback"
+    );
+    expect(standard?.inputSchema.properties).toHaveProperty("resourceIds");
   });
 
   it("blocks restricted enrollment cancellation selectors and reasons", () => {

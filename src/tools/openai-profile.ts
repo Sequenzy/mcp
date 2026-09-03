@@ -217,7 +217,7 @@ const RESTRICTED_FIELD_RULES: ReadonlyArray<{
   {
     category: "precise geolocation",
     pattern:
-      /^(latitude|longitude|latlng|coordinates|gps|geolocation|preciselocation)$/,
+      /^(lat|lng|lon|long|latitude|longitude|latlng|latlon|coordinates|coords|geocoordinates|gpscoordinates|geopoint|gps|geolocation|preciselocation)$/,
   },
 ];
 
@@ -255,6 +255,29 @@ const RESTRICTED_TEXT_RULES: ReadonlyArray<{
     pattern:
       /\b(?:Bearer\s+[A-Za-z0-9._~+/=-]{12,}|seq_(?:user_)?[A-Za-z0-9_-]{12,}|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,})\b/,
   },
+];
+
+/**
+ * The OpenAI feedback schema promises generalized feedback with no subscriber
+ * or account identifiers, so feedback text is also checked for the identifier
+ * shapes Sequenzy uses: email addresses, cuid2 resource IDs, and UUIDs.
+ * Standard MCP keeps its structured `resourceIds` field for that purpose.
+ */
+const FEEDBACK_IDENTIFIER_RULES: ReadonlyArray<{
+  label: string;
+  pattern: RegExp;
+}> = [
+  {
+    label: "an email address",
+    pattern:
+      /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}/,
+  },
+  {
+    label: "a UUID",
+    pattern:
+      /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i,
+  },
+  { label: "a resource ID", pattern: /\b[a-z][a-z0-9]{23,}\b/ },
 ];
 
 const OMITTED_OUTPUT_FIELDS = new Set([
@@ -309,21 +332,31 @@ function normalizeFieldName(value: string): string {
 
 function isOmittedOutputField(normalizedFieldName: string): boolean {
   if (OMITTED_OUTPUT_FIELDS.has(normalizedFieldName)) return true;
-  return [
-    "internalid",
-    "requestid",
-    "sessionid",
-    "traceid",
-    "userid",
-  ].some((suffix) => normalizedFieldName.endsWith(suffix));
+  return ["internalid", "requestid", "sessionid", "traceid", "userid"].some(
+    (suffix) => normalizedFieldName.endsWith(suffix)
+  );
 }
 
+/**
+ * Field names may be attribute paths such as `profile.ssn` or
+ * `billing[cardNumber]`. Normalizing the whole key would flatten `profile.ssn`
+ * to `profilessn`, which matches no rule, so every path segment is checked as
+ * well as the flattened key.
+ */
 function restrictedFieldCategory(
   fieldName: string
 ): RestrictedCategory | undefined {
-  const normalized = normalizeFieldName(fieldName);
-  return RESTRICTED_FIELD_RULES.find(({ pattern }) => pattern.test(normalized))
-    ?.category;
+  const candidates = [fieldName, ...fieldName.split(/\.|\[|\]/)].filter(
+    Boolean
+  );
+  for (const candidate of candidates) {
+    const normalized = normalizeFieldName(candidate);
+    const category = RESTRICTED_FIELD_RULES.find(({ pattern }) =>
+      pattern.test(normalized)
+    )?.category;
+    if (category) return category;
+  }
+  return undefined;
 }
 
 function restrictedTextCategory(value: string): RestrictedCategory | undefined {
@@ -357,13 +390,7 @@ function restrictedAttributePathCategory(
   value: string
 ): RestrictedCategory | undefined {
   const path = value.split(":", 1)[0]?.trim();
-  if (!path) return undefined;
-
-  for (const segment of path.split(/\.|\[|\]/).filter(Boolean)) {
-    const category = restrictedFieldCategory(segment);
-    if (category) return category;
-  }
-  return undefined;
+  return path ? restrictedFieldCategory(path) : undefined;
 }
 
 function restrictedSemanticField(
@@ -508,10 +535,61 @@ function scanProtectedAttributePaths(
 
   if (!Array.isArray(value)) return undefined;
   for (let index = 0; index < value.length; index++) {
-    const issue = scanProtectedAttributePaths(value[index], `${path}[${index}]`);
+    const issue = scanProtectedAttributePaths(
+      value[index],
+      `${path}[${index}]`
+    );
     if (issue) return issue;
   }
   return undefined;
+}
+
+/**
+ * Credential-bearing URLs are blocked in every argument of every tool, not only
+ * in the protected inputs above, so form and popup redirect URLs, company
+ * links, product URLs, and future URL fields cannot carry a token past the
+ * reviewed surface.
+ */
+function scanUrlCredentials(
+  value: unknown,
+  path: string
+): { category: RestrictedCategory; path: string } | undefined {
+  if (typeof value === "string") {
+    const category = restrictedUrlCategory(value);
+    return category ? { category, path } : undefined;
+  }
+
+  if (Array.isArray(value)) {
+    for (let index = 0; index < value.length; index++) {
+      const issue = scanUrlCredentials(value[index], `${path}[${index}]`);
+      if (issue) return issue;
+    }
+    return undefined;
+  }
+
+  if (value === null || typeof value !== "object") return undefined;
+  for (const [key, nestedValue] of Object.entries(
+    value as Record<string, unknown>
+  )) {
+    const issue = scanUrlCredentials(nestedValue, `${path}.${key}`);
+    if (issue) return issue;
+  }
+  return undefined;
+}
+
+function restrictedDataError(issue: {
+  category: RestrictedCategory;
+  path: string;
+}): Error {
+  return new Error(
+    `Restricted personal data was blocked in ${issue.path} (${issue.category}). Remove it and retry with ordinary business, contact, marketing, or commerce data only.`
+  );
+}
+
+function feedbackIdentifierError(path: string, label: string): Error {
+  return new Error(
+    `Feedback on this MCP surface must not include subscriber or account identifiers, but ${path} contains ${label}. Remove it and describe the issue in general terms.`
+  );
 }
 
 export function withOpenAiToolProfile(tool: Tool): Tool | null {
@@ -587,23 +665,31 @@ export function assertOpenAiInputPolicy(
         value,
         `${toolName}.${input.name}`
       );
-      if (issue) {
-        throw new Error(
-          `Restricted personal data was blocked in ${issue.path} (${issue.category}). Remove it and retry with ordinary business, contact, marketing, or commerce data only.`
-        );
-      }
+      if (issue) throw restrictedDataError(issue);
     }
     const issue = scanProtectedValue(
       value,
       `${toolName}.${input.name}`,
       input.scanText === true
     );
-    if (!issue) continue;
-
-    throw new Error(
-      `Restricted personal data was blocked in ${issue.path} (${issue.category}). Remove it and retry with ordinary business, contact, marketing, or commerce data only.`
-    );
+    if (issue) throw restrictedDataError(issue);
   }
+
+  if (toolName === "submit_feedback") {
+    for (const fieldName of ["message", "context"] as const) {
+      const value = args[fieldName];
+      if (typeof value !== "string") continue;
+      const rule = FEEDBACK_IDENTIFIER_RULES.find(({ pattern }) =>
+        pattern.test(value)
+      );
+      if (rule) {
+        throw feedbackIdentifierError(`${toolName}.${fieldName}`, rule.label);
+      }
+    }
+  }
+
+  const urlIssue = scanUrlCredentials(args, toolName);
+  if (urlIssue) throw restrictedDataError(urlIssue);
 }
 
 const TEXTUAL_PERSONAL_DATA_OUTPUT_TOOLS = new Set([

@@ -95,15 +95,19 @@ data, government identifiers, biometric or genetic data, authentication
 credentials, sensitive demographic data, or precise geolocation.
 
 The OpenAI-reviewed route states and enforces those restrictions on relevant
-open-ended inputs. Its results remove restricted fields, raw API errors, debug
-payloads, internal request/trace/session identifiers, unnecessary account or
-credential identifiers, and credential-bearing inbound-webhook URLs. Standard
+open-ended inputs, including nested attribute paths such as `profile.ssn` and
+coordinate pairs such as `lat`/`lng`, and it rejects a credential-bearing URL in
+any argument, such as a form or popup `redirectUrl` with an access token. Its
+results remove restricted fields, raw API errors, debug payloads, internal
+request/trace/session identifiers, unnecessary account or credential
+identifiers, and credential-bearing inbound-webhook URLs. Standard
 remote MCP and the local stdio package retain the complete contract for trusted
 clients, including credential-based integration setup, one-time API-key and
 webhook secrets, inbound-webhook URLs, and detailed API errors. Prefer the
 dashboard or local CLI when secrets should stay outside an AI conversation.
 `submit_feedback` runs only when the user explicitly asks; its OpenAI schema is
-limited to a generalized message, category, and optional workflow context.
+limited to a generalized message, category, and optional workflow context, and
+the route rejects feedback text that contains an email address or resource ID.
 
 ## Manual Setup
 
@@ -264,10 +268,11 @@ stored key hash.
 
 If a tool reports a missing scope such as `campaigns:read` or
 `templates:write`, call `get_account`. Its `apiKeyPermissions` field lists the
-effective scopes, common missing marketing read scopes, and a direct
-`manageUrl`, without returning the user's account ID or the active key's
-identity. Personal keys open Account API Keys; company keys open the selected
-workspace's API Keys settings. If the key does not include
+current key identity and type, scopes, common missing marketing read scopes, and
+a direct `manageUrl`. The OpenAI-reviewed route returns the same permissions
+without the user's account ID or the active key's identity. Personal keys open
+Account API Keys; company keys open the selected workspace's API Keys settings.
+If the key does not include
 `account:read`, open the
 [Sequenzy dashboard](https://sequenzy.com/dashboard) directly and choose the
 matching API Keys page.
@@ -405,20 +410,23 @@ For PostHog, `sync_integration` restarts the event-history import from the
 beginning with the stored personal API key. Imported events are deduplicated, so
 retrying a failed import does not create duplicates.
 
-For Segment, connect it in the trusted dashboard or local CLI, then use
-`sync_integration` to import recent event history from Unify. The import walks
+For Segment, `connect_integration` on standard MCP can optionally import recent
+event history from Unify after the live webhook is connected. The import walks
 existing contacts through the Profile API, covers the API's most recent 14 days,
 skips contacts without a matching profile, and safely deduplicates retries and
 live webhook overlap. New connections skip automatic page/screen calls unless
-those names are explicitly allowlisted. Enter the Segment webhook secret only
-in the trusted handoff, never in the AI conversation. Use `sync_integration` to
-retry with the saved credentials.
+those names are explicitly allowlisted. Segment webhook secrets must be 16-153
+UTF-8 bytes. On the OpenAI-reviewed route, which omits `connect_integration`,
+connect Segment in the dashboard or local CLI instead. Use `sync_integration`
+to retry with the saved credentials.
 
-For Attio, enter the workspace access token in the trusted dashboard or local
-CLI handoff. After connection, use `update_attio_settings` to set
-`listMap` as a map of Sequenzy list IDs to Attio people-list UUIDs or API slugs,
-plus `syncCompanyFromDomain` to control company matching from non-free-mail
-domains. The integration is outbound-only:
+For Attio, `connect_integration` on standard MCP accepts a workspace access
+token without a webhook secret, with optional `settings.listMap` as a map of
+Sequenzy list IDs to Attio people-list UUIDs or API slugs, plus
+`syncCompanyFromDomain` to control company matching from non-free-mail domains.
+On the OpenAI-reviewed route, connect Attio in the dashboard or local CLI, then
+use `update_attio_settings` for the same settings. The integration is
+outbound-only:
 new joins to mapped Sequenzy lists upsert the person and add them to the Attio
 list; list removals do not remove records from Attio.
 
@@ -1410,8 +1418,9 @@ MTA transport paths. Recipient bounces continue to use `email.bounced`.
 
 Use the explicit-only `campaign.sent` event when a workflow needs one terminal
 notification after an email or SMS campaign settles, including a valid
-zero-recipient send. Add it in the trusted dashboard handoff when creating or
-editing a webhook.
+zero-recipient send. It is not added when `create_webhook` omits `events` on
+standard MCP; on the OpenAI-reviewed route, add it in the dashboard when
+creating or editing the webhook.
 
 ### AI Generation
 
