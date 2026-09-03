@@ -691,6 +691,114 @@ describe("OpenAI MCP profile", () => {
     expect(standard?.inputSchema.properties).toHaveProperty("resourceIds");
   });
 
+  it("blocks demographic and geolocation prose in free text on input and output", () => {
+    // Field-name rules already cover these categories, but labelled prose in
+    // notes, replies, and variables had no text rule at all.
+    expect(() =>
+      assertOpenAiInputPolicy("add_subscriber_note", {
+        body: "Religion: Catholic",
+      })
+    ).toThrow("sensitive demographic data");
+
+    expect(() =>
+      assertOpenAiInputPolicy("add_subscriber_note", {
+        body: "Sexual orientation - gay",
+      })
+    ).toThrow("sensitive demographic data");
+
+    expect(() =>
+      assertOpenAiInputPolicy("add_subscriber_note", {
+        body: "GPS coordinates: 38.7223, -9.1393",
+      })
+    ).toThrow("precise geolocation");
+
+    expect(() =>
+      assertOpenAiInputPolicy("render_email", {
+        variables: { where: "Last seen near 38.7223,-9.1393" },
+      })
+    ).toThrow("precise geolocation");
+
+    expect(() =>
+      assertOpenAiInputPolicy("add_subscriber_note", {
+        body: "Runs the marathon race every year. Political news reader. Meeting at 10:30, budget 12.5 vs 14.25.",
+      })
+    ).not.toThrow();
+
+    const projected = projectOpenAiToolResult("list_subscriber_notes", {
+      notes: [
+        { id: "n1", body: "Religion: Catholic" },
+        { id: "n2", body: "Latitude: 38.7223" },
+        { id: "n3", body: "Loves the onboarding flow" },
+      ],
+    }) as { notes: Array<{ body: string }> };
+    expect(projected.notes.map((note) => note.body)).toEqual([
+      "[redacted restricted data]",
+      "[redacted restricted data]",
+      "Loves the onboarding flow",
+    ]);
+  });
+
+  it("blocks credentials carried in URL paths, fragments, and query values", () => {
+    for (const url of [
+      "https://hooks.example.test/access_token/private-secret",
+      "https://hooks.example.test/#access_token=private-secret",
+      "https://hooks.example.test/receive?next=https%3A%2F%2Fother.test%2F%3Ftoken%3Dprivate-token",
+      "https://hooks.example.test/receive?state=seq_user_abcdefghijklmnop",
+      "https://hooks.example.test/receive?session=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",
+    ]) {
+      expect(() =>
+        assertOpenAiInputPolicy("update_webhook", { id: "wh-1", url })
+      ).toThrow("authentication credentials or secrets");
+    }
+
+    for (const url of [
+      "https://api.example.test/health",
+      "https://hooks.example.test/oauth/token",
+      "https://example.test/blog/secret-sauce",
+      "https://hooks.example.test/receive?source=sequenzy#section",
+    ]) {
+      expect(() =>
+        assertOpenAiInputPolicy("update_webhook", { id: "wh-1", url })
+      ).not.toThrow();
+    }
+  });
+
+  it("redacts credential-bearing URLs from output but keeps ordinary and preview URLs", () => {
+    const sequence = projectOpenAiToolResult("get_sequence", {
+      sequence: {
+        steps: [
+          {
+            type: "webhook",
+            url: "https://hooks.example.test/?access_token=private-secret",
+          },
+          {
+            type: "webhook",
+            url: "https://user:private-password@hooks.example.test/receive",
+          },
+          {
+            type: "webhook",
+            url: "https://hooks.example.test/receive?source=sequenzy",
+          },
+        ],
+      },
+    }) as { sequence: { steps: Array<{ url: string }> } };
+    expect(sequence.sequence.steps.map((step) => step.url)).toEqual([
+      "[redacted restricted data]",
+      "[redacted restricted data]",
+      "https://hooks.example.test/receive?source=sequenzy",
+    ]);
+
+    // The landing-page preview URL is a Sequenzy-signed unlisted link that the
+    // tool exists to hand back, not a third-party credential.
+    const landingPage = projectOpenAiToolResult("preview_landing_page", {
+      previewUrl: "https://sequenzy.com/lp/preview/page-1?token=signed-preview",
+      publicUrl: null,
+    }) as { previewUrl: string };
+    expect(landingPage.previewUrl).toBe(
+      "https://sequenzy.com/lp/preview/page-1?token=signed-preview"
+    );
+  });
+
   it("blocks restricted enrollment cancellation selectors and reasons", () => {
     const standard = toolDefinitions.find(
       (tool) => tool.name === "cancel_sequence_enrollments"

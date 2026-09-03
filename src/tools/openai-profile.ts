@@ -255,6 +255,23 @@ const RESTRICTED_TEXT_RULES: ReadonlyArray<{
     pattern:
       /\b(?:Bearer\s+[A-Za-z0-9._~+/=-]{12,}|seq_(?:user_)?[A-Za-z0-9_-]{12,}|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,})\b/,
   },
+  {
+    category: "sensitive demographic data",
+    pattern:
+      /\b(?:race|ethnicity|religion|religious belief|sexual orientation|gender identity|political (?:affiliation|opinion|party)|union membership|disability)\s*[:#-]\s*\S+/i,
+  },
+  {
+    category: "precise geolocation",
+    pattern:
+      /\b(?:latitude|longitude|lat|lng|lon|gps(?: coordinates)?|coordinates|coords|geolocation|precise location)\s*[:#=-]\s*-?\d/i,
+  },
+  {
+    // A bare decimal coordinate pair such as `38.7223, -9.1393`. Four or more
+    // decimals keeps ordinary prices and measurements out of this rule.
+    category: "precise geolocation",
+    pattern:
+      /(?:^|[^\d.-])-?(?:90(?:\.0+)?|[1-8]?\d\.\d{4,})\s*,\s*-?(?:180(?:\.0+)?|1[0-7]\d\.\d{4,}|[1-9]?\d\.\d{4,})(?![\d.])/,
+  },
 ];
 
 /**
@@ -364,7 +381,25 @@ function restrictedTextCategory(value: string): RestrictedCategory | undefined {
     ?.category;
 }
 
-function restrictedUrlCategory(value: string): RestrictedCategory | undefined {
+function safeDecodeUriComponent(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+/**
+ * A credential can ride in any URL component: userinfo, a query or fragment
+ * parameter name, a parameter value (a raw token or a nested URL), or a path
+ * such as `/access_token/<secret>`. Path segments are only treated as a
+ * credential when a credential-named segment is followed by a value, so
+ * `/oauth/token` and `/health` endpoints stay usable.
+ */
+function restrictedUrlCategory(
+  value: string,
+  depth = 0
+): RestrictedCategory | undefined {
   let url: URL;
   try {
     url = new URL(value);
@@ -379,11 +414,35 @@ function restrictedUrlCategory(value: string): RestrictedCategory | undefined {
     return "authentication credentials or secrets";
   }
 
-  for (const key of url.searchParams.keys()) {
-    const category = restrictedFieldCategory(key);
-    if (category) return category;
+  const parameterSets = [
+    url.searchParams,
+    new URLSearchParams(url.hash.replace(/^#/, "")),
+  ];
+  for (const parameters of parameterSets) {
+    for (const [key, parameterValue] of parameters) {
+      const keyCategory = restrictedFieldCategory(key);
+      if (keyCategory) return keyCategory;
+      const valueCategory = restrictedTextCategory(parameterValue);
+      if (valueCategory) return valueCategory;
+      if (depth < 2) {
+        const nestedCategory = restrictedUrlCategory(parameterValue, depth + 1);
+        if (nestedCategory) return nestedCategory;
+      }
+    }
   }
-  return undefined;
+
+  const segments = url.pathname.split("/").filter(Boolean);
+  for (let index = 0; index < segments.length - 1; index++) {
+    const segment = safeDecodeUriComponent(segments[index] ?? "");
+    if (
+      restrictedFieldCategory(segment) ===
+      "authentication credentials or secrets"
+    ) {
+      return "authentication credentials or secrets";
+    }
+  }
+  const decodedPath = safeDecodeUriComponent(url.pathname);
+  return restrictedTextCategory(decodedPath);
 }
 
 function restrictedAttributePathCategory(
@@ -715,6 +774,13 @@ function sanitizeOutputValue(
   path: string
 ): unknown | typeof OMIT_SANITIZED_VALUE {
   if (typeof value === "string") {
+    // Stored credential-bearing URLs (for example a webhook step created on
+    // standard MCP) are redacted on the way out, mirroring the input policy.
+    // The landing-page preview URL is exempt: it is a Sequenzy-signed unlisted
+    // link that preview_landing_page exists to return.
+    if (!/(?:^|\.)previewUrl$/.test(path) && restrictedUrlCategory(value)) {
+      return "[redacted restricted data]";
+    }
     return shouldScanOutputText(toolName, path) && restrictedTextCategory(value)
       ? "[redacted restricted data]"
       : value;

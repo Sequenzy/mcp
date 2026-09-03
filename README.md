@@ -95,12 +95,14 @@ data, government identifiers, biometric or genetic data, authentication
 credentials, sensitive demographic data, or precise geolocation.
 
 The OpenAI-reviewed route states and enforces those restrictions on relevant
-open-ended inputs, including nested attribute paths such as `profile.ssn` and
-coordinate pairs such as `lat`/`lng`, and it rejects a credential-bearing URL in
-any argument, such as a form or popup `redirectUrl` with an access token. Its
+open-ended inputs, including nested attribute paths such as `profile.ssn`,
+coordinate pairs such as `lat`/`lng`, and labelled prose such as
+`Religion: ...` or `GPS coordinates: ...`. It rejects a credential-bearing URL
+in any argument, whether the credential sits in the userinfo, path, query, or
+fragment, such as a form or popup `redirectUrl` with an access token. Its
 results remove restricted fields, raw API errors, debug payloads, internal
 request/trace/session identifiers, unnecessary account or credential
-identifiers, and credential-bearing inbound-webhook URLs. Standard
+identifiers, stored credential-bearing URLs, and inbound-webhook URLs. Standard
 remote MCP and the local stdio package retain the complete contract for trusted
 clients, including credential-based integration setup, one-time API-key and
 webhook secrets, inbound-webhook URLs, and detailed API errors. Prefer the
