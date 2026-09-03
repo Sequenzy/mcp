@@ -40,6 +40,11 @@ const PROTECTED_INPUTS_BY_TOOL: Readonly<
     { name: "customAttributes", scanText: true },
   ],
   add_subscriber_note: [{ name: "body", scanText: true }],
+  reply_to_conversation: [
+    { name: "subject", scanText: true },
+    { name: "bodyText", scanText: true },
+    { name: "bodyHtml", scanText: true },
+  ],
   trigger_subscriber_event: [
     { name: "properties", scanText: true },
     { name: "attributes", scanText: true },

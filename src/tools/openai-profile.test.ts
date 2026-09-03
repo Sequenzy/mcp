@@ -713,6 +713,28 @@ describe("OpenAI MCP profile", () => {
     ).toThrow("precise geolocation");
 
     expect(() =>
+      assertOpenAiInputPolicy("reply_to_conversation", {
+        type: "outbound",
+        subject: "Password: hunter2",
+        bodyText: "Ordinary account follow-up",
+      })
+    ).toThrow("authentication credentials or secrets");
+
+    expect(() =>
+      assertOpenAiInputPolicy("reply_to_conversation", {
+        type: "note",
+        bodyText: "Diagnosis: leukemia",
+      })
+    ).toThrow("health or medical data");
+
+    expect(() =>
+      assertOpenAiInputPolicy("reply_to_conversation", {
+        type: "outbound",
+        bodyHtml: "<p>Religion: Catholic</p>",
+      })
+    ).toThrow("sensitive demographic data");
+
+    expect(() =>
       assertOpenAiInputPolicy("render_email", {
         variables: { where: "Last seen near 38.7223,-9.1393" },
       })
