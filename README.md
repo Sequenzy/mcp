@@ -99,8 +99,12 @@ open-ended inputs, including nested attribute paths such as `profile.ssn`,
 coordinate pairs such as `lat`/`lng`, and labelled prose such as
 `Religion: ...` or `GPS coordinates: ...`. It rejects a credential-bearing URL
 in any argument, whether the credential sits in the userinfo, path, query, or
-fragment, such as a form or popup `redirectUrl` with an access token. Its
-results remove restricted fields, raw API errors, debug payloads, internal
+fragment, such as a form or popup `redirectUrl` with an access token or URL
+signature. Restricted attribute selectors inside merge tags are rejected
+without blocking ordinary authored copy about the same topic. On this surface,
+`render_email` accepts sample data or a policy-checked inline `subscriber`, but
+not `subscriberId`, so it cannot resolve uninspected stored custom attributes.
+Its results remove restricted fields, raw API errors, debug payloads, internal
 request/trace/session identifiers, unnecessary account or credential
 identifiers, stored credential-bearing URLs, and inbound-webhook URLs. Standard
 remote MCP and the local stdio package retain the complete contract for trusted
@@ -372,7 +376,7 @@ sort options.
 | `update_sender_profile`              | Rename one sender or reply-to profile without changing the account defaults.                                                                                                                                                                                                   |
 | `get_notification_preferences`       | Read the current user's per-company account notification settings and supported modes, including the Monday weekly report.                                                                                                                                                     |
 | `update_notification_preferences`    | Update the current user's account notification delivery modes, including weekly-report opt-out, without affecting teammates.                                                                                                                                                   |
-| `render_email`                       | Render final email-safe HTML and diagnose unresolved merge tags, including typos hidden by defaults.                                                                                                                                                                           |
+| `render_email`                       | Render final email-safe HTML and diagnose unresolved merge tags, including typos hidden by defaults. The OpenAI-reviewed route accepts sample data or a policy-checked inline subscriber, not a stored subscriber ID.                                                          |
 
 `get_sending_status` keeps the Postgres-backed pause state, review gates, and
 remediation available when sender-health analytics are temporarily unavailable;
@@ -384,6 +388,9 @@ contact. Unknown names are reported even when a `default` filter supplied text:
 for example, `{{ subscriber.frstName | default: "there" }}` renders a plausible
 greeting for every contact while bypassing stored first names. A recognized
 name that is blank for one contact is not reported when its default is used.
+The OpenAI-reviewed route rejects restricted custom-attribute selectors inside
+merge tags. It also omits the `subscriberId` argument; use a policy-checked
+inline `subscriber`, or omit subscriber data for a sample preview.
 
 To render a sequence step whose `nodeType` is `action_ab_test`, pass the
 step's `sequenceId` and `nodeId` together with a `variantId` from

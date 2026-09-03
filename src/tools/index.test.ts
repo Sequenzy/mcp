@@ -94,6 +94,19 @@ describe("MCP tool profiles", () => {
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
   });
+
+  it("rejects stored-subscriber rendering on the OpenAI profile", async () => {
+    const result = await handleToolCall(
+      "render_email",
+      { campaignId: "campaign_123", subscriberId: "subscriber_123" },
+      { profile: "openai" }
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("Unsupported field");
+    expect(result.content[0]?.text).toContain("subscriberId");
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
 });
 
 function collectSchemaKeywordPaths(

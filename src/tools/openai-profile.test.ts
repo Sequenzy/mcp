@@ -221,6 +221,66 @@ describe("OpenAI MCP profile", () => {
     ).not.toThrow();
   });
 
+  it("blocks restricted merge-tag selectors without blocking authored prose", () => {
+    expect(() =>
+      assertOpenAiInputPolicy("create_campaign", {
+        blocks: [
+          {
+            id: "block-1",
+            type: "text",
+            content: "Your reference is {{ subscriber.ssn }}",
+          },
+        ],
+      })
+    ).toThrow("government identifiers");
+
+    expect(() =>
+      assertOpenAiInputPolicy("update_campaign", {
+        html: "<p>Condition: {{subscriber.profile.diagnosis}}</p>",
+      })
+    ).toThrow("health or medical data");
+
+    expect(() =>
+      assertOpenAiInputPolicy("create_template", {
+        blocks: [
+          {
+            id: "repeat-1",
+            type: "repeat",
+            source: "subscriber.diagnosis",
+            itemAlias: "record",
+            children: [],
+          },
+        ],
+      })
+    ).toThrow("health or medical data");
+
+    expect(() =>
+      assertOpenAiInputPolicy("create_campaign", {
+        blocks: [
+          {
+            id: "block-1",
+            type: "text",
+            content: "Medical condition: awareness month",
+          },
+        ],
+      })
+    ).not.toThrow();
+  });
+
+  it("does not let the reviewed profile render an uninspected stored subscriber", () => {
+    const standard = toolDefinitions.find(
+      (tool) => tool.name === "render_email"
+    );
+    expect(standard).toBeDefined();
+
+    const openAi = withOpenAiToolProfile(
+      withToolOutputSchema(standard as NonNullable<typeof standard>)
+    );
+    expect(openAi?.inputSchema.properties).not.toHaveProperty("subscriberId");
+    expect(openAi?.inputSchema.properties).toHaveProperty("subscriber");
+    expect(openAi?.inputSchema.properties).toHaveProperty("variables");
+  });
+
   it("blocks restricted custom attributes in audience filters", () => {
     expect(() =>
       assertOpenAiInputPolicy("create_segment", {
@@ -649,9 +709,10 @@ describe("OpenAI MCP profile", () => {
 
     expect(() =>
       assertOpenAiInputPolicy("update_company", {
-        logoUrl: "https://cdn.example.test/logo.png?X-Amz-Signature=abc",
+        logoUrl:
+          "https://cdn.example.test/logo.png?X-Amz-Credential=AKIAEXAMPLE%2F20260903%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Signature=0123456789abcdef",
       })
-    ).not.toThrow();
+    ).toThrow("authentication credentials or secrets");
   });
 
   it("blocks subscriber and account identifiers in OpenAI feedback", () => {
@@ -819,6 +880,15 @@ describe("OpenAI MCP profile", () => {
     expect(landingPage.previewUrl).toBe(
       "https://sequenzy.com/lp/preview/page-1?token=signed-preview"
     );
+
+    expect(
+      projectOpenAiToolResult("get_company", {
+        company: {
+          logoUrl:
+            "https://cdn.example.test/logo.png?X-Amz-Signature=0123456789abcdef",
+        },
+      })
+    ).toEqual({ company: { logoUrl: "[redacted restricted data]" } });
   });
 
   it("blocks restricted enrollment cancellation selectors and reasons", () => {
@@ -1032,6 +1102,74 @@ describe("OpenAI MCP profile", () => {
             },
           ],
         },
+      },
+    });
+  });
+
+  it("removes restricted attribute goals from OpenAI reads", () => {
+    expect(
+      projectOpenAiToolResult("list_campaign_goals", {
+        goals: [
+          {
+            id: "goal-safe",
+            triggerType: "attribute_change",
+            attributePath: "profile.plan",
+            attributeValue: "pro",
+          },
+          {
+            id: "goal-private",
+            triggerType: "attribute_change",
+            attributePath: "profile.diagnosis",
+            attributeValue: "asthma",
+          },
+        ],
+      })
+    ).toEqual({
+      goals: [
+        {
+          id: "goal-safe",
+          triggerType: "attribute_change",
+          attributePath: "profile.plan",
+          attributeValue: "pro",
+        },
+      ],
+    });
+
+    expect(
+      projectOpenAiToolResult("list_sequence_goals", {
+        goals: [
+          {
+            id: "goal-private",
+            triggerType: "event_property",
+            eventPropertyName: "patient.ssn",
+          },
+        ],
+      })
+    ).toEqual({ goals: [] });
+  });
+
+  it("redacts restricted merge-tag selectors from existing authored content", () => {
+    expect(
+      projectOpenAiToolResult("get_campaign", {
+        campaign: {
+          blocks: [
+            {
+              id: "block-1",
+              type: "text",
+              content: "Reference: {{subscriber.ssn}}",
+            },
+          ],
+        },
+      })
+    ).toEqual({
+      campaign: {
+        blocks: [
+          {
+            id: "block-1",
+            type: "text",
+            content: "[redacted restricted data]",
+          },
+        ],
       },
     });
   });

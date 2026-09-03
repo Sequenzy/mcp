@@ -394,6 +394,27 @@ function safeDecodeUriComponent(value: string): string {
   }
 }
 
+function isCredentialUrlComponent(value: string): boolean {
+  const normalized = normalizeFieldName(value);
+  if (
+    restrictedFieldCategory(value) === "authentication credentials or secrets"
+  ) {
+    return true;
+  }
+
+  if (["auth", "code", "key", "sig", "signature"].includes(normalized)) {
+    return true;
+  }
+
+  return [
+    "accessid",
+    "accesskeyid",
+    "credential",
+    "securitytoken",
+    "signature",
+  ].some((suffix) => normalized.endsWith(suffix));
+}
+
 /**
  * A credential can ride in any URL component: userinfo, a query or fragment
  * parameter name, a parameter value (a raw token or a nested URL), or a path
@@ -425,6 +446,9 @@ function restrictedUrlCategory(
   ];
   for (const parameters of parameterSets) {
     for (const [key, parameterValue] of parameters) {
+      if (isCredentialUrlComponent(key)) {
+        return "authentication credentials or secrets";
+      }
       const keyCategory = restrictedFieldCategory(key);
       if (keyCategory) return keyCategory;
       const valueCategory = restrictedTextCategory(parameterValue);
@@ -439,10 +463,7 @@ function restrictedUrlCategory(
   const segments = url.pathname.split("/").filter(Boolean);
   for (let index = 0; index < segments.length - 1; index++) {
     const segment = safeDecodeUriComponent(segments[index] ?? "");
-    if (
-      restrictedFieldCategory(segment) ===
-      "authentication credentials or secrets"
-    ) {
+    if (isCredentialUrlComponent(segment)) {
       return "authentication credentials or secrets";
     }
   }
@@ -457,6 +478,25 @@ function restrictedAttributePathCategory(
   return path ? restrictedFieldCategory(path) : undefined;
 }
 
+/**
+ * Authored copy is allowed to discuss restricted topics, but merge tags are
+ * data selectors. Inspect only the expression inside a tag so ordinary prose
+ * such as "Medical condition: awareness month" remains usable.
+ */
+function restrictedMergeTagCategory(
+  value: string
+): RestrictedCategory | undefined {
+  const expressions = value.matchAll(/\{\{\{?\s*([^{}]+?)\s*\}?\}\}/g);
+  for (const match of expressions) {
+    const expression = match[1]?.split("|", 1)[0]?.trim();
+    if (!expression) continue;
+    const attributePath = expression.replace(/^html\./i, "");
+    const category = restrictedAttributePathCategory(attributePath);
+    if (category) return category;
+  }
+  return undefined;
+}
+
 function restrictedSemanticField(
   record: Record<string, unknown>,
   path: string
@@ -469,6 +509,18 @@ function restrictedSemanticField(
   if (record.type === "field_changed" && typeof record.value === "string") {
     const category = restrictedAttributePathCategory(record.value);
     if (category) return { category, path: `${path}.value` };
+  }
+
+  if (record.type === "repeat" && typeof record.source === "string") {
+    const category = restrictedAttributePathCategory(record.source);
+    if (category) return { category, path: `${path}.source` };
+  }
+
+  for (const fieldName of ["attributePath", "eventPropertyName"] as const) {
+    const fieldValue = record[fieldName];
+    if (typeof fieldValue !== "string") continue;
+    const category = restrictedAttributePathCategory(fieldValue);
+    if (category) return { category, path: `${path}.${fieldName}` };
   }
 
   if (
@@ -641,6 +693,33 @@ function scanUrlCredentials(
   return undefined;
 }
 
+function scanRestrictedMergeTags(
+  value: unknown,
+  path: string
+): { category: RestrictedCategory; path: string } | undefined {
+  if (typeof value === "string") {
+    const category = restrictedMergeTagCategory(value);
+    return category ? { category, path } : undefined;
+  }
+
+  if (Array.isArray(value)) {
+    for (let index = 0; index < value.length; index++) {
+      const issue = scanRestrictedMergeTags(value[index], `${path}[${index}]`);
+      if (issue) return issue;
+    }
+    return undefined;
+  }
+
+  if (value === null || typeof value !== "object") return undefined;
+  for (const [key, nestedValue] of Object.entries(
+    value as Record<string, unknown>
+  )) {
+    const issue = scanRestrictedMergeTags(nestedValue, `${path}.${key}`);
+    if (issue) return issue;
+  }
+  return undefined;
+}
+
 function restrictedDataError(issue: {
   category: RestrictedCategory;
   path: string;
@@ -686,11 +765,19 @@ export function withOpenAiToolProfile(tool: Tool): Tool | null {
     inputSchema = { ...inputSchema, properties };
   }
 
+  if (tool.name === "render_email") {
+    const properties = { ...inputSchema.properties };
+    delete properties.subscriberId;
+    inputSchema = { ...inputSchema, properties };
+  }
+
   const descriptionOverrides: Readonly<Record<string, string>> = {
     get_sequence_inbound_webhook:
       "Read the non-secret mapping, sample payload, setup status, and dashboard URL for a sequence inbound webhook. The credential-bearing endpoint URL is omitted from this OpenAI surface.",
     configure_sequence_inbound_webhook:
       "Create or update the mapping and sample attached to a sequence inbound_webhook trigger. The response omits the endpoint secret and credential-bearing URL; a human can copy it from the returned sequence dashboard URL.",
+    render_email:
+      "Render an email with a sample contact or caller-supplied, policy-checked subscriber and variables. Rendering against a stored subscriber ID is unavailable on this OpenAI surface because stored custom attributes cannot be inspected before personalization.",
     submit_feedback:
       "Send generalized product feedback to the Sequenzy team only when the user explicitly asks. Tell the user where it goes before calling. Include no subscriber or account data, content, identifiers, credentials, raw tool calls, API responses, errors, or debug payloads.",
   };
@@ -711,6 +798,12 @@ export function assertOpenAiInputPolicy(
   toolName: string,
   args: Record<string, unknown>
 ): void {
+  if (toolName === "render_email" && args.subscriberId !== undefined) {
+    throw new Error(
+      "`subscriberId` is unavailable on this MCP surface. Use a policy-compliant inline `subscriber`, or omit it to render with sample data."
+    );
+  }
+
   if (
     toolName === "cancel_sequence_enrollments" &&
     args.fieldValues !== undefined &&
@@ -752,6 +845,9 @@ export function assertOpenAiInputPolicy(
     }
   }
 
+  const mergeTagIssue = scanRestrictedMergeTags(args, toolName);
+  if (mergeTagIssue) throw restrictedDataError(mergeTagIssue);
+
   const urlIssue = scanUrlCredentials(args, toolName);
   if (urlIssue) throw restrictedDataError(urlIssue);
 }
@@ -779,6 +875,9 @@ function sanitizeOutputValue(
   path: string
 ): unknown | typeof OMIT_SANITIZED_VALUE {
   if (typeof value === "string") {
+    if (restrictedMergeTagCategory(value)) {
+      return "[redacted restricted data]";
+    }
     // Stored credential-bearing URLs (for example a webhook step created on
     // standard MCP) are redacted on the way out, mirroring the input policy.
     // The landing-page preview URL is exempt: it is a Sequenzy-signed unlisted
