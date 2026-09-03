@@ -872,14 +872,36 @@ describe("OpenAI MCP profile", () => {
     ]);
 
     // The landing-page preview URL is a Sequenzy-signed unlisted link that the
-    // tool exists to hand back, not a third-party credential.
-    const landingPage = projectOpenAiToolResult("preview_landing_page", {
+    // tool exists to hand back, not a third-party credential. The exemption
+    // is scoped to landing-page tools and the /lp/preview/ path: a stored
+    // attribute that happens to be named previewUrl gets no such pass.
+    const landingPage = projectOpenAiToolResult("render_landing_page", {
       previewUrl: "https://sequenzy.com/lp/preview/page-1?token=signed-preview",
       publicUrl: null,
     }) as { previewUrl: string };
     expect(landingPage.previewUrl).toBe(
       "https://sequenzy.com/lp/preview/page-1?token=signed-preview"
     );
+
+    expect(
+      projectOpenAiToolResult("render_landing_page", {
+        previewUrl: "https://hooks.example.test/receive?token=private-token",
+      })
+    ).toEqual({ previewUrl: "[redacted restricted data]" });
+
+    expect(
+      projectOpenAiToolResult("get_subscriber", {
+        subscriber: {
+          customAttributes: {
+            previewUrl: "https://example.test/?access_token=private-token",
+          },
+        },
+      })
+    ).toEqual({
+      subscriber: {
+        customAttributes: { previewUrl: "[redacted restricted data]" },
+      },
+    });
 
     expect(
       projectOpenAiToolResult("get_company", {
@@ -889,6 +911,155 @@ describe("OpenAI MCP profile", () => {
         },
       })
     ).toEqual({ company: { logoUrl: "[redacted restricted data]" } });
+  });
+
+  it("recognizes restricted words inside compound field names without over-matching metadata", () => {
+    for (const [attributes, category] of [
+      [{ passport_id: "AB123456" }, "government identifiers"],
+      [{ ssn_number: "111-22-3333" }, "government identifiers"],
+      [{ socialSecurityNumber: "111-22-3333" }, "government identifiers"],
+      [{ api_secret: "private" }, "authentication credentials or secrets"],
+      [{ userPassword: "hunter2" }, "authentication credentials or secrets"],
+      [{ session_token: "abc" }, "authentication credentials or secrets"],
+      [{ stripe_api_key: "sk_live" }, "authentication credentials or secrets"],
+      [{ patient_id: "p-1" }, "health or medical data"],
+      [{ primaryDiagnosis: "asthma" }, "health or medical data"],
+      [{ credit_card_number: "4111" }, "payment or financial-account data"],
+      [{ religious_affiliation: "x" }, "sensitive demographic data"],
+      [{ geo_lat: 38.7 }, "precise geolocation"],
+    ] as const) {
+      expect(() =>
+        assertOpenAiInputPolicy("add_subscriber", {
+          customAttributes: attributes,
+        })
+      ).toThrow(category);
+    }
+
+    // Ambiguous words only match as a whole field name, and metadata about a
+    // credential or card is not the credential itself.
+    expect(() =>
+      assertOpenAiInputPolicy("add_subscriber", {
+        customAttributes: {
+          pin_code: "1000-001",
+          race_id: "lisbon-half-2026",
+          health_score: 82,
+          device_fingerprint: "fp_123",
+          long_description: "Runs marathons",
+          card_last4: "4242",
+          credit_card_brand: "visa",
+          api_key_id: "key_123",
+          tokenExpiresAt: "2026-09-03",
+          hasPassword: true,
+          nextToken: "cursor-1",
+          replaceApiKeyId: "current",
+        },
+      })
+    ).not.toThrow();
+
+    const projected = projectOpenAiToolResult("get_subscriber", {
+      subscriber: {
+        customAttributes: {
+          passport_id: "AB123456",
+          api_secret: "private",
+          credit_card_brand: "visa",
+          pin_code: "1000-001",
+        },
+      },
+    }) as { subscriber: { customAttributes: Record<string, unknown> } };
+    expect(projected.subscriber.customAttributes).toEqual({
+      credit_card_brand: "visa",
+      pin_code: "1000-001",
+    });
+  });
+
+  it("finds credential-bearing URLs embedded in HTML and prose, in and out", () => {
+    expect(() =>
+      assertOpenAiInputPolicy("create_campaign", {
+        html: '<p>Claim it at <a href="https://example.test/claim?a=1&amp;access_token=private-token">this link</a>.</p>',
+      })
+    ).toThrow("authentication credentials or secrets");
+
+    expect(() =>
+      assertOpenAiInputPolicy("add_subscriber_note", {
+        body: "Portal: https://user:private-password@portal.example.test/home, then call.",
+      })
+    ).toThrow("authentication credentials or secrets");
+
+    expect(() =>
+      assertOpenAiInputPolicy("create_campaign", {
+        html: '<p>Read more at <a href="https://example.test/blog?utm_source=sequenzy&amp;utm_medium=email">our blog</a>.</p>',
+      })
+    ).not.toThrow();
+
+    expect(
+      projectOpenAiToolResult("get_campaign", {
+        campaign: {
+          html: '<p>Go to <a href="https://example.test/claim?access_token=private-token">the portal</a> or <a href="https://example.test/help">help</a>.</p>',
+        },
+      })
+    ).toEqual({
+      campaign: {
+        html: '<p>Go to <a href="[redacted restricted data]">the portal</a> or <a href="https://example.test/help">help</a>.</p>',
+      },
+    });
+  });
+
+  it("checks includeAttributes wherever an AI step is nested", () => {
+    expect(() =>
+      assertOpenAiInputPolicy("create_sequence", {
+        steps: [
+          {
+            type: "ai",
+            prompt: "Personalize",
+            includeAttributes: ["plan", "profile.ssn"],
+          },
+        ],
+      })
+    ).toThrow("government identifiers");
+
+    expect(() =>
+      assertOpenAiInputPolicy("update_sequence_node", {
+        changes: { config: { includeAttributes: ["diagnosis"] } },
+      })
+    ).toThrow("health or medical data");
+
+    expect(() =>
+      assertOpenAiInputPolicy("update_sequence", {
+        steps: [
+          {
+            nodeId: "node-1",
+            branches: [
+              {
+                steps: [{ type: "ai", includeAttributes: ["passport_number"] }],
+              },
+            ],
+          },
+        ],
+      })
+    ).toThrow("government identifiers");
+
+    expect(() =>
+      assertOpenAiInputPolicy("create_sequence", {
+        steps: [{ type: "ai", includeAttributes: ["plan", "company"] }],
+      })
+    ).not.toThrow();
+
+    expect(
+      projectOpenAiToolResult("get_sequence", {
+        sequence: {
+          steps: [
+            {
+              type: "ai",
+              config: { includeAttributes: ["plan", "profile.ssn"] },
+            },
+          ],
+        },
+      })
+    ).toEqual({
+      sequence: {
+        steps: [{ type: "ai", config: { includeAttributes: ["plan"] } }],
+      },
+    });
   });
 
   it("blocks restricted enrollment cancellation selectors and reasons", () => {

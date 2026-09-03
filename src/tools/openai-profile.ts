@@ -1,617 +1,87 @@
 import type { JsonSchemaObject, Tool } from "../mcp-types.js";
 
 import {
+  isOmittedOutputField,
+  normalizeFieldName,
+  redactRestrictedUrls,
+  restrictedAttributePathCategory,
+  restrictedEmbeddedUrlCategory,
+  restrictedFieldCategory,
+  restrictedMergeTagCategory,
+  restrictedRecordIssue,
+  restrictedTextCategory,
+  type RestrictedIssue,
+} from "./openai-profile-matchers.js";
+import {
+  ATTRIBUTE_PATH_LIST_FIELDS,
+  DATA_BEARING_FIELDS,
+  DATA_BEARING_FIELDS_BY_TOOL,
+  FEEDBACK_IDENTIFIER_RULES,
+  LANDING_PAGE_PREVIEW_PATH_PREFIX,
+  LANDING_PAGE_PREVIEW_TOOLS,
+  NOTICE_INPUT_FIELDS,
+  OPENAI_EXCLUDED_TOOL_NAMES,
+  REDACTED_VALUE,
+  SECRET_ENDPOINT_TOOLS,
+  TEXTUAL_PERSONAL_DATA_OUTPUT_TOOLS,
+} from "./openai-profile-rules.js";
+import {
   appendOpenAiRestrictedDataNotice,
   createOpenAiAccountOutputSchema,
   createOpenAiFeedbackInputSchema,
 } from "./openai-profile-schemas.js";
 
+export { OPENAI_EXCLUDED_TOOL_NAMES } from "./openai-profile-rules.js";
 export { OPENAI_RESTRICTED_DATA_NOTICE } from "./openai-profile-schemas.js";
 
-/**
- * High-risk or unsubmitted operations that must remain unavailable on the
- * OpenAI-reviewed surface even though they stay on standard MCP.
- */
-export const OPENAI_EXCLUDED_TOOL_NAMES: ReadonlySet<string> = new Set([
-  "connect_integration",
-  "create_api_key",
-  "create_webhook",
-  "list_webhook_deliveries",
-  "replay_webhook_delivery",
-  "rotate_sequence_inbound_webhook_secret",
-]);
-
-type ProtectedInput = {
-  name: string;
-  scanAttributePath?: boolean;
-  scanText?: boolean;
+type ScanContext = {
+  toolName: string;
+  path: string;
+  /** The property this value sits under; array items inherit the array's key. */
+  key?: string;
+  /** True once inside a data-bearing field, where labelled prose is checked. */
+  textScanned: boolean;
 };
 
-const PROTECTED_INPUTS_BY_TOOL: Readonly<
-  Record<string, readonly ProtectedInput[]>
-> = {
-  add_subscriber: [
-    { name: "attributes", scanText: true },
-    { name: "customAttributes", scanText: true },
-  ],
-  create_subscriber_import: [{ name: "subscribers", scanText: true }],
-  update_subscriber: [
-    { name: "attributes", scanText: true },
-    { name: "customAttributes", scanText: true },
-  ],
-  add_subscriber_note: [{ name: "body", scanText: true }],
-  reply_to_conversation: [
-    { name: "subject", scanText: true },
-    { name: "bodyText", scanText: true },
-    { name: "bodyHtml", scanText: true },
-  ],
-  trigger_subscriber_event: [
-    { name: "properties", scanText: true },
-    { name: "attributes", scanText: true },
-  ],
-  trigger_subscriber_events: [
-    { name: "events", scanText: true },
-    { name: "attributes", scanText: true },
-  ],
-  import_subscriber_events: [{ name: "events", scanText: true }],
-  search_subscribers: [
-    { name: "attribute", scanAttributePath: true, scanText: true },
-    { name: "attributeValue", scanText: true },
-  ],
-  create_segment: [
-    { name: "filters", scanText: true },
-    { name: "root", scanText: true },
-  ],
-  update_segment: [
-    { name: "filters", scanText: true },
-    { name: "root", scanText: true },
-  ],
-  create_campaign: [
-    { name: "blocks" },
-    { name: "targetLists", scanText: true },
-    { name: "campaignData", scanText: true },
-    { name: "computedLists", scanText: true },
-  ],
-  update_campaign: [
-    { name: "blocks" },
-    { name: "targetLists", scanText: true },
-    { name: "campaignData", scanText: true },
-    { name: "computedLists", scanText: true },
-  ],
-  schedule_campaign: [{ name: "targetLists", scanText: true }],
-  create_template: [{ name: "blocks" }],
-  update_template: [{ name: "blocks" }],
-  set_template_localization: [{ name: "blocks" }],
-  set_default_email_component: [{ name: "blocks" }],
-  create_email_component: [{ name: "blocks" }],
-  update_email_component: [{ name: "blocks" }],
-  update_ab_test_variant: [{ name: "blocks" }],
-  create_ab_test: [{ name: "variants" }],
-  add_ab_test_variant: [{ name: "blocks" }],
-  create_transactional_email: [{ name: "blocks" }],
-  update_transactional_email: [{ name: "blocks" }],
-  create_campaign_goal: [
-    { name: "attributePath", scanAttributePath: true },
-    { name: "attributeValue", scanText: true },
-    { name: "attributePreviousValue", scanText: true },
-    { name: "eventPropertyName", scanAttributePath: true },
-  ],
-  update_campaign_goal: [
-    { name: "attributePath", scanAttributePath: true },
-    { name: "attributeValue", scanText: true },
-    { name: "attributePreviousValue", scanText: true },
-    { name: "eventPropertyName", scanAttributePath: true },
-  ],
-  create_sequence_goal: [
-    { name: "attributePath", scanAttributePath: true },
-    { name: "attributeValue", scanText: true },
-    { name: "attributePreviousValue", scanText: true },
-    { name: "eventPropertyName", scanAttributePath: true },
-  ],
-  update_sequence_goal: [
-    { name: "attributePath", scanAttributePath: true },
-    { name: "attributeValue", scanText: true },
-    { name: "attributePreviousValue", scanText: true },
-    { name: "eventPropertyName", scanAttributePath: true },
-  ],
-  render_email: [
-    { name: "subscriber", scanText: true },
-    { name: "variables", scanText: true },
-  ],
-  send_email: [{ name: "variables", scanText: true }],
-  update_webhook: [{ name: "url", scanText: true }],
-  update_form: [{ name: "blocks" }],
-  create_popup: [{ name: "blocks" }],
-  update_popup: [{ name: "blocks" }],
-  create_landing_page: [{ name: "content" }],
-  update_landing_page: [{ name: "content" }],
-  publish_landing_page: [{ name: "content" }],
-  unpublish_landing_page: [{ name: "content" }],
-  create_sequence: [
-    { name: "enrollmentFieldPath", scanAttributePath: true },
-    { name: "propertyFilters", scanText: true },
-    { name: "stopCondition" },
-    { name: "customIntegration", scanText: true },
-    { name: "steps" },
-  ],
-  update_sequence: [
-    { name: "enrollmentFieldPath", scanAttributePath: true },
-    { name: "trigger", scanText: true },
-    { name: "propertyFilters", scanText: true },
-    { name: "customIntegration", scanText: true },
-    { name: "emails" },
-    { name: "steps" },
-    { name: "branch" },
-    { name: "insertSteps" },
-    { name: "subscriberUpdateSteps" },
-    { name: "stopCondition" },
-  ],
-  update_sequence_node: [{ name: "changes" }],
-  update_sequence_nodes: [{ name: "updates" }],
-  insert_sequence_step: [
-    { name: "blocks" },
-    { name: "config", scanText: true },
-    { name: "url", scanText: true },
-    { name: "headers", scanText: true },
-    { name: "body", scanText: true },
-    { name: "fieldName", scanAttributePath: true },
-    { name: "fieldValue", scanText: true },
-    { name: "includeAttributes", scanAttributePath: true },
-    { name: "outputFields", scanText: true },
-    { name: "branches", scanText: true },
-    { name: "elseSteps", scanText: true },
-  ],
-  configure_sequence_inbound_webhook: [
-    { name: "fieldMapping", scanText: true },
-    { name: "samplePayload", scanText: true },
-  ],
-  cancel_sequence_enrollments: [
-    { name: "fieldPath", scanAttributePath: true },
-    { name: "fieldValues", scanText: true },
-    { name: "reason", scanText: true },
-  ],
-  submit_feedback: [
-    { name: "message", scanText: true },
-    { name: "context", scanText: true },
-  ],
-};
-
-type RestrictedCategory =
-  | "authentication credentials or secrets"
-  | "biometric or genetic data"
-  | "government identifiers"
-  | "health or medical data"
-  | "payment or financial-account data"
-  | "precise geolocation"
-  | "sensitive demographic data";
-
-const RESTRICTED_FIELD_RULES: ReadonlyArray<{
-  category: RestrictedCategory;
-  pattern: RegExp;
-}> = [
-  {
-    category: "government identifiers",
-    pattern:
-      /^(ssn|socialsecurity(number)?|governmentid|nationalid|passport(number)?|driverlicen[cs]e(number)?|taxid|tin)$/,
-  },
-  {
-    category: "payment or financial-account data",
-    pattern:
-      /^(cardnumber|creditcard(number)?|debitcard(number)?|paymentcard(number)?|pan|cvv|cvc|cardsecuritycode|bankaccount(number)?|routingnumber|iban)$/,
-  },
-  {
-    category: "health or medical data",
-    pattern:
-      /^(health|healthcondition|medical|medicalcondition|diagnosis|diagnoses|patientid|prescription|medication|treatment|healthinsurance|medicalrecord(number)?)$/,
-  },
-  {
-    category: "biometric or genetic data",
-    pattern:
-      /^(biometric(s)?|fingerprint|faceprint|voiceprint|retinascan|genetic(data)?|dna)$/,
-  },
-  {
-    category: "authentication credentials or secrets",
-    pattern:
-      /^(password|passcode|pin|otp|onetimepassword|mfacode|x?apikey|personalapikey|profileapitoken|x?accesstoken|refreshtoken|x?authtoken|x?authorization|credential(s)?|secret|token|clientsecret|secretkey|signingsecret|x?webhooksecret|webhooksignature|privatetoken|rawkey|plainkey)$/,
-  },
-  {
-    category: "sensitive demographic data",
-    pattern:
-      /^(race|ethnicity|religion|religiousbelief|sexualorientation|genderidentity|politicalaffiliation|politicalopinion|unionmembership|disability)$/,
-  },
-  {
-    category: "precise geolocation",
-    pattern:
-      /^(lat|lng|lon|long|latitude|longitude|latlng|latlon|coordinates|coords|geocoordinates|gpscoordinates|geopoint|gps|geolocation|preciselocation)$/,
-  },
-];
-
-const RESTRICTED_TEXT_RULES: ReadonlyArray<{
-  category: RestrictedCategory;
-  pattern: RegExp;
-}> = [
-  {
-    category: "government identifiers",
-    pattern:
-      /\b(?:ssn|social security(?: number)?|passport(?: number)?|government id)\s*[:#-]\s*\S+/i,
-  },
-  {
-    category: "payment or financial-account data",
-    pattern:
-      /\b(?:card number|credit card|debit card|cvv|cvc|bank account|routing number|iban)\s*[:#-]\s*\S+/i,
-  },
-  {
-    category: "health or medical data",
-    pattern:
-      /\b(?:diagnosis|medical condition|health condition|patient id|prescription|medication)\s*[:#-]\s*\S+/i,
-  },
-  {
-    category: "biometric or genetic data",
-    pattern:
-      /\b(?:fingerprint|faceprint|voiceprint|retina scan|biometric|genetic data|dna)\s*[:#-]\s*\S+/i,
-  },
-  {
-    category: "authentication credentials or secrets",
-    pattern:
-      /\b(?:password|passcode|one[- ]time password|otp|mfa code|api key|access token|refresh token|client secret|authorization)\s*[:=]\s*\S+/i,
-  },
-  {
-    category: "authentication credentials or secrets",
-    pattern:
-      /\b(?:Bearer\s+[A-Za-z0-9._~+/=-]{12,}|seq_(?:user_)?[A-Za-z0-9_-]{12,}|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,})\b/,
-  },
-  {
-    category: "sensitive demographic data",
-    pattern:
-      /\b(?:race|ethnicity|religion|religious belief|sexual orientation|gender identity|political (?:affiliation|opinion|party)|union membership|disability)\s*[:#-]\s*\S+/i,
-  },
-  {
-    category: "precise geolocation",
-    pattern:
-      /\b(?:latitude|longitude|lat|lng|lon|gps(?: coordinates)?|coordinates|coords|geolocation|precise location)\s*[:#=-]\s*-?\d/i,
-  },
-  {
-    // A bare decimal coordinate pair such as `38.7223, -9.1393`. Four or more
-    // decimals keeps ordinary prices and measurements out of this rule.
-    category: "precise geolocation",
-    pattern:
-      /(?:^|[^\d.-])-?(?:90(?:\.0+)?|[1-8]?\d\.\d{4,})\s*,\s*-?(?:180(?:\.0+)?|1[0-7]\d\.\d{4,}|[1-9]?\d\.\d{4,})(?![\d.])/,
-  },
-];
-
-/**
- * The OpenAI feedback schema promises generalized feedback with no subscriber
- * or account identifiers, so feedback text is also checked for the identifier
- * shapes Sequenzy uses: email addresses, cuid2 resource IDs, and UUIDs.
- * Standard MCP keeps its structured `resourceIds` field for that purpose.
- */
-const FEEDBACK_IDENTIFIER_RULES: ReadonlyArray<{
-  label: string;
-  pattern: RegExp;
-}> = [
-  {
-    label: "an email address",
-    pattern:
-      /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}/,
-  },
-  {
-    label: "a UUID",
-    pattern:
-      /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i,
-  },
-  { label: "a resource ID", pattern: /\b[a-z][a-z0-9]{23,}\b/ },
-];
-
-const OMITTED_OUTPUT_FIELDS = new Set([
-  "accountid",
-  "debug",
-  "debuginfo",
-  "diagnostic",
-  "diagnostics",
-  "errordetails",
-  "errorstack",
-  "headers",
-  "internaldetails",
-  "internalid",
-  "lasterror",
-  "lastresponsebody",
-  "lastsyncerror",
-  "metadata",
-  "payload",
-  "rawdetails",
-  "rawpayload",
-  "rawrequest",
-  "rawresponse",
-  "requestbody",
-  "requestheaders",
-  "requestid",
-  "responsebody",
-  "responseheaders",
-  "sessionid",
-  "stack",
-  "stacktrace",
-  "traceid",
-  "userid",
-]);
-
-const RESTRICTED_ATTRIBUTE_PATH_ARRAY_FIELDS = new Set([
-  "customAttributeKeys",
-  "entryEventPropertyKeys",
-  "eventPropertyKeys",
-  "fieldSnapshotKeys",
-]);
-
-const SECRET_ENDPOINT_TOOLS = new Set([
-  "get_sequence_inbound_webhook",
-  "configure_sequence_inbound_webhook",
-]);
-
-const OMIT_SANITIZED_VALUE = Symbol("omit-sanitized-value");
-
-function normalizeFieldName(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
-}
-
-function isOmittedOutputField(normalizedFieldName: string): boolean {
-  if (OMITTED_OUTPUT_FIELDS.has(normalizedFieldName)) return true;
-  return ["internalid", "requestid", "sessionid", "traceid", "userid"].some(
-    (suffix) => normalizedFieldName.endsWith(suffix)
+function isDataBearing(toolName: string, key: string): boolean {
+  return (
+    DATA_BEARING_FIELDS.has(key) ||
+    DATA_BEARING_FIELDS_BY_TOOL[toolName]?.has(key) === true
   );
 }
 
 /**
- * Field names may be attribute paths such as `profile.ssn` or
- * `billing[cardNumber]`. Normalizing the whole key would flatten `profile.ssn`
- * to `profilessn`, which matches no rule, so every path segment is checked as
- * well as the flattened key.
+ * One recursive pass over every argument of every tool. Structural rules
+ * (field names, attribute paths, named records, merge tags, embedded URLs)
+ * apply everywhere; labelled-prose rules apply only under data-bearing fields
+ * so authored campaign copy is left alone.
  */
-function restrictedFieldCategory(
-  fieldName: string
-): RestrictedCategory | undefined {
-  const candidates = [fieldName, ...fieldName.split(/\.|\[|\]/)].filter(
-    Boolean
-  );
-  for (const candidate of candidates) {
-    const normalized = normalizeFieldName(candidate);
-    const category = RESTRICTED_FIELD_RULES.find(({ pattern }) =>
-      pattern.test(normalized)
-    )?.category;
-    if (category) return category;
-  }
-  return undefined;
-}
-
-function restrictedTextCategory(value: string): RestrictedCategory | undefined {
-  return RESTRICTED_TEXT_RULES.find(({ pattern }) => pattern.test(value))
-    ?.category;
-}
-
-function safeDecodeUriComponent(value: string): string {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return value;
-  }
-}
-
-function isCredentialUrlComponent(value: string): boolean {
-  const normalized = normalizeFieldName(value);
-  if (
-    restrictedFieldCategory(value) === "authentication credentials or secrets"
-  ) {
-    return true;
-  }
-
-  if (["auth", "code", "key", "sig", "signature"].includes(normalized)) {
-    return true;
-  }
-
-  return [
-    "accessid",
-    "accesskeyid",
-    "credential",
-    "securitytoken",
-    "signature",
-  ].some((suffix) => normalized.endsWith(suffix));
-}
-
-/**
- * A credential can ride in any URL component: userinfo, a query or fragment
- * parameter name, a parameter value (a raw token or a nested URL), or a path
- * such as `/access_token/<secret>`. Path segments are only treated as a
- * credential when a credential-named segment is followed by a value, so
- * `/oauth/token` and `/health` endpoints stay usable.
- */
-function restrictedUrlCategory(
-  value: string,
-  depth = 0
-): RestrictedCategory | undefined {
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    return undefined;
-  }
-
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    return undefined;
-  }
-  if (url.username || url.password) {
-    return "authentication credentials or secrets";
-  }
-
-  const parameterSets = [
-    url.searchParams,
-    new URLSearchParams(url.hash.replace(/^#/, "")),
-  ];
-  for (const parameters of parameterSets) {
-    for (const [key, parameterValue] of parameters) {
-      if (isCredentialUrlComponent(key)) {
-        return "authentication credentials or secrets";
-      }
-      const keyCategory = restrictedFieldCategory(key);
-      if (keyCategory) return keyCategory;
-      const valueCategory = restrictedTextCategory(parameterValue);
-      if (valueCategory) return valueCategory;
-      if (depth < 2) {
-        const nestedCategory = restrictedUrlCategory(parameterValue, depth + 1);
-        if (nestedCategory) return nestedCategory;
-      }
-    }
-  }
-
-  const segments = url.pathname.split("/").filter(Boolean);
-  for (let index = 0; index < segments.length - 1; index++) {
-    const segment = safeDecodeUriComponent(segments[index] ?? "");
-    if (isCredentialUrlComponent(segment)) {
-      return "authentication credentials or secrets";
-    }
-  }
-  const decodedPath = safeDecodeUriComponent(url.pathname);
-  return restrictedTextCategory(decodedPath);
-}
-
-function restrictedAttributePathCategory(
-  value: string
-): RestrictedCategory | undefined {
-  const path = value.split(":", 1)[0]?.trim();
-  return path ? restrictedFieldCategory(path) : undefined;
-}
-
-/**
- * Authored copy is allowed to discuss restricted topics, but merge tags are
- * data selectors. Inspect only the expression inside a tag so ordinary prose
- * such as "Medical condition: awareness month" remains usable.
- */
-function restrictedMergeTagCategory(
-  value: string
-): RestrictedCategory | undefined {
-  const expressions = value.matchAll(/\{\{\{?\s*([^{}]+?)\s*\}?\}\}/g);
-  for (const match of expressions) {
-    const expression = match[1]?.split("|", 1)[0]?.trim();
-    if (!expression) continue;
-    const attributePath = expression.replace(/^html\./i, "");
-    const category = restrictedAttributePathCategory(attributePath);
-    if (category) return category;
-  }
-  return undefined;
-}
-
-function restrictedSemanticField(
-  record: Record<string, unknown>,
-  path: string
-): { category: RestrictedCategory; path: string } | undefined {
-  if (record.field === "attribute" && typeof record.value === "string") {
-    const category = restrictedAttributePathCategory(record.value);
-    if (category) return { category, path: `${path}.value` };
-  }
-
-  if (record.type === "field_changed" && typeof record.value === "string") {
-    const category = restrictedAttributePathCategory(record.value);
-    if (category) return { category, path: `${path}.value` };
-  }
-
-  if (record.type === "repeat" && typeof record.source === "string") {
-    const category = restrictedAttributePathCategory(record.source);
-    if (category) return { category, path: `${path}.source` };
-  }
-
-  for (const fieldName of ["attributePath", "eventPropertyName"] as const) {
-    const fieldValue = record[fieldName];
-    if (typeof fieldValue !== "string") continue;
-    const category = restrictedAttributePathCategory(fieldValue);
-    if (category) return { category, path: `${path}.${fieldName}` };
-  }
-
-  if (
-    /(?:^|\.)propertyFilters\[\d+\]$/.test(path) &&
-    typeof record.path === "string"
-  ) {
-    const category = restrictedAttributePathCategory(record.path);
-    if (category) return { category, path: `${path}.path` };
-  }
-
-  for (const fieldName of ["entryFieldPath", "eventFieldPath"] as const) {
-    const fieldValue = record[fieldName];
-    if (typeof fieldValue !== "string") continue;
-    const category = restrictedAttributePathCategory(fieldValue);
-    if (category) return { category, path: `${path}.${fieldName}` };
-  }
-
-  for (const fieldName of ["fieldName", "attributeKey"] as const) {
-    const fieldValue = record[fieldName];
-    if (typeof fieldValue !== "string") continue;
-    const category = restrictedAttributePathCategory(fieldValue);
-    if (category) return { category, path: `${path}.${fieldName}` };
-  }
-
-  if (record.kind === "form-field") {
-    for (const fieldName of ["name", "label", "placeholder"] as const) {
-      const fieldValue = record[fieldName];
-      if (typeof fieldValue !== "string") continue;
-      const category = restrictedFieldCategory(fieldValue);
-      if (category) return { category, path: `${path}.${fieldName}` };
-    }
-  }
-
-  if (
-    /(?:^|\.)(?:customAttributeUpdates|customFields)\[\d+\]$/.test(path) &&
-    typeof record.name === "string"
-  ) {
-    const category = restrictedFieldCategory(record.name);
-    if (category) return { category, path: `${path}.name` };
-  }
-
-  if (
-    /(?:^|\.)outputFields\[\d+\]$/.test(path) &&
-    typeof record.key === "string"
-  ) {
-    const category = restrictedFieldCategory(record.key);
-    if (category) return { category, path: `${path}.key` };
-  }
-
-  return undefined;
-}
-
-function restrictedAttributePathArrayIssue(
-  record: Record<string, unknown>,
-  path: string
-): { category: RestrictedCategory; path: string } | undefined {
-  for (const fieldName of RESTRICTED_ATTRIBUTE_PATH_ARRAY_FIELDS) {
-    const values = record[fieldName];
-    if (!Array.isArray(values)) continue;
-    for (let index = 0; index < values.length; index++) {
-      const value = values[index];
-      if (typeof value !== "string") continue;
-      const category = restrictedAttributePathCategory(value);
-      if (category) {
-        return { category, path: `${path}.${fieldName}[${index}]` };
-      }
-    }
-  }
-  return undefined;
-}
-
-function scanProtectedValue(
+function scanInputValue(
   value: unknown,
-  path: string,
-  scanText: boolean
-): { category: RestrictedCategory; path: string } | undefined {
+  ctx: ScanContext
+): RestrictedIssue | undefined {
   if (typeof value === "string") {
-    const urlCategory = restrictedUrlCategory(value);
-    if (urlCategory) return { category: urlCategory, path };
-    if (!scanText) return undefined;
-    const category = restrictedTextCategory(value);
-    return category ? { category, path } : undefined;
+    const urlCategory = restrictedEmbeddedUrlCategory(value);
+    if (urlCategory) return { category: urlCategory, path: ctx.path };
+    const mergeTagCategory = restrictedMergeTagCategory(value);
+    if (mergeTagCategory) return { category: mergeTagCategory, path: ctx.path };
+    if (ctx.key && ATTRIBUTE_PATH_LIST_FIELDS.has(ctx.key)) {
+      const category = restrictedAttributePathCategory(value);
+      if (category) return { category, path: ctx.path };
+    }
+    if (ctx.textScanned) {
+      const category = restrictedTextCategory(value);
+      if (category) return { category, path: ctx.path };
+    }
+    return undefined;
   }
 
   if (Array.isArray(value)) {
     for (let index = 0; index < value.length; index++) {
-      const issue = scanProtectedValue(
-        value[index],
-        `${path}[${index}]`,
-        scanText
-      );
+      const issue = scanInputValue(value[index], {
+        ...ctx,
+        path: `${ctx.path}[${index}]`,
+      });
       if (issue) return issue;
     }
     return undefined;
@@ -620,110 +90,26 @@ function scanProtectedValue(
   if (value === null || typeof value !== "object") return undefined;
 
   const record = value as Record<string, unknown>;
-  const semanticIssue = restrictedSemanticField(record, path);
-  if (semanticIssue) return semanticIssue;
-  const attributePathArrayIssue = restrictedAttributePathArrayIssue(
-    record,
-    path
-  );
-  if (attributePathArrayIssue) return attributePathArrayIssue;
+  const recordIssue = restrictedRecordIssue(record, ctx.path, ctx.key);
+  if (recordIssue) return recordIssue;
 
   for (const [key, nestedValue] of Object.entries(record)) {
-    const nestedPath = `${path}.${key}`;
+    const path = `${ctx.path}.${key}`;
     const category = restrictedFieldCategory(key);
-    if (category) return { category, path: nestedPath };
+    if (category) return { category, path };
 
-    const issue = scanProtectedValue(nestedValue, nestedPath, scanText);
-    if (issue) return issue;
-  }
-
-  return undefined;
-}
-
-function scanProtectedAttributePaths(
-  value: unknown,
-  path: string
-): { category: RestrictedCategory; path: string } | undefined {
-  if (typeof value === "string") {
-    const category = restrictedAttributePathCategory(value);
-    return category ? { category, path } : undefined;
-  }
-
-  if (!Array.isArray(value)) return undefined;
-  for (let index = 0; index < value.length; index++) {
-    const issue = scanProtectedAttributePaths(
-      value[index],
-      `${path}[${index}]`
-    );
+    const issue = scanInputValue(nestedValue, {
+      toolName: ctx.toolName,
+      path,
+      key,
+      textScanned: ctx.textScanned || isDataBearing(ctx.toolName, key),
+    });
     if (issue) return issue;
   }
   return undefined;
 }
 
-/**
- * Credential-bearing URLs are blocked in every argument of every tool, not only
- * in the protected inputs above, so form and popup redirect URLs, company
- * links, product URLs, and future URL fields cannot carry a token past the
- * reviewed surface.
- */
-function scanUrlCredentials(
-  value: unknown,
-  path: string
-): { category: RestrictedCategory; path: string } | undefined {
-  if (typeof value === "string") {
-    const category = restrictedUrlCategory(value);
-    return category ? { category, path } : undefined;
-  }
-
-  if (Array.isArray(value)) {
-    for (let index = 0; index < value.length; index++) {
-      const issue = scanUrlCredentials(value[index], `${path}[${index}]`);
-      if (issue) return issue;
-    }
-    return undefined;
-  }
-
-  if (value === null || typeof value !== "object") return undefined;
-  for (const [key, nestedValue] of Object.entries(
-    value as Record<string, unknown>
-  )) {
-    const issue = scanUrlCredentials(nestedValue, `${path}.${key}`);
-    if (issue) return issue;
-  }
-  return undefined;
-}
-
-function scanRestrictedMergeTags(
-  value: unknown,
-  path: string
-): { category: RestrictedCategory; path: string } | undefined {
-  if (typeof value === "string") {
-    const category = restrictedMergeTagCategory(value);
-    return category ? { category, path } : undefined;
-  }
-
-  if (Array.isArray(value)) {
-    for (let index = 0; index < value.length; index++) {
-      const issue = scanRestrictedMergeTags(value[index], `${path}[${index}]`);
-      if (issue) return issue;
-    }
-    return undefined;
-  }
-
-  if (value === null || typeof value !== "object") return undefined;
-  for (const [key, nestedValue] of Object.entries(
-    value as Record<string, unknown>
-  )) {
-    const issue = scanRestrictedMergeTags(nestedValue, `${path}.${key}`);
-    if (issue) return issue;
-  }
-  return undefined;
-}
-
-function restrictedDataError(issue: {
-  category: RestrictedCategory;
-  path: string;
-}): Error {
+function restrictedDataError(issue: RestrictedIssue): Error {
   return new Error(
     `Restricted personal data was blocked in ${issue.path} (${issue.category}). Remove it and retry with ordinary business, contact, marketing, or commerce data only.`
   );
@@ -748,8 +134,13 @@ export function withOpenAiToolProfile(tool: Tool): Tool | null {
 
   if (tool.name !== "submit_feedback") {
     const properties = inputSchema.properties ?? {};
-    for (const { name } of PROTECTED_INPUTS_BY_TOOL[tool.name] ?? []) {
-      const property = properties[name];
+    for (const [name, property] of Object.entries(properties)) {
+      if (
+        !NOTICE_INPUT_FIELDS.has(name) &&
+        DATA_BEARING_FIELDS_BY_TOOL[tool.name]?.has(name) !== true
+      ) {
+        continue;
+      }
       if (property === null || typeof property !== "object") continue;
       const profiledProperty = appendOpenAiRestrictedDataNotice(
         property as JsonSchemaObject
@@ -814,23 +205,12 @@ export function assertOpenAiInputPolicy(
     );
   }
 
-  for (const input of PROTECTED_INPUTS_BY_TOOL[toolName] ?? []) {
-    const value = args[input.name];
-    if (value === undefined) continue;
-    if (input.scanAttributePath) {
-      const issue = scanProtectedAttributePaths(
-        value,
-        `${toolName}.${input.name}`
-      );
-      if (issue) throw restrictedDataError(issue);
-    }
-    const issue = scanProtectedValue(
-      value,
-      `${toolName}.${input.name}`,
-      input.scanText === true
-    );
-    if (issue) throw restrictedDataError(issue);
-  }
+  const issue = scanInputValue(args, {
+    toolName,
+    path: toolName,
+    textScanned: false,
+  });
+  if (issue) throw restrictedDataError(issue);
 
   if (toolName === "submit_feedback") {
     for (const fieldName of ["message", "context"] as const) {
@@ -844,59 +224,38 @@ export function assertOpenAiInputPolicy(
       }
     }
   }
-
-  const mergeTagIssue = scanRestrictedMergeTags(args, toolName);
-  if (mergeTagIssue) throw restrictedDataError(mergeTagIssue);
-
-  const urlIssue = scanUrlCredentials(args, toolName);
-  if (urlIssue) throw restrictedDataError(urlIssue);
 }
 
-const TEXTUAL_PERSONAL_DATA_OUTPUT_TOOLS = new Set([
-  "add_subscriber_note",
-  "get_conversation",
-  "get_subscriber",
-  "list_conversations",
-  "list_poll_responses",
-  "list_subscriber_notes",
-  "reply_to_conversation",
-]);
+const OMIT_SANITIZED_VALUE = Symbol("omit-sanitized-value");
 
-function shouldScanOutputText(toolName: string, path: string): boolean {
-  if (TEXTUAL_PERSONAL_DATA_OUTPUT_TOOLS.has(toolName)) return true;
-  return /(?:^|\.)(?:attributes|customAttributes|fieldMapping|properties|samplePayload)(?:\.|\[|$)/.test(
-    path
-  );
+function isLandingPagePreviewUrl(value: string): boolean {
+  try {
+    return new URL(value).pathname.startsWith(LANDING_PAGE_PREVIEW_PATH_PREFIX);
+  } catch {
+    return false;
+  }
 }
 
 function sanitizeOutputValue(
-  toolName: string,
   value: unknown,
-  path: string
+  ctx: ScanContext
 ): unknown | typeof OMIT_SANITIZED_VALUE {
   if (typeof value === "string") {
-    if (restrictedMergeTagCategory(value)) {
-      return "[redacted restricted data]";
-    }
-    // Stored credential-bearing URLs (for example a webhook step created on
-    // standard MCP) are redacted on the way out, mirroring the input policy.
-    // The landing-page preview URL is exempt: it is a Sequenzy-signed unlisted
-    // link that preview_landing_page exists to return.
-    if (!/(?:^|\.)previewUrl$/.test(path) && restrictedUrlCategory(value)) {
-      return "[redacted restricted data]";
-    }
-    return shouldScanOutputText(toolName, path) && restrictedTextCategory(value)
-      ? "[redacted restricted data]"
-      : value;
+    if (restrictedMergeTagCategory(value)) return REDACTED_VALUE;
+    if (ctx.textScanned && restrictedTextCategory(value)) return REDACTED_VALUE;
+    const previewExempt =
+      ctx.key === "previewUrl" &&
+      LANDING_PAGE_PREVIEW_TOOLS.has(ctx.toolName) &&
+      isLandingPagePreviewUrl(value);
+    return previewExempt ? value : redactRestrictedUrls(value);
   }
 
   if (Array.isArray(value)) {
     return value.flatMap((item, index) => {
-      const sanitized = sanitizeOutputValue(
-        toolName,
-        item,
-        `${path}[${index}]`
-      );
+      const sanitized = sanitizeOutputValue(item, {
+        ...ctx,
+        path: `${ctx.path}[${index}]`,
+      });
       return sanitized === OMIT_SANITIZED_VALUE ? [] : [sanitized];
     });
   }
@@ -904,15 +263,17 @@ function sanitizeOutputValue(
   if (value === null || typeof value !== "object") return value;
 
   const record = value as Record<string, unknown>;
-  if (restrictedSemanticField(record, path)) return OMIT_SANITIZED_VALUE;
+  if (restrictedRecordIssue(record, ctx.path, ctx.key)) {
+    return OMIT_SANITIZED_VALUE;
+  }
 
   const sanitized: Record<string, unknown> = {};
   for (const [key, nestedValue] of Object.entries(record)) {
     const normalizedKey = normalizeFieldName(key);
-    if (isOmittedOutputField(normalizedKey)) continue;
+    if (isOmittedOutputField(key)) continue;
     if (
-      SECRET_ENDPOINT_TOOLS.has(toolName) &&
-      path === "webhook" &&
+      SECRET_ENDPOINT_TOOLS.has(ctx.toolName) &&
+      ctx.path === "webhook" &&
       (normalizedKey === "url" || normalizedKey === "webhookurl")
     ) {
       continue;
@@ -924,10 +285,7 @@ function sanitizeOutputValue(
       typeof nestedValue === "object";
     if (restrictedFieldCategory(key) && !metadataApiKey) continue;
 
-    if (
-      RESTRICTED_ATTRIBUTE_PATH_ARRAY_FIELDS.has(key) &&
-      Array.isArray(nestedValue)
-    ) {
+    if (ATTRIBUTE_PATH_LIST_FIELDS.has(key) && Array.isArray(nestedValue)) {
       sanitized[key] = nestedValue.filter(
         (item) =>
           typeof item !== "string" ||
@@ -936,17 +294,17 @@ function sanitizeOutputValue(
       continue;
     }
 
-    const nestedPath = path ? `${path}.${key}` : key;
-    const sanitizedValue = sanitizeOutputValue(
-      toolName,
-      nestedValue,
-      nestedPath
-    );
+    const path = ctx.path ? `${ctx.path}.${key}` : key;
+    const sanitizedValue = sanitizeOutputValue(nestedValue, {
+      toolName: ctx.toolName,
+      path,
+      key,
+      textScanned: ctx.textScanned || isDataBearing(ctx.toolName, key),
+    });
     if (sanitizedValue !== OMIT_SANITIZED_VALUE) {
       sanitized[key] = sanitizedValue;
     }
   }
-
   return sanitized;
 }
 
@@ -1039,6 +397,10 @@ export function projectOpenAiToolResult(
 ): unknown {
   const projected =
     toolName === "get_account" ? projectOpenAiAccountResult(result) : result;
-  const sanitized = sanitizeOutputValue(toolName, projected, "");
+  const sanitized = sanitizeOutputValue(projected, {
+    toolName,
+    path: "",
+    textScanned: TEXTUAL_PERSONAL_DATA_OUTPUT_TOOLS.has(toolName),
+  });
   return sanitized === OMIT_SANITIZED_VALUE ? null : sanitized;
 }

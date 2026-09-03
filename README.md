@@ -115,6 +115,14 @@ dashboard or local CLI when secrets should stay outside an AI conversation.
 limited to a generalized message, category, and optional workflow context, and
 the route rejects feedback text that contains an email address or resource ID.
 
+What the reviewed surface guarantees is bounded. It recognizes restricted data
+by shape: English field-name words such as `passport_id`, `user.ssn`, or
+`api_secret` at any nesting depth, labelled prose such as `Diagnosis: ...`,
+known credential shapes, decimal coordinate pairs, and credential-bearing URLs
+inside any string, including HTML. It does not interpret unlabelled prose,
+non-English field names, or values a client deliberately obfuscates; those
+remain covered by the usage restriction above rather than by the filter.
+
 ## Manual Setup
 
 All stdio MCP clients use the same command:
