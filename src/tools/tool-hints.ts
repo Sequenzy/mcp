@@ -108,6 +108,7 @@ export const MUTATING_TOOL_NAMES = new Set([
   "update_company",
   "update_notification_preferences",
   "update_sender_profile",
+  "delete_sender_profile",
   "update_tracking_settings",
   "update_email_design_system",
   "update_sms_number_label",
@@ -303,6 +304,7 @@ export const OPEN_WORLD_TOOL_NAMES = new Set([
 export const DESTRUCTIVE_TOOL_NAMES = new Set([
   "revoke_api_key",
   "delete_api_key",
+  "delete_sender_profile",
   "remove_subscriber",
   "delete_subscriber_note",
   "delete_product",

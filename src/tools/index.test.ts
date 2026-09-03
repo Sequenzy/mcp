@@ -1048,6 +1048,49 @@ describe("read-only audit tools", () => {
     );
   });
 
+  it("deletes a sender profile", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      deletedSenderProfileId: "sp_1",
+      fallbackSenderProfileId: "sp_2",
+      message: "Sender profile deleted.",
+    });
+
+    const result = await handleToolCall("delete_sender_profile", {
+      profileId: "sp_1",
+      companyId: "company_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "DELETE",
+      "/api/v1/sender-profiles/sp_1",
+      undefined,
+      "company_123"
+    );
+    expect(result.structuredContent?.["fallbackSenderProfileId"]).toBe("sp_2");
+  });
+
+  it("escapes sender profile IDs before deletion", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      deletedSenderProfileId: "weird id/../x",
+      fallbackSenderProfileId: null,
+      message: "Sender profile deleted.",
+    });
+
+    await handleToolCall("delete_sender_profile", {
+      profileId: "weird id/../x",
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "DELETE",
+      "/api/v1/sender-profiles/weird%20id%2F..%2Fx",
+      undefined,
+      undefined
+    );
+  });
+
   it("gets company sending status with the selected company override", async () => {
     mockApiRequest.mockResolvedValueOnce({
       success: true,

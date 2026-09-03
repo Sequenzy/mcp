@@ -762,6 +762,16 @@ export const outputPropertiesByToolName: Record<
       "False when the profile already carried that name, so nothing changed."
     ),
   },
+  delete_sender_profile: {
+    success: successOutputProperty,
+    deletedSenderProfileId: stringOutputProperty(
+      "ID of the sender profile that was permanently deleted."
+    ),
+    fallbackSenderProfileId: nullableStringOutputProperty(
+      "Remaining sender profile selected for the account default and eligible draft campaigns when reassignment was needed."
+    ),
+    message: messageOutputProperty,
+  },
   get_notification_preferences: {
     notificationPreferences: arrayOutputProperty(
       "One entry per notification event with its current mode: off, instant, daily, or weekly. Every event is always present; an event the user has never configured reports the platform default."

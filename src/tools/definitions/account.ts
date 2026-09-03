@@ -929,6 +929,27 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
     },
   },
   {
+    name: "delete_sender_profile",
+    description:
+      "Permanently delete one sender (From) profile. This cannot be undone. Deletion is refused when this is the company's last sender or when a live campaign, active sequence (including a step-level override), or transactional email still uses it. Draft and rejected campaigns plus the account default are reassigned to the best remaining sender when needed; read fallbackSenderProfileId in the result and review that identity before sending. Reply-to profiles are not supported by this tool. Get the profile ID from list_sender_profiles. Requires the companies:manage scope.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        profileId: {
+          type: "string",
+          description:
+            "Sender (From) profile ID to delete, from senderProfiles in list_sender_profiles.",
+        },
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+      },
+      required: ["profileId"],
+    },
+  },
+  {
     name: "get_sending_status",
     description: `Check whether company-level email sending is active, paused, or suspended, and what it takes to restore it. Call this FIRST whenever a send, test send, or sequence step fails for a reason that is not a validation error, and whenever the account reports a bounce or complaint rate problem.
 

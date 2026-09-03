@@ -374,6 +374,7 @@ sort options.
 | `delete_web_tracking_key`            | Permanently delete a website-tracking key after its snippet has been removed.                                                                                                                                                                                                  |
 | `list_sender_profiles`               | List sender and reply-to profiles, defaults, and sending-domain readiness.                                                                                                                                                                                                     |
 | `update_sender_profile`              | Rename one sender or reply-to profile without changing the account defaults.                                                                                                                                                                                                   |
+| `delete_sender_profile`              | Permanently delete an unused sender profile, with guards for live sending surfaces and the last remaining sender.                                                                                                                                                              |
 | `get_notification_preferences`       | Read the current user's per-company account notification settings and supported modes, including the Monday weekly report.                                                                                                                                                     |
 | `update_notification_preferences`    | Update the current user's account notification delivery modes, including weekly-report opt-out, without affecting teammates.                                                                                                                                                   |
 | `render_email`                       | Render final email-safe HTML and diagnose unresolved merge tags, including typos hidden by defaults. The OpenAI-reviewed route accepts sample data or a policy-checked inline subscriber, not a stored subscriber ID.                                                          |
@@ -484,6 +485,12 @@ Use `list_sender_profiles` to find the profile ID, then call
 for a reply-to profile; sender is the default. The address, sending domain, and
 account-wide default From/Reply-To selections remain unchanged. Renaming
 requires the `companies:manage` scope.
+
+Use `delete_sender_profile` to permanently remove an obsolete From identity.
+It refuses the last sender and any profile used by a live campaign, active
+sequence (including a step override), or transactional email. Eligible drafts
+and account defaults move to the returned `fallbackSenderProfileId`; review it
+before sending. Reply-to profiles are not supported by this delete tool.
 
 Shopify cart abandonment is enabled by default. It fires
 `ecommerce.cart_abandoned` after one hour of cart inactivity, with a 24-hour
