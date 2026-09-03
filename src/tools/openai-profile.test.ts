@@ -839,10 +839,22 @@ describe("OpenAI MCP profile", () => {
       "https://hooks.example.test/oauth/token",
       "https://example.test/blog/secret-sauce",
       "https://hooks.example.test/receive?source=sequenzy#section",
+      "https://shop.example.test/discount?code=SUMMER",
+      "https://example.test/search?key=subject",
+      "https://example.test/callback?auth=false",
     ]) {
       expect(() =>
         assertOpenAiInputPolicy("update_webhook", { id: "wh-1", url })
       ).not.toThrow();
+    }
+
+    for (const url of [
+      "https://example.test/callback?code=abcdefghijklmnopqrstuvwxyz012345",
+      "https://example.test/key/abcdefghijklmnopqrstuvwxyz012345",
+    ]) {
+      expect(() =>
+        assertOpenAiInputPolicy("update_webhook", { id: "wh-1", url })
+      ).toThrow("authentication credentials or secrets");
     }
   });
 
@@ -862,6 +874,10 @@ describe("OpenAI MCP profile", () => {
             type: "webhook",
             url: "https://hooks.example.test/receive?source=sequenzy",
           },
+          {
+            type: "webhook",
+            url: "https://shop.example.test/discount?code=SUMMER",
+          },
         ],
       },
     }) as { sequence: { steps: Array<{ url: string }> } };
@@ -869,6 +885,7 @@ describe("OpenAI MCP profile", () => {
       "[redacted restricted data]",
       "[redacted restricted data]",
       "https://hooks.example.test/receive?source=sequenzy",
+      "https://shop.example.test/discount?code=SUMMER",
     ]);
 
     // The landing-page preview URL is a Sequenzy-signed unlisted link that the

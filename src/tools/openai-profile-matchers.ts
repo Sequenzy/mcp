@@ -158,11 +158,32 @@ function safeDecodeUriComponent(value: string): string {
   }
 }
 
-function isCredentialUrlComponent(value: string): boolean {
+const AMBIGUOUS_CREDENTIAL_URL_COMPONENTS = new Set(["auth", "code", "key"]);
+
+// These names also carry ordinary marketing values (`?code=SUMMER`,
+// `?key=subject`). Only treat them as credentials when the associated value has
+// a recognizable credential shape instead of blocking the name by itself.
+function looksLikeCredentialValue(value: string): boolean {
+  const trimmed = value.trim();
+  return (
+    restrictedTextCategory(trimmed) === CREDENTIALS ||
+    /^[A-Za-z0-9._~+/=-]{24,}$/.test(trimmed)
+  );
+}
+
+function isCredentialUrlComponent(
+  value: string,
+  associatedValue?: string
+): boolean {
   if (restrictedFieldCategory(value) === CREDENTIALS) return true;
 
   const normalized = normalizeFieldName(value);
-  if (["auth", "code", "key", "sig", "signature"].includes(normalized)) {
+  if (AMBIGUOUS_CREDENTIAL_URL_COMPONENTS.has(normalized)) {
+    return (
+      associatedValue !== undefined && looksLikeCredentialValue(associatedValue)
+    );
+  }
+  if (["sig", "signature"].includes(normalized)) {
     return true;
   }
   return [
@@ -203,7 +224,7 @@ export function restrictedUrlCategory(
   ];
   for (const parameters of parameterSets) {
     for (const [key, parameterValue] of parameters) {
-      if (isCredentialUrlComponent(key)) return CREDENTIALS;
+      if (isCredentialUrlComponent(key, parameterValue)) return CREDENTIALS;
       const keyCategory = restrictedFieldCategory(key);
       if (keyCategory) return keyCategory;
       const valueCategory = restrictedTextCategory(parameterValue);
@@ -218,7 +239,10 @@ export function restrictedUrlCategory(
   const segments = url.pathname.split("/").filter(Boolean);
   for (let index = 0; index < segments.length - 1; index++) {
     if (
-      isCredentialUrlComponent(safeDecodeUriComponent(segments[index] ?? ""))
+      isCredentialUrlComponent(
+        safeDecodeUriComponent(segments[index] ?? ""),
+        safeDecodeUriComponent(segments[index + 1] ?? "")
+      )
     ) {
       return CREDENTIALS;
     }
