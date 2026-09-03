@@ -101,6 +101,7 @@ const PROTECTED_INPUTS_BY_TOOL: Readonly<
     { name: "variables", scanText: true },
   ],
   send_email: [{ name: "variables", scanText: true }],
+  update_webhook: [{ name: "url", scanText: true }],
   update_form: [{ name: "blocks" }],
   create_popup: [{ name: "blocks" }],
   update_popup: [{ name: "blocks" }],
@@ -129,11 +130,13 @@ const PROTECTED_INPUTS_BY_TOOL: Readonly<
   update_sequence_nodes: [{ name: "updates" }],
   insert_sequence_step: [
     { name: "config", scanText: true },
+    { name: "url", scanText: true },
     { name: "headers", scanText: true },
     { name: "body", scanText: true },
     { name: "fieldName", scanAttributePath: true },
     { name: "fieldValue", scanText: true },
     { name: "includeAttributes", scanAttributePath: true },
+    { name: "outputFields", scanText: true },
     { name: "branches", scanText: true },
     { name: "elseSteps", scanText: true },
   ],
@@ -301,6 +304,28 @@ function restrictedTextCategory(value: string): RestrictedCategory | undefined {
     ?.category;
 }
 
+function restrictedUrlCategory(value: string): RestrictedCategory | undefined {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return undefined;
+  }
+
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    return undefined;
+  }
+  if (url.username || url.password) {
+    return "authentication credentials or secrets";
+  }
+
+  for (const key of url.searchParams.keys()) {
+    const category = restrictedFieldCategory(key);
+    if (category) return category;
+  }
+  return undefined;
+}
+
 function restrictedAttributePathCategory(
   value: string
 ): RestrictedCategory | undefined {
@@ -363,6 +388,14 @@ function restrictedSemanticField(
     if (category) return { category, path: `${path}.name` };
   }
 
+  if (
+    /(?:^|\.)outputFields\[\d+\]$/.test(path) &&
+    typeof record.key === "string"
+  ) {
+    const category = restrictedFieldCategory(record.key);
+    if (category) return { category, path: `${path}.key` };
+  }
+
   return undefined;
 }
 
@@ -372,6 +405,8 @@ function scanProtectedValue(
   scanText: boolean
 ): { category: RestrictedCategory; path: string } | undefined {
   if (typeof value === "string") {
+    const urlCategory = restrictedUrlCategory(value);
+    if (urlCategory) return { category: urlCategory, path };
     if (!scanText) return undefined;
     const category = restrictedTextCategory(value);
     return category ? { category, path } : undefined;

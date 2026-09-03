@@ -383,6 +383,66 @@ describe("OpenAI MCP profile", () => {
         ],
       })
     ).toThrow();
+
+    expect(() =>
+      assertOpenAiInputPolicy("insert_sequence_step", {
+        type: "ai",
+        prompt: "Personalize the message",
+        outputFields: [
+          { key: "diagnosis", description: "The contact's diagnosis" },
+        ],
+      })
+    ).toThrow("health or medical data");
+
+    expect(() =>
+      assertOpenAiInputPolicy("update_sequence_node", {
+        changes: {
+          config: {
+            outputFields: [{ key: "ssn" }],
+          },
+        },
+      })
+    ).toThrow("government identifiers");
+  });
+
+  it("blocks credentials embedded in writable webhook URLs", () => {
+    expect(() =>
+      assertOpenAiInputPolicy("update_webhook", {
+        url: "https://hooks.example.test/receive?access_token=private-token",
+      })
+    ).toThrow("authentication credentials or secrets");
+
+    expect(() =>
+      assertOpenAiInputPolicy("insert_sequence_step", {
+        type: "webhook",
+        url: "https://user:private-password@hooks.example.test/receive",
+      })
+    ).toThrow("authentication credentials or secrets");
+
+    expect(() =>
+      assertOpenAiInputPolicy("create_sequence", {
+        steps: [
+          {
+            type: "webhook",
+            url: "https://hooks.example.test/receive?api_key=private-key",
+          },
+        ],
+      })
+    ).toThrow("authentication credentials or secrets");
+
+    expect(() =>
+      assertOpenAiInputPolicy("update_sequence_node", {
+        changes: {
+          url: "https://hooks.example.test/receive?token=private-token",
+        },
+      })
+    ).toThrow("authentication credentials or secrets");
+
+    expect(() =>
+      assertOpenAiInputPolicy("update_webhook", {
+        url: "https://hooks.example.test/receive?source=sequenzy",
+      })
+    ).not.toThrow();
   });
 
   it("projects account identity and strips nested secrets and diagnostics", () => {
