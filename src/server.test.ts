@@ -173,4 +173,72 @@ describe("createSequenzyMcpServer without a host request context", () => {
       await server.close();
     }
   });
+
+  it("applies OpenAI output and error policy to resource reads", async () => {
+    globalThis.fetch = (async () =>
+      Response.json({
+        success: true,
+        subscribers: [
+          {
+            id: "subscriber-1",
+            email: "person@example.com",
+            customAttributes: { plan: "pro", ssn: "111-22-3333" },
+          },
+        ],
+        requestId: "request-private",
+      })) as unknown as typeof fetch;
+
+    const server = createSequenzyMcpServer({ profile: "openai" });
+    const client = new Client({ name: "test", version: "0.0.0" });
+    const [clientTransport, serverTransport] =
+      InMemoryTransport.createLinkedPair();
+
+    await Promise.all([
+      server.connect(serverTransport),
+      client.connect(clientTransport),
+    ]);
+
+    try {
+      const result = await client.readResource({
+        uri: "sequenzy://subscribers/recent",
+      });
+      const content = result.contents[0];
+      if (!content || !("text" in content)) {
+        throw new Error("Expected text resource");
+      }
+      const text = content.text;
+      const payload = JSON.parse(text) as Record<string, unknown>;
+      const subscribers = payload["subscribers"] as Array<
+        Record<string, unknown>
+      >;
+
+      expect(payload).not.toHaveProperty("requestId");
+      expect(subscribers[0]?.["customAttributes"]).toEqual({ plan: "pro" });
+
+      globalThis.fetch = (async () =>
+        Response.json(
+          {
+            error: "Request failed for person@example.com",
+            requestId: "request-private",
+          },
+          { status: 500 }
+        )) as unknown as typeof fetch;
+
+      const failed = await client.readResource({
+        uri: "sequenzy://campaigns/recent",
+      });
+      const errorContent = failed.contents[0];
+      if (!errorContent || !("text" in errorContent)) {
+        throw new Error("Expected text resource");
+      }
+      const errorText = errorContent.text;
+      expect(errorText).toContain("Sequenzy server error");
+      expect(errorText).not.toContain("person@example.com");
+      expect(errorText).not.toContain("request-private");
+      expect(errorText).not.toContain("Details:");
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
 });

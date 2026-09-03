@@ -770,7 +770,7 @@ export const outputPropertiesByToolName: Record<
       "Modes each event accepts, keyed by event. form_submitted and campaign_completed do not accept daily; weekly_report accepts only off or weekly."
     ),
     defaults: objectOutputProperty(
-      "Mode each event uses when the user has never configured it."
+      "Mode each event uses when the user has never configured it, resolved for their role: the workspace owner defaults to weekly_report 'weekly', invited members to 'off'."
     ),
   },
   update_notification_preferences: {
@@ -781,7 +781,7 @@ export const outputPropertiesByToolName: Record<
       "Modes each event accepts, keyed by event. form_submitted and campaign_completed do not accept daily; weekly_report accepts only off or weekly."
     ),
     defaults: objectOutputProperty(
-      "Mode each event uses when the user has never configured it."
+      "Mode each event uses when the user has never configured it, resolved for their role: the workspace owner defaults to weekly_report 'weekly', invited members to 'off'."
     ),
   },
   get_sending_status: {
@@ -1329,8 +1329,8 @@ export const outputPropertiesByToolName: Record<
     removedSesRegions: {
       type: "array",
       description:
-        "Always empty for company-authenticated removal; AWS SES account-level suppressions are protected.",
-      items: stringOutputProperty("One AWS SES region."),
+        "Always empty. Sequenzy suppresses solely from its own bounce table and neither reads nor writes the email provider's suppression list. Retained for response compatibility.",
+      items: stringOutputProperty("Unused; this array is always empty."),
     },
     remainingSuppression: resourceOutputProperty(
       "recipient suppression status after cleanup"
@@ -1890,20 +1890,6 @@ export const outputPropertiesByToolName: Record<
     enrollments: resourceListOutputProperty("sequence enrollment"),
     enrolled: numberOutputProperty("Number of subscribers enrolled."),
     skipped: numberOutputProperty("Number of subscribers skipped."),
-    notFound: {
-      type: "array",
-      description: "Normalized email targets that were not found.",
-      items: { type: "string" },
-    },
-    targetNodeId: stringOutputProperty(
-      "Sequence node where the subscribers were enrolled."
-    ),
-    scheduledFor: stringOutputProperty(
-      "ISO timestamp at which processing is scheduled to begin."
-    ),
-    idempotentReplay: booleanOutputProperty(
-      "Whether this is the stored response from a prior request with the same idempotency key."
-    ),
   },
   cancel_sequence_enrollments: {
     sequenceId: stringOutputProperty("Sequence ID."),

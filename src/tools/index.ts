@@ -10,13 +10,22 @@ import {
   withRequiredToolHints,
   withToolOutputSchema,
 } from "./internal.js";
+import {
+  assertOpenAiInputPolicy,
+  projectOpenAiToolResult,
+} from "./openai-profile.js";
 import type { SequenzyToolCallResult } from "./output-schemas.js";
+import { getToolsForProfile, type SequenzyMcpProfile } from "./profiles.js";
 import { addRawHtmlWarning } from "./raw-html-warning.js";
 import { assertKnownToolArguments } from "./unknown-arguments.js";
 
 export const tools: Tool[] = toolDefinitions
   .map(withToolOutputSchema)
   .map(withRequiredToolHints);
+
+interface HandleToolCallOptions {
+  profile?: SequenzyMcpProfile;
+}
 
 function isRecoverablePartialResult(name: string, result: unknown): boolean {
   if (
@@ -44,10 +53,22 @@ function isRecoverablePartialResult(name: string, result: unknown): boolean {
 
 export async function handleToolCall(
   name: string,
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
+  options: HandleToolCallOptions = {}
 ): Promise<SequenzyToolCallResult> {
+  const profile = options.profile ?? "standard";
   try {
-    assertKnownToolArguments(name, args);
+    const tool = getToolsForProfile(tools, profile).find(
+      (candidate) => candidate.name === name
+    );
+    if (!tool) {
+      throw new Error(`Tool is not available on this MCP surface: ${name}`);
+    }
+
+    assertKnownToolArguments(name, args, tool.inputSchema);
+    if (profile === "openai") {
+      assertOpenAiInputPolicy(name, args);
+    }
 
     let result: unknown;
     let handled = false;
@@ -78,6 +99,9 @@ export async function handleToolCall(
 
     result = addRawHtmlWarning(name, args, result);
     result = await addAppUrlsToToolResult(name, args, result);
+    if (profile === "openai") {
+      result = projectOpenAiToolResult(name, result);
+    }
 
     return {
       structuredContent: toStructuredContent(result),
@@ -94,7 +118,9 @@ export async function handleToolCall(
       content: [
         {
           type: "text",
-          text: formatMcpError(error),
+          text: formatMcpError(error, {
+            includeDetails: profile !== "openai",
+          }),
         },
       ],
     };

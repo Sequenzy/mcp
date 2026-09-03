@@ -1,3 +1,5 @@
+import type { JsonSchemaObject } from "../mcp-types.js";
+
 import { toolDefinitions } from "./definitions/index.js";
 
 const SUBSCRIBER_SORT_GUIDANCE =
@@ -62,9 +64,13 @@ function getKnownArguments(toolName: string): Set<string> | null {
 
 export function assertKnownToolArguments(
   toolName: string,
-  args: Record<string, unknown>
+  args: Record<string, unknown>,
+  inputSchema?: JsonSchemaObject
 ): void {
-  const known = getKnownArguments(toolName);
+  const schemaProperties = inputSchema?.properties;
+  const known = schemaProperties
+    ? new Set(Object.keys(schemaProperties))
+    : getKnownArguments(toolName);
   // An unregistered tool name is reported by the dispatcher itself.
   if (!known) {
     return;

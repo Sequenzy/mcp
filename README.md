@@ -52,6 +52,18 @@ For clients that support Streamable HTTP MCP, use Sequenzy's hosted endpoint ins
 https://api.sequenzy.com/v1/mcp
 ```
 
+ChatGPT and the OpenAI plugin directory use the reviewed hosted surface:
+
+```text
+https://api.sequenzy.com/v1/mcp/openai
+```
+
+That surface shares the same implementation and keeps the standard tool set
+except for six operations: `connect_integration`, `create_api_key`,
+`create_webhook`, `list_webhook_deliveries`, `replay_webhook_delivery`, and
+`rotate_sequence_inbound_webhook_secret`. Feedback stays available with a
+reduced schema for generalized, explicitly requested product feedback.
+
 Remote clients should authenticate with the Sequenzy OAuth flow when supported. Local and automation clients can still use the stdio package below with `SEQUENZY_API_KEY`.
 
 The hosted endpoint and the stdio package support MCP specification
@@ -65,6 +77,33 @@ Machine-readable discovery files:
 - Agent card: [`.well-known/agent-card.json`](.well-known/agent-card.json)
 - Agent capability manifest: [`agent-capability.json`](agent-capability.json)
 - OpenClaw skill metadata: [`openclaw/skill.json`](openclaw/skill.json)
+
+### Data and privacy
+
+Sequenzy sends an MCP client only the data needed for the tool the user asks it
+to run, within the selected workspace and the key or OAuth scopes granted to
+that client. Depending on the requested tool, this can include workspace names
+and IDs; subscriber contact, consent, audience, attribute, event, engagement,
+reply, survey, and commerce data; campaign and automation content; delivery
+analytics; and integration or webhook status. See the
+[Sequenzy Privacy Policy](https://sequenzy.com/privacy) for the full categories,
+purposes, recipients, retention periods, and user controls.
+
+Do not use open-ended custom attributes, events, notes, forms, webhook samples,
+email variables, or feedback to submit payment-card data, health or medical
+data, government identifiers, biometric or genetic data, authentication
+credentials, sensitive demographic data, or precise geolocation.
+
+The OpenAI-reviewed route states and enforces those restrictions on relevant
+open-ended inputs. Its results remove restricted fields, raw API errors, debug
+payloads, internal request/trace/session identifiers, unnecessary account or
+credential identifiers, and credential-bearing inbound-webhook URLs. Standard
+remote MCP and the local stdio package retain the complete contract for trusted
+clients, including credential-based integration setup, one-time API-key and
+webhook secrets, inbound-webhook URLs, and detailed API errors. Prefer the
+dashboard or local CLI when secrets should stay outside an AI conversation.
+`submit_feedback` runs only when the user explicitly asks; its OpenAI schema is
+limited to a generalized message, category, and optional workflow context.
 
 ## Manual Setup
 
@@ -225,21 +264,23 @@ stored key hash.
 
 If a tool reports a missing scope such as `campaigns:read` or
 `templates:write`, call `get_account`. Its `apiKeyPermissions` field lists the
-current key identity and type, scopes, common missing marketing read scopes, and
-a direct `manageUrl`. Personal keys open Account API Keys; company keys open the
-selected workspace's API Keys settings. If the key does not include
+effective scopes, common missing marketing read scopes, and a direct
+`manageUrl`, without returning the user's account ID or the active key's
+identity. Personal keys open Account API Keys; company keys open the selected
+workspace's API Keys settings. If the key does not include
 `account:read`, open the
 [Sequenzy dashboard](https://sequenzy.com/dashboard) directly and choose the
 matching API Keys page.
 
-Permissions are editable in place, so open `manageUrl`, update the active key,
-and retry the failed tool without replacing the credential or restarting the
-client. An agent using a company key with `api_keys:manage` can instead call
-`update_api_key`; personal keys must be edited on the account-level page because
-that tool only manages company keys. Its `scopes` and `preset` inputs replace
-the whole permission selection rather than merging, so preserve every existing
-scope that is still needed. Hosted OAuth connections can alternatively
-disconnect and reauthorize with broader permissions.
+Permissions are editable in place, so open `manageUrl`. For a company key, use
+`list_api_keys` and its `isCurrent` flag to identify the active key before
+editing it, then retry the failed tool without replacing the credential or
+restarting the client. An agent using a company key with `api_keys:manage` can
+instead call `update_api_key`; personal keys must be edited on the account-level
+page because that tool only manages company keys. Its `scopes` and `preset`
+inputs replace the whole permission selection rather than merging, so preserve
+every existing scope that is still needed. Hosted OAuth connections can
+alternatively disconnect and reauthorize with broader permissions.
 
 When the active key itself lacks `api_keys:manage`, call
 `request_api_key_handoff` instead of retrying `update_api_key`. It requires
@@ -266,7 +307,8 @@ build a list as well as create it. Imports that apply `listIds` also need
 
 ## Tools
 
-This server currently exposes 239 MCP tools.
+The standard surface currently exposes 243 MCP tools. The OpenAI-reviewed
+surface exposes 237; only the six operations listed above are omitted.
 
 Tools reject arguments they do not declare instead of silently ignoring them.
 Errors name the unsupported fields, list the supported arguments, and provide
@@ -287,7 +329,7 @@ sort options.
 | `update_sync_rules`                  | Replace all sync rules; pass `[]` to disable them or `null` to opt into the SaaS/ecommerce platform preset.                                                                                                                                                                    |
 | `get_shopify_automation_settings`    | Read browse-abandonment, cart-abandonment, and price-drop settings for the connected Shopify store.                                                                                                                                                                            |
 | `update_shopify_automation_settings` | Partially update Shopify automation settings or reset an individual section to its platform defaults.                                                                                                                                                                          |
-| `create_api_key`                     | Create an API key for a company, with optional permission preset or explicit scopes.                                                                                                                                                                                           |
+| `create_api_key`                     | Create a company API key and return its one-time secret on standard MCP; omitted from the OpenAI-reviewed route.                                                                                                                                                               |
 | `request_api_key_handoff`            | Prepare an owner-reviewed create/rotation URL when the active key cannot manage API keys itself.                                                                                                                                                                               |
 | `list_api_keys`                      | List company API keys as non-secret metadata for safe identification and cleanup.                                                                                                                                                                                              |
 | `update_api_key`                     | Rename a company API key or replace its permission preset or scopes without changing the key value.                                                                                                                                                                            |
@@ -306,7 +348,7 @@ sort options.
 | `get_integration_guide`              | Get framework-specific integration examples.                                                                                                                                                                                                                                   |
 | `get_integration`                    | Inspect one connected integration, its event wiring, list targeting, recent activity, and recommendations.                                                                                                                                                                     |
 | `list_integration_capabilities`      | Compare provider capabilities whether or not they are connected.                                                                                                                                                                                                               |
-| `connect_integration`                | Connect supported API-key or webhook-secret providers, including outbound-only Attio and optional PostHog/Segment history import.                                                                                                                                              |
+| `connect_integration`                | Connect supported API-key or webhook-secret providers on standard MCP; omitted from the OpenAI-reviewed route.                                                                                                                                                                 |
 | `get_event_schema`                   | Inspect published event payload examples, property paths, types, and merge tags by provider.                                                                                                                                                                                   |
 | `list_integration_activity`          | Read the retained integration-specific webhook and sync activity log.                                                                                                                                                                                                          |
 | `set_integration_sync_enabled`       | Enable or disable bulk imports and backfills while leaving live webhooks connected.                                                                                                                                                                                            |
@@ -363,18 +405,20 @@ For PostHog, `sync_integration` restarts the event-history import from the
 beginning with the stored personal API key. Imported events are deduplicated, so
 retrying a failed import does not create duplicates.
 
-For Segment, `connect_integration` can optionally import recent event history
-from Unify after the live webhook is connected. The import walks existing
-contacts through the Profile API, covers the API's most recent 14 days, skips
-contacts without a matching profile, and safely deduplicates retries and live
-webhook overlap. New connections skip automatic page/screen calls unless those
-names are explicitly allowlisted. Segment webhook secrets must be 16-153 UTF-8
-bytes. Use `sync_integration` to retry with the saved credentials.
+For Segment, connect it in the trusted dashboard or local CLI, then use
+`sync_integration` to import recent event history from Unify. The import walks
+existing contacts through the Profile API, covers the API's most recent 14 days,
+skips contacts without a matching profile, and safely deduplicates retries and
+live webhook overlap. New connections skip automatic page/screen calls unless
+those names are explicitly allowlisted. Enter the Segment webhook secret only
+in the trusted handoff, never in the AI conversation. Use `sync_integration` to
+retry with the saved credentials.
 
-For Attio, `connect_integration` accepts a workspace access token without a
-webhook secret. Optionally pass `settings.listMap` as a map of Sequenzy list IDs
-to Attio people-list UUIDs or API slugs, plus `syncCompanyFromDomain` to control
-company matching from non-free-mail domains. The integration is outbound-only:
+For Attio, enter the workspace access token in the trusted dashboard or local
+CLI handoff. After connection, use `update_attio_settings` to set
+`listMap` as a map of Sequenzy list IDs to Attio people-list UUIDs or API slugs,
+plus `syncCompanyFromDomain` to control company matching from non-free-mail
+domains. The integration is outbound-only:
 new joins to mapped Sequenzy lists upsert the person and add them to the Attio
 list; list removals do not remove records from Attio.
 
@@ -990,9 +1034,9 @@ propagate.
 | `create_sequence_goal`                   | Add an event, subscriber-attribute, or tag-applied conversion goal.                                                                               |
 | `update_sequence_goal`                   | Update a persisted sequence conversion goal.                                                                                                      |
 | `delete_sequence_goal`                   | Delete a persisted sequence conversion goal.                                                                                                      |
-| `get_sequence_inbound_webhook`           | Read the endpoint and setup state for an inbound-webhook sequence.                                                                                |
-| `configure_sequence_inbound_webhook`     | Configure field mapping, sample payload, and integration metadata.                                                                                |
-| `rotate_sequence_inbound_webhook_secret` | Rotate an inbound sequence endpoint's secret path.                                                                                                |
+| `get_sequence_inbound_webhook`           | Read the inbound URL, setup state, sample, and mapping on standard MCP; the OpenAI route removes the credential-bearing URL.                      |
+| `configure_sequence_inbound_webhook`     | Configure the endpoint, field mapping, and sample; the OpenAI route removes the credential-bearing URL from its result.                           |
+| `rotate_sequence_inbound_webhook_secret` | Rotate an inbound sequence endpoint's secret and return its replacement URL on standard MCP; omitted from the OpenAI-reviewed route.              |
 | `pause_sequence_enrollments`             | Stop new enrollments for an active sequence while current recipients continue.                                                                    |
 | `resume_sequence_enrollments`            | Reopen new enrollments for an active sequence without changing current recipients.                                                                |
 | `enroll_subscribers_in_sequence`         | Enroll up to 500 subscribers by email, subscriber ID, or both, with retry-safe idempotency.                                                       |
@@ -1337,23 +1381,23 @@ that reuses the key, so it is not an exact historical drill-down.
 
 ### Team, Inbox, Webhooks
 
-| Tool                         | Description                                                         |
-| ---------------------------- | ------------------------------------------------------------------- |
-| `list_team_members`          | List team members and pending invitations.                          |
-| `invite_team_member`         | Invite a teammate as admin or viewer, with optional billing access. |
-| `cancel_team_invitation`     | Cancel a pending team invitation.                                   |
-| `list_conversations`         | List subscriber reply conversations with status and unread filters. |
-| `get_conversation`           | Read a conversation and its message history.                        |
-| `reply_to_conversation`      | Queue an outbound reply or add an internal note.                    |
-| `update_conversation_status` | Open or close a conversation.                                       |
-| `mark_conversation_read`     | Mark all messages in a conversation as read.                        |
-| `list_webhooks`              | List outbound webhook endpoints.                                    |
-| `create_webhook`             | Create an outbound webhook and return its one-time signing secret.  |
-| `update_webhook`             | Update webhook name, URL, events, or status.                        |
-| `delete_webhook`             | Permanently delete a webhook endpoint and delivery history.         |
-| `test_webhook`               | Send a test event to a webhook endpoint.                            |
-| `list_webhook_deliveries`    | List recent delivery attempts for a webhook.                        |
-| `replay_webhook_delivery`    | Replay a webhook delivery.                                          |
+| Tool                         | Description                                                                                                        |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `list_team_members`          | List team members and pending invitations.                                                                         |
+| `invite_team_member`         | Invite a teammate as admin or viewer, with optional billing access.                                                |
+| `cancel_team_invitation`     | Cancel a pending team invitation.                                                                                  |
+| `list_conversations`         | List subscriber reply conversations with status and unread filters.                                                |
+| `get_conversation`           | Read a conversation and its message history.                                                                       |
+| `reply_to_conversation`      | Queue an outbound reply or add an internal note.                                                                   |
+| `update_conversation_status` | Open or close a conversation.                                                                                      |
+| `mark_conversation_read`     | Mark all messages in a conversation as read.                                                                       |
+| `list_webhooks`              | List outbound webhook endpoints.                                                                                   |
+| `create_webhook`             | Create an endpoint and return its one-time signing secret on standard MCP; omitted from the OpenAI-reviewed route. |
+| `update_webhook`             | Update webhook name, URL, events, or status.                                                                       |
+| `delete_webhook`             | Permanently delete a webhook endpoint and delivery history.                                                        |
+| `test_webhook`               | Send a test event to a webhook endpoint.                                                                           |
+| `list_webhook_deliveries`    | List recent delivery attempts for a webhook.                                                                       |
+| `replay_webhook_delivery`    | Replay a webhook delivery.                                                                                         |
 
 Per-list consent changes are available as opt-in outbound events:
 `subscriber.list_subscribed` and `subscriber.list_unsubscribed`. Their payloads
@@ -1366,7 +1410,8 @@ MTA transport paths. Recipient bounces continue to use `email.bounced`.
 
 Use the explicit-only `campaign.sent` event when a workflow needs one terminal
 notification after an email or SMS campaign settles, including a valid
-zero-recipient send. It is not added when `create_webhook` omits `events`.
+zero-recipient send. Add it in the trusted dashboard handoff when creating or
+editing a webhook.
 
 ### AI Generation
 
@@ -1405,11 +1450,13 @@ window.
 
 ### Product Feedback
 
-Use `submit_feedback` when a needed Sequenzy capability is missing, confusing,
-or broken. For wrong or unexpected tool outcomes, include `userIntent`, the
-ordered `toolCalls` with short argument and error summaries, `expected`,
-`actual`, and affected `resourceIds`. Do not include secrets, API keys, raw
-subscriber data, or full email bodies.
+Use `submit_feedback` only when the user explicitly asks the assistant to send
+feedback to the Sequenzy team. Standard MCP can include the structured
+reproduction fields `userIntent`, `toolCalls`, `expected`, `actual`, and
+`resourceIds` when needed for that report. The OpenAI-reviewed route accepts
+only the message, category, and optional generalized workflow context. Do not
+include unrelated subscriber data, email content, raw API payloads, debug data,
+or secrets.
 
 ## Resources
 
@@ -1477,7 +1524,7 @@ Create a new personal key in Settings -> API Keys, update your MCP config, and r
 ### Missing API Key Scope
 
 Call `get_account` and inspect `apiKeyPermissions`. Local connections should
-open `apiKeyPermissions.manageUrl`, add the missing scope to the active key, and
+open `apiKeyPermissions.manageUrl`, add the missing scope to the loaded key, and
 retry without restarting. `update_api_key` can perform this only for company
 keys that already hold `api_keys:manage`; edit personal keys on the account-level
 API Keys page. Hosted OAuth connections can alternatively disconnect and

@@ -67,7 +67,8 @@ describe("formatMcpError", () => {
     // client turns a one-retry fix into abandoned work.
     expect(message).toContain("no replacement key and no client restart");
     expect(message).toContain("`update_api_key`");
-    expect(message).toContain("activeKey.type` is `company`");
+    expect(message).toContain("`list_api_keys`");
+    expect(message).toContain("`isCurrent`");
     expect(message).toContain(
       "Personal keys cannot be changed through `update_api_key`"
     );
@@ -189,6 +190,28 @@ describe("formatMcpError", () => {
       "Docs: https://docs.sequenzy.com/api-reference/segments/create"
     );
     expect(message).toContain('Details: {"segmentName":"VIP"}');
+  });
+
+  it("omits nested API diagnostics only for the OpenAI profile", () => {
+    const error = new McpApiError(
+      "Request failed for person@example.com",
+      500,
+      JSON.stringify({
+        requestId: "request_private_123",
+        traceId: "trace_private_123",
+        subscriber: { email: "person@example.com" },
+      })
+    );
+    const standardMessage = formatMcpError(error);
+    const openAiMessage = formatMcpError(error, { includeDetails: false });
+
+    expect(standardMessage).toContain("request_private_123");
+    expect(standardMessage).toContain("person@example.com");
+    expect(openAiMessage).toContain("Sequenzy server error");
+    expect(openAiMessage).not.toContain("request_private_123");
+    expect(openAiMessage).not.toContain("trace_private_123");
+    expect(openAiMessage).not.toContain("person@example.com");
+    expect(openAiMessage).not.toContain("Details:");
   });
 
   it("uses campaign refresh guidance for unschedule conflicts", () => {
