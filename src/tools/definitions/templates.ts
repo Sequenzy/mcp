@@ -28,7 +28,7 @@ export const templateToolDefinitions: Tool[] = [
         isTemplate: {
           type: "boolean",
           description:
-            "Filter to reusable master designs (true) or everything else (false). Master designs are what sequence steps and campaigns can start from; starting from one always creates an independent copy.",
+            "Filter to reusable master designs (true) or everything else (false). Dashboard sequence steps and campaigns can start from these designs as independent copies. MCP does not expose a standalone-template copy operation; create_campaign accepts templateId for campaign copies.",
         },
         limit: {
           type: "number",
@@ -65,7 +65,7 @@ export const templateToolDefinitions: Tool[] = [
   {
     name: "create_template",
     description:
-      "Create a new email template. For net-new email content requested in natural language, use `prompt`; do not write HTML or construct blocks yourself. Use `blocks` only for finished caller-supplied Sequenzy content and `html` only for supplied or explicitly requested preserved HTML.",
+      "Create a new email template. For net-new email content requested in natural language, use `prompt`; do not write HTML or construct blocks yourself. Use `blocks` only for finished caller-supplied Sequenzy content and `html` only for supplied or explicitly requested preserved HTML. Creating a standalone copy of a saved design and AI rewriting within its layout are currently dashboard-only workflows; this tool has no source-design operation, and `prompt` does not preserve an existing layout. For a campaign copy, use create_campaign with templateId.",
     inputSchema: {
       type: "object",
       properties: {
@@ -122,7 +122,7 @@ export const templateToolDefinitions: Tool[] = [
         isTemplate: {
           type: "boolean",
           description:
-            "Save as a reusable master design. Master designs are offered first when a sequence step or campaign starts from an existing email, and starting from one always creates an independent copy.",
+            "Save as a reusable master design. Master designs are offered first when a dashboard sequence step or campaign starts from an existing email, and starting from one always creates an independent copy.",
         },
       },
       required: ["name"],

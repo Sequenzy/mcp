@@ -731,8 +731,19 @@ count, including campaign and transactional-email bodies.
 
 Set `isTemplate: true` on `list_templates` to return only saved master designs,
 or `false` to return ordinary email bodies. Marked masters are offered as
-starting points for sequence steps and campaigns; starting from one creates
+starting points for dashboard sequence steps and campaigns; starting from one creates
 an independent copy so edits leave the master intact.
+
+Standalone/sequence source-design copying and AI rewriting within a selected layout are currently
+dashboard-only. This release intentionally keeps those workflows in interactive
+authoring, where users can review the source, translations, and any fallback copy
+before saving a sequence step. REST, CLI, and MCP expose no equivalent standalone/sequence source-design
+operation. `create_template` with `prompt` generates new content without preserving
+an existing layout; supplied HTML or blocks create a new body without automatically
+copying localized variants. See the [interface availability documentation](https://docs.sequenzy.com/concepts/email-templates#availability-across-interfaces).
+
+Campaign copies already work through REST `POST /api/v1/campaigns` and MCP
+`create_campaign` with `templateId`; it cannot be combined with `prompt` for an AI rewrite.
 
 For net-new content requested in natural language, pass `prompt` so Sequenzy
 generates branded native blocks server-side. Use `blocks` only for finished
