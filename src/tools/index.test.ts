@@ -1613,6 +1613,68 @@ describe("nullable structured output", () => {
   });
 });
 
+describe("template master flags", () => {
+  beforeEach(() => {
+    mockApiRequest.mockReset();
+    mockApiRequest.mockResolvedValue({ success: true });
+  });
+
+  it.each([true, false])(
+    "forwards the isTemplate=%s list filter",
+    async (isTemplate) => {
+      const result = await handleToolCall("list_templates", { isTemplate });
+
+      expect(result.isError).toBeUndefined();
+      expect(mockApiRequest).toHaveBeenCalledWith(
+        "GET",
+        `/api/v1/templates?isTemplate=${isTemplate}`,
+        undefined,
+        undefined
+      );
+    }
+  );
+
+  it.each([true, false])(
+    "allows isTemplate=%s as the only template update",
+    async (isTemplate) => {
+      const result = await handleToolCall("update_template", {
+        templateId: "tmpl_123",
+        isTemplate,
+      });
+
+      expect(result.isError).toBeUndefined();
+      expect(mockApiRequest).toHaveBeenCalledWith(
+        "PUT",
+        "/api/v1/templates/tmpl_123",
+        { templateId: "tmpl_123", isTemplate },
+        undefined
+      );
+    }
+  );
+
+  it("forwards the master flag when creating a template", async () => {
+    const result = await handleToolCall("create_template", {
+      name: "Master design",
+      subject: "Welcome",
+      blocks: [],
+      isTemplate: true,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/templates",
+      {
+        name: "Master design",
+        subject: "Welcome",
+        blocks: [],
+        isTemplate: true,
+      },
+      undefined
+    );
+  });
+});
+
 describe("update_template tool validation", () => {
   beforeEach(() => {
     mockApiRequest.mockClear();
@@ -1639,6 +1701,7 @@ describe("update_template tool validation", () => {
     expect(inputSchema?.properties).toHaveProperty("html");
     expect(inputSchema?.properties).toHaveProperty("blocks");
     expect(inputSchema?.properties).toHaveProperty("labels");
+    expect(inputSchema?.properties).toHaveProperty("isTemplate");
   });
 
   it("rejects update_template calls that omit all supported update fields", async () => {
@@ -1649,7 +1712,7 @@ describe("update_template tool validation", () => {
     expect(result.isError).toBe(true);
     expect(result.content[0]?.type).toBe("text");
     expect(result.content[0]?.text).toContain(
-      "Provide at least one of `name`, `subject`, `previewText`, `html`, `blocks`, or `labels` when calling `update_template`."
+      "Provide at least one of `name`, `subject`, `previewText`, `html`, `blocks`, `labels`, or `isTemplate` when calling `update_template`."
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
   });

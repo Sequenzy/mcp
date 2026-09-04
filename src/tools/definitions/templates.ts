@@ -25,6 +25,11 @@ export const templateToolDefinitions: Tool[] = [
           description:
             "Optional label name filter. Only templates assigned this label are returned.",
         },
+        isTemplate: {
+          type: "boolean",
+          description:
+            "Filter to reusable master designs (true) or everything else (false). Master designs are what sequence steps and campaigns can start from; starting from one always creates an independent copy.",
+        },
         limit: {
           type: "number",
           description: "Templates per page, 1-100. Defaults to 50.",
@@ -114,6 +119,11 @@ export const templateToolDefinitions: Tool[] = [
             type: "string",
           },
         },
+        isTemplate: {
+          type: "boolean",
+          description:
+            "Save as a reusable master design. Master designs are offered first when a sequence step or campaign starts from an existing email, and starting from one always creates an independent copy.",
+        },
       },
       required: ["name"],
     },
@@ -121,7 +131,7 @@ export const templateToolDefinitions: Tool[] = [
   {
     name: "update_template",
     description:
-      "Update an existing template. At least one of `name`, `subject`, `previewText`, `html`, `blocks`, or `labels` is required, and only those update fields are accepted.",
+      "Update an existing template. At least one of `name`, `subject`, `previewText`, `html`, `blocks`, `labels`, or `isTemplate` is required, and only those update fields are accepted.",
     inputSchema: {
       type: "object",
       properties: {
@@ -165,6 +175,11 @@ export const templateToolDefinitions: Tool[] = [
           items: {
             type: "string",
           },
+        },
+        isTemplate: {
+          type: "boolean",
+          description:
+            "Mark (true) or unmark (false) this email as a reusable master design that sequence steps and campaigns can start from.",
         },
       },
       required: ["templateId"],
