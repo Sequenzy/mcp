@@ -995,7 +995,7 @@ propagate.
 | `rotate_sequence_inbound_webhook_secret` | Rotate an inbound sequence endpoint's secret path.                                                                                                |
 | `pause_sequence_enrollments`             | Stop new enrollments for an active sequence while current recipients continue.                                                                    |
 | `resume_sequence_enrollments`            | Reopen new enrollments for an active sequence without changing current recipients.                                                                |
-| `enroll_subscribers_in_sequence`         | Enroll up to 500 subscribers by email, subscriber ID, or both, with retry-safe idempotency.                                                       |
+| `enroll_subscribers_in_sequence`         | Enroll up to 500 subscribers by email, subscriber ID, or both, skipping existing active or waiting enrollments.                                   |
 | `cancel_sequence_enrollments`            | Stop active or waiting enrollments by subscriber or entry-event field values.                                                                     |
 | `realign_sequence_enrollments`           | Preview or queue moving live waits earlier to their sending-window opening.                                                                       |
 | `get_sequence_enrollment_realignment`    | Poll an applied realignment job and read its completed result or continuation cursor.                                                             |
@@ -1041,12 +1041,6 @@ event sources retain their names in `value`. Time-based triggers report
 received-event enrollments. Live sequence tests do not create enrollments;
 they send isolated test emails and record activity on the sequence test run
 instead.
-
-For a confirmed manual enrollment batch, generate `idempotencyKey` once and
-reuse that exact key only with identical ordered targets and `targetNodeId`.
-Receipts last 14 days. A retry returns the original `enrolled`, `skipped`,
-`notFound`, `targetNodeId`, and `scheduledFor` values with
-`idempotentReplay: true`; it does not create tokens or queue the batch again.
 
 Example dynamic Shopify discount step:
 
