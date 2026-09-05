@@ -24,7 +24,7 @@ export const emailAiStyleToolDefinitions: Tool[] = [
   {
     name: "save_email_ai_style",
     description:
-      "Save an email's appearance as the company default for future AI generation. Captures fonts, colors, spacing and block treatments, without copying its content or modifying existing emails. Requires emails:write and access to the source email. Replaces only expectedStyleId; get and review the current style before replacing. Plain-text choices and explicit style requests take precedence during generation.",
+      "Save an email's appearance as the company default for future AI generation. Captures fonts, colors, spacing and block treatments, plus detected layout habits (for example dotted dividers around every button) and optional notes, without copying its content or modifying existing emails. Requires emails:write and access to the source email. Replaces only expectedStyleId; get and review the current style before replacing. All detected habits are kept unless layoutRuleIds narrows them; review style.layout.rules in the response and re-save with a subset if needed. Plain-text choices and explicit style requests take precedence during generation.",
     inputSchema: {
       type: "object",
       properties: {
@@ -57,6 +57,19 @@ export const emailAiStyleToolDefinitions: Tool[] = [
           },
           required: ["blocks", "theme", "fontFamily", "emailPreset"],
           additionalProperties: false,
+        },
+        layoutRuleIds: {
+          type: "array",
+          items: { type: "string" },
+          maxItems: 20,
+          description:
+            "IDs of detected layout habits to keep (from style.layout.rules, for example around|button|divider:dots). Omit to keep every detected habit; pass [] to keep none.",
+        },
+        notes: {
+          type: "string",
+          maxLength: 500,
+          description:
+            "Optional design notes for future generations, for example 'always open with a short video'. Design guidance only, never email content.",
         },
       },
       required: ["emailId", "expectedStyleId"],

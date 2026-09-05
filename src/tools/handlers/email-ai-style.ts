@@ -27,6 +27,21 @@ export async function handleEmailAiStyleTools(
     if (name === "save_email_ai_style") {
       body["emailId"] = requiredString(name, args, "emailId");
       if (args.canvas !== undefined) body["canvas"] = args.canvas;
+      if (args.layoutRuleIds !== undefined) {
+        if (
+          !Array.isArray(args.layoutRuleIds) ||
+          args.layoutRuleIds.some((id) => typeof id !== "string" || !id.trim())
+        )
+          throw new Error(
+            "layoutRuleIds must be an array of rule IDs from a saved style's layout.rules; pass [] to keep none."
+          );
+        body["layoutRuleIds"] = args.layoutRuleIds;
+      }
+      if (args.notes !== undefined) {
+        if (typeof args.notes !== "string" || args.notes.length > 500)
+          throw new Error("notes must be a string of at most 500 characters.");
+        body["notes"] = args.notes;
+      }
     }
   }
   return {

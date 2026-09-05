@@ -98,6 +98,34 @@ describe("saved AI style MCP tools", () => {
       { emailId: "email", expectedStyleId: "old", canvas },
       "company"
     );
+    await handleToolCall("save_email_ai_style", {
+      emailId: "email",
+      expectedStyleId: "old",
+      layoutRuleIds: ["around|button|divider:dots"],
+      notes: "Keep the dots.",
+    });
+    expect(request).toHaveBeenLastCalledWith(
+      "PUT",
+      "/api/v1/email-ai-style",
+      {
+        emailId: "email",
+        expectedStyleId: "old",
+        layoutRuleIds: ["around|button|divider:dots"],
+        notes: "Keep the dots.",
+      },
+      undefined
+    );
+    await handleToolCall("save_email_ai_style", {
+      emailId: "email",
+      expectedStyleId: "old",
+      layoutRuleIds: [],
+    });
+    expect(request).toHaveBeenLastCalledWith(
+      "PUT",
+      "/api/v1/email-ai-style",
+      { emailId: "email", expectedStyleId: "old", layoutRuleIds: [] },
+      undefined
+    );
   });
 
   it("clears only the reviewed revision and never retries a conflicting write", async () => {
@@ -125,6 +153,18 @@ describe("saved AI style MCP tools", () => {
       ["save_email_ai_style", { emailId: "email" }],
       ["save_email_ai_style", { emailId: "", expectedStyleId: null }],
       ["save_email_ai_style", { emailId: "email", expectedStyleId: " " }],
+      [
+        "save_email_ai_style",
+        { emailId: "email", expectedStyleId: "old", layoutRuleIds: "all" },
+      ],
+      [
+        "save_email_ai_style",
+        { emailId: "email", expectedStyleId: "old", layoutRuleIds: [" "] },
+      ],
+      [
+        "save_email_ai_style",
+        { emailId: "email", expectedStyleId: "old", notes: "x".repeat(501) },
+      ],
       ["clear_email_ai_style", { expectedStyleId: null }],
       ["get_email_ai_style", { unexpected: true }],
     ] as const)
