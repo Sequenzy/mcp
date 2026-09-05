@@ -22,7 +22,7 @@ export const teamToolDefinitions: Tool[] = [
   {
     name: "invite_team_member",
     description:
-      "Invite a team member by email with role admin, viewer, or restricted. Existing Sequenzy users are added to the team immediately; others receive an email invitation. Billing access (canManageBilling) can only be granted by the company owner and is not available for restricted members.",
+      "Invite a team member by email with role admin, marketer, viewer, or restricted. Existing Sequenzy users are added to the team immediately; others receive an email invitation. Billing access (canManageBilling) can only be granted by the company owner and is not available for marketer or restricted members.",
     inputSchema: {
       type: "object",
       properties: {
@@ -37,9 +37,9 @@ export const teamToolDefinitions: Tool[] = [
         },
         role: {
           type: "string",
-          enum: ["admin", "viewer", "restricted"],
+          enum: ["admin", "marketer", "viewer", "restricted"],
           description:
-            "Team role. Admins can manage the workspace; viewers have read-only access; restricted members can open direct campaign links only.",
+            "Team role. Admins can manage the workspace; marketers create, edit, and send campaigns and sequences and manage subscribers but cannot access transactional emails, settings, billing, or the team; viewers have read-only access; restricted members can open direct campaign links only.",
         },
         canManageBilling: {
           type: "boolean",

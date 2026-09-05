@@ -96,6 +96,10 @@ export function createOpenAiAccountOutputSchema(): JsonSchemaObject {
             items: { type: "string" },
           },
           liveDeliveryBlockedByRole: { type: "boolean" },
+          roleRestrictedScopes: {
+            type: "array",
+            items: { type: "string" },
+          },
           manageUrl: { type: ["string", "null"] },
         },
         additionalProperties: false,

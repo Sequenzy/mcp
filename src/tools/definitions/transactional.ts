@@ -271,7 +271,7 @@ export const transactionalToolDefinitions: Tool[] = [
         emailType: {
           type: "string",
           description:
-            "Delivery policy: `transactional` (default) or `marketing`. Marketing mode supports exactly one `to` recipient, rejects `cc` and `bcc`, and automatically applies subscriber suppression, the standard unsubscribe footer, and RFC 8058 headers.",
+            "Delivery policy: `transactional` (default) or `marketing`. Marketing mode supports exactly one `to` recipient, rejects `cc` and `bcc`, and automatically applies subscriber suppression, the standard unsubscribe footer, and RFC 8058 headers. Both modes use the Send API and require the `transactional:send` scope; a personal key held by a `marketer` cannot use this tool in either mode (see `roleRestrictedScopes` on get_account) and should send through campaigns or sequences instead.",
         },
         replyTo: {
           type: "string",

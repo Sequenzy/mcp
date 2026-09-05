@@ -356,6 +356,7 @@ function readSafeApiKeyPermissions(
     "canSendLive",
     "missingLiveDeliveryScopes",
     "liveDeliveryBlockedByRole",
+    "roleRestrictedScopes",
     "manageUrl",
   ] as const;
   const safe: Record<string, unknown> = {};

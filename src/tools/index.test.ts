@@ -12591,7 +12591,7 @@ describe("team tools", () => {
 
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain(
-      "`role` must be one of admin, viewer, restricted when calling `invite_team_member`."
+      "`role` must be one of admin, marketer, viewer, restricted when calling `invite_team_member`."
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
   });

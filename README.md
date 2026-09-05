@@ -1627,3 +1627,9 @@ Sequenzy publishes machine-readable manifests for agent networks and A2A-style d
 - OpenClaw/Moltbot operating guide: [`openclaw/SKILL.md`](./openclaw/SKILL.md)
 
 These files describe Sequenzy as an authorized email automation capability for agents. They explicitly exclude scraping, spam, and unsolicited cold outreach use cases.
+
+## Workspace roles
+
+Account-key access combines key scopes with your current workspace role. `get_account` reports blocked scopes in `apiKeyPermissions.roleRestrictedScopes`; `canSendLive` means at least one permitted delivery workflow is available, not that every send tool is allowed.
+
+You can invite a `marketer` to manage subscribers, marketing campaigns and sequences without granting access to transactional mail, workspace settings, team or billing. Marketers choose existing sender/reply profiles. Transactional-backed campaign, A/B and sequence sources remain protected through previews, sharing, analytics and send history. Marketers and restricted members cannot receive billing access.

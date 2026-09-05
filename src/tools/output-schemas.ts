@@ -271,7 +271,7 @@ export const outputPropertiesByToolName: Record<
     account: resourceOutputProperty("account"),
     companies: resourceListOutputProperty("company"),
     apiKeyPermissions: objectOutputProperty(
-      "Current API key preset and scopes, whether common marketing work is discoverable, any missing marketing read scopes, `canSendLive` plus `missingLiveDeliveryScopes` (delivery this key cannot perform, e.g. `transactional:send` for `send_email`; check before composing anything meant to be sent) and `liveDeliveryBlockedByRole` (a viewer role blocks sending no matter the scopes, so widening the key will not help), and the API Keys management URL."
+      "Current API key preset and scopes, whether common marketing work is discoverable, any missing marketing read scopes, `canSendLive` plus `missingLiveDeliveryScopes` (delivery this key cannot perform, e.g. `transactional:send` for `send_email`; check before composing anything meant to be sent) `liveDeliveryBlockedByRole` (a viewer role blocks sending no matter the scopes, so widening the key will not help), `roleRestrictedScopes` (scopes the workspace role cannot use through a personal key - a marketer lists `transactional:send` here while still able to send campaigns), and the API Keys management URL."
     ),
     currentCompanyId: stringOutputProperty(
       "Company ID selected by the authenticated API key, when available."

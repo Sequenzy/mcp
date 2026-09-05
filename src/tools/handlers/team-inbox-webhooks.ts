@@ -26,6 +26,7 @@ export async function handleTeamInboxWebhookTools(
       const email = requiredString("invite_team_member", args, "email");
       const role = requiredAllowedString("invite_team_member", args, "role", [
         "admin",
+        "marketer",
         "viewer",
         "restricted",
       ]);
