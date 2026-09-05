@@ -29,6 +29,9 @@ export async function handleCampaignTools(
       const templateParams = new URLSearchParams();
       const label = optionalString(args, "label");
       if (label) templateParams.set("label", label);
+      if (typeof args.isTemplate === "boolean") {
+        templateParams.set("isTemplate", String(args.isTemplate));
+      }
       const templateLimit = optionalIntegerInRange(
         "list_templates",
         args,
@@ -95,6 +98,7 @@ export async function handleCampaignTools(
         "html",
         "blocks",
         "labels",
+        "isTemplate",
       ]);
       const unsupportedTemplateUpdateKeys = Object.keys(args).filter(
         (key) => !allowedTemplateUpdateKeys.has(key)
@@ -102,7 +106,7 @@ export async function handleCampaignTools(
 
       if (unsupportedTemplateUpdateKeys.length > 0) {
         throw new Error(
-          `\`update_template\` accepts only \`name\`, \`subject\`, \`previewText\`, \`html\`, \`blocks\`, and \`labels\` update fields. Unsupported field${unsupportedTemplateUpdateKeys.length === 1 ? "" : "s"}: ${unsupportedTemplateUpdateKeys.map((key) => `\`${key}\``).join(", ")}.`
+          `\`update_template\` accepts only \`name\`, \`subject\`, \`previewText\`, \`html\`, \`blocks\`, \`labels\`, and \`isTemplate\` update fields. Unsupported field${unsupportedTemplateUpdateKeys.length === 1 ? "" : "s"}: ${unsupportedTemplateUpdateKeys.map((key) => `\`${key}\``).join(", ")}.`
         );
       }
 
@@ -115,10 +119,11 @@ export async function handleCampaignTools(
         args.previewText === undefined &&
         args.html === undefined &&
         args.blocks === undefined &&
-        args.labels === undefined
+        args.labels === undefined &&
+        args.isTemplate === undefined
       ) {
         throw new Error(
-          "Provide at least one of `name`, `subject`, `previewText`, `html`, `blocks`, or `labels` when calling `update_template`."
+          "Provide at least one of `name`, `subject`, `previewText`, `html`, `blocks`, `labels`, or `isTemplate` when calling `update_template`."
         );
       }
 

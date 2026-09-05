@@ -762,6 +762,16 @@ export const outputPropertiesByToolName: Record<
       "False when the profile already carried that name, so nothing changed."
     ),
   },
+  delete_sender_profile: {
+    success: successOutputProperty,
+    deletedSenderProfileId: stringOutputProperty(
+      "ID of the sender profile that was permanently deleted."
+    ),
+    fallbackSenderProfileId: nullableStringOutputProperty(
+      "Remaining sender profile selected for the account default and eligible draft campaigns when reassignment was needed."
+    ),
+    message: messageOutputProperty,
+  },
   get_notification_preferences: {
     notificationPreferences: arrayOutputProperty(
       "One entry per notification event with its current mode: off, instant, daily, or weekly. Every event is always present; an event the user has never configured reports the platform default."
@@ -770,7 +780,7 @@ export const outputPropertiesByToolName: Record<
       "Modes each event accepts, keyed by event. form_submitted and campaign_completed do not accept daily; weekly_report accepts only off or weekly."
     ),
     defaults: objectOutputProperty(
-      "Mode each event uses when the user has never configured it."
+      "Mode each event uses when the user has never configured it, resolved for their role: the workspace owner defaults to weekly_report 'weekly', invited members to 'off'."
     ),
   },
   update_notification_preferences: {
@@ -781,7 +791,7 @@ export const outputPropertiesByToolName: Record<
       "Modes each event accepts, keyed by event. form_submitted and campaign_completed do not accept daily; weekly_report accepts only off or weekly."
     ),
     defaults: objectOutputProperty(
-      "Mode each event uses when the user has never configured it."
+      "Mode each event uses when the user has never configured it, resolved for their role: the workspace owner defaults to weekly_report 'weekly', invited members to 'off'."
     ),
   },
   get_sending_status: {

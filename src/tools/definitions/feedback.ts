@@ -7,7 +7,7 @@ export const feedbackToolDefinitions: Tool[] = [
   {
     name: "submit_feedback",
     description:
-      "Send product feedback about Sequenzy itself to the Sequenzy team. IMPORTANT: call this tool whenever the user wanted to accomplish something and Sequenzy did not expose functionality for it - a missing tool or argument, an unsupported workflow, a confusing behavior, or a bug. When something you did through these tools produced a wrong or unexpected result, also fill in userIntent, toolCalls, expected, actual, and resourceIds so the team can reproduce it. Summarize tool arguments instead of pasting raw subscriber data, and never include secrets or API keys. Briefly tell the user you reported the gap. This feedback goes straight to the team and shapes what gets built next. Do not use it for questions about the user's own account or data. Submitting feedback never changes account data.",
+      "Send product feedback about Sequenzy itself to the Sequenzy team, but only when the user explicitly asks you to send it. Tell the user where the message goes before calling this tool. Include only reproduction details and resource IDs needed for that report; never include unrelated subscriber data, message content, credentials, raw API payloads, or debug data. Do not use it for questions about the user's own account or data. Submitting feedback never changes account data.",
     inputSchema: {
       type: "object",
       properties: {
@@ -30,18 +30,18 @@ export const feedbackToolDefinitions: Tool[] = [
         context: {
           type: "string",
           description:
-            "Optional: what the user was trying to accomplish, in their words, plus any relevant tool names or arguments you tried.",
+            "Optional: what the user was trying to accomplish, in their words, plus any relevant tool names or arguments you tried. Do not include secrets or unrelated personal data.",
         },
         userIntent: {
           type: "string",
           description:
-            "For bug/wrong-outcome reports: the user's request, verbatim or closely paraphrased. Omit personal data that is not needed to reproduce the problem.",
+            "For bug or wrong-outcome reports: the user's request, verbatim or closely paraphrased. Omit personal data that is not needed to reproduce the problem.",
         },
         toolCalls: {
           type: "array",
           maxItems: 25,
           description:
-            "For bug/wrong-outcome reports: the ordered tool calls that led to the problem. Summarize arguments - do not paste raw subscriber data or full email bodies.",
+            "For bug or wrong-outcome reports: the ordered tool calls that led to the problem. Summarize arguments; do not paste raw subscriber data, full email bodies, or secrets.",
           items: {
             type: "object",
             properties: {
@@ -75,7 +75,7 @@ export const feedbackToolDefinitions: Tool[] = [
           maxItems: 50,
           items: { type: "string" },
           description:
-            "IDs of the affected resources (campaign, sequence, subscriber, segment, ...) so the team can correlate with server logs.",
+            "IDs of affected resources so the team can correlate the report with server logs. Include only IDs needed to investigate the reported issue.",
         },
       },
       required: ["message"],

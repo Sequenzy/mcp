@@ -3,6 +3,8 @@ import type { Resource } from "@modelcontextprotocol/server";
 import { buildSequenzyAppUrls } from "../app-urls.js";
 import { formatMcpError } from "../error-output.js";
 import { apiRequest, getSelectedCompanyId } from "../runtime.js";
+import { projectOpenAiToolResult } from "../tools/openai-profile.js";
+import type { SequenzyMcpProfile } from "../tools/profiles.js";
 
 // Resource definitions
 export const resources: Resource[] = [
@@ -84,9 +86,13 @@ export const resources: Resource[] = [
 ];
 
 // Resource read handler
-export async function handleResourceRead(uri: string): Promise<{
+export async function handleResourceRead(
+  uri: string,
+  options: { profile?: SequenzyMcpProfile } = {}
+): Promise<{
   contents: Array<{ uri: string; mimeType: string; text: string }>;
 }> {
+  const profile = options.profile ?? "standard";
   try {
     let data: unknown;
 
@@ -161,12 +167,17 @@ export async function handleResourceRead(uri: string): Promise<{
         throw new Error(`Unknown resource: ${uri}`);
     }
 
+    const output =
+      profile === "openai"
+        ? projectOpenAiToolResult(`resource:${uri}`, data)
+        : data;
+
     return {
       contents: [
         {
           uri,
           mimeType: "application/json",
-          text: JSON.stringify(data, null, 2),
+          text: JSON.stringify(output, null, 2),
         },
       ],
     };
@@ -176,7 +187,9 @@ export async function handleResourceRead(uri: string): Promise<{
         {
           uri,
           mimeType: "text/plain",
-          text: formatMcpError(error),
+          text: formatMcpError(error, {
+            includeDetails: profile !== "openai",
+          }),
         },
       ],
     };

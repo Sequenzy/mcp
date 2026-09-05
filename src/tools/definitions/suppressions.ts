@@ -13,7 +13,7 @@ const commonProperties = {
   region: {
     type: "string" as const,
     description:
-      "Optional AWS SES region such as us-east-1. Omit to check every SES region currently used by the company.",
+      "Deprecated: accepted and ignored. It previously limited a provider-side suppression lookup, which no longer happens.",
   },
 };
 
@@ -59,7 +59,7 @@ export const suppressionToolDefinitions: Tool[] = [
   {
     name: "get_recipient_suppression",
     description:
-      "Check whether one recipient is suppressed by Sequenzy's bounce/complaint safeguards or the regional Amazon SES account-level suppression list. This exact-address lookup never exposes other recipients from the shared SES account.",
+      "Check whether one recipient is suppressed by Sequenzy's bounce/complaint safeguards. Suppression comes solely from Sequenzy's own bounce records; the email provider's suppression list is not consulted. This exact-address lookup never exposes other recipients.",
     inputSchema: {
       type: "object",
       properties: commonProperties,
@@ -70,7 +70,7 @@ export const suppressionToolDefinitions: Tool[] = [
   {
     name: "remove_recipient_suppression",
     description:
-      "Remove a workspace-scoped soft-bounce escalation for an exact recipient associated with the company, then reactivate bounced company subscribers. Global invalid-recipient, workspace hard-bounce, Amazon SES account-level, complaint, and unsubscribe suppressions are protected.",
+      "Remove a workspace-scoped soft-bounce escalation for an exact recipient associated with the company, then reactivate bounced company subscribers. Global invalid-recipient, workspace hard-bounce, complaint, and unsubscribe suppressions are protected.",
     inputSchema: {
       type: "object",
       properties: commonProperties,

@@ -9,6 +9,7 @@ import {
   buildUpdateTrackingSettingsBody,
   isRecord,
   optionalString,
+  requiredString,
   resolveCompanyIdForAppUrls,
   resolveRequiredCompanyId,
 } from "../internal.js";
@@ -521,6 +522,22 @@ export async function handleAccountTools(
         "PATCH",
         path,
         { name: args.name as string },
+        companyId
+      );
+      break;
+    }
+
+    case "delete_sender_profile": {
+      const companyId = args.companyId as string | undefined;
+      const profileId = requiredString(
+        "delete_sender_profile",
+        args,
+        "profileId"
+      );
+      result = await apiRequest(
+        "DELETE",
+        `/api/v1/sender-profiles/${encodeURIComponent(profileId)}`,
+        undefined,
         companyId
       );
       break;

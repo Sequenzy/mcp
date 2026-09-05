@@ -30,6 +30,8 @@ await mock.module("../runtime.js", () => ({
 }));
 
 const { handleToolCall, tools } = await import("./index.js");
+const { OPENAI_EXCLUDED_TOOL_NAMES } = await import("./openai-profile.js");
+const { getToolsForProfile } = await import("./profiles.js");
 
 describe("web tracking MCP tools", () => {
   beforeEach(() => {
@@ -46,6 +48,63 @@ describe("web tracking MCP tools", () => {
     expect(result.content[0]?.text).toContain(
       "Provide at least one of `name`, `allowedOrigins`, or `isActive`"
     );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+});
+
+describe("MCP tool profiles", () => {
+  it("keeps the standard profile as the full MCP surface", () => {
+    const standardTools = getToolsForProfile(tools, "standard");
+    const standardToolNames = new Set(standardTools.map((tool) => tool.name));
+
+    expect(standardTools).toHaveLength(tools.length);
+    expect(standardToolNames).toContain("list_api_keys");
+    expect(standardToolNames).toContain("connect_integration");
+    expect(standardToolNames).toContain("submit_feedback");
+  });
+
+  it("removes only the narrow denylist from the OpenAI profile", () => {
+    const openAiTools = getToolsForProfile(tools, "openai");
+    const openAiToolNames = new Set(openAiTools.map((tool) => tool.name));
+
+    expect(openAiTools).toHaveLength(
+      tools.length - OPENAI_EXCLUDED_TOOL_NAMES.size
+    );
+    for (const excludedToolName of OPENAI_EXCLUDED_TOOL_NAMES) {
+      expect(openAiToolNames).not.toContain(excludedToolName);
+    }
+    expect(openAiToolNames).toContain("get_account");
+    expect(openAiToolNames).toContain("list_campaigns");
+    expect(openAiToolNames).toContain("list_api_keys");
+    expect(openAiToolNames).toContain("list_integrations");
+    expect(openAiToolNames).toContain("request_api_key_handoff");
+    expect(openAiToolNames).toContain("submit_feedback");
+  });
+
+  it("rejects guessed tool calls outside the selected profile", async () => {
+    const result = await handleToolCall(
+      "connect_integration",
+      { provider: "paddle", companyId: "company_123" },
+      { profile: "openai" }
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "Tool is not available on this MCP surface"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects stored-subscriber rendering on the OpenAI profile", async () => {
+    const result = await handleToolCall(
+      "render_email",
+      { campaignId: "campaign_123", subscriberId: "subscriber_123" },
+      { profile: "openai" }
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("Unsupported field");
+    expect(result.content[0]?.text).toContain("subscriberId");
     expect(mockApiRequest).not.toHaveBeenCalled();
   });
 });
@@ -166,6 +225,21 @@ describe("feedback tools", () => {
       "company_123"
     );
   });
+
+  it("rejects detailed feedback fields on the OpenAI profile", async () => {
+    const result = await handleToolCall(
+      "submit_feedback",
+      {
+        message: "Campaign update dropped its schedule",
+        resourceIds: ["campaign_123"],
+      },
+      { profile: "openai" }
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain("Unsupported field");
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
 });
 
 describe("account tools", () => {
@@ -218,6 +292,48 @@ describe("account tools", () => {
           "https://sequenzy.com/dashboard/company/company_123/account?tab=subscription",
       },
     ]);
+  });
+
+  it("projects unnecessary account identifiers on the OpenAI profile only", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      user: { id: "user_private", email: "owner@example.com" },
+      companies: [
+        {
+          id: "company_123",
+          name: "Lyvia",
+          role: "owner",
+          ownerEmail: "owner@example.com",
+        },
+      ],
+      currentCompanyId: "company_123",
+      apiKeyPermissions: {
+        scopes: ["account:read"],
+        activeKey: { id: "key_private", prefix: "seq_private" },
+        manageUrl:
+          "https://sequenzy.com/dashboard/company/company_123/settings?tab=api-keys",
+      },
+      requestId: "request_private",
+    });
+
+    const result = await handleToolCall(
+      "get_account",
+      {},
+      { profile: "openai" }
+    );
+    const account = result.structuredContent as Record<string, unknown>;
+    const companies = account["companies"] as Array<Record<string, unknown>>;
+    const permissions = account["apiKeyPermissions"] as Record<string, unknown>;
+
+    expect(result.isError).toBeUndefined();
+    expect(account).not.toHaveProperty("user");
+    expect(account).not.toHaveProperty("requestId");
+    expect(companies[0]).toEqual(
+      expect.objectContaining({ id: "company_123", name: "Lyvia" })
+    );
+    expect(companies[0]).not.toHaveProperty("ownerEmail");
+    expect(permissions).not.toHaveProperty("activeKey");
+    expect(permissions["scopes"]).toEqual(["account:read"]);
   });
 
   it("publishes bounded Shopify automation timing fields", () => {
@@ -932,6 +1048,49 @@ describe("read-only audit tools", () => {
     );
   });
 
+  it("deletes a sender profile", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      deletedSenderProfileId: "sp_1",
+      fallbackSenderProfileId: "sp_2",
+      message: "Sender profile deleted.",
+    });
+
+    const result = await handleToolCall("delete_sender_profile", {
+      profileId: "sp_1",
+      companyId: "company_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "DELETE",
+      "/api/v1/sender-profiles/sp_1",
+      undefined,
+      "company_123"
+    );
+    expect(result.structuredContent?.["fallbackSenderProfileId"]).toBe("sp_2");
+  });
+
+  it("escapes sender profile IDs before deletion", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      deletedSenderProfileId: "weird id/../x",
+      fallbackSenderProfileId: null,
+      message: "Sender profile deleted.",
+    });
+
+    await handleToolCall("delete_sender_profile", {
+      profileId: "weird id/../x",
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "DELETE",
+      "/api/v1/sender-profiles/weird%20id%2F..%2Fx",
+      undefined,
+      undefined
+    );
+  });
+
   it("gets company sending status with the selected company override", async () => {
     mockApiRequest.mockResolvedValueOnce({
       success: true,
@@ -1454,6 +1613,68 @@ describe("nullable structured output", () => {
   });
 });
 
+describe("template master flags", () => {
+  beforeEach(() => {
+    mockApiRequest.mockReset();
+    mockApiRequest.mockResolvedValue({ success: true });
+  });
+
+  it.each([true, false])(
+    "forwards the isTemplate=%s list filter",
+    async (isTemplate) => {
+      const result = await handleToolCall("list_templates", { isTemplate });
+
+      expect(result.isError).toBeUndefined();
+      expect(mockApiRequest).toHaveBeenCalledWith(
+        "GET",
+        `/api/v1/templates?isTemplate=${isTemplate}`,
+        undefined,
+        undefined
+      );
+    }
+  );
+
+  it.each([true, false])(
+    "allows isTemplate=%s as the only template update",
+    async (isTemplate) => {
+      const result = await handleToolCall("update_template", {
+        templateId: "tmpl_123",
+        isTemplate,
+      });
+
+      expect(result.isError).toBeUndefined();
+      expect(mockApiRequest).toHaveBeenCalledWith(
+        "PUT",
+        "/api/v1/templates/tmpl_123",
+        { templateId: "tmpl_123", isTemplate },
+        undefined
+      );
+    }
+  );
+
+  it("forwards the master flag when creating a template", async () => {
+    const result = await handleToolCall("create_template", {
+      name: "Master design",
+      subject: "Welcome",
+      blocks: [],
+      isTemplate: true,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/templates",
+      {
+        name: "Master design",
+        subject: "Welcome",
+        blocks: [],
+        isTemplate: true,
+      },
+      undefined
+    );
+  });
+});
+
 describe("update_template tool validation", () => {
   beforeEach(() => {
     mockApiRequest.mockClear();
@@ -1480,6 +1701,7 @@ describe("update_template tool validation", () => {
     expect(inputSchema?.properties).toHaveProperty("html");
     expect(inputSchema?.properties).toHaveProperty("blocks");
     expect(inputSchema?.properties).toHaveProperty("labels");
+    expect(inputSchema?.properties).toHaveProperty("isTemplate");
   });
 
   it("rejects update_template calls that omit all supported update fields", async () => {
@@ -1490,7 +1712,7 @@ describe("update_template tool validation", () => {
     expect(result.isError).toBe(true);
     expect(result.content[0]?.type).toBe("text");
     expect(result.content[0]?.text).toContain(
-      "Provide at least one of `name`, `subject`, `previewText`, `html`, `blocks`, or `labels` when calling `update_template`."
+      "Provide at least one of `name`, `subject`, `previewText`, `html`, `blocks`, `labels`, or `isTemplate` when calling `update_template`."
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
   });
@@ -12628,7 +12850,31 @@ describe("outbound webhook tools", () => {
     expect(payload.signingSecret).toBe("whsec_test");
   });
 
-  it("rejects unsupported webhook event types before hitting the API", async () => {
+  it("accepts campaign.sent and rejects unsupported webhook event types before hitting the API", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      webhook: { id: "wh_123", signingSecret: "whsec_test" },
+    });
+
+    const accepted = await handleToolCall("create_webhook", {
+      name: "Prod",
+      url: "https://example.com/webhooks/sequenzy",
+      events: ["email.delivered", "campaign.sent"],
+    });
+
+    expect(accepted.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/webhooks",
+      {
+        name: "Prod",
+        url: "https://example.com/webhooks/sequenzy",
+        events: ["email.delivered", "campaign.sent"],
+      },
+      undefined
+    );
+    mockApiRequest.mockClear();
+
     const result = await handleToolCall("create_webhook", {
       name: "Prod",
       url: "https://example.com/webhooks/sequenzy",

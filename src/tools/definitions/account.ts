@@ -929,6 +929,27 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
     },
   },
   {
+    name: "delete_sender_profile",
+    description:
+      "Permanently delete one sender (From) profile. This cannot be undone. Deletion is refused when this is the company's last sender or when a live campaign, active sequence (including a step-level override), or transactional email still uses it. Draft and rejected campaigns plus the account default are reassigned to the best remaining sender when needed; read fallbackSenderProfileId in the result and review that identity before sending. Reply-to profiles are not supported by this tool. Get the profile ID from list_sender_profiles. Requires the companies:manage scope.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        profileId: {
+          type: "string",
+          description:
+            "Sender (From) profile ID to delete, from senderProfiles in list_sender_profiles.",
+        },
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+      },
+      required: ["profileId"],
+    },
+  },
+  {
     name: "get_sending_status",
     description: `Check whether company-level email sending is active, paused, or suspended, and what it takes to restore it. Call this FIRST whenever a send, test send, or sequence step fails for a reason that is not a validation error, and whenever the account reports a bounce or complaint rate problem.
 
@@ -1069,7 +1090,7 @@ Requires the companies:manage scope and owner or admin access to the company.`,
   {
     name: "get_notification_preferences",
     description:
-      "Get the account notification settings for the API key's own user in this company: whether Sequenzy emails them when a new subscriber joins, when a form is submitted, when a campaign finishes sending, and whether they get the Monday weekly report (last week's sends, engagement, new subscribers, revenue, goals, and sequence trends versus the week before; on by default, only sent for weeks with more than 10 emails sent), and whether each arrives per-occurrence, as a daily summary, or weekly. Instant form-submission notifications stop after 50 per workspace per UTC day. Returns the supported modes and platform defaults alongside the current values. These are per-person settings - this never reads a teammate's preferences.",
+      "Get the account notification settings for the API key's own user in this company: whether Sequenzy emails them when a new subscriber joins, when a form is submitted, when a campaign finishes sending, and whether they get the Monday weekly report (last week's sends, engagement, new subscribers, revenue, goals, and sequence trends versus the week before; on by default for the workspace owner, off by default for invited members, only sent for weeks with more than 10 emails sent), and whether each arrives per-occurrence, as a daily summary, or weekly. Instant form-submission notifications stop after 50 per workspace per UTC day. Returns the supported modes and the platform defaults for this user's role alongside the current values. These are per-person settings - this never reads a teammate's preferences.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1084,7 +1105,7 @@ Requires the companies:manage scope and owner or admin access to the company.`,
   {
     name: "update_notification_preferences",
     description:
-      "Change which account notifications Sequenzy emails the API key's own user for this company. Requires the companies:manage scope. Useful before a bulk import or a large migration, when per-signup notifications would otherwise flood the inbox, or to turn the Monday weekly report off. Modes are 'off', 'instant' (one email per occurrence), 'daily' (one summary per day), and 'weekly' (the Monday report); 'daily' is only valid for new_subscriber, because a campaign finishes once and each form submit is its own lead, and 'weekly' is only valid for weekly_report. Instant form-submission notifications stop after 50 per workspace per UTC day. New-subscriber notifications already fall back to a daily summary automatically on high-volume days, and imports never trigger them at all.",
+      "Change which account notifications Sequenzy emails the API key's own user for this company. Requires the companies:manage scope. Useful before a bulk import or a large migration, when per-signup notifications would otherwise flood the inbox, or to turn the Monday weekly report off (it is on by default only for the workspace owner; invited members set weekly_report to 'weekly' to receive it). Modes are 'off', 'instant' (one email per occurrence), 'daily' (one summary per day), and 'weekly' (the Monday report); 'daily' is only valid for new_subscriber, because a campaign finishes once and each form submit is its own lead, and 'weekly' is only valid for weekly_report. Instant form-submission notifications stop after 50 per workspace per UTC day. New-subscriber notifications already fall back to a daily summary automatically on high-volume days, and imports never trigger them at all.",
     inputSchema: {
       type: "object",
       properties: {
