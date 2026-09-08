@@ -43,7 +43,7 @@ export const integrationToolDefinitions: Tool[] = [
         webhookSecret: {
           type: "string",
           description:
-            "Signing secret for the provider webhook. Optional for lemon_squeezy: omit it for managed provisioning, or provide it for manual fallback. Required for every other provider except attio, which is outbound-only. For Chargebee, pass username:password. For segment, use 16-153 UTF-8 bytes.",
+            "Signing secret for the provider webhook. Optional for lemon_squeezy: omit it for managed provisioning, or provide 16-40 characters for manual fallback. Required for every other provider except attio, which is outbound-only. For Chargebee, pass username:password. For segment, use 16-153 UTF-8 bytes.",
         },
         providerAccountId: {
           type: "string",

@@ -441,8 +441,8 @@ to retry with the saved credentials.
 For Lemon Squeezy, pass `provider: "lemon_squeezy"`, an API key, and the
 numeric store ID as `providerAccountId`. Omit `webhookSecret` for the default
 managed setup; the response reports `webhookProvisioning` and `testMode`.
-Provide a signing secret only for manual webhook setup, using the returned
-`webhookUrl`. Credentials are never returned.
+Provide a 16-40 character signing secret only for manual webhook setup, using
+the returned `webhookUrl`. Credentials are never returned.
 
 For Attio, `connect_integration` on standard MCP accepts a workspace access
 token without a webhook secret, with optional `settings.listMap` as a map of
