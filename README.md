@@ -330,6 +330,13 @@ does not stop a provider's live webhook from creating contacts. Use
 targets those lists. The change is not retroactive and never removes existing
 memberships. Supabase, Stripe, Shopify, Wix, and Webflow support this control.
 
+Webflow always requires an explicit choice: pass `[]` for no lists or specific
+list IDs. It rejects `null` instead of inheriting workspace defaults. Native
+form selection, field allowlists, required double opt-in, and sequence
+enrollment remain in **Settings → Integrations → Webflow** so authorization
+alone never starts capture. If no forms are selected, capture is off and no
+contacts are created.
+
 For PostHog, `sync_integration` restarts the event-history import from the
 beginning with the stored personal API key. Imported events are deduplicated, so
 retrying a failed import does not create duplicates.
@@ -808,6 +815,10 @@ server-side, so the deployed browser code never contains a Sequenzy API key.
 Generated native and standalone markup includes "Powered by Sequenzy" for free
 workspaces; paid workspaces receive unbranded markup. The API resolves that
 entitlement server-side, so callers should use the returned snippet unchanged.
+For a Webflow-connected company, these tools return `embed.disabled: true` and
+the native Webflow settings path instead of custom embed code. Previously
+deployed Sequenzy form endpoints also reject submissions until Webflow is
+disconnected; configure selected native forms in the Webflow integration.
 When updating a form, omitted fields remain unchanged and theme fields merge
 into the current theme. Pass an empty `tagIds` array to clear tags or an empty
 `redirectUrl` to restore confirmation-message behavior. The `blocks` field is
@@ -830,6 +841,9 @@ checkbox fields require options, while hidden defaults are enforced server-side.
 
 Popup deployment uses one public script tag; API keys, audience settings,
 triggering, targeting, scheduling, and frequency rules remain server-side.
+For a Webflow-connected company, popup tools return `embed.disabled: true` and
+the native Webflow settings path instead of custom code; previously deployed
+popup scripts become no-ops and their submission endpoint rejects requests.
 Popups capture into every list by default unless `listIds` is provided. When
 updating blocks, read the popup first and send the complete replacement array,
 retaining exactly one required email field and one submit button. Setting

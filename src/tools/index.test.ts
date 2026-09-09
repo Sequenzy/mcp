@@ -1650,6 +1650,76 @@ describe("update_company tool validation", () => {
     expect(inputSchema?.properties).toHaveProperty("replyTrackingEnabled");
     expect(inputSchema?.properties).toHaveProperty("replyTrackingDomainMode");
     expect(inputSchema?.properties).toHaveProperty("forwardReplies");
+    expect(inputSchema?.properties).toHaveProperty("defaultSubscriberListIds");
+  });
+
+  // The workspace default lists were previously unreachable from MCP, so an
+  // agent could see that an integration's contacts "follow the workspace
+  // default lists" and still have no way to read or change them.
+  it("passes defaultSubscriberListIds through to the company PATCH API", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      company: { id: "company_123", defaultSubscriberListIds: ["list_abc"] },
+    });
+
+    const result = await handleToolCall("update_company", {
+      companyId: "company_123",
+      defaultSubscriberListIds: ["list_abc"],
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/companies/company_123",
+      { defaultSubscriberListIds: ["list_abc"] }
+    );
+  });
+
+  it("keeps null and [] distinct for defaultSubscriberListIds", async () => {
+    // null = every current and future list. It must survive as an explicit
+    // null rather than being dropped as "no value supplied".
+    mockApiRequest.mockResolvedValueOnce({ success: true, company: {} });
+    await handleToolCall("update_company", {
+      companyId: "company_123",
+      defaultSubscriberListIds: null,
+    });
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "PATCH",
+      "/api/v1/companies/company_123",
+      { defaultSubscriberListIds: null }
+    );
+
+    // [] = no list at all, which is the opposite of null.
+    mockApiRequest.mockResolvedValueOnce({ success: true, company: {} });
+    await handleToolCall("update_company", {
+      companyId: "company_123",
+      defaultSubscriberListIds: [],
+    });
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "PATCH",
+      "/api/v1/companies/company_123",
+      { defaultSubscriberListIds: [] }
+    );
+  });
+
+  it("rejects malformed defaultSubscriberListIds values", async () => {
+    const notAnArray = await handleToolCall("update_company", {
+      companyId: "company_123",
+      defaultSubscriberListIds: "list_abc",
+    });
+    expect(notAnArray.isError).toBe(true);
+    expect(notAnArray.content[0]?.text).toContain(
+      "must be an array of list IDs"
+    );
+
+    const blankEntry = await handleToolCall("update_company", {
+      companyId: "company_123",
+      defaultSubscriberListIds: ["list_abc", "  "],
+    });
+    expect(blankEntry.isError).toBe(true);
+    expect(blankEntry.content[0]?.text).toContain("non-empty list IDs");
+
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
   it("calls the company PATCH API with editable fields", async () => {
@@ -5019,6 +5089,9 @@ describe("landing page tools", () => {
           required?: string[];
         }
       | undefined;
+    const contentSchema = createSchema?.properties?.["content"] as
+      | { description?: string }
+      | undefined;
 
     expect(toolNames).toContain("list_landing_pages");
     expect(toolNames).toContain("get_landing_page");
@@ -5033,6 +5106,13 @@ describe("landing page tools", () => {
     expect(toolNames).toContain("remove_landing_page_domain");
     expect(createSchema?.additionalProperties).toBe(false);
     expect(createSchema?.required).toBeUndefined();
+    expect(contentSchema?.description).toContain("`top`");
+    expect(contentSchema?.description).toContain("`#form`");
+    expect(contentSchema?.description).toContain("`sectionAnimation`");
+    expect(contentSchema?.description).toContain("`video`");
+    expect(contentSchema?.description).toContain("YouTube URL");
+    expect(contentSchema?.description).not.toContain("Vimeo");
+    expect(contentSchema?.description).not.toContain("Loom");
     expect(createSchema?.properties).toHaveProperty("content");
     expect(createSchema?.properties).toHaveProperty("template");
     expect(updateSchema?.required).toEqual(["landingPageId"]);

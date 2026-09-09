@@ -49,7 +49,7 @@ export const savedPopupToolDefinitions: Tool[] = [
   {
     name: "get_popup",
     description:
-      "Get one saved popup with its complete content blocks, trigger, targeting, schedule, frequency, and theme. Read this before editing blocks so the replacement array stays complete.",
+      "Get one saved popup with its complete content blocks, trigger, targeting, schedule, frequency, and theme. Read this before editing blocks so the replacement array stays complete. For a Webflow-connected company, a published popup reports embed.disabled and the native Webflow settings path instead of custom code.",
     inputSchema: {
       type: "object",
       properties: {
@@ -71,7 +71,7 @@ export const savedPopupToolDefinitions: Tool[] = [
   {
     name: "create_popup",
     description:
-      "Create a saved signup popup and get the one-line script tag that deploys it. The popup is published by default; its trigger, targeting, audience, and duplicate handling stay server-side, so the deployed script carries no API key. Pick a template for the starting design, then refine copy and behavior with update_popup.",
+      "Create a saved signup popup and, for non-Webflow sites, get the one-line script tag that deploys it. The popup is published by default; its trigger, targeting, audience, and duplicate handling stay server-side, so the deployed script carries no API key. Pick a template for the starting design, then refine copy and behavior with update_popup. For a Webflow-connected company, the popup is saved but embed returns disabled plus the native Webflow settings path; custom popups are not part of the Marketplace integration.",
     inputSchema: {
       type: "object",
       properties: {
@@ -318,7 +318,7 @@ export const savedPopupToolDefinitions: Tool[] = [
   {
     name: "get_popup_embed",
     description:
-      "Get a published popup's script URL and ready-to-paste embed snippets for plain HTML, React/Next.js, WordPress, and Shopify. The snippet contains no API key - the trigger, targeting, and audience rules stay server-side.",
+      "Get a published popup's script URL and ready-to-paste embed snippets for plain HTML, React/Next.js, WordPress, and Shopify. The snippet contains no API key - the trigger, targeting, and audience rules stay server-side. For a Webflow-connected company, returns embed.disabled plus the native Webflow settings path and no custom code.",
     inputSchema: {
       type: "object",
       properties: {

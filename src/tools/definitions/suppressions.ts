@@ -21,7 +21,7 @@ export const suppressionToolDefinitions: Tool[] = [
   {
     name: "get_recipient_suppression",
     description:
-      "Check whether one recipient is suppressed by Sequenzy's bounce, complaint, or email-hygiene safeguards or the regional Amazon SES account-level suppression list. This exact-address lookup never exposes other recipients from the shared SES account.",
+      "Check whether one recipient is suppressed by Sequenzy's bounce/complaint safeguards or the regional Amazon SES account-level suppression list. This exact-address lookup never exposes other recipients from the shared SES account.",
     inputSchema: {
       type: "object",
       properties: commonProperties,
@@ -32,7 +32,7 @@ export const suppressionToolDefinitions: Tool[] = [
   {
     name: "remove_recipient_suppression",
     description:
-      "Remove stale bounce suppression for an exact recipient associated with the company. Clears matching Amazon SES bounce entries and Sequenzy's local bounce block, then reactivates bounced company subscribers. Complaint, unsubscribe, and email-hygiene protections are never removed.",
+      "Remove stale bounce suppression for an exact recipient associated with the company. Clears matching Amazon SES bounce entries and Sequenzy's local bounce block, then reactivates bounced company subscribers. Complaint and unsubscribe protections are never removed.",
     inputSchema: {
       type: "object",
       properties: commonProperties,

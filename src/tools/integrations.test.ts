@@ -112,6 +112,8 @@ describe("integration tool definitions", () => {
 
     expect(description).toContain("does not stop contacts being created");
     expect(description).toContain("contact_added");
+    expect(description).toContain("Webflow is deliberately fail-closed");
+    expect(description).toContain("field allowlists");
   });
 
   // Existing-contact behavior differs by provider, so the tool must not give

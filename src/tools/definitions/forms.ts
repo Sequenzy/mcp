@@ -20,7 +20,7 @@ export const savedFormToolDefinitions: Tool[] = [
   {
     name: "create_form",
     description:
-      "Create and publish a saved signup form whose opaque formId is a client-safe public capability. The selected lists, tags, duplicate behavior, and success action stay server-side; no API key is needed in the deployed form. This creates the email/name fields only - add typed custom fields (select, textarea, hidden, ...) afterwards with update_form's blocks argument.",
+      "Create and publish a saved signup form whose opaque formId is a client-safe public capability. The selected lists, tags, duplicate behavior, and success action stay server-side; no API key is needed in the deployed form. This creates the email/name fields only - add typed custom fields (select, textarea, hidden, ...) afterwards with update_form's blocks argument. For a Webflow-connected company, the form is saved but embed returns disabled plus the native Webflow settings path; custom embeds are not part of the Marketplace integration.",
     inputSchema: {
       type: "object",
       properties: {
@@ -172,7 +172,7 @@ export const savedFormToolDefinitions: Tool[] = [
   {
     name: "get_form_embed",
     description:
-      "Get a published saved form's action URL, one-line JavaScript embed, minimal native form action, and fetch example. Use this for Astro, Hugo, Jekyll, Cloudflare Pages, Netlify, GitHub Pages, or any browser integration.",
+      "Get a published saved form's action URL, one-line JavaScript embed, minimal native form action, and fetch example. Use this for Astro, Hugo, Jekyll, Cloudflare Pages, Netlify, GitHub Pages, or other non-Webflow browser integrations. For a Webflow-connected company, returns embed.disabled plus the native Webflow settings path and no custom code.",
     inputSchema: {
       type: "object",
       properties: {
