@@ -332,6 +332,51 @@ export const outputPropertiesByToolName: Record<
       "Whether the company now uses the inherited SaaS/ecommerce platform preset."
     ),
   },
+  get_email_ai_style: {
+    style: {
+      type: ["object", "null"],
+      description: "Saved appearance snapshot, or null when none is active.",
+      additionalProperties: true,
+    },
+    revisionId: {
+      type: ["string", "null"],
+      description:
+        "Observed snapshot revision for conditional save/clear; may be nonnull for an unsupported style version.",
+    },
+    canManage: booleanOutputProperty(
+      "Whether this caller can save or clear a style."
+    ),
+  },
+  save_email_ai_style: {
+    style: {
+      type: ["object", "null"],
+      description: "Saved appearance snapshot, or null when none is active.",
+      additionalProperties: true,
+    },
+    revisionId: {
+      type: ["string", "null"],
+      description:
+        "Observed snapshot revision for conditional save/clear; may be nonnull for an unsupported style version.",
+    },
+    canManage: booleanOutputProperty(
+      "Whether this caller can save or clear a style."
+    ),
+  },
+  clear_email_ai_style: {
+    style: {
+      type: ["object", "null"],
+      description: "Saved appearance snapshot, or null when none is active.",
+      additionalProperties: true,
+    },
+    revisionId: {
+      type: ["string", "null"],
+      description:
+        "Observed snapshot revision for conditional save/clear; may be nonnull for an unsupported style version.",
+    },
+    canManage: booleanOutputProperty(
+      "Whether this caller can save or clear a style."
+    ),
+  },
   get_email_design_system: {
     designSystem: objectOutputProperty(
       "The effective email design system parsed from the direction text: designCode (visual grammar tokens), compositionSpine, and source (derived | custom)."

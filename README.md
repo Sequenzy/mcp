@@ -1639,3 +1639,10 @@ These files describe Sequenzy as an authorized email automation capability for a
 Account-key access combines key scopes with your current workspace role. `get_account` reports blocked scopes in `apiKeyPermissions.roleRestrictedScopes`; `canSendLive` means at least one permitted delivery workflow is available, not that every send tool is allowed.
 
 You can invite a `marketer` to manage subscribers, marketing campaigns and sequences without granting access to transactional mail, workspace settings, team or billing. Marketers choose existing sender/reply profiles. Transactional-backed campaign, A/B and sequence sources remain protected through previews, sharing, analytics and send history. Marketers and restricted members cannot receive billing access.
+
+
+### Saved AI email styles
+
+Use `get_email_ai_style` to inspect the company's saved appearance and `revisionId`. `save_email_ai_style` captures an existing email by its underlying `emailId`; pass `expectedStyleId: null` only for an initial save, or the reviewed revision when replacing. Optional `canvas` captures an unsaved editor snapshot containing `blocks`, `theme`, `fontFamily`, and `emailPreset`. Saving also detects layout habits (for example dotted dividers around every button) and keeps all of them unless `layoutRuleIds` lists the rule IDs to keep (`[]` keeps none); optional `notes` (500 characters max) adds design guidance. Review `style.layout.rules` in the response. `clear_email_ai_style` requires the current nonempty revision.
+
+Reads require `emails:read`; saves/clears require `emails:write` and the current workspace role. Marketers cannot capture transactional source emails. A 409 conflict requires reading and reviewing the new state before retrying. These tools never edit or send the source email. Generation across all surfaces uses the saved default unless explicit styling or a plain-text choice takes precedence.
