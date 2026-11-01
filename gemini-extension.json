@@ -1,0 +1,11 @@
+{
+  "name": "sequenzy",
+  "version": "1.0.0",
+  "description": "Email marketing for SaaS and ecommerce through Sequenzy\u2019s hosted MCP server: subscribers, campaigns, automations, transactional email and analytics.",
+  "mcpServers": {
+    "sequenzy": {
+      "httpUrl": "https://api.sequenzy.com/v1/mcp"
+    }
+  },
+  "contextFileName": "GEMINI.md"
+}
