@@ -7,7 +7,7 @@ export const aiGenerationToolDefinitions: Tool[] = [
   {
     name: "generate_email",
     description:
-      "Generate email blocks from a prompt. Generated blocks include the company's branding chrome (logo, footer with company name/address/unsubscribe) by default, matching emails created in the dashboard.",
+      "Generate email blocks from a prompt. Returns a draft and does not create or send an email; the first generation for a company also saves its inferred email design direction, which later generations reuse. Generated blocks include the company's branding chrome (logo, footer with company name/address/unsubscribe) by default, matching emails created in the dashboard.",
     inputSchema: {
       type: "object",
       properties: {
@@ -84,7 +84,8 @@ export const aiGenerationToolDefinitions: Tool[] = [
   },
   {
     name: "generate_subject_lines",
-    description: "Generate A/B test subject line variants",
+    description:
+      "Generate subject line variants for an A/B test from a prompt. Returns suggestions only and does not create or change a test; the first generation for a company also saves its inferred email design direction, which later generations reuse.",
     inputSchema: {
       type: "object",
       properties: {
@@ -108,7 +109,7 @@ export const aiGenerationToolDefinitions: Tool[] = [
   {
     name: "generate_sms",
     description:
-      "Generate SMS marketing message variants from a prompt. Returns plain-text messages with per-message encoding and segment counts. Use the results as the 'text' of an SMS sequence step (insert_sequence_step with type 'sms' or a create_sequence sms step). Messages exclude opt-out footers and brand prefixes - the platform adds those automatically at send time.",
+      "Generate SMS marketing message variants from a prompt. Nothing is created or sent; the first generation for a company also saves its inferred email design direction, which later generations reuse. Returns plain-text messages with per-message encoding and segment counts. Use the results as the 'text' of an SMS sequence step (insert_sequence_step with type 'sms' or a create_sequence sms step). Messages exclude opt-out footers and brand prefixes - the platform adds those automatically at send time.",
     inputSchema: {
       type: "object",
       properties: {
@@ -134,7 +135,7 @@ export const aiGenerationToolDefinitions: Tool[] = [
   {
     name: "get_sms_settings",
     description:
-      "Get the company's SMS add-on status: whether SMS is enabled, plan eligibility, credit balance, brand prefix, phone numbers, and whether SMS steps will actually send. Check this before adding SMS steps to sequences so you can warn the user when SMS is not ready.",
+      "Get the company's SMS add-on status: whether SMS is enabled, plan eligibility, credit balance, brand prefix, phone numbers (each with linkShorteningEnabled), and whether SMS steps will actually send. Check this before adding SMS steps to sequences so you can warn the user when SMS is not ready.",
     inputSchema: {
       type: "object",
       properties: {
@@ -164,7 +165,7 @@ export const aiGenerationToolDefinitions: Tool[] = [
   {
     name: "update_sms_number_label",
     description:
-      "Update one SMS number's settings: the user-facing label and/or its brand prefix override. Use get_sms_settings to find the number ID. Omitted fields keep their value; pass an empty string to clear one. Requires workspace-management permission.",
+      "Update one SMS number's settings: the user-facing label, its brand prefix override, and/or link shortening. Use get_sms_settings to find the number ID. Omitted fields keep their value; pass an empty string to clear label or brandPrefix. Requires workspace-management permission.",
     inputSchema: {
       type: "object",
       properties: {
@@ -186,6 +187,11 @@ export const aiGenerationToolDefinitions: Tool[] = [
           type: "string",
           description:
             'Per-number brand prefix override up to 100 characters; messages go out as "{prefix}: your message". Pass an empty string to clear it back to the account-wide prefix.',
+        },
+        linkShorteningEnabled: {
+          type: "boolean",
+          description:
+            "true (the default) replaces links in messages from this number with click-tracked short links; false sends links exactly as written, for example the customer's own tracking links, and SMS clicks from this number are then not tracked. Long links can add segments, which uses more credits, so tell the user before turning it off. Applies to messages prepared after the change.",
         },
       },
       required: ["numberId"],
@@ -214,7 +220,7 @@ export const aiGenerationToolDefinitions: Tool[] = [
   {
     name: "send_test_sms",
     description:
-      "Send a test SMS to a phone number. IMPORTANT: sends a real text message and charges SMS credits - only call when the user explicitly asks for a test send. Requires the SMS add-on with a verified number (check get_sms_settings). Limited to 100 test sends per company per rolling 24 hours; bypasses quiet hours; excluded from step stats.",
+      "Send a test SMS to a phone number. This delivers a real text message and consumes SMS credits from the workspace's existing balance based on destination, message segments, and media; it never purchases credits or changes the plan. Intended for user-requested test sends. Requires the SMS add-on with a verified number (see get_sms_settings). Limited to 100 test sends per company per rolling 24 hours; bypasses quiet hours; excluded from step stats. Each successful call sends another text, so after a timeout check with the user before retrying.",
     inputSchema: {
       type: "object",
       properties: {

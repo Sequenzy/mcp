@@ -6,7 +6,9 @@ import {
   buildSequenceGraphEditBody,
   buildInsertSequenceStepBody,
   buildCancelSequenceEnrollmentBody,
+  buildSequenceAudienceEnrollmentBody,
   buildMoveSequenceEnrollmentBody,
+  buildSequenceSubscriberPauseBody,
   buildRealignSequenceEnrollmentBody,
   optionalString,
   optionalIntegerInRange,
@@ -18,6 +20,12 @@ import {
   validateSequenceListScopeArgs,
   validateSendingIdentityArgs,
 } from "../internal.js";
+import {
+  buildSequenceRecurringEnrollmentBody,
+  isSequenceRecurringEnrollmentRemoval,
+} from "../sequence-recurring-enrollment-args.js";
+
+import { compactAudienceEnrollmentResult } from "./audience-enrollment-output.js";
 
 const MAX_DEFAULT_SEQUENCE_NAME_LENGTH = 80;
 const MAX_SEQUENCE_TEST_RECIPIENTS = 10;
@@ -161,6 +169,47 @@ export async function handleSequenceTools(
       break;
     }
 
+    case "start_sequence_test_run": {
+      const sequenceId = requiredString(name, args, "sequenceId");
+      const subscriberId = requiredString(name, args, "subscriberId");
+      const customVariables = args.customVariables;
+      if (
+        customVariables !== undefined &&
+        (customVariables === null ||
+          typeof customVariables !== "object" ||
+          Array.isArray(customVariables))
+      )
+        throw new Error("customVariables must be a JSON object");
+      const speedMultiplier = optionalIntegerInRange(
+        name,
+        args,
+        "speedMultiplier",
+        60,
+        10000
+      );
+      result = await apiRequest(
+        "POST",
+        `/api/v1/sequences/${encodeURIComponent(sequenceId)}/test-runs`,
+        {
+          subscriberId,
+          ...(speedMultiplier !== undefined ? { speedMultiplier } : {}),
+          ...(customVariables !== undefined ? { customVariables } : {}),
+        },
+        args.companyId as string | undefined
+      );
+      break;
+    }
+    case "get_sequence_test_run": {
+      const sequenceId = requiredString(name, args, "sequenceId");
+      const runId = requiredString(name, args, "runId");
+      result = await apiRequest(
+        "GET",
+        `/api/v1/sequences/${encodeURIComponent(sequenceId)}/test-runs/${encodeURIComponent(runId)}`,
+        undefined,
+        args.companyId as string | undefined
+      );
+      break;
+    }
     case "simulate_sequence": {
       const companyId = args.companyId as string | undefined;
       const sequenceId = requiredString(name, args, "sequenceId");
@@ -249,6 +298,10 @@ export async function handleSequenceTools(
       const hasExplicitSteps = Array.isArray(args.steps);
       const createsBlankDraft =
         args.goal === undefined && args.steps === undefined;
+      // The company travels in the X-Company-Id header. The API reports body
+      // fields it ignores as warnings, and agents are told to act on those.
+      const body = { ...args };
+      delete body.companyId;
       // Create the sequence - this queues AI enrichment
       const createSeqResult = await apiRequest<{
         success: boolean;
@@ -267,7 +320,7 @@ export async function handleSequenceTools(
         eventTrackingCode?: string;
         eventTracking?: Record<string, unknown>;
         requiredEvents?: string[];
-      }>("POST", "/api/v1/sequences", args, companyId);
+      }>("POST", "/api/v1/sequences", body, companyId);
 
       if (!createSeqResult.success) {
         result = createSeqResult;
@@ -425,6 +478,42 @@ export async function handleSequenceTools(
       break;
     }
 
+    case "edit_sequence_emails": {
+      const companyId = args.companyId as string | undefined;
+      const sequenceId = requiredString(
+        "edit_sequence_emails",
+        args,
+        "sequenceId"
+      );
+      requiredString("edit_sequence_emails", args, "prompt");
+      for (const key of ["emailIds", "sectionIds"] as const) {
+        if (args[key] !== undefined && !Array.isArray(args[key])) {
+          throw new Error(
+            `\`${key}\` must be an array when calling \`edit_sequence_emails\`.`
+          );
+        }
+      }
+      const sectionIds = args.sectionIds as unknown[] | undefined;
+      const emailIds = args.emailIds as unknown[] | undefined;
+      if (sectionIds?.length && emailIds?.length !== 1) {
+        throw new Error(
+          "`sectionIds` needs exactly one `emailIds` entry when calling `edit_sequence_emails`."
+        );
+      }
+      result = await apiRequest(
+        "POST",
+        `/api/v1/sequences/${encodeURIComponent(sequenceId)}/emails/edit`,
+        {
+          prompt: args.prompt,
+          ...(emailIds !== undefined ? { emailIds } : {}),
+          ...(sectionIds !== undefined ? { sectionIds } : {}),
+          ...(args.dryRun !== undefined ? { dryRun: args.dryRun } : {}),
+        },
+        companyId
+      );
+      break;
+    }
+
     case "edit_sequence_graph": {
       const companyId = args.companyId as string | undefined;
       const body = buildSequenceGraphEditBody(args);
@@ -527,6 +616,92 @@ export async function handleSequenceTools(
         "POST",
         `/api/v1/sequences/${encodeURIComponent(sequenceId)}/${action}`,
         undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "list_sequence_templates": {
+      const companyId = args.companyId as string | undefined;
+      const websiteType = args.websiteType;
+      if (websiteType !== undefined && typeof websiteType !== "string") {
+        throw new Error("websiteType must be a string.");
+      }
+      result = await apiRequest(
+        "GET",
+        `/api/v1/sequences/templates${
+          websiteType ? `?websiteType=${encodeURIComponent(websiteType)}` : ""
+        }`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "create_sequence_from_template": {
+      const companyId = args.companyId as string | undefined;
+      const templateId = requiredString(name, args, "templateId");
+      if (args.name !== undefined && typeof args.name !== "string") {
+        throw new Error("name must be a string.");
+      }
+      result = await apiRequest(
+        "POST",
+        "/api/v1/sequences/from-template",
+        {
+          templateId,
+          ...(typeof args.name === "string" && args.name.trim()
+            ? { name: args.name.trim() }
+            : {}),
+        },
+        companyId
+      );
+      break;
+    }
+
+    case "get_sequence_definition": {
+      const companyId = args.companyId as string | undefined;
+      const key = typeof args.key === "string" ? args.key.trim() : "";
+      const sequenceId =
+        typeof args.sequenceId === "string" ? args.sequenceId.trim() : "";
+      if ((key ? 1 : 0) + (sequenceId ? 1 : 0) !== 1) {
+        throw new Error(
+          "get_sequence_definition needs exactly one of key or sequenceId"
+        );
+      }
+      const formatQuery = args.format === "raw" ? "?format=raw" : "";
+      result = await apiRequest(
+        "GET",
+        key
+          ? `/api/v1/sequences/definitions/${encodeURIComponent(key)}${formatQuery}`
+          : `/api/v1/sequences/${encodeURIComponent(sequenceId)}/definition${formatQuery}`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "push_sequence_definition": {
+      const companyId = args.companyId as string | undefined;
+      const key = requiredString(name, args, "key");
+      const definition = args.definition;
+      if (
+        typeof definition !== "object" ||
+        definition === null ||
+        Array.isArray(definition)
+      ) {
+        throw new Error(
+          "push_sequence_definition requires a definition object"
+        );
+      }
+      const query = new URLSearchParams();
+      if (args.dryRun === true) query.set("dryRun", "true");
+      if (args.confirmLiveChange === true)
+        query.set("confirmLiveChange", "true");
+      const suffix = query.size > 0 ? `?${query.toString()}` : "";
+      result = await apiRequest(
+        "PUT",
+        `/api/v1/sequences/definitions/${encodeURIComponent(key)}${suffix}`,
+        definition,
         companyId
       );
       break;
@@ -671,6 +846,138 @@ export async function handleSequenceTools(
       break;
     }
 
+    case "enroll_sequence_audience": {
+      const companyId = args.companyId as string | undefined;
+      const sequenceId = requiredString(
+        "enroll_sequence_audience",
+        args,
+        "sequenceId"
+      );
+      const body = buildSequenceAudienceEnrollmentBody(args);
+      const dryRun = body.dryRun;
+      result = await apiRequest(
+        "POST",
+        dryRun
+          ? `/api/v1/sequences/${encodeURIComponent(sequenceId)}/enroll-audience/estimate`
+          : `/api/v1/sequences/${encodeURIComponent(sequenceId)}/enroll-audience`,
+        dryRun
+          ? { audience: body.audience }
+          : {
+              audience: body.audience,
+              ...(body.targetNodeId ? { targetNodeId: body.targetNodeId } : {}),
+              ...(body.scheduledFor ? { scheduledFor: body.scheduledFor } : {}),
+              ...(body.data ? { data: body.data } : {}),
+            },
+        companyId
+      );
+      result = compactAudienceEnrollmentResult(result);
+      if (dryRun && typeof result === "object" && result !== null) {
+        result = {
+          ...(result as Record<string, unknown>),
+          dryRun: true,
+          message: (() => {
+            const deferred = [
+              ...(body.targetNodeId ? ["targetNodeId"] : []),
+              ...(body.data ? ["data"] : []),
+            ];
+            return deferred.length > 0
+              ? `Estimate only (${deferred.join(" and ")} ${deferred.length > 1 ? "apply" : "applies"} when a run starts). Call again with dryRun false to start enrolling.`
+              : "Estimate only. Call again with dryRun false to start enrolling.";
+          })(),
+        };
+      }
+      break;
+    }
+
+    case "list_sequence_audience_enrollments": {
+      const companyId = args.companyId as string | undefined;
+      const sequenceId = requiredString(
+        "list_sequence_audience_enrollments",
+        args,
+        "sequenceId"
+      );
+      const rawLimit =
+        typeof args.limit === "string" ? Number(args.limit) : args.limit;
+      if (
+        rawLimit !== undefined &&
+        (typeof rawLimit !== "number" || !Number.isFinite(rawLimit))
+      ) {
+        throw new Error(
+          "`limit` must be a number between 1 and 100 when calling `list_sequence_audience_enrollments`."
+        );
+      }
+      const limit =
+        typeof rawLimit === "number"
+          ? `?limit=${Math.max(1, Math.min(100, Math.trunc(rawLimit)))}`
+          : "";
+      result = compactAudienceEnrollmentResult(
+        await apiRequest(
+          "GET",
+          `/api/v1/sequences/${encodeURIComponent(sequenceId)}/audience-enrollments${limit}`,
+          undefined,
+          companyId
+        )
+      );
+      break;
+    }
+
+    case "get_sequence_audience_enrollment": {
+      const companyId = args.companyId as string | undefined;
+      const sequenceId = requiredString(name, args, "sequenceId");
+      const runId = requiredString(name, args, "runId");
+      result = compactAudienceEnrollmentResult(
+        await apiRequest(
+          "GET",
+          `/api/v1/sequences/${encodeURIComponent(sequenceId)}/audience-enrollments/${encodeURIComponent(runId)}`,
+          undefined,
+          companyId
+        )
+      );
+      break;
+    }
+
+    case "cancel_sequence_audience_enrollment": {
+      const companyId = args.companyId as string | undefined;
+      const sequenceId = requiredString(name, args, "sequenceId");
+      const runId = requiredString(name, args, "runId");
+      result = compactAudienceEnrollmentResult(
+        await apiRequest(
+          "POST",
+          `/api/v1/sequences/${encodeURIComponent(sequenceId)}/audience-enrollments/${encodeURIComponent(runId)}/cancel`,
+          undefined,
+          companyId
+        )
+      );
+      break;
+    }
+
+    case "get_sequence_recurring_enrollment": {
+      const companyId = args.companyId as string | undefined;
+      const sequenceId = requiredString(name, args, "sequenceId");
+      result = await apiRequest(
+        "GET",
+        `/api/v1/sequences/${encodeURIComponent(sequenceId)}/recurring-enrollment`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "set_sequence_recurring_enrollment": {
+      const companyId = args.companyId as string | undefined;
+      const sequenceId = requiredString(name, args, "sequenceId");
+      const path = `/api/v1/sequences/${encodeURIComponent(sequenceId)}/recurring-enrollment`;
+      result = isSequenceRecurringEnrollmentRemoval(args)
+        ? await apiRequest("DELETE", path, undefined, companyId)
+        : await apiRequest(
+            "PUT",
+            path,
+            buildSequenceRecurringEnrollmentBody(args),
+            companyId
+          );
+      break;
+    }
+
     case "cancel_sequence_enrollments": {
       const companyId = args.companyId as string | undefined;
       const body = buildCancelSequenceEnrollmentBody(args);
@@ -694,6 +1001,21 @@ export async function handleSequenceTools(
       result = await apiRequest(
         "POST",
         `/api/v1/sequences/${encodeURIComponent(sequenceId)}/enrollments/move`,
+        body,
+        companyId
+      );
+      break;
+    }
+
+    case "pause_sequence_subscribers":
+    case "resume_sequence_subscribers": {
+      const companyId = args.companyId as string | undefined;
+      const sequenceId = requiredString(name, args, "sequenceId");
+      const body = buildSequenceSubscriberPauseBody(name, args);
+      const action = name === "pause_sequence_subscribers" ? "pause" : "resume";
+      result = await apiRequest(
+        "POST",
+        `/api/v1/sequences/${encodeURIComponent(sequenceId)}/enrollments/${action}`,
         body,
         companyId
       );

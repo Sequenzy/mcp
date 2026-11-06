@@ -2,6 +2,56 @@ import type { Tool } from "../../mcp-types.js";
 
 export const savedFormToolDefinitions: Tool[] = [
   {
+    name: "list_capture_submissions",
+    description:
+      "Read immutable accepted form, popup or landing-page answers, payloads and field labels, newest first. Tracking starts when enabled; explicitly recovered rows include payload.recovery with inferred source attribution and event_time timestamp meaning. Requires subscribers:read plus widgets:read for forms/popups or landing_pages:read for landing pages. Use nextCursor to retrieve subsequent pages with the same filters. Responses include normalized submitted answers, not current profile values or double-opt-in confirmation.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description: "Company override; otherwise uses selected company.",
+        },
+        sourceType: {
+          type: "string",
+          enum: ["form", "popup", "landing_page"],
+          description: "Submission source type.",
+        },
+        sourceId: {
+          type: "string",
+          description: "Saved form, popup or landing page ID.",
+        },
+        limit: {
+          type: "integer",
+          minimum: 1,
+          maximum: 100,
+          description: "Page size, default 50.",
+        },
+        cursor: {
+          type: "string",
+          description: "nextCursor returned by the preceding page.",
+        },
+        field: {
+          type: "string",
+          description: "Exact custom field name. Requires value.",
+        },
+        value: {
+          type: "string",
+          description:
+            "Exact scalar answer or array member. Requires field. Empty string is allowed.",
+        },
+        format: {
+          type: "string",
+          enum: ["json", "csv"],
+          description:
+            "Default json. csv returns a CSV string for this page; follow nextCursor to continue.",
+        },
+      },
+      required: ["sourceType", "sourceId"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "list_forms",
     description:
       "List saved signup forms for a company, including their server-managed audience settings and public action URLs.",
@@ -20,7 +70,7 @@ export const savedFormToolDefinitions: Tool[] = [
   {
     name: "create_form",
     description:
-      "Create and publish a saved signup form whose opaque formId is a client-safe public capability. The selected lists, tags, duplicate behavior, and success action stay server-side; no API key is needed in the deployed form. This creates the email/name fields only - add typed custom fields (select, textarea, hidden, ...) afterwards with update_form's blocks argument.",
+      "Create and publish a saved signup form whose opaque formId is a client-safe public capability. The selected lists, tags, duplicate behavior, and success action stay server-side; no API key is needed in the deployed form. This creates the email/name fields only - add typed custom fields (select, textarea, hidden, ...) afterwards with update_form's blocks argument. For a Webflow-connected company, the form is saved but embed returns disabled plus the native Webflow settings path; custom embeds are not part of the Marketplace integration.",
     inputSchema: {
       type: "object",
       properties: {
@@ -50,6 +100,17 @@ export const savedFormToolDefinitions: Tool[] = [
           enum: ["skip", "merge", "overwrite"],
           description:
             "How to handle an existing subscriber. Defaults to skip.",
+        },
+        resubscribeBehavior: {
+          type: "string",
+          enum: ["reactivate", "double_opt_in"],
+          description:
+            "What happens when a contact who unsubscribed from all email submits this form again. reactivate (the default) resubscribes them and restores the form's lists; double_opt_in sends a confirmation email first and resubscribes them when they confirm. Workspace double opt-in always requires confirmation. duplicateStrategy never changes subscription status.",
+        },
+        botProtection: {
+          type: "boolean",
+          description:
+            "Turn on a Cloudflare Turnstile bot check before each signup. It runs invisibly in the hosted JavaScript embed for most visitors; signups that fail it, or that arrive from the plain HTML form snippet, which cannot run it, must confirm by email before they are subscribed; turning it on requires a double opt-in confirmation email and a sender profile, otherwise the API returns 400. Defaults to false.",
         },
         buttonText: {
           type: "string",
@@ -129,6 +190,17 @@ export const savedFormToolDefinitions: Tool[] = [
           enum: ["skip", "merge", "overwrite"],
           description: "How to handle an existing subscriber.",
         },
+        resubscribeBehavior: {
+          type: "string",
+          enum: ["reactivate", "double_opt_in"],
+          description:
+            "What happens when a contact who unsubscribed from all email submits this form again. reactivate (the default) resubscribes them and restores the form's lists; double_opt_in sends a confirmation email first and resubscribes them when they confirm. Workspace double opt-in always requires confirmation. duplicateStrategy never changes subscription status.",
+        },
+        botProtection: {
+          type: "boolean",
+          description:
+            "Turn on a Cloudflare Turnstile bot check before each signup. It runs invisibly in the hosted JavaScript embed for most visitors; signups that fail it, or that arrive from the plain HTML form snippet, which cannot run it, must confirm by email before they are subscribed; turning it on requires a double opt-in confirmation email and a sender profile, otherwise the API returns 400. Omit to keep the current setting.",
+        },
         headline: {
           type: "string",
           description:
@@ -172,7 +244,7 @@ export const savedFormToolDefinitions: Tool[] = [
   {
     name: "get_form_embed",
     description:
-      "Get a published saved form's action URL, one-line JavaScript embed, minimal native form action, and fetch example. Use this for Astro, Hugo, Jekyll, Cloudflare Pages, Netlify, GitHub Pages, or any browser integration.",
+      "Get a published saved form's action URL, one-line JavaScript embed, minimal native form action, and fetch example, for Astro, Hugo, Jekyll, Cloudflare Pages, Netlify, GitHub Pages, or other non-Webflow sites. Install embed.javascript (embed.recommendedSnippet) wherever the page can run a script tag: it is the only snippet with Sequenzy's spam protection. The form appears right after the script tag; when the script must load elsewhere (page head, tag manager, site-wide layout), put embed.placeholder where the form should appear and the script fills it. Use nativeForm or fetch only on a page that cannot run scripts, and tell the user embed.reducedProtectionWarning when you do. For a Webflow-connected company, returns embed.disabled plus the native Webflow settings path and no custom code.",
     inputSchema: {
       type: "object",
       properties: {

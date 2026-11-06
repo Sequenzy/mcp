@@ -28,6 +28,61 @@ describe("subscriber MCP tools", () => {
     mockApiRequest.mockReset();
   });
 
+  it("exposes the full background subscriber operation lifecycle", async () => {
+    const result = {
+      success: true,
+      operation: {
+        id: "op/1",
+        kind: "add_tags",
+        status: "queued",
+        failures: [],
+      },
+    };
+    mockApiRequest.mockResolvedValue(result);
+    await handleToolCall("start_subscriber_operation", {
+      companyId: "c",
+      kind: "add_tags",
+      requestKey: "stable",
+      tags: ["vip"],
+      audience: { search: "customer" },
+      triggerAutomations: false,
+    });
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "POST",
+      "/api/v1/subscribers/operations",
+      {
+        kind: "add_tags",
+        requestKey: "stable",
+        tags: ["vip"],
+        audience: { search: "customer" },
+        triggerAutomations: false,
+      },
+      "c"
+    );
+    for (const [name, method, suffix] of [
+      ["get_subscriber_operation", "GET", ""],
+      ["cancel_subscriber_operation", "POST", "/cancel"],
+    ] as const) {
+      await handleToolCall(name, {
+        companyId: "c",
+        operationId: "op/1",
+      });
+      expect(mockApiRequest).toHaveBeenLastCalledWith(
+        method,
+        `/api/v1/subscribers/operations/op%2F1${suffix}`,
+        undefined,
+        "c"
+      );
+    }
+    await handleToolCall("list_subscriber_operations", { companyId: "c" });
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "GET",
+      "/api/v1/subscribers/operations",
+      undefined,
+      "c"
+    );
+  });
+
   it("follows nextCursor instead of counting pages when search_subscribers has no limit", async () => {
     mockApiRequest.mockImplementation(async (_method, path) => {
       if (!path.includes("cursor=")) {
@@ -824,18 +879,35 @@ describe("subscriber MCP tools", () => {
     );
   });
 
-  it("exposes enrollInSequences and REST customAttributes on add_subscriber", () => {
+  it("exposes subscriber fields with their conditional permissions", () => {
     const tool = tools.find((candidate) => candidate.name === "add_subscriber");
     const properties = tool?.inputSchema.properties as
-      | Record<string, Record<string, unknown>>
-      | undefined;
+      Record<string, Record<string, unknown>> | undefined;
 
     expect(properties?.["enrollInSequences"]?.["type"]).toBe("boolean");
     expect(properties?.["customAttributes"]?.["type"]).toBe("object");
     expect(String(properties?.["attributes"]?.["description"])).toContain(
       "customAttributes"
     );
+    expect(String(properties?.["listIds"]?.["description"])).toContain(
+      "subscribers:write"
+    );
     expect(tool?.description).toContain("enrollInSequences");
+  });
+
+  it("documents import list and opt-in permissions", () => {
+    const tool = tools.find(
+      (candidate) => candidate.name === "create_subscriber_import"
+    );
+    const properties = tool?.inputSchema.properties as
+      Record<string, Record<string, unknown>> | undefined;
+
+    expect(String(properties?.["listIds"]?.["description"])).toContain(
+      "lists:write"
+    );
+    expect(String(properties?.["optInMode"]?.["description"])).toContain(
+      "automations:trigger"
+    );
   });
 
   it("forwards enrollInSequences from add_subscriber to the REST create body", async () => {
@@ -1230,8 +1302,7 @@ describe("subscriber MCP tools", () => {
       (candidate) => candidate.name === "update_subscriber"
     );
     const properties = tool?.inputSchema.properties as
-      | Record<string, Record<string, unknown>>
-      | undefined;
+      Record<string, Record<string, unknown>> | undefined;
 
     expect(String(properties?.["attributes"]?.["description"])).toContain(
       "merge"
@@ -1315,6 +1386,58 @@ describe("subscriber MCP tools", () => {
     expect(mockApiRequest.mock.calls[1]?.[1]).toBe(
       "/api/v1/subscribers/external?externalId=gid%3A%2F%2Fshopify%2FCustomer%2F123"
     );
+  });
+
+  it("lists the account's subscriber attributes", async () => {
+    const response = {
+      success: true,
+      attributes: [
+        {
+          key: "zip",
+          valueType: "string",
+          isArray: false,
+          sampleValue: "02134",
+          sampledContacts: 12,
+        },
+      ],
+      sampledContacts: 40,
+    };
+    mockApiRequest.mockResolvedValue(response);
+
+    const flat = await handleToolCall("list_subscriber_attributes", {});
+    const nested = await handleToolCall("list_subscriber_attributes", {
+      companyId: "comp_123",
+      includeNested: true,
+    });
+
+    expect(flat.isError).toBeUndefined();
+    expect(nested.isError).toBeUndefined();
+    expect(mockApiRequest.mock.calls).toEqual([
+      ["GET", "/api/v1/subscribers/attributes", undefined, undefined],
+      [
+        "GET",
+        "/api/v1/subscribers/attributes?includeNested=true",
+        undefined,
+        "comp_123",
+      ],
+    ]);
+    expect(JSON.parse(flat.content[0]?.text ?? "{}")).toMatchObject({
+      attributes: [{ key: "zip", valueType: "string" }],
+    });
+  });
+
+  it("publishes list_subscriber_attributes as a read-only tool", () => {
+    const tool = tools.find(
+      (candidate) => candidate.name === "list_subscriber_attributes"
+    );
+
+    expect(tool?.annotations?.readOnlyHint).toBe(true);
+    expect(tool?.annotations?.destructiveHint).toBe(false);
+    expect(tool?.inputSchema).toMatchObject({
+      type: "object",
+      properties: { includeNested: { type: "boolean" } },
+      required: [],
+    });
   });
 
   it("lists, adds, and deletes subscriber notes", async () => {
@@ -1481,7 +1604,50 @@ describe("subscriber MCP tools", () => {
     expect(properties).toHaveProperty("events");
     expect(properties).toHaveProperty("inserted");
     expect(properties).toHaveProperty("duplicates");
+    expect(properties).toHaveProperty("account");
+    expect(tool?.inputSchema.properties?.["account"]).toMatchObject({
+      type: ["string", "object"],
+    });
   });
+
+  for (const account of [
+    "org-1",
+    { externalId: "org-1", role: "owner", attributes: { plan: "pro" } },
+  ]) {
+    it(`forwards account references on contact events: ${JSON.stringify(account)}`, async () => {
+      mockApiRequest.mockResolvedValue({
+        success: true,
+        account: { externalId: "org-1", role: "owner", created: true },
+      });
+      const result = await handleToolCall("trigger_subscriber_event", {
+        email: "member@example.com",
+        event: "project_created",
+        account,
+      });
+      expect(result.isError).toBeUndefined();
+      expect(mockApiRequest).toHaveBeenCalledWith(
+        "POST",
+        "/api/v1/subscribers/events",
+        { email: "member@example.com", event: "project_created", account },
+        undefined
+      );
+      expect(JSON.parse(result.content[0]?.text ?? "{}")).toMatchObject({
+        account: { externalId: "org-1", role: "owner" },
+      });
+    });
+  }
+
+  for (const account of ["", [], {}, { externalId: 123 }]) {
+    it(`rejects invalid account references before the API call: ${JSON.stringify(account)}`, async () => {
+      const result = await handleToolCall("trigger_subscriber_event", {
+        email: "member@example.com",
+        event: "project_created",
+        account,
+      });
+      expect(result.isError).toBe(true);
+      expect(mockApiRequest).not.toHaveBeenCalled();
+    });
+  }
 
   it("rejects trigger_subscriber_event without a subscriber identifier", async () => {
     const result = await handleToolCall("trigger_subscriber_event", {
@@ -1690,7 +1856,10 @@ describe("subscriber MCP tools", () => {
     });
 
     expect(result.isError).toBe(true);
-    expect(result.structuredContent).toBeUndefined();
+    expect(result.structuredContent).toMatchObject({
+      success: false,
+      error: { code: "TOOL_ERROR" },
+    });
     expect(result.content[0]?.text).toContain("request failed");
   });
 

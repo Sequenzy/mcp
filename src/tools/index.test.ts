@@ -1,5 +1,15 @@
 import { AjvJsonSchemaValidator } from "@modelcontextprotocol/server/validators/ajv";
-import { beforeEach, describe, expect, it, mock, spyOn } from "bun:test";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  mock,
+  spyOn,
+} from "bun:test";
+
+import { McpApiError } from "../error-output.js";
 
 type ApiRequestMock = (
   method: string,
@@ -30,8 +40,11 @@ await mock.module("../runtime.js", () => ({
 }));
 
 const { handleToolCall, tools } = await import("./index.js");
-const { OPENAI_EXCLUDED_TOOL_NAMES } = await import("./openai-profile.js");
+const { OPENAI_EXCLUDED_TOOL_NAMES, OPENAI_SPLIT_TOOLS, OPENAI_TOOL_RENAMES } =
+  await import("./openai-profile.js");
 const { getToolsForProfile } = await import("./profiles.js");
+const { sequenceDelaySchema, sequenceWaitUntilSchema } =
+  await import("./descriptions.js");
 
 describe("web tracking MCP tools", () => {
   beforeEach(() => {
@@ -46,9 +59,126 @@ describe("web tracking MCP tools", () => {
 
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain(
-      "Provide at least one of `name`, `allowedOrigins`, or `isActive`"
+      "Provide at least one of `name`, `allowedOrigins`, `allowedAppIds`, or `isActive`"
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("forwards app IDs and accepts a single string as a one-entry list", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true });
+    await handleToolCall("create_web_tracking_key", {
+      name: "App",
+      allowedAppIds: "com.example.app",
+      companyId: "company-1",
+    });
+    expect(mockApiRequest.mock.calls[0]?.slice(0, 3)).toEqual([
+      "POST",
+      "/api/v1/web-tracking-keys",
+      { name: "App", allowedAppIds: ["com.example.app"] },
+    ]);
+  });
+
+  it("keeps filtering allowedOrigins the way shipped clients relied on", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true });
+    await handleToolCall("create_web_tracking_key", {
+      name: "Site",
+      allowedOrigins: ["https://a.example.com", 5],
+      companyId: "company-1",
+    });
+    expect(mockApiRequest.mock.calls[0]?.[2]).toEqual({
+      name: "Site",
+      allowedOrigins: ["https://a.example.com"],
+    });
+  });
+
+  it("refuses malformed allowlists instead of creating an unrestricted key", async () => {
+    for (const allowedAppIds of [{ ios: "com.example.app" }, ["ok.app", 42]]) {
+      const result = await handleToolCall("create_web_tracking_key", {
+        name: "App",
+        allowedAppIds,
+        companyId: "company-1",
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0]?.text).toContain(
+        "`allowedAppIds` must be an array of strings"
+      );
+    }
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+});
+
+describe("campaign creation from an audience", () => {
+  beforeEach(() => mockApiRequest.mockReset());
+  it("forwards the full activity cohort and returns selection counts", async () => {
+    const selection = {
+      source: "email_activity",
+      activity: {
+        campaignId: "campaign",
+        eventType: "open",
+        period: "1h",
+        includeMachineEngagement: true,
+        mailboxProvider: "google",
+      },
+    };
+    mockApiRequest.mockResolvedValue({
+      campaign: {
+        id: "draft",
+        companyId: "company",
+        targetLists: {
+          type: "rules",
+          include: [],
+          includedSubscriberIds: ["contact"],
+        },
+      },
+      audience: {
+        selectedCount: 1,
+        eligibleCount: 1,
+        source: "email_activity",
+        selectedAt: "2026-09-07T00:00:00Z",
+      },
+    });
+    const result = await handleToolCall("create_campaign_for_audience", {
+      companyId: "company",
+      selection,
+      name: "Follow up",
+    });
+    expect(result.isError).not.toBe(true);
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/campaigns/from-audience",
+      { selection, name: "Follow up" },
+      "company"
+    );
+    expect(result.structuredContent).toMatchObject({
+      audience: { selectedCount: 1, eligibleCount: 1 },
+    });
+  });
+  it("rejects missing selections without a request", async () => {
+    const result = await handleToolCall("create_campaign_for_audience", {});
+    expect(result.isError).toBe(true);
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+});
+
+describe("campaign audience status", () => {
+  beforeEach(() => mockApiRequest.mockReset());
+  afterEach(() => mockApiRequest.mockReset());
+  it("preserves campaign hasAudience in structured output", async () => {
+    mockApiRequest.mockResolvedValue({
+      campaigns: [
+        { id: "draft", status: "draft", hasAudience: true },
+        { id: "empty", status: "draft", hasAudience: false },
+      ],
+    });
+    const result = await handleToolCall("list_campaigns", {
+      companyId: "company",
+    });
+    expect(result.structuredContent).toMatchObject({
+      campaigns: [
+        { id: "draft", hasAudience: true },
+        { id: "empty", hasAudience: false },
+      ],
+    });
   });
 });
 
@@ -67,18 +197,147 @@ describe("MCP tool profiles", () => {
     const openAiTools = getToolsForProfile(tools, "openai");
     const openAiToolNames = new Set(openAiTools.map((tool) => tool.name));
 
+    const splitAdded = Object.values(OPENAI_SPLIT_TOOLS).reduce(
+      (total, splits) => total + splits.length - 1,
+      0
+    );
     expect(openAiTools).toHaveLength(
-      tools.length - OPENAI_EXCLUDED_TOOL_NAMES.size
+      tools.length - OPENAI_EXCLUDED_TOOL_NAMES.size + splitAdded
     );
     for (const excludedToolName of OPENAI_EXCLUDED_TOOL_NAMES) {
       expect(openAiToolNames).not.toContain(excludedToolName);
     }
     expect(openAiToolNames).toContain("get_account");
     expect(openAiToolNames).toContain("list_campaigns");
-    expect(openAiToolNames).toContain("list_api_keys");
+    expect(openAiToolNames).not.toContain("list_api_keys");
     expect(openAiToolNames).toContain("list_integrations");
-    expect(openAiToolNames).toContain("request_api_key_handoff");
-    expect(openAiToolNames).toContain("submit_feedback");
+    expect(openAiToolNames).not.toContain("request_api_key_handoff");
+    expect(openAiToolNames).not.toContain("submit_feedback");
+    expect(openAiToolNames).not.toContain("add_website");
+  });
+
+  it("collapses only repeated nested schemas on the standard profile", () => {
+    const standard = getToolsForProfile(tools, "standard");
+    for (const [index, tool] of standard.entries()) {
+      // Top-level fields and requirements are part of the call contract.
+      expect(Object.keys(tool.inputSchema.properties ?? {})).toEqual(
+        Object.keys(tools[index]?.inputSchema.properties ?? {})
+      );
+      expect(tool.inputSchema.required).toEqual(
+        tools[index]?.inputSchema.required
+      );
+      expect(tool.outputSchema).toEqual(tools[index]?.outputSchema);
+    }
+    const insertStep = standard.find(
+      (tool) => tool.name === "insert_sequence_step"
+    );
+    const elseSteps = insertStep?.inputSchema.properties?.["elseSteps"] as
+      { type?: string; description?: string; items?: unknown } | undefined;
+    expect(elseSteps?.type).toBe("array");
+    expect(elseSteps?.items).toBeUndefined();
+    expect(elseSteps?.description).toContain(
+      "Same schema as `branches[].steps` in this tool."
+    );
+    // Guards the collapse above: un-collapsing the repeated step schemas
+    // adds about 100 KB. New tools grow the list, so this is not a hard cap
+    // (includes the ten campaign variation tools, about 40 KB, the four
+    // sequence email variation tools, about 10 KB, the two sending domain
+    // DNS upgrade tools, about 4 KB, the in-app eyebrow, image placement,
+    // template and AI copy additions, about 5 KB, the four Live Activity
+    // tools, about 13 KB, two-way Attio sync fields, about 4 KB, the two
+    // per-subscriber sequence pause tools, about 7 KB, the
+    // activeSubscribersOnly, complained-status, review-hold and A/B
+    // goal/event winner fields, about 8 KB, the stats breakdown and
+    // integration suggestion tools, about 7 KB, campaign attachments,
+    // about 4 KB, the two company-wide translation coverage and
+    // translate-missing tools, about 4 KB, custom HTML in-app messages: the
+    // html step fields, formats/buttonId and validate_in_app_html, about
+    // 5 KB, the two recurring sequence schedule tools, about 7 KB, the
+    // two sequence template tools with the company websiteType field and
+    // has_push_device condition, about 6 KB, the six geofence tools plus
+    // the geofence segment field, about 14 KB, the two sequence
+    // definition tools, about 8 KB, the Mixpanel/Amplitude connect fields
+    // and update_amplitude_settings tool, about 3 KB, the push primer
+    // button action and notification permission fields, about 2 KB, and the
+    // theme footer typography fields in every emailTheme schema plus
+    // update_company footerTheme, about 3 KB, and the seven push import
+    // tools, about 14 KB).
+    expect(JSON.stringify({ tools: standard }).length).toBeLessThan(1_657_000);
+  });
+
+  it("renames only on the OpenAI profile and keeps standard names", () => {
+    const standardToolNames = new Set(
+      getToolsForProfile(tools, "standard").map((tool) => tool.name)
+    );
+    const openAiTools = getToolsForProfile(tools, "openai");
+    const openAiToolNames = new Set(openAiTools.map((tool) => tool.name));
+
+    for (const [original, renamed] of Object.entries(OPENAI_TOOL_RENAMES)) {
+      expect(standardToolNames).toContain(original);
+      expect(standardToolNames).not.toContain(renamed);
+      expect(openAiToolNames).toContain(renamed);
+      expect(openAiToolNames).not.toContain(original);
+    }
+    for (const name of ["add_website", "submit_feedback"]) {
+      expect(standardToolNames).toContain(name);
+    }
+    expect(
+      openAiTools.find((tool) => tool.name === "get_sending_domain")
+        ?.annotations?.title
+    ).toBe("Get Sending Domain");
+    for (const tool of openAiTools) {
+      expect(JSON.stringify(tool)).not.toMatch(
+        /\b(list_websites|check_website|resend_campaign_to_non_openers|update_sms_number_label)\b/
+      );
+    }
+  });
+
+  it("routes renamed OpenAI tools to the original handler", async () => {
+    mockApiRequest.mockClear();
+    mockApiRequest.mockResolvedValueOnce({ success: true, campaign: {} });
+    const result = await handleToolCall(
+      "create_non_opener_resend_draft",
+      { campaignId: "campaign_123", companyId: "company_123" },
+      { profile: "openai" }
+    );
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledTimes(1);
+
+    const legacy = await handleToolCall(
+      "resend_campaign_to_non_openers",
+      { campaignId: "campaign_123", companyId: "company_123" },
+      { profile: "openai" }
+    );
+    expect(legacy.isError).toBe(true);
+    expect(legacy.content[0]?.text).toContain(
+      "Tool is not available on this MCP surface"
+    );
+
+    // Handler and policy errors name the tool the caller used.
+    const missing = await handleToolCall(
+      "create_non_opener_resend_draft",
+      { companyId: "company_123" },
+      { profile: "openai" }
+    );
+    expect(missing.isError).toBe(true);
+    expect(missing.content[0]?.text).toContain(
+      "`create_non_opener_resend_draft`"
+    );
+    const blocked = await handleToolCall(
+      "get_sending_domain",
+      { companyId: "company_123", domain: "{{subscriber.ssn}}" },
+      { profile: "openai" }
+    );
+    expect(blocked.isError).toBe(true);
+    expect(blocked.content[0]?.text).toContain("get_sending_domain.domain");
+    for (const result of [missing, blocked]) {
+      expect(JSON.stringify(result)).not.toMatch(
+        /resend_campaign_to_non_openers|check_website/
+      );
+    }
+    expect(mockApiRequest).toHaveBeenCalledTimes(1);
+    mockApiRequest.mockClear();
   });
 
   it("rejects guessed tool calls outside the selected profile", async () => {
@@ -226,18 +485,17 @@ describe("feedback tools", () => {
     );
   });
 
-  it("rejects detailed feedback fields on the OpenAI profile", async () => {
+  it("is unavailable on the OpenAI profile", async () => {
     const result = await handleToolCall(
       "submit_feedback",
-      {
-        message: "Campaign update dropped its schedule",
-        resourceIds: ["campaign_123"],
-      },
+      { message: "Campaign update dropped its schedule" },
       { profile: "openai" }
     );
 
     expect(result.isError).toBe(true);
-    expect(result.content[0]?.text).toContain("Unsupported field");
+    expect(result.content[0]?.text).toContain(
+      "Tool is not available on this MCP surface"
+    );
     expect(mockApiRequest).not.toHaveBeenCalled();
   });
 });
@@ -440,6 +698,7 @@ describe("account tools", () => {
       "form_submitted",
       "campaign_completed",
       "weekly_report",
+      "account_health",
     ]);
     expect(preferencesSchema?.items?.properties?.["mode"]?.enum).toEqual([
       "off",
@@ -448,7 +707,8 @@ describe("account tools", () => {
       "weekly",
     ]);
     expect(tool?.annotations?.readOnlyHint).toBe(false);
-    expect(tool?.annotations?.destructiveHint).toBe(false);
+    // Replaces the stored preferences for each listed event.
+    expect(tool?.annotations?.destructiveHint).toBe(true);
   });
 
   it("rejects notification modes that the selected event does not support", async () => {
@@ -507,8 +767,7 @@ describe("AI generation tools", () => {
       (tool) => tool.name === "generate_email"
     );
     const properties = generateEmailTool?.inputSchema.properties as
-      | Record<string, Record<string, unknown>>
-      | undefined;
+      Record<string, Record<string, unknown>> | undefined;
 
     expect(properties?.["applyBranding"]?.["type"]).toBe("boolean");
     expect(properties?.["emailType"]?.["enum"]).toEqual([
@@ -590,8 +849,7 @@ describe("tool schema compatibility", () => {
 
     for (const tool of tools) {
       const annotations = tool.annotations as
-        | Record<(typeof requiredHints)[number], unknown>
-        | undefined;
+        Record<(typeof requiredHints)[number], unknown> | undefined;
 
       for (const hint of requiredHints) {
         if (typeof annotations?.[hint] !== "boolean") {
@@ -670,25 +928,19 @@ describe("tool schema compatibility", () => {
       (tool) => tool.name === "update_sequence"
     );
     const inputSchema = updateSequenceTool?.inputSchema as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
     const properties = inputSchema?.properties as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
     const branch = properties?.branch as Record<string, unknown> | undefined;
     const branchProperties = branch?.properties as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
     const branches = branchProperties?.branches as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
     const branchItem = branches?.items as Record<string, unknown> | undefined;
     const branchItemProperties = branchItem?.properties as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
     const conditionType = branchItemProperties?.conditionType as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
 
     expect(conditionType?.enum).toContain("does_not_have_tag");
   });
@@ -698,30 +950,22 @@ describe("tool schema compatibility", () => {
       (tool) => tool.name === "update_sequence"
     );
     const inputSchema = updateSequenceTool?.inputSchema as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
     const properties = inputSchema?.properties as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
     const insertSteps = properties?.insertSteps as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
     const insertStepsProperties = insertSteps?.properties as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
     const steps = insertStepsProperties?.steps as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
     const stepItem = steps?.items as Record<string, unknown> | undefined;
     const stepProperties = stepItem?.properties as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
     const config = stepProperties?.config as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
     const configProperties = config?.properties as
-      | Record<string, Record<string, unknown>>
-      | undefined;
+      Record<string, Record<string, unknown>> | undefined;
 
     // A stale enum here makes agents reject methods the API accepts, and
     // missing fields hide body/resultKey/onError from the insertSteps path.
@@ -741,11 +985,9 @@ describe("tool schema compatibility", () => {
     ]);
     const outputFields = configProperties?.["outputFields"];
     const outputFieldItems = outputFields?.["items"] as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
     const outputFieldProperties = outputFieldItems?.["properties"] as
-      | Record<string, Record<string, unknown>>
-      | undefined;
+      Record<string, Record<string, unknown>> | undefined;
     expect(outputFieldProperties?.["maxLength"]).toMatchObject({
       type: "integer",
       minimum: 1,
@@ -1150,6 +1392,47 @@ describe("read-only audit tools", () => {
     );
   });
 
+  it("gets, sets and clears the frequency cap", async () => {
+    mockApiRequest
+      .mockResolvedValueOnce({ success: true, frequencyCap: null })
+      .mockResolvedValueOnce({
+        success: true,
+        frequencyCap: { maxEmails: 2, windowHours: 24 },
+      })
+      .mockResolvedValueOnce({ success: true, frequencyCap: null });
+
+    const read = await handleToolCall("get_frequency_cap", {
+      companyId: "company_123",
+    });
+    const set = await handleToolCall("set_frequency_cap", {
+      companyId: "company_123",
+      maxEmails: 2,
+      windowHours: 24,
+    });
+    const cleared = await handleToolCall("clear_frequency_cap", {
+      companyId: "company_123",
+    });
+
+    expect(read.isError).toBeUndefined();
+    expect(read.structuredContent?.["frequencyCap"]).toBeNull();
+    expect(set.isError).toBeUndefined();
+    expect(set.structuredContent?.["frequencyCap"]).toEqual({
+      maxEmails: 2,
+      windowHours: 24,
+    });
+    expect(cleared.isError).toBeUndefined();
+    expect(mockApiRequest.mock.calls.slice(-3)).toEqual([
+      ["GET", "/api/v1/frequency-cap", undefined, "company_123"],
+      [
+        "PUT",
+        "/api/v1/frequency-cap",
+        { maxEmails: 2, windowHours: 24 },
+        "company_123",
+      ],
+      ["DELETE", "/api/v1/frequency-cap", undefined, "company_123"],
+    ]);
+  });
+
   it("gets tracking settings", async () => {
     mockApiRequest.mockResolvedValueOnce({
       success: true,
@@ -1187,6 +1470,8 @@ describe("read-only audit tools", () => {
       companyId: "company_123",
       openTrackingEnabled: false,
       clickTrackingEnabled: false,
+      unsubscribeTrackingEnabled: false,
+      emailContentStorageEnabled: false,
       transactionalOpenTrackingEnabled: false,
       transactionalClickTrackingEnabled: false,
       autoUtmSettings: { source: "newsletter", term: null },
@@ -1199,6 +1484,8 @@ describe("read-only audit tools", () => {
       {
         openTrackingEnabled: false,
         clickTrackingEnabled: false,
+        unsubscribeTrackingEnabled: false,
+        emailContentStorageEnabled: false,
         transactionalOpenTrackingEnabled: false,
         transactionalClickTrackingEnabled: false,
         autoUtmSettings: { source: "newsletter", term: null },
@@ -1215,8 +1502,7 @@ describe("read-only audit tools", () => {
       (candidate) => candidate.name === "update_tracking_settings"
     );
     const inputSchema = tool?.inputSchema as
-      | { properties?: Record<string, unknown> }
-      | undefined;
+      { properties?: Record<string, unknown> } | undefined;
 
     expect(inputSchema?.properties).toHaveProperty(
       "transactionalOpenTrackingEnabled"
@@ -1371,6 +1657,62 @@ describe("nullable structured output", () => {
       replyProfiles: [],
       defaultSenderProfileId: null,
       defaultReplyProfileId: null,
+    });
+
+    expect(result.errorMessage).toBeUndefined();
+    expect(result.valid).toBe(true);
+  });
+
+  it("accepts an email client breakdown for a campaign", () => {
+    const result = validateStructuredContent("get_email_client_stats", {
+      success: true,
+      campaignId: "camp_1",
+      totalOpens: 4,
+      privacyProxyOpens: 3,
+      clients: [{ key: "gmail", label: "Gmail", opens: 4, share: 100 }],
+      devices: [{ key: "unknown", label: "Unknown", opens: 4, share: 100 }],
+    });
+
+    expect(result.errorMessage).toBeUndefined();
+    expect(result.valid).toBe(true);
+  });
+
+  it("accepts a company-wide link click breakdown", () => {
+    const result = validateStructuredContent("get_link_click_stats", {
+      success: true,
+      period: "30d",
+      totalClicks: 4,
+      totalLinks: 1,
+      links: [
+        {
+          url: "https://example.com/pricing",
+          clicks: 4,
+          uniqueClicks: 3,
+          share: 100,
+        },
+      ],
+    });
+
+    expect(result.errorMessage).toBeUndefined();
+    expect(result.valid).toBe(true);
+  });
+
+  it("accepts A/B stats whose significance is not yet measurable", () => {
+    const result = validateStructuredContent("get_ab_test_stats", {
+      success: true,
+      abTestId: "ab_1",
+      stats: { sent: 20 },
+      variants: [{ id: "var_a", label: "A", stats: { sent: 20 } }],
+      significance: {
+        metric: "open_rate",
+        status: "insufficient_data",
+        confidenceLevel: 0.95,
+        leaderVariantId: null,
+        leaderVariantLabel: null,
+        confidence: null,
+        pValue: null,
+        relativeLift: null,
+      },
     });
 
     expect(result.errorMessage).toBeUndefined();
@@ -1826,6 +2168,8 @@ describe("template localization tools", () => {
     expect(syncTool?.inputSchema.required).toEqual(["templateId"]);
     expect(syncTool?.inputSchema.additionalProperties).toBe(false);
     expect(syncTool?.inputSchema.properties).toHaveProperty("locales");
+    expect(syncTool?.inputSchema.properties).toHaveProperty("skipEdited");
+    expect(setTool?.inputSchema.properties).toHaveProperty("keepEdits");
   });
 
   it("sets a caller-supplied template localization", async () => {
@@ -1944,6 +2288,195 @@ describe("template localization tools", () => {
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain(
       "`locales` must contain at least one non-empty locale string when calling `sync_template_localizations`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("forwards keepEdits only when protecting a translation", async () => {
+    mockApiRequest.mockResolvedValue({ success: true, templateId: "tmpl_123" });
+
+    await handleToolCall("set_template_localization", {
+      templateId: "tmpl_123",
+      locale: "es",
+      subject: "Hola",
+      html: "<p>Hola</p>",
+      keepEdits: true,
+    });
+    await handleToolCall("set_template_localization", {
+      templateId: "tmpl_123",
+      locale: "es",
+      subject: "Hola",
+      html: "<p>Hola</p>",
+      keepEdits: false,
+    });
+
+    const putBodies = mockApiRequest.mock.calls
+      .filter((call) => call[0] === "PUT")
+      .map((call) => call[2]);
+
+    expect(putBodies[0]).toEqual({
+      subject: "Hola",
+      html: "<p>Hola</p>",
+      keepEdits: true,
+    });
+    // The request shape from before the option existed.
+    expect(putBodies[1]).toEqual({
+      subject: "Hola",
+      html: "<p>Hola</p>",
+    });
+  });
+
+  it("rejects a non-boolean keepEdits", async () => {
+    const result = await handleToolCall("set_template_localization", {
+      templateId: "tmpl_123",
+      locale: "es",
+      subject: "Hola",
+      html: "<p>Hola</p>",
+      keepEdits: "yes",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`keepEdits` must be a boolean when calling `set_template_localization`."
+    );
+  });
+
+  it("forwards skipEdited so edited translations are kept", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      templateId: "tmpl_123",
+      queuedLocales: ["es"],
+      queuedVariantCount: 1,
+      skippedLocales: ["fr"],
+    });
+
+    const result = await handleToolCall("sync_template_localizations", {
+      templateId: "tmpl_123",
+      skipEdited: true,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/templates/tmpl_123/localizations/sync",
+      { skipEdited: true },
+      undefined
+    );
+  });
+
+  it("rejects a non-boolean skipEdited before syncing", async () => {
+    const result = await handleToolCall("sync_template_localizations", {
+      templateId: "tmpl_123",
+      skipEdited: "yes",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`skipEdited` must be a boolean when calling `sync_template_localizations`."
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+});
+
+describe("company-wide template translation tools", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("publishes plain object schemas for both tools", () => {
+    for (const name of [
+      "get_template_localization_coverage",
+      "translate_missing_template_localizations",
+    ]) {
+      const tool = tools.find((candidate) => candidate.name === name);
+      expect(tool?.inputSchema.type).toBe("object");
+      expect(tool?.inputSchema.required).toBeUndefined();
+      expect(Object.keys(tool?.inputSchema.properties ?? {})).toContain(
+        "companyId"
+      );
+    }
+  });
+
+  it("reads translation coverage for the company", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      primaryLocale: "en",
+      totalEmails: 3,
+      sequenceEmails: 2,
+      transactionalEmails: 1,
+      locales: [],
+    });
+
+    const result = await handleToolCall("get_template_localization_coverage", {
+      companyId: "comp_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/templates/localizations/coverage",
+      undefined,
+      "comp_123"
+    );
+  });
+
+  it("translates missing emails into selected locales", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      locales: ["fr"],
+      queuedEmails: 2,
+      queuedTranslations: 2,
+    });
+
+    const result = await handleToolCall(
+      "translate_missing_template_localizations",
+      { companyId: "comp_123", locales: [" fr "] }
+    );
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/templates/localizations/translate-missing",
+      { locales: ["fr"] },
+      "comp_123"
+    );
+  });
+
+  it("omits locales to translate into every language", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      locales: ["de", "fr"],
+      queuedEmails: 0,
+      queuedTranslations: 0,
+    });
+
+    await handleToolCall("translate_missing_template_localizations", {});
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/templates/localizations/translate-missing",
+      {},
+      undefined
+    );
+  });
+
+  it("rejects empty locale lists and unknown fields before calling the API", async () => {
+    const emptyLocales = await handleToolCall(
+      "translate_missing_template_localizations",
+      { locales: [] }
+    );
+    expect(emptyLocales.isError).toBe(true);
+    expect(emptyLocales.content[0]?.text).toContain(
+      "`locales` must contain at least one non-empty locale string when calling `translate_missing_template_localizations`."
+    );
+
+    const unknownField = await handleToolCall(
+      "translate_missing_template_localizations",
+      { templateId: "tmpl_123" }
+    );
+    expect(unknownField.isError).toBe(true);
+    expect(unknownField.content[0]?.text).toContain(
+      "Unsupported field: `templateId`"
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
   });
@@ -2252,6 +2785,110 @@ describe("update_company tool validation", () => {
     );
   });
 
+  it("passes the footer style for new emails through", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true, company: {} });
+    await handleToolCall("update_company", {
+      companyId: "company_123",
+      footerStyle: "band",
+    });
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "PATCH",
+      "/api/v1/companies/company_123",
+      { footerStyle: "band" }
+    );
+  });
+
+  it("passes footer theme patches and resets through, and rejects non-objects", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true, company: {} });
+    await handleToolCall("update_company", {
+      companyId: "company_123",
+      footerTheme: { linkColor: "#0ea5e9", reasonText: null },
+      emailTheme: {
+        typography: { footerFontSize: 13, footerFontFamily: null },
+      },
+    });
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "PATCH",
+      "/api/v1/companies/company_123",
+      {
+        footerTheme: { linkColor: "#0ea5e9", reasonText: null },
+        emailTheme: {
+          typography: { footerFontSize: 13, footerFontFamily: null },
+        },
+      }
+    );
+
+    mockApiRequest.mockResolvedValueOnce({ success: true, company: {} });
+    await handleToolCall("update_company", {
+      companyId: "company_123",
+      footerTheme: null,
+    });
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "PATCH",
+      "/api/v1/companies/company_123",
+      { footerTheme: null }
+    );
+
+    mockApiRequest.mockClear();
+    const rejected = await handleToolCall("update_company", {
+      companyId: "company_123",
+      footerTheme: "band",
+    });
+    expect(rejected.isError).toBe(true);
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("passes the AI email style and header and footer preset through", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true, company: {} });
+    await handleToolCall("update_company", {
+      companyId: "company_123",
+      emailStylePreference: "plain",
+      emailPreset: "minimal",
+    });
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "PATCH",
+      "/api/v1/companies/company_123",
+      { emailStylePreference: "plain", emailPreset: "minimal" }
+    );
+
+    // null clears the choice and must reach the API as an explicit null.
+    mockApiRequest.mockResolvedValueOnce({ success: true, company: {} });
+    await handleToolCall("update_company", {
+      companyId: "company_123",
+      emailStylePreference: null,
+    });
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "PATCH",
+      "/api/v1/companies/company_123",
+      { emailStylePreference: null }
+    );
+
+    const inputSchema = tools.find((tool) => tool.name === "update_company")
+      ?.inputSchema as { properties?: Record<string, { enum?: unknown[] }> };
+    expect(inputSchema.properties?.["emailStylePreference"]?.enum).toEqual([
+      "visual",
+      "plain",
+      null,
+    ]);
+    expect(inputSchema.properties?.["emailPreset"]?.enum).toEqual([
+      "branded",
+      "minimal",
+    ]);
+  });
+
+  it("rejects non-string update_company email style values", async () => {
+    const result = await handleToolCall("update_company", {
+      companyId: "company_123",
+      emailStylePreference: true,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`emailStylePreference` must be visual, plain, or null"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
   it("rejects non-object update_company emailTheme values", async () => {
     const result = await handleToolCall("update_company", {
       companyId: "company_123",
@@ -2329,22 +2966,56 @@ describe("sending domain tools", () => {
     mockApiRequest.mockClear();
   });
 
+  it.each([
+    ["check_website", "get_sending_domain"],
+    ["verify_sending_domain", "verify_sending_domain"],
+  ])(
+    "preserves public reply DNS recovery on both MCP profiles: %s",
+    async (standardName, openAiName) => {
+      const website = {
+        domain: "emails.example.com",
+        readyToSend: true,
+        dnsRecords: {
+          inboundVerificationRecord: {
+            name: "_amazonses.inbound.example.com",
+            value: "public-token=",
+          },
+          inboundVerificationStatus: "pending",
+          inboundRoutingStatus: "failed",
+          inboundRoutingError: "Publish TXT, then retry.",
+        },
+      };
+      for (const profile of [undefined, "openai"] as const) {
+        mockApiRequest.mockResolvedValueOnce({ success: true, website });
+        const result = await handleToolCall(
+          profile ? openAiName : standardName,
+          { companyId: "company_123", domain: "emails.example.com" },
+          profile ? { profile } : undefined
+        );
+        expect(result.isError).toBeUndefined();
+        expect(result.structuredContent?.["website"]).toEqual(website);
+      }
+    }
+  );
+
   it("publishes and routes canonical sending-domain creation with DNS records", async () => {
     const tool = tools.find(
       (candidate) => candidate.name === "add_sending_domain"
     );
     expect(tool?.inputSchema.required).toEqual(["domain"]);
     expect(tool?.description).toContain(
-      "every cohort-specific DNS record returned"
+      "the bounce records described by website.bounceRecords"
     );
+    expect(tool?.description).toContain("never both at the same name");
     expect(tool?.description).toContain("DMARC when present");
     const websiteOutput = tool?.outputSchema?.properties?.["website"] as
-      | { description?: string }
-      | undefined;
-    expect(websiteOutput?.description).toContain("every returned record");
+      { description?: string } | undefined;
+    expect(websiteOutput?.description).toContain(
+      "bounce records described by bounceRecords"
+    );
     expect(tool?.annotations).toMatchObject({
       readOnlyHint: false,
-      destructiveHint: false,
+      destructiveHint: true,
       openWorldHint: true,
     });
 
@@ -2422,6 +3093,172 @@ describe("sending domain tools", () => {
     );
   });
 
+  it.each(["add_sending_domain", "add_website"])(
+    "%s forwards optional creation subdomains only when given",
+    async (name) => {
+      const tool = tools.find((candidate) => candidate.name === name);
+      expect(Object.keys(tool?.inputSchema.properties ?? {})).toEqual(
+        expect.arrayContaining(["mailFromPrefix", "trackingPrefix"])
+      );
+      expect(tool?.inputSchema.required).toEqual(["domain"]);
+      mockApiRequest.mockResolvedValueOnce({ success: true, website: {} });
+      await handleToolCall(name, {
+        domain: "mail.example.com",
+        mailFromPrefix: "bounce",
+        trackingPrefix: "click",
+      });
+      expect(mockApiRequest).toHaveBeenLastCalledWith(
+        "POST",
+        "/api/v1/websites",
+        {
+          domain: "mail.example.com",
+          mailFromPrefix: "bounce",
+          trackingPrefix: "click",
+        },
+        undefined
+      );
+    }
+  );
+
+  it("routes configure_sending_domain to the website PATCH endpoint", async () => {
+    const tool = tools.find(
+      (candidate) => candidate.name === "configure_sending_domain"
+    );
+    expect(tool?.inputSchema.type).toBe("object");
+    expect(tool?.inputSchema.required).toEqual(["domain", "trackingPrefix"]);
+    // Claims a tracking hostname only when the company has none (the sweep
+    // then registers it with the provider); otherwise nothing changes.
+    expect(tool?.annotations).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: true,
+    });
+    const website = {
+      domain: "mail.example.com",
+      tracking: {
+        policy: "legacy",
+        required: false,
+        hostname: "links.mail.example.com",
+        status: "pending",
+        ready: false,
+        error: null,
+        cnameRecord: {
+          type: "CNAME",
+          name: "links.mail.example.com",
+          value: "links1.sequenzydns.com",
+        },
+      },
+    };
+    mockApiRequest.mockResolvedValueOnce({ success: true, website });
+    const result = await handleToolCall("configure_sending_domain", {
+      companyId: "company_123",
+      domain: "mail.example.com",
+      trackingPrefix: "links",
+    });
+    expect(result.isError).toBeUndefined();
+    expect(result.structuredContent?.["website"]).toEqual(website);
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/websites/mail.example.com",
+      { trackingPrefix: "links" },
+      "company_123"
+    );
+  });
+
+  it("routes the company tracking domain tools", async () => {
+    const setTool = tools.find((tool) => tool.name === "set_tracking_domain");
+    expect(setTool?.inputSchema.type).toBe("object");
+    expect(setTool?.inputSchema.required).toEqual(["domain"]);
+    // Replaces the company's current tracking domain.
+    expect(setTool?.annotations).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: true,
+      openWorldHint: true,
+    });
+    expect(
+      tools.find((tool) => tool.name === "remove_tracking_domain")?.annotations
+    ).toMatchObject({ readOnlyHint: false, destructiveHint: true });
+
+    const trackingDomain = {
+      domain: "links.example.com",
+      status: "pending",
+      active: false,
+      everVerified: false,
+      sslStatus: null,
+      verifiedAt: null,
+      lastCheckedAt: null,
+      error: null,
+      cnameRecord: {
+        type: "CNAME",
+        name: "links.example.com",
+        value: "links1.sequenzydns.com",
+      },
+    };
+    expect(
+      tools.find((tool) => tool.name === "get_tracking_domain")?.annotations
+    ).toMatchObject({ readOnlyHint: true });
+    mockApiRequest.mockResolvedValueOnce({ success: true, trackingDomain });
+    const getResult = await handleToolCall("get_tracking_domain", {
+      companyId: "company_123",
+    });
+    expect(getResult.structuredContent?.["trackingDomain"]).toEqual(
+      trackingDomain
+    );
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "GET",
+      "/api/v1/tracking-domain",
+      undefined,
+      "company_123"
+    );
+
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      trackingDomain,
+      message: "Add a CNAME record.",
+    });
+    const setResult = await handleToolCall("set_tracking_domain", {
+      companyId: "company_123",
+      domain: "links.example.com",
+    });
+    expect(setResult.isError).toBeUndefined();
+    expect(setResult.structuredContent?.["trackingDomain"]).toEqual(
+      trackingDomain
+    );
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "PUT",
+      "/api/v1/tracking-domain",
+      { domain: "links.example.com" },
+      "company_123"
+    );
+
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      verified: false,
+      message: "Add a CNAME record.",
+      trackingDomain,
+    });
+    await handleToolCall("verify_tracking_domain", {});
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "POST",
+      "/api/v1/tracking-domain/verify",
+      undefined,
+      undefined
+    );
+
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      removed: true,
+      trackingDomain: null,
+    });
+    await handleToolCall("remove_tracking_domain", {});
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "DELETE",
+      "/api/v1/tracking-domain",
+      undefined,
+      undefined
+    );
+  });
+
   it("publishes and routes fresh sending-domain verification", async () => {
     const tool = tools.find(
       (candidate) => candidate.name === "verify_sending_domain"
@@ -2454,6 +3291,89 @@ describe("sending domain tools", () => {
       "company_123"
     );
   });
+
+  it("publishes the DNS upgrade tool as a plain, destructive write", () => {
+    const tool = tools.find(
+      (candidate) => candidate.name === "upgrade_sending_domain_dns"
+    );
+    expect(tool?.inputSchema.type).toBe("object");
+    expect(tool?.inputSchema.required).toEqual(["domain"]);
+    expect(JSON.stringify(tool?.inputSchema)).not.toContain("anyOf");
+    expect(tool?.outputSchema?.properties).toHaveProperty("website");
+    expect(tool?.annotations).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+    });
+    // An upgrade runs to the switch once started: there is no cancel tool.
+    expect(
+      tools.some((candidate) =>
+        candidate.name.includes("cancel_sending_domain")
+      )
+    ).toBe(false);
+    expect(
+      Object.keys(
+        tools.find((tool) => tool.name === "upgrade_sending_domain_dns")
+          ?.inputSchema.properties ?? {}
+      )
+    ).toEqual(["companyId", "domain", "mailFromPrefix"]);
+    // Publishes the new records in Sequenzy's DNS zone.
+    expect(
+      tools.find((tool) => tool.name === "upgrade_sending_domain_dns")
+        ?.annotations?.openWorldHint
+    ).toBe(true);
+    expect(
+      tools.find((tool) => tool.name === "check_website")?.description
+    ).toContain("upgrade_sending_domain_dns");
+  });
+
+  it("routes upgrade_sending_domain_dns with and without a label", async () => {
+    const website = {
+      domain: "mail.example.com",
+      dnsUpgrade: {
+        status: "in_progress",
+        startedAt: "2026-10-16T10:00:00.000Z",
+        records: [
+          {
+            purpose: "dkim",
+            type: "CNAME",
+            name: "sq1._domainkey.mail.example.com",
+            value: "sq1.k7f3q2ab.d.sequenzydns.com",
+            required: true,
+            status: "pending",
+          },
+        ],
+        completedAt: null,
+        oldRecords: null,
+        deleteOldRecordsAfter: null,
+      },
+    };
+    mockApiRequest.mockResolvedValueOnce({ success: true, website });
+    const result = await handleToolCall("upgrade_sending_domain_dns", {
+      companyId: "company_123",
+      domain: "mail.example.com",
+      mailFromPrefix: "bounce",
+    });
+    expect(result.isError).toBeUndefined();
+    expect(result.structuredContent?.["website"]).toEqual(website);
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/websites/mail.example.com/dns-upgrade",
+      { mailFromPrefix: "bounce" },
+      "company_123"
+    );
+
+    mockApiRequest.mockResolvedValueOnce({ success: true, website });
+    await handleToolCall("upgrade_sending_domain_dns", {
+      domain: "mail.example.com",
+    });
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "POST",
+      "/api/v1/websites/mail.example.com/dns-upgrade",
+      undefined,
+      undefined
+    );
+  });
 });
 
 describe("A/B test tools", () => {
@@ -2482,6 +3402,7 @@ describe("A/B test tools", () => {
     expect(toolNames).toContain("get_ab_test_stats");
     expect(toolNames).toContain("restart_ab_test");
     expect(toolNames).toContain("select_ab_test_winner");
+    expect(toolNames).toContain("resume_ab_test");
     expect(toolNames).toContain("update_ab_test");
     expect(toolNames).toContain("update_ab_test_variant");
     expect(
@@ -2524,6 +3445,115 @@ describe("A/B test tools", () => {
       undefined,
       "company_123"
     );
+  });
+
+  it("routes email client stats to the campaign or company breakdown", async () => {
+    mockApiRequest.mockResolvedValue({ success: true, totalOpens: 0 });
+
+    await handleToolCall("get_email_client_stats", {
+      companyId: "company_123",
+      campaignId: "camp 1",
+      period: "7d",
+      emailType: "campaign",
+      mailboxProvider: "gmail",
+      includeMachineEngagement: true,
+    });
+    await handleToolCall("get_email_client_stats", {
+      companyId: "company_123",
+      start: "2026-07-01T00:00:00Z",
+      end: "2026-07-08T00:00:00Z",
+      emailType: "sequence",
+    });
+    await handleToolCall("get_email_client_stats", {});
+
+    expect(mockApiRequest.mock.calls.slice(-3)).toEqual([
+      [
+        "GET",
+        "/api/v1/metrics/campaigns/camp%201/clients?mailboxProvider=gmail&includeMachineEngagement=true",
+        undefined,
+        "company_123",
+      ],
+      [
+        "GET",
+        "/api/v1/metrics/clients?start=2026-07-01T00%3A00%3A00Z&end=2026-07-08T00%3A00%3A00Z&emailType=sequence",
+        undefined,
+        "company_123",
+      ],
+      ["GET", "/api/v1/metrics/clients", undefined, undefined],
+    ]);
+  });
+
+  it("routes link click stats to the company breakdown with its filters", async () => {
+    mockApiRequest.mockResolvedValue({ success: true, totalClicks: 0 });
+
+    await handleToolCall("get_link_click_stats", {
+      companyId: "company_123",
+      period: "7d",
+      emailType: "campaign",
+      mailboxProvider: "gmail",
+      limit: 25,
+      includeMachineEngagement: true,
+    });
+    await handleToolCall("get_link_click_stats", {
+      start: "2026-07-01T00:00:00Z",
+      end: "2026-07-08T00:00:00Z",
+    });
+    await handleToolCall("get_link_click_stats", {});
+
+    expect(mockApiRequest.mock.calls.slice(-3)).toEqual([
+      [
+        "GET",
+        "/api/v1/metrics/links?period=7d&emailType=campaign&mailboxProvider=gmail&limit=25&includeMachineEngagement=true",
+        undefined,
+        "company_123",
+      ],
+      [
+        "GET",
+        "/api/v1/metrics/links?start=2026-07-01T00%3A00%3A00Z&end=2026-07-08T00%3A00%3A00Z",
+        undefined,
+        undefined,
+      ],
+      ["GET", "/api/v1/metrics/links", undefined, undefined],
+    ]);
+  });
+
+  it("passes drill-down filters to get_stats and get_stats_breakdown", async () => {
+    mockApiRequest.mockResolvedValue({ success: true, rows: [] });
+
+    await handleToolCall("get_stats", {
+      start: "2026-10-01T00:00:00Z",
+      end: "2026-10-08T00:00:00Z",
+      mailboxProvider: "microsoft",
+      recipientDomain: "outlook.com",
+      source: "sequence:seq_123",
+      outcome: "complaint",
+    });
+    await handleToolCall("get_stats_breakdown", {
+      companyId: "company_123",
+      by: "sequence",
+      period: "7d",
+      emailType: "sequence",
+      source: "sequence_step:node_1",
+      limit: 10,
+      includeMachineEngagement: true,
+    });
+    await handleToolCall("get_stats_breakdown", {});
+
+    expect(mockApiRequest.mock.calls.slice(-3)).toEqual([
+      [
+        "GET",
+        "/api/v1/metrics?period=7d&start=2026-10-01T00%3A00%3A00Z&end=2026-10-08T00%3A00%3A00Z&mailboxProvider=microsoft&recipientDomain=outlook.com&source=sequence%3Aseq_123&outcome=complaint",
+        undefined,
+        undefined,
+      ],
+      [
+        "GET",
+        "/api/v1/metrics/breakdown?by=sequence&period=7d&emailType=sequence&source=sequence_step%3Anode_1&limit=10&includeMachineEngagement=true",
+        undefined,
+        "company_123",
+      ],
+      ["GET", "/api/v1/metrics/breakdown", undefined, undefined],
+    ]);
   });
 
   it("calls the A/B stats API with period filters", async () => {
@@ -2570,8 +3600,7 @@ describe("A/B test tools", () => {
     );
     const outputProperties = tool?.outputSchema?.properties;
     const pollsOutput = outputProperties?.["polls"] as
-      | { description?: string }
-      | undefined;
+      { description?: string } | undefined;
     mockApiRequest.mockResolvedValueOnce({
       success: true,
       stats: { sent: 3 },
@@ -2636,8 +3665,7 @@ describe("A/B test tools", () => {
     expect(tool?.description).toContain("who answered what and when");
     expect(tool?.description).toContain("Do not reconstruct respondents");
     const paginationOutput = tool?.outputSchema?.properties?.["pagination"] as
-      | { description?: string }
-      | undefined;
+      { description?: string } | undefined;
     expect(paginationOutput?.description).toContain(
       "one row per subscriber per poll block"
     );
@@ -2928,11 +3956,9 @@ describe("A/B test tools", () => {
     const campaignInputProperties = campaignTool?.inputSchema.properties;
     const sequenceInputProperties = sequenceTool?.inputSchema.properties;
     const campaignPeriod = campaignInputProperties?.["period"] as
-      | { description?: string }
-      | undefined;
+      { description?: string } | undefined;
     const sequencePeriod = sequenceInputProperties?.["period"] as
-      | { description?: string }
-      | undefined;
+      { description?: string } | undefined;
     mockApiRequest.mockResolvedValue({ success: true, stats: { sent: 1 } });
 
     await handleToolCall("get_campaign_stats", {
@@ -3366,6 +4392,79 @@ describe("A/B test tools", () => {
     );
   });
 
+  it("resumes a sequence A/B test through the public API", async () => {
+    const resumed = {
+      success: true,
+      abTest: { id: "ab_123", winningVariantId: null, autoSelectWinner: false },
+    };
+    mockApiRequest.mockResolvedValueOnce(resumed);
+    mockApiRequest.mockResolvedValueOnce(resumed);
+
+    await handleToolCall("resume_ab_test", {
+      companyId: "company_123",
+      abTestId: "ab_123",
+    });
+    await handleToolCall("resume_ab_test", {
+      companyId: "company_123",
+      abTestId: "ab_123",
+      confirmLiveChange: true,
+    });
+
+    expect(mockApiRequest.mock.calls).toEqual([
+      ["POST", "/api/v1/ab-tests/ab_123/resume", {}, "company_123"],
+      [
+        "POST",
+        "/api/v1/ab-tests/ab_123/resume",
+        { confirmLiveChange: true },
+        "company_123",
+      ],
+    ]);
+
+    const invalid = await handleToolCall("resume_ab_test", {
+      companyId: "company_123",
+      abTestId: "ab_123",
+      confirmLiveChange: "yes",
+    });
+    expect(invalid.isError).toBe(true);
+    expect(invalid.content[0]?.text).toContain(
+      "`confirmLiveChange` must be a boolean when calling `resume_ab_test`."
+    );
+    expect(mockApiRequest).toHaveBeenCalledTimes(2);
+  });
+
+  it("passes confirmLiveChange when changing a live sequence winner", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      abTest: { id: "ab_123", winningVariantId: "var_c" },
+    });
+
+    await handleToolCall("select_ab_test_winner", {
+      companyId: "company_123",
+      abTestId: "ab_123",
+      variantId: "var_c",
+      confirmLiveChange: true,
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/ab-tests/ab_123/select-winner",
+      { variantId: "var_c", confirmLiveChange: true },
+      "company_123"
+    );
+
+    const invalid = await handleToolCall("select_ab_test_winner", {
+      companyId: "company_123",
+      abTestId: "ab_123",
+      variantId: "var_c",
+      confirmLiveChange: "yes",
+    });
+    expect(invalid.isError).toBe(true);
+    expect(invalid.content[0]?.text).toContain(
+      "`confirmLiveChange` must be a boolean when calling `select_ab_test_winner`."
+    );
+    expect(mockApiRequest).toHaveBeenCalledTimes(1);
+  });
+
   it("rejects invalid A/B restart options before calling the API", async () => {
     const result = await handleToolCall("restart_ab_test", {
       abTestId: "ab_123",
@@ -3505,8 +4604,7 @@ describe("transactional email tools", () => {
         }
       | undefined;
     const properties = inputSchema?.properties as
-      | Record<string, { description?: string }>
-      | undefined;
+      Record<string, { description?: string }> | undefined;
 
     expect(inputSchema?.required).toEqual(["to"]);
     expect(inputSchema?.additionalProperties).toBe(false);
@@ -3523,6 +4621,19 @@ describe("transactional email tools", () => {
     expect(inputSchema?.properties).toHaveProperty("idempotencyKey");
     expect(inputSchema?.properties).toHaveProperty("attachments");
     expect(inputSchema?.properties).toHaveProperty("trackingSettings");
+    expect(properties?.["headers"]).toMatchObject({
+      type: "object",
+      additionalProperties: { type: "string" },
+      description: expect.stringContaining("List-Unsubscribe"),
+    });
+    expect(sendEmailTool?.outputSchema?.properties).toHaveProperty(
+      "ignoredHeaders"
+    );
+    expect(properties?.["trackAs"]).toMatchObject({
+      type: "string",
+      maxLength: 255,
+      description: expect.stringContaining("code-managed transactional email"),
+    });
     expect(properties?.["trackingSettings"]).toMatchObject({
       description: expect.stringContaining(
         "cannot enable tracking the account has disabled"
@@ -3712,6 +4823,51 @@ describe("transactional email tools", () => {
     );
   });
 
+  it("forwards send_email trackAs with direct content", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      emailSendId: "send_123",
+      transactional: {
+        id: "tx_1",
+        slug: "weekly-report",
+        name: "Weekly report",
+      },
+    });
+
+    await handleToolCall("send_email", {
+      to: "user@example.com",
+      subject: "Your week",
+      html: "<p>Stats</p>",
+      trackAs: "weekly-report",
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/transactional/send",
+      {
+        to: "user@example.com",
+        subject: "Your week",
+        body: "<p>Stats</p>",
+        trackAs: "weekly-report",
+      },
+      undefined
+    );
+  });
+
+  it("rejects send_email trackAs combined with templateId", async () => {
+    const result = await handleToolCall("send_email", {
+      to: "user@example.com",
+      templateId: "welcome-email",
+      trackAs: "welcome",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`trackAs` only applies to direct `subject` and `html` sends"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
   it("forwards send_email idempotencyKey as the retry header", async () => {
     mockApiRequest.mockResolvedValueOnce({
       success: true,
@@ -3822,6 +4978,48 @@ describe("transactional email tools", () => {
     );
   });
 
+  it("forwards send_email headers to the API body", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      emailSendId: "send_123",
+      ignoredHeaders: [{ name: "From", reason: "reserved" }],
+    });
+    const headers = {
+      "List-Unsubscribe": "<https://example.com/unsubscribe/abc>",
+      "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    };
+
+    await handleToolCall("send_email", {
+      to: "user@example.com",
+      templateId: "weekly-digest",
+      headers,
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/transactional/send",
+      expect.objectContaining({ slug: "weekly-digest", headers }),
+      undefined
+    );
+  });
+
+  it("rejects send_email headers that are not an object of strings", async () => {
+    for (const [headers, message] of [
+      [["X-A: 1"], "`headers` must be an object"],
+      [null, "`headers` must be an object"],
+      [{ "X-Priority": 1 }, "`headers.X-Priority` must be a string"],
+    ] as const) {
+      const result = await handleToolCall("send_email", {
+        to: "user@example.com",
+        templateId: "weekly-digest",
+        headers,
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0]?.text).toContain(message);
+    }
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
   it("rejects non-boolean send_email trackingSettings fields", async () => {
     const result = await handleToolCall("send_email", {
       to: "user@example.com",
@@ -3910,8 +5108,7 @@ describe("transactional email tools", () => {
   it("publishes multi-recipient send_email fields in the schema", () => {
     const sendEmailTool = tools.find((tool) => tool.name === "send_email");
     const inputSchema = sendEmailTool?.inputSchema as
-      | { properties?: Record<string, unknown> }
-      | undefined;
+      { properties?: Record<string, unknown> } | undefined;
     const properties = inputSchema?.properties as
       | Record<
           string,
@@ -4251,7 +5448,7 @@ describe("transactional email tools", () => {
 
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain(
-      "Provide at least one of `name`, `enabled`, `subject`, `previewText`, `html`, or `blocks` when calling `update_transactional_email`."
+      "Provide at least one of `name`, `enabled`, `subject`, `previewText`, `html`, `blocks`, or `labels` when calling `update_transactional_email`."
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
   });
@@ -4525,6 +5722,58 @@ describe("update_campaign tool validation", () => {
     );
   });
 
+  it("filters sent emails by the analytics mailbox provider and a list", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      retentionDays: 14,
+      emailSends: [],
+      pagination: { page: 1, limit: 20, total: 0, totalPages: 0 },
+    });
+
+    const result = await handleToolCall("list_email_sends", {
+      mailboxProvider: "orange",
+      listId: "list_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/email-sends?mailboxProvider=orange&listId=list_123",
+      undefined,
+      undefined
+    );
+    const tool = tools.find(
+      (candidate) => candidate.name === "list_email_sends"
+    );
+    expect(tool?.inputSchema.properties).toHaveProperty("mailboxProvider");
+    expect(tool?.inputSchema.properties).toHaveProperty("listId");
+  });
+
+  it("filters sent emails to blocked or soft bounces", async () => {
+    for (const bounceType of ["Blocked", "Soft"]) {
+      mockApiRequest.mockResolvedValueOnce({
+        success: true,
+        retentionDays: 14,
+        emailSends: [],
+        pagination: { page: 1, limit: 20, total: 0, totalPages: 0 },
+      });
+
+      const result = await handleToolCall("list_email_sends", {
+        companyId: "comp_123",
+        status: "bounced",
+        bounceType,
+      });
+
+      expect(result.isError).toBeUndefined();
+      expect(mockApiRequest).toHaveBeenCalledWith(
+        "GET",
+        `/api/v1/email-sends?status=bounced&bounceType=${bounceType}`,
+        undefined,
+        "comp_123"
+      );
+    }
+  });
+
   it("filters sent emails by one sequence step", async () => {
     mockApiRequest.mockResolvedValueOnce({
       success: true,
@@ -4716,15 +5965,13 @@ describe("update_campaign tool validation", () => {
     expect(
       (
         inputSchema?.properties?.["targetLists"] as
-          | { description?: string }
-          | undefined
+          { description?: string } | undefined
       )?.description
     ).toContain("{type:'rules'");
     // The audience union is discoverable from the schema itself, not only the
     // description: agents that read schemas must see the type discriminator.
     const targetListsSchema = inputSchema?.properties?.["targetLists"] as
-      | { properties?: Record<string, unknown>; required?: string[] }
-      | undefined;
+      { properties?: Record<string, unknown>; required?: string[] } | undefined;
     expect(
       (targetListsSchema?.properties?.["type"] as { enum?: string[] })?.enum
     ).toEqual(["all", "lists", "segment", "filtered", "rules"]);
@@ -4734,18 +5981,17 @@ describe("update_campaign tool validation", () => {
     expect(inputSchema?.properties).toHaveProperty("sendTimeOptimization");
     expect(inputSchema?.properties).toHaveProperty("sendTimeWindowHours");
     expect(inputSchema?.properties).toHaveProperty("spreadOverHours");
+    expect(inputSchema?.properties).toHaveProperty("maxRecipients");
     expect(
       (
         inputSchema?.properties?.["sendTimeOptimization"] as
-          | { description?: string }
-          | undefined
+          { description?: string } | undefined
       )?.description
     ).toContain("Campaign-only");
     expect(
       (
         inputSchema?.properties?.["sendTimeWindowHours"] as
-          | { description?: string }
-          | undefined
+          { description?: string } | undefined
       )?.description
     ).toContain("1-24");
   });
@@ -4757,7 +6003,7 @@ describe("update_campaign tool validation", () => {
 
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain(
-      "Provide at least one campaign content, sending identity, campaign data, computed list, audience, label, or delivery pacing field"
+      "Provide at least one campaign content, sending identity, campaign data, computed list, audience, label, delivery pacing, recipient limit, or attachment field"
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
   });
@@ -5159,6 +6405,121 @@ describe("update_campaign tool validation", () => {
         sendTimeWindowHours: 8,
       },
       "comp_123"
+    );
+  });
+
+  it("forwards maxRecipients to the schedule endpoint and rejects invalid caps", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      campaign: {
+        id: "camp_123",
+        name: "Launch",
+        subject: "Hello",
+        status: "scheduled",
+        maxRecipients: 100,
+      },
+      scheduledAt: "2026-06-01T14:00:00.000Z",
+    });
+
+    const result = await handleToolCall("schedule_campaign", {
+      campaignId: "camp_123",
+      scheduledAt: "2026-06-01T14:00:00Z",
+      maxRecipients: 100,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/campaigns/camp_123/schedule",
+      { scheduledAt: "2026-06-01T14:00:00Z", maxRecipients: 100 },
+      undefined
+    );
+
+    mockApiRequest.mockClear();
+    for (const maxRecipients of [0, 1.5, "100", 10_000_001]) {
+      const rejected = await handleToolCall("schedule_campaign", {
+        campaignId: "camp_123",
+        scheduledAt: "2026-06-01T14:00:00Z",
+        maxRecipients,
+      });
+      expect(rejected.isError).toBe(true);
+      expect(rejected.content[0]?.text).toContain(
+        "`maxRecipients` must be an integer between 1 and 10,000,000, or null to remove the limit, when calling `schedule_campaign`."
+      );
+    }
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("clears a draft's recipient cap through update_campaign with null", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      campaign: { id: "camp_123", name: "Launch", maxRecipients: null },
+    });
+
+    const result = await handleToolCall("update_campaign", {
+      campaignId: "camp_123",
+      maxRecipients: null,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/campaigns/camp_123",
+      { campaignId: "camp_123", maxRecipients: null },
+      undefined
+    );
+  });
+
+  it("exposes and forwards campaign attachments on create and update", async () => {
+    for (const name of ["create_campaign", "update_campaign"]) {
+      const schema = tools.find((tool) => tool.name === name)?.inputSchema as
+        | { properties?: Record<string, { items?: { required?: string[] } }> }
+        | undefined;
+      expect(schema?.properties?.["attachments"]?.items?.required).toEqual([
+        "filename",
+      ]);
+    }
+
+    const attachments = [
+      {
+        filename: "report.pdf",
+        content: "UERG",
+        contentType: "application/pdf",
+      },
+      { filename: "terms.pdf", path: "https://cdn.example.com/terms.pdf" },
+    ];
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      campaign: { id: "camp_123", name: "Weekly" },
+    });
+    const created = await handleToolCall("create_campaign", {
+      name: "Weekly",
+      subject: "This week",
+      html: "<p>Hi</p>",
+      attachments,
+    });
+    expect(created.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/campaigns",
+      expect.objectContaining({ attachments }),
+      undefined
+    );
+
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      campaign: { id: "camp_123", name: "Weekly", attachments: null },
+    });
+    const cleared = await handleToolCall("update_campaign", {
+      campaignId: "camp_123",
+      attachments: null,
+    });
+    expect(cleared.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/campaigns/camp_123",
+      { campaignId: "camp_123", attachments: null },
+      undefined
     );
   });
 
@@ -5584,8 +6945,7 @@ describe("label list filters", () => {
     expect(
       (
         tool?.outputSchema?.properties?.["campaigns"] as
-          | { description?: string }
-          | undefined
+          { description?: string } | undefined
       )?.description
     ).toContain("Send Time Optimization");
   });
@@ -5666,16 +7026,87 @@ describe("saved form tools", () => {
 
     expect(listTool?.annotations?.readOnlyHint).toBe(true);
     expect(embedTool?.annotations?.readOnlyHint).toBe(true);
+    // Saved forms and popups go live for public site visitors, and their
+    // overwrite and reactivate modes change existing contacts.
     expect(createTool?.annotations).toMatchObject({
       readOnlyHint: false,
-      destructiveHint: false,
-      openWorldHint: false,
+      destructiveHint: true,
+      openWorldHint: true,
     });
     expect(createSchema?.additionalProperties).toBe(false);
     expect(createSchema?.required).toEqual(["name", "listIds"]);
     expect(createSchema?.properties).toHaveProperty("tagIds");
     expect(createSchema?.properties).toHaveProperty("redirectUrl");
     expect(embedTool?.inputSchema.required).toEqual(["formId"]);
+  });
+
+  it("preserves recovery provenance in submission results", async () => {
+    const recovery = {
+      evidenceType: "contact.added",
+      evidenceId: "evt",
+      recoveredAt: "2026-09-19T00:00:00.000Z",
+      sourceAttribution: "inferred",
+      timestampMeaning: "event_time",
+    };
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      submissions: [
+        {
+          id: "r",
+          payload: { email: "a@example.com", customAttributes: {}, recovery },
+        },
+      ],
+      nextCursor: null,
+    });
+    const result = await handleToolCall("list_capture_submissions", {
+      sourceType: "form",
+      sourceId: "f",
+    });
+    expect(result.isError).toBeUndefined();
+    expect(JSON.stringify(result)).toContain("event_time");
+    expect(JSON.stringify(result)).toContain("inferred");
+  });
+  it("reads submission payloads with filters and CSV output", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      submissions: [],
+      nextCursor: null,
+      csv: "headers",
+    });
+    const result = await handleToolCall("list_capture_submissions", {
+      companyId: "comp",
+      sourceType: "form",
+      sourceId: "form/a",
+      field: "session",
+      value: "10 am",
+      format: "csv",
+      limit: 5,
+    });
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/submissions/form/form%2Fa?field=session&value=10+am&format=csv&limit=5",
+      undefined,
+      "comp"
+    );
+  });
+  it("rejects incomplete submission filters and invalid pagination", async () => {
+    for (const args of [
+      { field: "session" },
+      { limit: 101 },
+      { format: "xml" },
+      { cursor: 5 },
+    ]) {
+      expect(
+        (
+          await handleToolCall("list_capture_submissions", {
+            sourceType: "form",
+            sourceId: "f",
+            ...args,
+          })
+        ).isError
+      ).toBe(true);
+    }
   });
 
   it("routes list_forms to the authenticated Forms API", async () => {
@@ -5713,6 +7144,7 @@ describe("saved form tools", () => {
       listIds: ["list_123"],
       tagIds: ["tag_123"],
       duplicateStrategy: "merge",
+      resubscribeBehavior: "double_opt_in",
       successMessage: "You're subscribed.",
     });
 
@@ -5726,6 +7158,7 @@ describe("saved form tools", () => {
         tagIds: ["tag_123"],
         duplicateStrategy: "merge",
         successMessage: "You're subscribed.",
+        resubscribeBehavior: "double_opt_in",
       },
       "comp_123"
     );
@@ -5796,6 +7229,119 @@ describe("saved form tools", () => {
     );
   });
 
+  it("routes resubscribeBehavior on update_form and update_popup", async () => {
+    mockApiRequest.mockResolvedValue({ success: true });
+
+    const formResult = await handleToolCall("update_form", {
+      companyId: "comp_123",
+      formId: "form_123",
+      resubscribeBehavior: "double_opt_in",
+    });
+    const popupResult = await handleToolCall("update_popup", {
+      companyId: "comp_123",
+      popupId: "pop_123",
+      resubscribeBehavior: "reactivate",
+    });
+
+    expect(formResult.isError).toBeUndefined();
+    expect(popupResult.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/forms/form_123",
+      { resubscribeBehavior: "double_opt_in" },
+      "comp_123"
+    );
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/popups/pop_123",
+      { resubscribeBehavior: "reactivate" },
+      "comp_123"
+    );
+  });
+
+  it("exposes botProtection as a boolean on form and popup write tools", () => {
+    for (const name of [
+      "create_form",
+      "update_form",
+      "create_popup",
+      "update_popup",
+    ]) {
+      const tool = tools.find((candidate) => candidate.name === name);
+      expect(tool?.inputSchema.properties?.["botProtection"]).toMatchObject({
+        type: "boolean",
+      });
+      expect(tool?.inputSchema.required ?? []).not.toContain("botProtection");
+    }
+  });
+
+  it("forwards botProtection on form and popup create and update", async () => {
+    mockApiRequest.mockResolvedValue({ success: true });
+
+    await handleToolCall("create_form", {
+      companyId: "comp_123",
+      name: "Newsletter",
+      listIds: ["list_123"],
+      botProtection: true,
+    });
+    await handleToolCall("update_form", {
+      companyId: "comp_123",
+      formId: "form_123",
+      botProtection: false,
+    });
+    await handleToolCall("create_popup", {
+      companyId: "comp_123",
+      name: "Welcome offer",
+      botProtection: true,
+    });
+    await handleToolCall("update_popup", {
+      companyId: "comp_123",
+      popupId: "pop_123",
+      botProtection: false,
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/forms",
+      { name: "Newsletter", listIds: ["list_123"], botProtection: true },
+      "comp_123"
+    );
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/forms/form_123",
+      { botProtection: false },
+      "comp_123"
+    );
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/popups",
+      expect.objectContaining({ name: "Welcome offer", botProtection: true }),
+      "comp_123"
+    );
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/popups/pop_123",
+      { botProtection: false },
+      "comp_123"
+    );
+  });
+
+  it("rejects unknown resubscribeBehavior values before calling the API", async () => {
+    for (const [tool, args] of [
+      ["create_form", { name: "Newsletter", listIds: ["list_123"] }],
+      ["update_form", { formId: "form_123" }],
+      ["create_popup", { name: "Welcome offer" }],
+      ["update_popup", { popupId: "pop_123" }],
+    ] as const) {
+      const result = await handleToolCall(tool, {
+        ...args,
+        resubscribeBehavior: "always",
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0]?.text).toContain("resubscribeBehavior");
+    }
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
   it("rejects update_form calls that change nothing", async () => {
     const result = await handleToolCall("update_form", {
       formId: "form_123",
@@ -5819,6 +7365,9 @@ describe("saved form tools", () => {
         nativeForm:
           '<form action="https://api.sequenzy.com/api/v1/forms/form%2F123" method="post"></form>',
         fetch: "new FormData(form)",
+        recommendedSnippet: "javascript",
+        reducedProtectionWarning:
+          "Plain HTML and fetch code can't run Sequenzy's spam protection.",
       },
     });
 
@@ -5838,6 +7387,18 @@ describe("saved form tools", () => {
       "Authorization"
     );
     expect(JSON.stringify(result.structuredContent)).not.toContain("API_KEY");
+    expect(result.structuredContent).toMatchObject({
+      embed: {
+        recommendedSnippet: "javascript",
+        reducedProtectionWarning:
+          "Plain HTML and fetch code can't run Sequenzy's spam protection.",
+      },
+    });
+    // Agents are told to install the script and pass the warning on.
+    const embedTool = tools.find((tool) => tool.name === "get_form_embed");
+    expect(embedTool?.description).toContain("embed.recommendedSnippet");
+    expect(embedTool?.description).toContain("embed.reducedProtectionWarning");
+    expect(embedTool?.description).toContain("embed.placeholder");
   });
 });
 
@@ -5861,19 +7422,19 @@ describe("saved popup tools", () => {
         }
       | undefined;
     const updateSchema = updateTool?.inputSchema as
-      | { properties?: Record<string, unknown> }
-      | undefined;
+      { properties?: Record<string, unknown> } | undefined;
 
     expect(listTool?.annotations?.readOnlyHint).toBe(true);
     expect(getTool?.annotations?.readOnlyHint).toBe(true);
     expect(embedTool?.annotations?.readOnlyHint).toBe(true);
+    // Saved forms and popups go live for public site visitors, and their
+    // overwrite and reactivate modes change existing contacts.
     expect(createTool?.annotations).toMatchObject({
       readOnlyHint: false,
-      destructiveHint: false,
-      openWorldHint: false,
+      destructiveHint: true,
+      openWorldHint: true,
     });
-    // Deleting a popup also drops its view and conversion counts, so it is
-    // annotated destructive while unpublishing through update_popup is not.
+    // Deleting a popup also drops its view and conversion counts.
     expect(deleteTool?.annotations).toMatchObject({
       readOnlyHint: false,
       destructiveHint: true,
@@ -5937,6 +7498,7 @@ describe("saved popup tools", () => {
       template: "discount-offer",
       listIds: ["list_123"],
       duplicateStrategy: "merge",
+      resubscribeBehavior: "reactivate",
       trigger: { type: "exit-intent" },
       targeting: { paths: ["/pricing"] },
     });
@@ -5952,8 +7514,54 @@ describe("saved popup tools", () => {
         duplicateStrategy: "merge",
         trigger: { type: "exit-intent" },
         targeting: { paths: ["/pricing"] },
+        resubscribeBehavior: "reactivate",
       },
       "comp_123"
+    );
+  });
+
+  it("forwards the scratch-to-reveal reward on create and update", async () => {
+    const createTool = tools.find((tool) => tool.name === "create_popup");
+    const updateTool = tools.find((tool) => tool.name === "update_popup");
+    for (const tool of [createTool, updateTool]) {
+      const schema = tool?.inputSchema as {
+        properties?: Record<string, { type?: string; description?: string }>;
+      };
+      expect(schema.properties?.["reward"]?.type).toBe("object");
+      expect(schema.properties?.["reward"]?.description).toContain(
+        "{{discount.code}}"
+      );
+    }
+
+    mockApiRequest.mockResolvedValue({ success: true, popup: { id: "p" } });
+    const reward = {
+      enabled: true,
+      value: "10% off your first order",
+      code: "WELCOME10",
+      coverStyle: "holographic",
+    };
+
+    await handleToolCall("create_popup", {
+      name: "Scratch card",
+      template: "scratch-to-reveal",
+      reward,
+    });
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "POST",
+      "/api/v1/popups",
+      { name: "Scratch card", template: "scratch-to-reveal", reward },
+      undefined
+    );
+
+    await handleToolCall("update_popup", {
+      popupId: "pop_123",
+      reward: { coverPattern: "sparkle" },
+    });
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "PATCH",
+      "/api/v1/popups/pop_123",
+      { reward: { coverPattern: "sparkle" } },
+      undefined
     );
   });
 
@@ -6159,8 +7767,7 @@ describe("landing page tools", () => {
         }
       | undefined;
     const contentSchema = createSchema?.properties?.["content"] as
-      | { description?: string }
-      | undefined;
+      { description?: string } | undefined;
 
     expect(toolNames).toContain("list_landing_pages");
     expect(toolNames).toContain("get_landing_page");
@@ -6851,7 +8458,6 @@ describe("generate_sequence compatibility", () => {
       "POST",
       "/api/v1/sequences",
       {
-        companyId: "company_123",
         name: "LoqAI cold outreach follow-ups",
         goal: "LoqAI cold outreach follow-ups",
         emailCount: 3,
@@ -6951,7 +8557,6 @@ describe("generate_sequence compatibility", () => {
         "POST",
         "/api/v1/sequences",
         {
-          companyId: "company_123",
           name: "Slow enrichment",
           goal: "Slow enrichment",
           emailCount: 3,
@@ -7012,12 +8617,10 @@ describe("create_sequence tool", () => {
     expect(steps?.items?.properties).toHaveProperty("config");
     expect(steps?.items?.properties).toHaveProperty("attachments");
     const createStepNodeType = steps?.items?.properties?.["nodeType"] as
-      | { enum?: string[] }
-      | undefined;
+      { enum?: string[] } | undefined;
     expect(createStepNodeType?.enum).toContain("action_update_attributes");
     const createStepConfig = steps?.items?.properties?.["config"] as
-      | { properties?: Record<string, unknown> }
-      | undefined;
+      { properties?: Record<string, unknown> } | undefined;
     expect(createStepConfig?.properties).toHaveProperty(
       "customAttributeUpdates"
     );
@@ -7046,8 +8649,7 @@ describe("create_sequence tool", () => {
       "subscriber/token suffix"
     );
     const delay = steps?.items?.properties?.["delay"] as
-      | { properties?: Record<string, unknown> }
-      | undefined;
+      { properties?: Record<string, unknown> } | undefined;
     expect(delay?.properties).toHaveProperty("mode");
     expect(delay?.properties).toHaveProperty("untilDateField");
     const stopCondition = inputSchema?.properties?.["stopCondition"] as
@@ -7114,7 +8716,7 @@ describe("create_sequence tool", () => {
       1,
       "POST",
       "/api/v1/sequences",
-      { companyId: "comp_123", name: "Cancellation feedback" },
+      { name: "Cancellation feedback" },
       "comp_123"
     );
     expect(mockApiRequest).toHaveBeenNthCalledWith(
@@ -7164,7 +8766,6 @@ describe("create_sequence tool", () => {
       "POST",
       "/api/v1/sequences",
       {
-        companyId: "comp_123",
         name: "Newsletter welcome",
         trigger: "contact_added",
         listScope: "any_list",
@@ -7266,7 +8867,6 @@ describe("create_sequence tool", () => {
       "POST",
       "/api/v1/sequences",
       {
-        companyId: "comp_123",
         name: "Win-back Discount",
         trigger: "tag_added",
         tagName: "cancelled",
@@ -7350,7 +8950,6 @@ describe("create_sequence tool", () => {
       "POST",
       "/api/v1/sequences",
       {
-        companyId: "comp_123",
         name: "Purchase profile",
         trigger: "event_received",
         eventName: "saas.purchase",
@@ -7450,8 +9049,7 @@ describe("update_sequence tool", () => {
     for (const toolName of ["update_sequence", "edit_sequence_graph"]) {
       const tool = tools.find((candidate) => candidate.name === toolName);
       const sequenceSchema = tool?.outputSchema?.properties?.["sequence"] as
-        | { properties?: Record<string, unknown> }
-        | undefined;
+        { properties?: Record<string, unknown> } | undefined;
       expect(sequenceSchema?.properties).toHaveProperty(
         "migratedRecipientCount"
       );
@@ -7565,8 +9163,7 @@ describe("update_sequence tool", () => {
       "attachments"
     );
     const emails = inputSchema?.properties?.["emails"] as
-      | { items?: { properties?: Record<string, unknown> } }
-      | undefined;
+      { items?: { properties?: Record<string, unknown> } } | undefined;
     expect(emails?.items?.properties).toHaveProperty("fromEmail");
     expect(emails?.items?.properties).toHaveProperty("replyTo");
     expect(emails?.items?.properties).toHaveProperty("attachments");
@@ -7679,8 +9276,6 @@ describe("update_sequence tool", () => {
       "PUT",
       "/api/v1/sequences/seq_123",
       {
-        companyId: "comp_123",
-        sequenceId: "seq_123",
         trigger: "inbound_webhook",
         eventName: "summit.cancelled",
         customIntegration,
@@ -7705,8 +9300,6 @@ describe("update_sequence tool", () => {
       "PUT",
       "/api/v1/sequences/seq_123",
       {
-        companyId: "comp_123",
-        sequenceId: "seq_123",
         trigger: "contact_added",
         listScope: "any_list",
       },
@@ -7754,8 +9347,6 @@ describe("update_sequence tool", () => {
       "PUT",
       "/api/v1/sequences/seq_123",
       {
-        companyId: "comp_123",
-        sequenceId: "seq_123",
         fromEmail: "hello@example.com",
         fromName: "Acme",
         replyTo: "support@example.com",
@@ -7784,8 +9375,6 @@ describe("update_sequence tool", () => {
       "PUT",
       "/api/v1/sequences/seq_123",
       {
-        companyId: "comp_123",
-        sequenceId: "seq_123",
         emails: [{ nodeId: "node_ticket", attachments }],
       },
       "comp_123"
@@ -7922,8 +9511,6 @@ describe("update_sequence tool", () => {
       "PUT",
       "/api/v1/sequences/seq_123",
       {
-        companyId: "comp_123",
-        sequenceId: "seq_123",
         subscriberUpdateSteps,
       },
       "comp_123"
@@ -7973,8 +9560,6 @@ describe("update_sequence tool", () => {
       "PUT",
       "/api/v1/sequences/seq_123",
       {
-        companyId: "comp_123",
-        sequenceId: "seq_123",
         confirmStructuralChange: true,
         insertSteps,
       },
@@ -8042,8 +9627,6 @@ describe("update_sequence tool", () => {
       "PUT",
       "/api/v1/sequences/seq_123",
       {
-        companyId: "comp_123",
-        sequenceId: "seq_123",
         stopCondition,
         branch,
       },
@@ -8073,8 +9656,6 @@ describe("update_sequence tool", () => {
       "PUT",
       "/api/v1/sequences/seq_123",
       {
-        companyId: "comp_123",
-        sequenceId: "seq_123",
         enrollmentPaused: true,
       },
       "comp_123"
@@ -8103,8 +9684,6 @@ describe("update_sequence tool", () => {
       "PUT",
       "/api/v1/sequences/seq_123",
       {
-        companyId: "comp_123",
-        sequenceId: "seq_123",
         enrollmentFieldPath: null,
       },
       "comp_123"
@@ -8133,12 +9712,43 @@ describe("update_sequence tool", () => {
       "PUT",
       "/api/v1/sequences/seq_123",
       {
-        companyId: "comp_123",
-        sequenceId: "seq_123",
         sendingWindow: null,
       },
       "comp_123"
     );
+  });
+
+  it("forwards the frequency cap flag", async () => {
+    mockApiRequest.mockResolvedValue({
+      success: true,
+      sequence: { id: "seq_123", name: "Activation", status: "draft" },
+    });
+
+    await handleToolCall("update_sequence", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      frequencyCapEnabled: true,
+    });
+    await handleToolCall("update_sequence", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      frequencyCapEnabled: false,
+    });
+
+    expect(mockApiRequest.mock.calls.slice(-2)).toEqual([
+      [
+        "PUT",
+        "/api/v1/sequences/seq_123",
+        { frequencyCapEnabled: true },
+        "comp_123",
+      ],
+      [
+        "PUT",
+        "/api/v1/sequences/seq_123",
+        { frequencyCapEnabled: false },
+        "comp_123",
+      ],
+    ]);
   });
 
   it("rejects clearEnrollmentFieldPath with enrollmentFieldPath before hitting the API", async () => {
@@ -8179,8 +9789,6 @@ describe("update_sequence tool", () => {
       "PUT",
       "/api/v1/sequences/seq_123",
       {
-        companyId: "comp_123",
-        sequenceId: "seq_123",
         bccEmails: null,
       },
       "comp_123"
@@ -8209,8 +9817,6 @@ describe("update_sequence tool", () => {
       "PUT",
       "/api/v1/sequences/seq_123",
       {
-        companyId: "comp_123",
-        sequenceId: "seq_123",
         bccEmails: ["cs-team@example.com", "founder@example.com"],
       },
       "comp_123"
@@ -8367,7 +9973,8 @@ describe("sequence node update tools", () => {
         .description
     ).toContain("supported custom HTML blocks");
     expect(singleTool?.annotations?.readOnlyHint).toBe(false);
-    expect(singleTool?.annotations?.destructiveHint).toBe(false);
+    // Overwrites the step's content on what may be a live sequence.
+    expect(singleTool?.annotations?.destructiveHint).toBe(true);
   });
 
   it("preserves per-email format patches in an atomic batch", async () => {
@@ -8407,8 +10014,7 @@ describe("sequence node update tools", () => {
     const sequenceOutputSchema = tools.find(
       (tool) => tool.name === "get_sequence"
     )?.outputSchema?.properties?.["sequence"] as
-      | { description?: string }
-      | undefined;
+      { description?: string } | undefined;
     expect(sequenceOutputSchema?.description).toContain("structuralStepNumber");
 
     mockApiRequest.mockResolvedValueOnce({
@@ -8580,8 +10186,7 @@ describe("edit_sequence_graph tool", () => {
         }
       | undefined;
     const action = inputSchema?.properties?.["action"] as
-      | { enum?: string[] }
-      | undefined;
+      { enum?: string[] } | undefined;
 
     expect(inputSchema?.required).toEqual([
       "sequenceId",
@@ -8636,6 +10241,87 @@ describe("edit_sequence_graph tool", () => {
       },
       "comp_123"
     );
+  });
+
+  it("exposes one tool per graph operation on the OpenAI profile", async () => {
+    const openAiTools = getToolsForProfile(tools, "openai");
+    const names = openAiTools.map((tool) => tool.name);
+    expect(names).not.toContain("edit_sequence_graph");
+    expect(tools.map((tool) => tool.name)).toContain("edit_sequence_graph");
+    const source = tools.find((tool) => tool.name === "edit_sequence_graph");
+    for (const split of OPENAI_SPLIT_TOOLS["edit_sequence_graph"] ?? []) {
+      const tool = openAiTools.find(
+        (candidate) => candidate.name === split.name
+      );
+      expect(tool?.inputSchema.properties).not.toHaveProperty("action");
+      // Worded for the single operation: no internal action names.
+      expect(JSON.stringify(tool)).not.toMatch(
+        /move_node|duplicate_node|delete_node|replace_edges|edit_sequence_graph|\bAlways\b/
+      );
+      expect(tool?.inputSchema.required).toEqual([...split.required]);
+      expect(tool?.annotations).toMatchObject({
+        readOnlyHint: source?.annotations?.readOnlyHint,
+        destructiveHint: source?.annotations?.destructiveHint,
+        openWorldHint: source?.annotations?.openWorldHint,
+      });
+    }
+
+    mockApiRequest.mockClear();
+    mockApiRequest.mockResolvedValueOnce({ success: true, sequence: {} });
+    const deleted = await handleToolCall(
+      "delete_sequence_step",
+      {
+        companyId: "comp_123",
+        sequenceId: "seq_123",
+        graphRevision: "revision-3",
+        nodeId: "node_email",
+        confirmStructuralChange: true,
+      },
+      { profile: "openai" }
+    );
+    expect(deleted.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/sequences/seq_123",
+      {
+        confirmStructuralChange: true,
+        graphEdit: {
+          action: "delete_node",
+          expectedRevision: "revision-3",
+          nodeId: "node_email",
+        },
+      },
+      "comp_123"
+    );
+
+    // Each split tool fixes its operation and rejects the others' fields.
+    const withAction = await handleToolCall(
+      "move_sequence_step",
+      {
+        sequenceId: "seq_123",
+        graphRevision: "revision-3",
+        nodeId: "node_email",
+        afterNodeId: "node_start",
+        action: "delete_node",
+      },
+      { profile: "openai" }
+    );
+    expect(withAction.isError).toBe(true);
+    expect(withAction.content[0]?.text).toContain("action");
+
+    const missingTarget = await handleToolCall(
+      "move_sequence_step",
+      {
+        sequenceId: "seq_123",
+        graphRevision: "revision-3",
+        nodeId: "node_email",
+      },
+      { profile: "openai" }
+    );
+    expect(missingTarget.isError).toBe(true);
+    expect(missingTarget.content[0]?.text).toContain("`move_sequence_step`");
+    expect(missingTarget.content[0]?.text).not.toContain("edit_sequence_graph");
+    expect(mockApiRequest).toHaveBeenCalledTimes(1);
   });
 
   it("forwards a complete branch-aware replacement topology", async () => {
@@ -8741,25 +10427,23 @@ describe("insert_sequence_step tool", () => {
     expect(inputSchema?.properties).toHaveProperty("elseSteps");
     expect(inputSchema?.properties).toHaveProperty("elseTargetNodeId");
     const outputFields = inputSchema?.properties?.["outputFields"] as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
     const outputFieldItems = outputFields?.["items"] as
-      | Record<string, unknown>
-      | undefined;
+      Record<string, unknown> | undefined;
     const outputFieldProperties = outputFieldItems?.["properties"] as
-      | Record<string, Record<string, unknown>>
-      | undefined;
+      Record<string, Record<string, unknown>> | undefined;
     expect(outputFieldProperties?.["maxLength"]).toMatchObject({
       type: "integer",
       minimum: 1,
       maximum: 4000,
     });
     const typeSchema = inputSchema?.properties?.["type"] as
-      | { enum?: string[] }
-      | undefined;
+      { enum?: string[] } | undefined;
     expect(typeSchema?.enum).toEqual([
       "email",
       "sms",
+      "push",
+      "in_app",
       "delay",
       "create_discount",
       "update_subscriber",
@@ -8828,6 +10512,112 @@ describe("insert_sequence_step tool", () => {
       },
       "comp_123"
     );
+  });
+
+  it("passes waitUntilKeyDate through for delay and email steps", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      sequence: { id: "seq_123", insertedNodeIds: ["delay_bf"] },
+    });
+    const delayResult = await handleToolCall("insert_sequence_step", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      type: "delay",
+      afterNodeId: "email_1",
+      waitUntilKeyDate: { key: "black_friday_starts", days: 7 },
+    });
+    expect(delayResult.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/sequences/seq_123",
+      {
+        insertSteps: {
+          afterNodeId: "email_1",
+          steps: [
+            {
+              type: "delay",
+              waitUntilKeyDate: { key: "black_friday_starts", days: 7 },
+            },
+          ],
+        },
+      },
+      "comp_123"
+    );
+
+    mockApiRequest.mockClear();
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      sequence: { id: "seq_123", insertedNodeIds: ["email_final"] },
+    });
+    const emailResult = await handleToolCall("insert_sequence_step", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      afterNodeId: "email_1",
+      subject: "Final hour",
+      html: "<p>One hour left</p>",
+      waitUntilKeyDate: {
+        key: "black_friday_ends",
+        hours: 1,
+        pastAction: "exit",
+      },
+    });
+    expect(emailResult.isError).toBeUndefined();
+    const emailBody = mockApiRequest.mock.calls[0]?.[2] as {
+      insertSteps: { steps: Array<Record<string, unknown>> };
+    };
+    expect(emailBody.insertSteps.steps[0]).toMatchObject({
+      subject: "Final hour",
+      waitUntilKeyDate: {
+        key: "black_friday_ends",
+        hours: 1,
+        pastAction: "exit",
+      },
+    });
+  });
+
+  it("passes contact attribute date waits through insert_sequence_step", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      sequence: { id: "seq_123", insertedNodeIds: ["email_due"] },
+    });
+    const waitUntil = {
+      field: "dueDate",
+      source: "attribute",
+      days: 28,
+      direction: "before",
+      pastAction: "skip",
+    };
+
+    const result = await handleToolCall("insert_sequence_step", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      afterNodeId: "email_1",
+      subject: "4 weeks to go",
+      html: "<p>Almost there</p>",
+      waitUntil,
+    });
+
+    expect(result.isError).toBeUndefined();
+    const body = mockApiRequest.mock.calls[0]?.[2] as {
+      insertSteps: { steps: Array<Record<string, unknown>> };
+    };
+    expect(body.insertSteps.steps[0]).toMatchObject({ waitUntil });
+  });
+
+  it("describes the date source and past-date rule in the waitUntil schema", () => {
+    expect(sequenceWaitUntilSchema.properties.source.enum).toEqual([
+      "event",
+      "attribute",
+    ]);
+    expect(sequenceWaitUntilSchema.properties.pastAction.enum).toEqual([
+      "continue",
+      "skip",
+      "exit",
+    ]);
+    expect(sequenceDelaySchema.properties.untilDateSource.enum).toEqual([
+      "event",
+      "attribute",
+    ]);
   });
 
   it("rejects an invalid typed wait-for-event before hitting the API", async () => {
@@ -9260,7 +11050,6 @@ describe("insert_sequence_step tool", () => {
       "PUT",
       "/api/v1/sequences/seq_123",
       {
-        sequenceId: "seq_123",
         smsSteps: [
           {
             nodeId: "node_sms",
@@ -9509,6 +11298,93 @@ describe("sequence list lifecycle tools", () => {
   });
 });
 
+describe("sequence template tools", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("lists templates for the company category or an explicit one", async () => {
+    mockApiRequest.mockResolvedValue({ success: true, templates: [] });
+    await handleToolCall("list_sequence_templates", { companyId: "comp_123" });
+    await handleToolCall("list_sequence_templates", {
+      companyId: "comp_123",
+      websiteType: "mobile_app",
+    });
+    expect(mockApiRequest).toHaveBeenNthCalledWith(
+      1,
+      "GET",
+      "/api/v1/sequences/templates",
+      undefined,
+      "comp_123"
+    );
+    expect(mockApiRequest).toHaveBeenNthCalledWith(
+      2,
+      "GET",
+      "/api/v1/sequences/templates?websiteType=mobile_app",
+      undefined,
+      "comp_123"
+    );
+  });
+
+  it("creates a sequence from a template id", async () => {
+    mockApiRequest.mockResolvedValue({
+      success: true,
+      sequence: { id: "seq_tpl" },
+    });
+    const result = await handleToolCall("create_sequence_from_template", {
+      companyId: "comp_123",
+      templateId: "mobile-trial-conversion",
+      name: "  Trial to paid  ",
+    });
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/sequences/from-template",
+      { templateId: "mobile-trial-conversion", name: "Trial to paid" },
+      "comp_123"
+    );
+    // The new draft's dashboard link, as the CLI prints it.
+    expect(JSON.stringify(result.structuredContent)).toContain(
+      "/sequences/seq_tpl"
+    );
+  });
+
+  it("requires a template id and keeps root schemas plain objects", async () => {
+    const missing = await handleToolCall("create_sequence_from_template", {
+      companyId: "comp_123",
+    });
+    expect(missing.isError).toBe(true);
+    expect(JSON.stringify(missing.content)).toContain("templateId");
+    expect(mockApiRequest).not.toHaveBeenCalled();
+    for (const toolName of [
+      "list_sequence_templates",
+      "create_sequence_from_template",
+    ]) {
+      const tool = tools.find((candidate) => candidate.name === toolName);
+      expect(tool?.inputSchema.type).toBe("object");
+      expect(JSON.stringify(tool?.inputSchema)).not.toContain("anyOf");
+    }
+  });
+
+  it("exposes websiteType on company create and update", async () => {
+    const update = tools.find(
+      (candidate) => candidate.name === "update_company"
+    );
+    expect(update?.inputSchema.properties?.["websiteType"]).toMatchObject({
+      enum: expect.arrayContaining(["mobile_app", null]),
+    });
+    mockApiRequest.mockResolvedValue({ success: true, company: {} });
+    await handleToolCall("update_company", {
+      companyId: "comp_123",
+      websiteType: "mobile_app",
+    });
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/companies/comp_123",
+      { websiteType: "mobile_app" }
+    );
+  });
+});
+
 describe("sequence goal tools", () => {
   beforeEach(() => {
     mockApiRequest.mockClear();
@@ -9658,6 +11534,38 @@ describe("campaign goal tools", () => {
     expect(
       createTool?.inputSchema.properties?.["attributionWindowHours"]
     ).toMatchObject({ type: "integer", minimum: 1, maximum: 720 });
+  });
+
+  it("preserves automatically applied Settings goals in list output", async () => {
+    const response = {
+      success: true,
+      goals: [],
+      companyGoals: [
+        {
+          id: "settings",
+          name: "iTICKET Order Placed",
+          scope: "company",
+          attributionWindowHours: 168,
+          isActive: false,
+        },
+      ],
+    };
+    mockApiRequest.mockResolvedValue(response);
+    const result = await handleToolCall("list_campaign_goals", {
+      companyId: "comp_123",
+      campaignId: "camp_123",
+    });
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/campaigns/camp_123/goals",
+      undefined,
+      "comp_123"
+    );
+    expect(result.content[0]).toMatchObject({
+      type: "text",
+      text: expect.stringContaining('"companyGoals"'),
+    });
+    expect(result.structuredContent).toMatchObject(response);
   });
 
   it("forwards goal creation and deletion", async () => {
@@ -10447,8 +12355,7 @@ describe("dashboard URL helpers", () => {
   it("generates dashboard URLs from explicit IDs", async () => {
     const urlTool = tools.find((tool) => tool.name === "get_app_urls");
     const urlSchema = urlTool?.inputSchema as
-      | { properties?: Record<string, unknown> }
-      | undefined;
+      { properties?: Record<string, unknown> } | undefined;
     const result = await handleToolCall("get_app_urls", {
       companyId: "comp_123",
       sequenceId: "seq_123",
@@ -11121,8 +13028,7 @@ describe("image asset tools", () => {
       (candidate) => candidate.name === "upload_image_asset"
     );
     const properties = tool?.inputSchema.properties as
-      | Record<string, Record<string, unknown>>
-      | undefined;
+      Record<string, Record<string, unknown>> | undefined;
 
     expect(properties).toHaveProperty("filePath");
     expect(properties).toHaveProperty("imageBase64");
@@ -11151,8 +13057,32 @@ describe("image asset tools", () => {
     expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
+  it.each([5.5 * 1024 * 1024, 10 * 1024 * 1024])(
+    "uploads GIFs of %i bytes",
+    async (size) => {
+      mockApiRequest
+        .mockResolvedValueOnce({
+          uploadUrl: "https://api.sequenzy.com/upload",
+          key: "header.gif",
+          fileName: "header.gif",
+        })
+        .mockResolvedValueOnce({
+          asset: {
+            id: "media_gif",
+            url: "https://images.sequenzy.com/header.gif",
+          },
+        });
+      const result = await handleToolCall("upload_image_asset", {
+        imageBase64: Buffer.alloc(size).toString("base64"),
+        filename: "header.gif",
+      });
+      expect(result.isError).toBeUndefined();
+      expect(mockApiUploadRequest.mock.calls[0]?.[1].byteLength).toBe(size);
+    }
+  );
+
   it("rejects oversized base64 images before starting an upload", async () => {
-    const oversizedImageBase64 = Buffer.alloc(5 * 1024 * 1024 + 1).toString(
+    const oversizedImageBase64 = Buffer.alloc(10 * 1024 * 1024 + 1).toString(
       "base64"
     );
 
@@ -11162,7 +13092,7 @@ describe("image asset tools", () => {
     });
 
     expect(result.isError).toBe(true);
-    expect(result.content[0]?.text).toContain("5MB or smaller");
+    expect(result.content[0]?.text).toContain("10MB or smaller");
     expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
@@ -11694,6 +13624,44 @@ describe("A/B test lifecycle tools", () => {
     );
   });
 
+  it("forwards goal and event winner targets to the A/B test API", async () => {
+    mockApiRequest.mockResolvedValue({ success: true });
+    const updated = await handleToolCall("update_ab_test", {
+      abTestId: "ab_123",
+      winnerCriteria: "goal_value",
+      winnerGoalId: " default-revenue ",
+    });
+    expect(updated.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/ab-tests/ab_123",
+      { winnerCriteria: "goal_value", winnerGoalId: "default-revenue" },
+      undefined
+    );
+
+    await handleToolCall("create_ab_test", {
+      campaignId: "camp_1",
+      winnerCriteria: "event_rate",
+      winnerEventName: "trial.converted",
+    });
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/ab-tests",
+      {
+        campaignId: "camp_1",
+        winnerCriteria: "event_rate",
+        winnerEventName: "trial.converted",
+      },
+      undefined
+    );
+
+    const rejected = await handleToolCall("update_ab_test", {
+      abTestId: "ab_123",
+      winnerCriteria: "revenue",
+    });
+    expect(rejected.isError).toBe(true);
+  });
+
   it("rejects update_ab_test calls without a setting", async () => {
     const result = await handleToolCall("update_ab_test", {
       abTestId: "ab_123",
@@ -11702,9 +13670,44 @@ describe("A/B test lifecycle tools", () => {
 
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain(
-      "Provide at least one of `name`, `testPercentage`, `testDurationMinutes`, `winnerCriteria`, `testType`, or `winnerThreshold`"
+      "Provide at least one of `name`, `testPercentage`, `testDurationMinutes`, `winnerCriteria`, `winnerGoalId`, `winnerEventName`, `testType`, `winnerThreshold`, `autoSelectWinner`, or `endTestNow`"
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("updates automatic winner selection for a sequence test", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      abTest: { id: "ab_123", kind: "sequence", autoSelectWinner: true },
+    });
+
+    const result = await handleToolCall("update_ab_test", {
+      companyId: "comp_123",
+      abTestId: "ab_123",
+      autoSelectWinner: true,
+      confirmLiveChange: true,
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/ab-tests/ab_123",
+      { autoSelectWinner: true, confirmLiveChange: true },
+      "comp_123"
+    );
+
+    const invalid = await handleToolCall("update_ab_test", {
+      companyId: "comp_123",
+      abTestId: "ab_123",
+      autoSelectWinner: "off",
+    });
+    expect(invalid.isError).toBe(true);
+    expect(invalid.content[0]?.text).toContain(
+      "`autoSelectWinner` must be a boolean when calling `update_ab_test`."
+    );
+    expect(
+      mockApiRequest.mock.calls.filter(([method]) => method === "PATCH")
+    ).toHaveLength(1);
   });
 
   it("requires exactly one A/B test owner before hitting the API", async () => {
@@ -11859,6 +13862,58 @@ describe("list management tools", () => {
     );
   });
 
+  it("creates a private list with member unsubscribe through the API", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      list: {
+        id: "members",
+        name: "Members",
+        isPrivate: true,
+        allowMemberUnsubscribe: true,
+      },
+    });
+    const result = await handleToolCall("create_list", {
+      name: "Members",
+      isPrivate: true,
+      allowMemberUnsubscribe: true,
+    });
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/lists",
+      { name: "Members", isPrivate: true, allowMemberUnsubscribe: true },
+      undefined
+    );
+  });
+
+  it("enables and clears member unsubscribe without changing list visibility", async () => {
+    for (const allowMemberUnsubscribe of [true, false]) {
+      mockApiRequest.mockResolvedValueOnce({
+        success: true,
+        list: { id: "list_123", allowMemberUnsubscribe },
+      });
+      const result = await handleToolCall("update_list", {
+        listId: "list_123",
+        allowMemberUnsubscribe,
+      });
+      expect(result.isError).toBeUndefined();
+      expect(mockApiRequest).toHaveBeenLastCalledWith(
+        "PATCH",
+        "/api/v1/lists/list_123",
+        { allowMemberUnsubscribe },
+        undefined
+      );
+    }
+  });
+  it("rejects non-boolean member unsubscribe values", async () => {
+    const result = await handleToolCall("update_list", {
+      listId: "list_123",
+      allowMemberUnsubscribe: null,
+    });
+    expect(result.isError).toBe(true);
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
   it("rejects update_list calls without update fields", async () => {
     const result = await handleToolCall("update_list", {
       listId: "list_123",
@@ -11866,7 +13921,7 @@ describe("list management tools", () => {
 
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain(
-      "Provide at least one of `name`, `description`, or `isPrivate` when calling `update_list`."
+      "Provide at least one of `name`, `description`, `isPrivate`, or `allowMemberUnsubscribe` when calling `update_list`."
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
   });
@@ -12158,6 +14213,420 @@ describe("tag management tools", () => {
       undefined,
       "comp_123"
     );
+  });
+});
+
+describe("sequence audience enrollment tools", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("publishes plain object schemas for the audience tools", () => {
+    for (const name of [
+      "enroll_sequence_audience",
+      "list_sequence_audience_enrollments",
+      "get_sequence_audience_enrollment",
+      "cancel_sequence_audience_enrollment",
+    ]) {
+      const tool = tools.find((candidate) => candidate.name === name);
+      const inputSchema = tool?.inputSchema as
+        { type?: string; properties?: Record<string, unknown> } | undefined;
+      expect(inputSchema?.type).toBe("object");
+      expect(inputSchema?.properties).toHaveProperty("sequenceId");
+    }
+    const enroll = tools.find(
+      (candidate) => candidate.name === "enroll_sequence_audience"
+    );
+    expect((enroll?.inputSchema as { required?: string[] }).required).toEqual([
+      "sequenceId",
+      "audience",
+    ]);
+  });
+
+  it("estimates by default and starts a run with dryRun false", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      matchingCount: 120,
+      alreadyEnrolledCount: 20,
+      enrollableCount: 100,
+    });
+    const estimate = await handleToolCall("enroll_sequence_audience", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      audience: { type: "lists", listIds: ["list_1"] },
+    });
+    expect(estimate.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/sequences/seq_123/enroll-audience/estimate",
+      { audience: { type: "lists", listIds: ["list_1"] } },
+      "comp_123"
+    );
+
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      audienceEnrollment: { id: "run_1", status: "queued" },
+    });
+    const started = await handleToolCall("enroll_sequence_audience", {
+      sequenceId: "seq_123",
+      audience: { type: "all" },
+      targetNodeId: " node_1 ",
+      dryRun: false,
+    });
+    expect(started.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "POST",
+      "/api/v1/sequences/seq_123/enroll-audience",
+      { audience: { type: "all" }, targetNodeId: "node_1" },
+      undefined
+    );
+  });
+
+  it("passes scheduledFor through when starting and rejects bad values", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      audienceEnrollment: { id: "run_3", status: "queued" },
+    });
+    const scheduled = await handleToolCall("enroll_sequence_audience", {
+      sequenceId: "seq_123",
+      audience: { type: "all" },
+      dryRun: false,
+      scheduledFor: "2026-11-15T09:00:00Z",
+    });
+    expect(scheduled.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "POST",
+      "/api/v1/sequences/seq_123/enroll-audience",
+      { audience: { type: "all" }, scheduledFor: "2026-11-15T09:00:00Z" },
+      undefined
+    );
+    mockApiRequest.mockClear();
+    const invalid = await handleToolCall("enroll_sequence_audience", {
+      sequenceId: "seq_123",
+      audience: { type: "all" },
+      dryRun: false,
+      scheduledFor: "next tuesday",
+    });
+    expect(invalid.isError).toBe(true);
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("passes run data through when starting and rejects non-object data", async () => {
+    const enroll = tools.find(
+      (candidate) => candidate.name === "enroll_sequence_audience"
+    );
+    const dataSchema = (
+      enroll?.inputSchema as { properties: Record<string, { type?: string }> }
+    ).properties["data"];
+    expect(dataSchema?.type).toBe("object");
+    expect(JSON.stringify(enroll?.inputSchema)).not.toContain('"anyOf"');
+
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      audienceEnrollment: {
+        id: "run_4",
+        status: "queued",
+        data: { jackpot_amount: 1400000000 },
+      },
+    });
+    const started = await handleToolCall("enroll_sequence_audience", {
+      sequenceId: "seq_123",
+      audience: { type: "segment", segmentId: "seg_players" },
+      dryRun: false,
+      data: { jackpot_amount: 1400000000, draw_date: "2026-10-14" },
+    });
+    expect(started.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "POST",
+      "/api/v1/sequences/seq_123/enroll-audience",
+      {
+        audience: { type: "segment", segmentId: "seg_players" },
+        data: { jackpot_amount: 1400000000, draw_date: "2026-10-14" },
+      },
+      undefined
+    );
+
+    // Estimates never send data but say that it applies on start.
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      matchingCount: 1,
+      alreadyEnrolledCount: 0,
+      enrollableCount: 1,
+    });
+    const estimate = await handleToolCall("enroll_sequence_audience", {
+      sequenceId: "seq_123",
+      audience: { type: "all" },
+      data: { jackpot_amount: 1 },
+    });
+    expect(estimate.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "POST",
+      "/api/v1/sequences/seq_123/enroll-audience/estimate",
+      { audience: { type: "all" } },
+      undefined
+    );
+    expect(JSON.stringify(estimate.content)).toContain(
+      "data applies when a run starts"
+    );
+
+    // {} means "no data", like the REST API and CLI.
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      audienceEnrollment: { id: "run_5", status: "queued", data: null },
+    });
+    const emptyData = await handleToolCall("enroll_sequence_audience", {
+      sequenceId: "seq_123",
+      audience: { type: "all" },
+      dryRun: false,
+      data: {},
+    });
+    expect(emptyData.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "POST",
+      "/api/v1/sequences/seq_123/enroll-audience",
+      { audience: { type: "all" } },
+      undefined
+    );
+
+    mockApiRequest.mockClear();
+    for (const data of [[1], "jackpot"]) {
+      const invalid = await handleToolCall("enroll_sequence_audience", {
+        sequenceId: "seq_123",
+        audience: { type: "all" },
+        dryRun: false,
+        data,
+      });
+      expect(invalid.isError).toBe(true);
+    }
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("maps audienceAutoEnroll and clearAudienceAutoEnroll on update_sequence", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      sequence: { id: "seq_123" },
+    });
+    await handleToolCall("update_sequence", {
+      sequenceId: "seq_123",
+      audienceAutoEnroll: { audience: { type: "lists", listIds: ["list_1"] } },
+    });
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/sequences/seq_123",
+      {
+        audienceAutoEnroll: {
+          audience: { type: "lists", listIds: ["list_1"] },
+        },
+      },
+      undefined
+    );
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      sequence: { id: "seq_123" },
+    });
+    await handleToolCall("update_sequence", {
+      sequenceId: "seq_123",
+      clearAudienceAutoEnroll: true,
+    });
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/sequences/seq_123",
+      { audienceAutoEnroll: null },
+      undefined
+    );
+    const both = await handleToolCall("update_sequence", {
+      sequenceId: "seq_123",
+      clearAudienceAutoEnroll: true,
+      audienceAutoEnroll: { audience: { type: "all" } },
+    });
+    expect(both.isError).toBe(true);
+  });
+
+  it("treats a string dryRun as its boolean meaning and rejects other types", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      audienceEnrollment: { id: "run_2", status: "queued" },
+    });
+    const started = await handleToolCall("enroll_sequence_audience", {
+      sequenceId: "seq_123",
+      audience: { type: "all" },
+      dryRun: "false",
+    });
+    expect(started.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "POST",
+      "/api/v1/sequences/seq_123/enroll-audience",
+      { audience: { type: "all" } },
+      undefined
+    );
+    mockApiRequest.mockClear();
+    const invalid = await handleToolCall("enroll_sequence_audience", {
+      sequenceId: "seq_123",
+      audience: { type: "all" },
+      dryRun: "nope",
+    });
+    expect(invalid.isError).toBe(true);
+    expect(invalid.content[0]?.text).toContain("dryRun");
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects an audience without a valid type or required ids", async () => {
+    const missingType = await handleToolCall("enroll_sequence_audience", {
+      sequenceId: "seq_123",
+      audience: { listIds: ["list_1"] },
+    });
+    expect(missingType.isError).toBe(true);
+    const missingLists = await handleToolCall("enroll_sequence_audience", {
+      sequenceId: "seq_123",
+      audience: { type: "lists", listIds: [] },
+    });
+    expect(missingLists.isError).toBe(true);
+    const missingSegment = await handleToolCall("enroll_sequence_audience", {
+      sequenceId: "seq_123",
+      audience: { type: "segment" },
+    });
+    expect(missingSegment.isError).toBe(true);
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("lists, polls and cancels runs", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      audienceEnrollments: [],
+    });
+    await handleToolCall("list_sequence_audience_enrollments", {
+      sequenceId: "seq_123",
+      limit: 5,
+    });
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/sequences/seq_123/audience-enrollments?limit=5",
+      undefined,
+      undefined
+    );
+
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      audienceEnrollment: { id: "run_1", status: "running" },
+    });
+    await handleToolCall("get_sequence_audience_enrollment", {
+      sequenceId: "seq_123",
+      runId: "run_1",
+    });
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "GET",
+      "/api/v1/sequences/seq_123/audience-enrollments/run_1",
+      undefined,
+      undefined
+    );
+
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      audienceEnrollment: { id: "run_1", status: "cancelled" },
+    });
+    await handleToolCall("cancel_sequence_audience_enrollment", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      runId: "run_1",
+    });
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "POST",
+      "/api/v1/sequences/seq_123/audience-enrollments/run_1/cancel",
+      undefined,
+      "comp_123"
+    );
+  });
+});
+
+describe("sequence key dates through MCP", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("accepts manual triggers, keyDates and waitUntilKeyDate steps on create", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      sequence: { id: "seq_bf", keyDates: { timezone: "UTC", dates: [] } },
+    });
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      sequence: { id: "seq_bf", keyDates: { timezone: "UTC", dates: [] } },
+    });
+    const result = await handleToolCall("create_sequence", {
+      name: "Black Friday countdown",
+      trigger: "manual",
+      keyDates: {
+        timezone: "America/New_York",
+        dates: [
+          { label: "Black Friday starts", at: "2026-11-27T00:00:00-05:00" },
+        ],
+      },
+      steps: [
+        {
+          subject: "7 days to go",
+          html: "<p>Soon</p>",
+          waitUntilKeyDate: { key: "black_friday_starts", days: 7 },
+        },
+      ],
+    });
+    if (result.isError) {
+      throw new Error(JSON.stringify(result.content));
+    }
+    const [, path, body] = mockApiRequest.mock.calls[0] as [
+      string,
+      string,
+      Record<string, unknown>,
+    ];
+    expect(path).toBe("/api/v1/sequences");
+    expect(body.trigger).toBe("manual");
+    expect(body.keyDates).toMatchObject({ timezone: "America/New_York" });
+    expect(
+      (body.steps as Array<Record<string, unknown>>)[0]?.waitUntilKeyDate
+    ).toEqual({ key: "black_friday_starts", days: 7 });
+  });
+
+  it("passes the countdown send spread through with the key dates", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true, sequence: {} });
+    const result = await handleToolCall("update_sequence", {
+      sequenceId: "seq_bf",
+      keyDates: {
+        timezone: "America/New_York",
+        dates: [{ label: "Black Friday starts", at: "2026-11-27T00:00:00" }],
+        sendWindow: { spreadOverHours: 6 },
+      },
+    });
+    if (result.isError) {
+      throw new Error(JSON.stringify(result.content));
+    }
+    const [, , body] = mockApiRequest.mock.calls[0] as [
+      string,
+      string,
+      Record<string, unknown>,
+    ];
+    expect(body.keyDates).toMatchObject({
+      sendWindow: { spreadOverHours: 6 },
+    });
+  });
+
+  it("clears key dates on update and rejects keyDates together with clearKeyDates", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true, sequence: {} });
+    await handleToolCall("update_sequence", {
+      sequenceId: "seq_bf",
+      clearKeyDates: true,
+    });
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/sequences/seq_bf",
+      { keyDates: null },
+      undefined
+    );
+
+    const conflict = await handleToolCall("update_sequence", {
+      sequenceId: "seq_bf",
+      clearKeyDates: true,
+      keyDates: { timezone: "UTC", dates: [] },
+    });
+    expect(conflict.isError).toBe(true);
   });
 });
 
@@ -12728,6 +15197,60 @@ describe("inbox tools", () => {
     );
   });
 
+  it("replies from a chosen sender profile", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      message: { id: "msg_123", type: "outbound" },
+    });
+
+    const result = await handleToolCall("reply_to_conversation", {
+      conversationId: "conv_123",
+      bodyText: "Happy to help",
+      senderProfileId: "sp_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/conversations/conv_123/messages",
+      {
+        type: "outbound",
+        bodyText: "Happy to help",
+        senderProfileId: "sp_123",
+      },
+      undefined
+    );
+  });
+
+  it("rejects a blank sender profile instead of using the default sender", async () => {
+    const result = await handleToolCall("reply_to_conversation", {
+      conversationId: "conv_123",
+      bodyText: "Hi",
+      senderProfileId: "  ",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`senderProfileId` must be a non-empty sender profile ID"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects a sender profile on internal notes before hitting the API", async () => {
+    const result = await handleToolCall("reply_to_conversation", {
+      conversationId: "conv_123",
+      type: "note",
+      bodyText: "Internal",
+      senderProfileId: "sp_123",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`senderProfileId` applies to outbound replies"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
   it("rejects outbound replies without a body before hitting the API", async () => {
     const result = await handleToolCall("reply_to_conversation", {
       conversationId: "conv_123",
@@ -12760,6 +15283,276 @@ describe("inbox tools", () => {
     );
   });
 
+  it("updates the status of several conversations at once", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      status: "closed",
+      requested: 2,
+      updated: 1,
+      unchanged: 0,
+      notFound: 1,
+      updatedIds: ["conv_1"],
+      unchangedIds: [],
+      notFoundIds: ["conv_2"],
+    });
+
+    const result = await handleToolCall("bulk_update_conversation_status", {
+      companyId: "comp_123",
+      conversationIds: [" conv_1 ", "conv_2", "conv_1"],
+      status: "closed",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/conversations/bulk/status",
+      { conversationIds: ["conv_1", "conv_2"], status: "closed" },
+      "comp_123"
+    );
+  });
+
+  it("validates bulk conversation status input before hitting the API", async () => {
+    const cases: Array<[Record<string, unknown>, string]> = [
+      [
+        { conversationIds: [], status: "closed" },
+        "`conversationIds` must include at least one conversation ID",
+      ],
+      [
+        {
+          conversationIds: Array.from({ length: 101 }, (_, i) => `c_${i}`),
+          status: "closed",
+        },
+        "`conversationIds` accepts at most 100 IDs",
+      ],
+      [{ conversationIds: ["conv_1"], status: "archived" }, "`status`"],
+    ];
+
+    for (const [args, message] of cases) {
+      const result = await handleToolCall(
+        "bulk_update_conversation_status",
+        args
+      );
+      expect(result.isError).toBe(true);
+      expect(result.content[0]?.text).toContain(message);
+    }
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("moves conversations to Spam and validates the request", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      spam: true,
+      requested: 1,
+      updated: 1,
+      unchanged: 0,
+      notFound: 0,
+      updatedIds: ["conv_1"],
+      unchangedIds: [],
+      notFoundIds: [],
+    });
+    const result = await handleToolCall("bulk_update_conversation_spam", {
+      companyId: "comp_123",
+      conversationIds: ["conv_1", " conv_1 "],
+      spam: true,
+    });
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/conversations/bulk/spam",
+      { conversationIds: ["conv_1"], spam: true },
+      "comp_123"
+    );
+
+    mockApiRequest.mockClear();
+    const cases: Array<[Record<string, unknown>, string]> = [
+      [{ conversationIds: [], spam: true }, "at least one conversation ID"],
+      [
+        {
+          conversationIds: Array.from({ length: 101 }, (_, i) => `c_${i}`),
+          spam: true,
+        },
+        "at most 100 IDs",
+      ],
+      [
+        { conversationIds: ["conv_1"], spam: "yes" },
+        "`spam` must be true or false",
+      ],
+    ];
+    for (const [args, message] of cases) {
+      const invalid = await handleToolCall(
+        "bulk_update_conversation_spam",
+        args
+      );
+      expect(invalid.isError).toBe(true);
+      expect(invalid.content[0]?.text).toContain(message);
+    }
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("filters conversations by Spam folder and inbox address", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true, conversations: [] });
+    await handleToolCall("list_conversations", {
+      spam: true,
+      recipient: "admin@acme.com",
+    });
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/conversations?spam=true&recipient=admin%40acme.com",
+      undefined,
+      undefined
+    );
+
+    mockApiRequest.mockClear();
+    const invalid = await handleToolCall("list_conversations", {
+      spam: "true",
+    });
+    expect(invalid.isError).toBe(true);
+    expect(invalid.content[0]?.text).toContain("`spam` must be a boolean");
+    expect(mockApiRequest).not.toHaveBeenCalled();
+
+    mockApiRequest.mockResolvedValueOnce({ success: true, addresses: [] });
+    await handleToolCall("list_conversation_recipients", {
+      companyId: "comp_123",
+    });
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/conversations/recipients",
+      undefined,
+      "comp_123"
+    );
+  });
+
+  it("routes the receiving domain tools to the public API", async () => {
+    const receivingDomain = {
+      id: "rd_123",
+      domain: "support.acme.com",
+      status: "pending",
+      records: [
+        {
+          type: "MX",
+          name: "support.acme.com",
+          value: "inbound-smtp.us-east-1.amazonaws.com",
+          priority: 10,
+          status: "pending",
+        },
+      ],
+      error: null,
+      claimExpiresAt: "2026-10-17T00:00:00.000Z",
+      verifiedAt: null,
+      lastCheckedAt: null,
+      createdAt: "2026-10-10T00:00:00.000Z",
+    };
+
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      receivingDomains: [receivingDomain],
+    });
+    const listed = await handleToolCall("list_receiving_domains", {
+      companyId: "comp_123",
+    });
+    expect(listed.isError).toBeUndefined();
+    expect(listed.structuredContent).toMatchObject({
+      receivingDomains: [{ domain: "support.acme.com", status: "pending" }],
+    });
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "GET",
+      "/api/v1/receiving-domains",
+      undefined,
+      "comp_123"
+    );
+
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      created: true,
+      receivingDomain,
+    });
+    const added = await handleToolCall("add_receiving_domain", {
+      domain: " support.acme.com ",
+    });
+    expect(added.structuredContent).toMatchObject({ created: true });
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "POST",
+      "/api/v1/receiving-domains",
+      { domain: "support.acme.com" },
+      undefined
+    );
+
+    for (const [toolName, method, path] of [
+      ["get_receiving_domain", "GET", "/api/v1/receiving-domains/rd%2F1"],
+      [
+        "verify_receiving_domain",
+        "POST",
+        "/api/v1/receiving-domains/rd%2F1/verify",
+      ],
+      ["remove_receiving_domain", "DELETE", "/api/v1/receiving-domains/rd%2F1"],
+    ] as const) {
+      mockApiRequest.mockResolvedValueOnce({ success: true, receivingDomain });
+      const result = await handleToolCall(toolName, {
+        companyId: "comp_123",
+        domain: "rd/1",
+      });
+      expect(result.isError).toBeUndefined();
+      expect(mockApiRequest).toHaveBeenLastCalledWith(
+        method,
+        path,
+        undefined,
+        "comp_123"
+      );
+    }
+
+    mockApiRequest.mockClear();
+    for (const toolName of [
+      "add_receiving_domain",
+      "get_receiving_domain",
+      "verify_receiving_domain",
+      "remove_receiving_domain",
+    ]) {
+      const invalid = await handleToolCall(toolName, { domain: "  " });
+      expect(invalid.isError).toBe(true);
+      expect(invalid.content[0]?.text).toContain("`domain` is required");
+    }
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("classifies the receiving domain tools and drops the unshipped inbound tools", () => {
+    const annotationsFor = (name: string) =>
+      tools.find((tool) => tool.name === name)?.annotations;
+    for (const name of ["list_receiving_domains", "get_receiving_domain"]) {
+      expect(annotationsFor(name)).toMatchObject({
+        readOnlyHint: true,
+        destructiveHint: false,
+      });
+    }
+    // The first domain changes every reply address; a failed check stops a
+    // verified domain receiving.
+    for (const name of ["add_receiving_domain", "verify_receiving_domain"]) {
+      expect(annotationsFor(name)).toMatchObject({
+        readOnlyHint: false,
+        destructiveHint: true,
+        openWorldHint: true,
+      });
+    }
+    expect(annotationsFor("remove_receiving_domain")).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: true,
+    });
+    expect(
+      tools.find((tool) => tool.name === "remove_receiving_domain")?.description
+    ).toContain("Destructive");
+
+    const names = new Set(tools.map((tool) => tool.name));
+    expect(names.has("get_sending_domain_inbound")).toBe(false);
+    expect(names.has("set_sending_domain_inbound_host")).toBe(false);
+  });
+
+  it("offers the opt-in email.received webhook event", () => {
+    for (const name of ["create_webhook", "update_webhook"]) {
+      const events = tools.find((tool) => tool.name === name)?.inputSchema
+        .properties?.["events"] as { items?: { enum?: string[] } } | undefined;
+      expect(events?.items?.enum).toContain("email.received");
+    }
+  });
+
   it("marks a conversation as read", async () => {
     mockApiRequest.mockResolvedValueOnce({
       success: true,
@@ -12777,6 +15570,167 @@ describe("inbox tools", () => {
       undefined,
       undefined
     );
+  });
+
+  it("gets the inbox address", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      inbox: { address: "inbox+c@inbound.sequenzy.com" },
+    });
+
+    const result = await handleToolCall("get_inbox_address", {
+      companyId: "comp_1",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/conversations/inbox-address",
+      undefined,
+      "comp_1"
+    );
+  });
+
+  it("updates and resets the inbox address", async () => {
+    mockApiRequest.mockClear();
+    mockApiRequest.mockResolvedValue({ success: true, inbox: {} });
+
+    await handleToolCall("update_inbox_address", {
+      localPart: "support",
+      domain: "acme.com",
+    });
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "PUT",
+      "/api/v1/conversations/inbox-address",
+      { localPart: "support", domain: "acme.com" },
+      undefined
+    );
+
+    await handleToolCall("update_inbox_address", { reset: true });
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "PUT",
+      "/api/v1/conversations/inbox-address",
+      { localPart: null, domain: null },
+      undefined
+    );
+
+    mockApiRequest.mockClear();
+    for (const args of [
+      {},
+      { localPart: "support" },
+      { reset: true, domain: "acme.com" },
+      { reset: "yes" },
+    ]) {
+      const result = await handleToolCall("update_inbox_address", args);
+      expect(result.isError).toBe(true);
+    }
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("marks a conversation unread", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      conversation: { id: "conv_123", hasUnread: true },
+    });
+
+    const result = await handleToolCall("mark_conversation_unread", {
+      conversationId: "conv_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/conversations/conv_123/unread",
+      undefined,
+      undefined
+    );
+  });
+
+  it("forwards a message", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      forward: { id: "msg_fwd", to: "a@example.com" },
+    });
+
+    const result = await handleToolCall("forward_conversation_message", {
+      conversationId: "conv 1",
+      messageId: "msg/1",
+      to: "a@example.com",
+      senderProfileId: "sp_1",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/conversations/conv%201/messages/msg%2F1/forward",
+      { to: "a@example.com", senderProfileId: "sp_1" },
+      undefined
+    );
+  });
+
+  it("validates forward arguments before calling the API", async () => {
+    mockApiRequest.mockClear();
+    for (const args of [
+      { conversationId: "c", messageId: "m" },
+      { conversationId: "c", to: "a@example.com" },
+      {
+        conversationId: "c",
+        messageId: "m",
+        to: "a@example.com",
+        senderProfileId: " ",
+      },
+    ]) {
+      const result = await handleToolCall("forward_conversation_message", args);
+      expect(result.isError).toBe(true);
+    }
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("sends reply attachments and validates them", async () => {
+    mockApiRequest.mockClear();
+    mockApiRequest.mockResolvedValueOnce({ success: true, message: {} });
+
+    const ok = await handleToolCall("reply_to_conversation", {
+      conversationId: "conv_1",
+      bodyText: "Attached",
+      attachments: [
+        { filename: "a.pdf", content: "UERG", contentType: "application/pdf" },
+      ],
+    });
+    expect(ok.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/conversations/conv_1/messages",
+      {
+        type: "outbound",
+        bodyText: "Attached",
+        attachments: [
+          {
+            filename: "a.pdf",
+            content: "UERG",
+            contentType: "application/pdf",
+          },
+        ],
+      },
+      undefined
+    );
+
+    mockApiRequest.mockClear();
+    for (const attachments of [
+      "a.pdf",
+      [{ filename: "a.pdf" }],
+      [{ filename: "a.pdf", content: "x", contentType: 1 }],
+      Array.from({ length: 11 }, () => ({ filename: "a", content: "x" })),
+      [{ filename: "a.pdf", content: "x".repeat(20_971_521) }],
+    ]) {
+      const result = await handleToolCall("reply_to_conversation", {
+        conversationId: "conv_1",
+        bodyText: "x",
+        attachments,
+      });
+      expect(result.isError).toBe(true);
+    }
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 });
 
@@ -13198,6 +16152,72 @@ describe("update_sms_number_label tool", () => {
   });
 });
 
+describe("update_sms_number_label link shortening", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+
+  it("patches only linkShorteningEnabled when it is the sole field", async () => {
+    mockApiRequest.mockResolvedValue({ success: true });
+
+    await handleToolCall("update_sms_number_label", {
+      numberId: "num_123",
+      linkShorteningEnabled: false,
+    });
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "PATCH",
+      "/api/v1/sms/numbers/num_123",
+      { linkShorteningEnabled: false },
+      undefined
+    );
+  });
+
+  it("rejects a non-boolean linkShorteningEnabled before calling the API", async () => {
+    const result = await handleToolCall("update_sms_number_label", {
+      numberId: "num_123",
+      linkShorteningEnabled: "off",
+    });
+    expect(result.isError).toBe(true);
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("is update_sms_number_settings on the OpenAI profile", async () => {
+    mockApiRequest.mockResolvedValue({ success: true });
+
+    await handleToolCall(
+      "update_sms_number_settings",
+      { numberId: "num_123", brandPrefix: "Acme", linkShorteningEnabled: true },
+      { profile: "openai" }
+    );
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "PATCH",
+      "/api/v1/sms/numbers/num_123",
+      { brandPrefix: "Acme", linkShorteningEnabled: true },
+      undefined
+    );
+
+    mockApiRequest.mockClear();
+    const invalid = await handleToolCall(
+      "update_sms_number_settings",
+      { numberId: "num_123", linkShorteningEnabled: "off" },
+      { profile: "openai" }
+    );
+    expect(invalid.isError).toBe(true);
+    expect(invalid.content[0]?.text).toContain(
+      "update_sms_number_settings `linkShorteningEnabled`"
+    );
+    expect(JSON.stringify(invalid)).not.toContain("update_sms_number_label");
+
+    const legacy = await handleToolCall(
+      "update_sms_number_label",
+      { numberId: "num_123", label: "Support" },
+      { profile: "openai" }
+    );
+    expect(legacy.isError).toBe(true);
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+});
+
 describe("release_sms_number tool", () => {
   beforeEach(() => {
     mockApiRequest.mockClear();
@@ -13347,9 +16367,8 @@ describe("buildInsertSequenceStepBody webhook steps", () => {
   };
 
   it("keeps a string body, resultKey, and onError", async () => {
-    const { buildInsertSequenceStepBody } = await import(
-      "./sequence-validation"
-    );
+    const { buildInsertSequenceStepBody } =
+      await import("./sequence-validation");
 
     const body = buildInsertSequenceStepBody({
       ...baseArgs,
@@ -13378,9 +16397,8 @@ describe("buildInsertSequenceStepBody webhook steps", () => {
   });
 
   it("rejects a non-string body instead of dropping it", async () => {
-    const { buildInsertSequenceStepBody } = await import(
-      "./sequence-validation"
-    );
+    const { buildInsertSequenceStepBody } =
+      await import("./sequence-validation");
 
     // An object body used to be silently discarded, so the step was created
     // sending the default payload with no indication the template was lost.
@@ -13394,9 +16412,8 @@ describe("buildInsertSequenceStepBody webhook steps", () => {
   });
 
   it("rejects a non-string resultKey instead of dropping it", async () => {
-    const { buildInsertSequenceStepBody } = await import(
-      "./sequence-validation"
-    );
+    const { buildInsertSequenceStepBody } =
+      await import("./sequence-validation");
 
     expect(() =>
       buildInsertSequenceStepBody({ ...baseArgs, resultKey: 7 })
@@ -13426,9 +16443,8 @@ describe("buildInsertSequenceStepBody random split branches", () => {
   };
 
   it("builds a weighted split without requiring conditionType", async () => {
-    const { buildInsertSequenceStepBody } = await import(
-      "./sequence-validation"
-    );
+    const { buildInsertSequenceStepBody } =
+      await import("./sequence-validation");
 
     const body = buildInsertSequenceStepBody(randomSplitArgs);
     const branch = (body as { branch: Record<string, unknown> }).branch;
@@ -13450,9 +16466,8 @@ describe("buildInsertSequenceStepBody random split branches", () => {
   });
 
   it("rejects percentages that do not sum to 100", async () => {
-    const { buildInsertSequenceStepBody } = await import(
-      "./sequence-validation"
-    );
+    const { buildInsertSequenceStepBody } =
+      await import("./sequence-validation");
 
     expect(() =>
       buildInsertSequenceStepBody({
@@ -13463,9 +16478,8 @@ describe("buildInsertSequenceStepBody random split branches", () => {
   });
 
   it("rejects a percentage count that does not match the branches", async () => {
-    const { buildInsertSequenceStepBody } = await import(
-      "./sequence-validation"
-    );
+    const { buildInsertSequenceStepBody } =
+      await import("./sequence-validation");
 
     expect(() =>
       buildInsertSequenceStepBody({
@@ -13476,9 +16490,8 @@ describe("buildInsertSequenceStepBody random split branches", () => {
   });
 
   it("rejects an else path, which a random split can never reach", async () => {
-    const { buildInsertSequenceStepBody } = await import(
-      "./sequence-validation"
-    );
+    const { buildInsertSequenceStepBody } =
+      await import("./sequence-validation");
 
     expect(() =>
       buildInsertSequenceStepBody({
@@ -13489,9 +16502,8 @@ describe("buildInsertSequenceStepBody random split branches", () => {
   });
 
   it("rejects a conditionType on a random branch", async () => {
-    const { buildInsertSequenceStepBody } = await import(
-      "./sequence-validation"
-    );
+    const { buildInsertSequenceStepBody } =
+      await import("./sequence-validation");
 
     expect(() =>
       buildInsertSequenceStepBody({
@@ -13505,9 +16517,8 @@ describe("buildInsertSequenceStepBody random split branches", () => {
   });
 
   it("rejects condition resource fields on a random branch", async () => {
-    const { buildInsertSequenceStepBody } = await import(
-      "./sequence-validation"
-    );
+    const { buildInsertSequenceStepBody } =
+      await import("./sequence-validation");
 
     expect(() =>
       buildInsertSequenceStepBody({
@@ -13521,9 +16532,8 @@ describe("buildInsertSequenceStepBody random split branches", () => {
   });
 
   it("rejects randomPercentages on a condition split", async () => {
-    const { buildInsertSequenceStepBody } = await import(
-      "./sequence-validation"
-    );
+    const { buildInsertSequenceStepBody } =
+      await import("./sequence-validation");
 
     expect(() =>
       buildInsertSequenceStepBody({
@@ -13544,9 +16554,8 @@ describe("buildInsertSequenceStepBody random split branches", () => {
   });
 
   it("still requires conditionType on a condition split", async () => {
-    const { buildInsertSequenceStepBody } = await import(
-      "./sequence-validation"
-    );
+    const { buildInsertSequenceStepBody } =
+      await import("./sequence-validation");
 
     expect(() =>
       buildInsertSequenceStepBody({
@@ -13656,6 +16665,52 @@ describe("email component tools", () => {
     );
   });
 
+  it("duplicates a component through the duplicate route", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      component: { id: "cmp_2", name: "Promo (Copy)", defaultSlot: null },
+    });
+
+    const result = await handleToolCall("duplicate_email_component", {
+      companyId: "company_123",
+      componentId: "cmp/1",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/email-components/cmp%2F1/duplicate",
+      {},
+      "company_123"
+    );
+    expect(result.structuredContent?.["component"]).toEqual(
+      expect.objectContaining({ id: "cmp_2", name: "Promo (Copy)" })
+    );
+  });
+
+  it("passes a name for the copy and requires a component ID", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      component: { id: "cmp_2", name: "Winter promo" },
+    });
+
+    await handleToolCall("duplicate_email_component", {
+      componentId: "cmp_1",
+      name: "Winter promo",
+    });
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/email-components/cmp_1/duplicate",
+      { name: "Winter promo" },
+      undefined
+    );
+
+    mockApiRequest.mockClear();
+    const missing = await handleToolCall("duplicate_email_component", {});
+    expect(missing.isError).toBe(true);
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
   it("rejects a single block object passed where a list is required", async () => {
     const result = await handleToolCall("create_email_component", {
       companyId: "company_123",
@@ -13665,5 +16720,254 @@ describe("email component tools", () => {
 
     expect(result.isError).toBe(true);
     expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+});
+
+describe("live sequence test tools", () => {
+  beforeEach(() => {
+    mockApiRequest.mockClear();
+  });
+  it("blocks restricted event text before an OpenAI live run while preserving standard calls", async () => {
+    const args = {
+      sequenceId: "seq",
+      subscriberId: "sub",
+      customVariables: { payload: [{ note: "SSN: 111-22-3333" }] },
+    };
+    const blocked = await handleToolCall("start_sequence_test_run", args, {
+      profile: "openai",
+    });
+    expect(blocked.isError).toBe(true);
+    expect(blocked.content[0]?.text).toContain("Restricted personal data");
+    expect(mockApiRequest).not.toHaveBeenCalled();
+
+    mockApiRequest.mockResolvedValue({
+      run: { id: "run-1", status: "queued" },
+    });
+    const standard = await handleToolCall("start_sequence_test_run", args);
+    expect(standard.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/sequences/seq/test-runs",
+      { subscriberId: "sub", customVariables: args.customVariables },
+      undefined
+    );
+  });
+  it("preserves ordinary typed event data on the OpenAI profile", async () => {
+    const customVariables = {
+      cart: { total: 12, paid: false, note: null },
+      event_ids: ["a", "b"],
+    };
+    mockApiRequest.mockResolvedValue({
+      run: { id: "run-1", status: "queued" },
+    });
+    const result = await handleToolCall(
+      "start_sequence_test_run",
+      { sequenceId: "seq", subscriberId: "sub", customVariables },
+      { profile: "openai" }
+    );
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/sequences/seq/test-runs",
+      { subscriberId: "sub", customVariables },
+      undefined
+    );
+  });
+  it("preserves nested event data and exposes run status", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      run: { id: "run-1", status: "queued" },
+    });
+    const customVariables = {
+      cart_id: "cart",
+      event_ids: ["a", "b"],
+      cart: { total: 12, paid: false },
+    };
+    const result = await handleToolCall("start_sequence_test_run", {
+      sequenceId: "seq/1",
+      subscriberId: "sub-1",
+      companyId: "company-1",
+      customVariables,
+      speedMultiplier: 240,
+    });
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/sequences/seq%2F1/test-runs",
+      { subscriberId: "sub-1", customVariables, speedMultiplier: 240 },
+      "company-1"
+    );
+    expect(result.structuredContent?.["run"]).toMatchObject({ id: "run-1" });
+    expect(
+      tools.find((tool) => tool.name === "start_sequence_test_run")?.annotations
+        ?.readOnlyHint
+    ).toBe(false);
+    expect(
+      tools.find((tool) => tool.name === "get_sequence_test_run")?.annotations
+        ?.readOnlyHint
+    ).toBe(true);
+  });
+  it("allows omitted properties and gets a run", async () => {
+    mockApiRequest.mockResolvedValue({
+      run: { id: "run-1", status: "completed" },
+    });
+    await handleToolCall("start_sequence_test_run", {
+      sequenceId: "seq",
+      subscriberId: "sub",
+    });
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/sequences/seq/test-runs",
+      { subscriberId: "sub" },
+      undefined
+    );
+    await handleToolCall("get_sequence_test_run", {
+      sequenceId: "seq",
+      runId: "run/1",
+    });
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/sequences/seq/test-runs/run%2F1",
+      undefined,
+      undefined
+    );
+  });
+  it.each([null, [], "bad", 2].map((value) => ({ value })))(
+    "rejects invalid properties %j",
+    async ({ value }) => {
+      const result = await handleToolCall("start_sequence_test_run", {
+        sequenceId: "seq",
+        subscriberId: "sub",
+        customVariables: value,
+      });
+      expect(result.isError).toBe(true);
+      expect(mockApiRequest).not.toHaveBeenCalled();
+    }
+  );
+  it("rejects missing subscriber and invalid speed", async () => {
+    expect(
+      (await handleToolCall("start_sequence_test_run", { sequenceId: "seq" }))
+        .isError
+    ).toBe(true);
+    expect(
+      (
+        await handleToolCall("start_sequence_test_run", {
+          sequenceId: "seq",
+          subscriberId: "sub",
+          speedMultiplier: 1,
+        })
+      ).isError
+    ).toBe(true);
+  });
+});
+
+describe("structured MCP request failures", () => {
+  beforeEach(() => mockApiRequest.mockReset());
+  it("keeps isError and formatted text while adding machine recovery fields", async () => {
+    mockApiRequest.mockRejectedValueOnce(
+      new McpApiError(
+        "Workspace access denied",
+        403,
+        "private diagnostic",
+        "FORBIDDEN"
+      )
+    );
+    const result = await handleToolCall("list_campaigns", {
+      companyId: "other-company",
+    });
+    expect(result.isError).toBe(true);
+    expect(result.structuredContent).toMatchObject({
+      success: false,
+      error: { code: "FORBIDDEN", statusCode: 403 },
+    });
+    expect(result.content[0]?.text).toContain("Sequenzy MCP error:");
+    expect(mockApiRequest).toHaveBeenCalledTimes(1);
+  });
+  it("includes structured local-validation errors without an API request", async () => {
+    const result = await handleToolCall("unknown_tool", {});
+    expect(result.isError).toBe(true);
+    expect(result.structuredContent).toMatchObject({
+      success: false,
+      error: { code: "TOOL_ERROR" },
+    });
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+});
+
+describe("transactional labels", () => {
+  beforeEach(() => mockApiRequest.mockReset());
+  it.each([[], ["Receipts", "Billing"]].map((labels) => [labels]))(
+    "forwards label-only replacement %j",
+    async (labels) => {
+      mockApiRequest.mockResolvedValue({
+        success: true,
+        transactional: { id: "txn", slug: "receipt", labels },
+      });
+      const result = await handleToolCall("update_transactional_email", {
+        companyId: "company-1",
+        idOrSlug: "receipt",
+        labels,
+      });
+      expect(result.isError).not.toBe(true);
+      expect(mockApiRequest).toHaveBeenCalledWith(
+        "PATCH",
+        "/api/v1/transactional/receipt",
+        { labels },
+        "company-1"
+      );
+      expect(result.content[0]?.text).toContain('"labels"');
+    }
+  );
+  it("creates with labels and filters by label names", async () => {
+    mockApiRequest.mockResolvedValue({
+      success: true,
+      transactional: { id: "txn", slug: "receipt" },
+    });
+    await handleToolCall("create_transactional_email", {
+      name: "Receipt",
+      subject: "Receipt",
+      html: "<p>Thanks</p>",
+      labels: ["Billing"],
+    });
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/transactional",
+      {
+        name: "Receipt",
+        subject: "Receipt",
+        html: "<p>Thanks</p>",
+        labels: ["Billing"],
+      },
+      undefined
+    );
+    await handleToolCall("list_transactional_emails", {
+      labels: ["Billing", "Account"],
+      status: "active",
+    });
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/transactional?label=Billing&label=Account&status=active",
+      undefined,
+      undefined
+    );
+  });
+  it.each([null, "Billing", [2], [" "]].map((labels) => [labels]))(
+    "rejects invalid labels %j",
+    async (labels) => {
+      const result = await handleToolCall("update_transactional_email", {
+        idOrSlug: "receipt",
+        labels,
+      });
+      expect(result.isError).toBe(true);
+      expect(mockApiRequest).not.toHaveBeenCalled();
+    }
+  );
+  it.each([
+    "list_transactional_emails",
+    "create_transactional_email",
+    "update_transactional_email",
+  ])("publishes compatible labels on %s", (name) => {
+    expect(
+      tools.find((tool) => tool.name === name)?.inputSchema.properties?.labels
+    ).toMatchObject({ type: "array", items: { type: "string" } });
   });
 });

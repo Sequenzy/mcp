@@ -10,6 +10,21 @@ export async function handleEmailBlockTools(
   name: string,
   args: Record<string, unknown>
 ): Promise<{ handled: boolean; result: unknown }> {
+  if (name === "preview_cart_items") {
+    const result = await apiRequest(
+      "POST",
+      "/api/v1/email-blocks/line-items/assist",
+      {
+        items: args.items === undefined ? [] : args.items,
+        ...(args.priceUnit !== undefined ? { priceUnit: args.priceUnit } : {}),
+        ...(args.itemFields !== undefined
+          ? { itemFields: args.itemFields }
+          : {}),
+        ...(args.scenario !== undefined ? { scenario: args.scenario } : {}),
+      }
+    );
+    return { handled: true, result };
+  }
   if (name !== "get_email_block_schema") {
     return { handled: false, result: undefined };
   }

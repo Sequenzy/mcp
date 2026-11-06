@@ -7,7 +7,7 @@ export const feedbackToolDefinitions: Tool[] = [
   {
     name: "submit_feedback",
     description:
-      "Send product feedback about Sequenzy itself to the Sequenzy team, but only when the user explicitly asks you to send it. Tell the user where the message goes before calling this tool. Include only reproduction details and resource IDs needed for that report; never include unrelated subscriber data, message content, credentials, raw API payloads, or debug data. Do not use it for questions about the user's own account or data. Submitting feedback never changes account data.",
+      "Send product feedback about Sequenzy itself to the Sequenzy team, for use when the user asks to report feedback. The message is delivered to Sequenzy staff. A report needs only the reproduction details and resource IDs required to investigate; unrelated subscriber data, message content, credentials, raw API payloads, and debug data are not needed. This is not a channel for questions about the user's own account or data. Submitting feedback never changes account data.",
     inputSchema: {
       type: "object",
       properties: {
@@ -30,7 +30,7 @@ export const feedbackToolDefinitions: Tool[] = [
         context: {
           type: "string",
           description:
-            "Optional: what the user was trying to accomplish, in their words, plus any relevant tool names or arguments you tried. Do not include secrets or unrelated personal data.",
+            "Optional: what the user was trying to accomplish, in their words, plus any relevant tool names or arguments that were tried. Secrets and unrelated personal data are not needed.",
         },
         userIntent: {
           type: "string",
@@ -41,7 +41,7 @@ export const feedbackToolDefinitions: Tool[] = [
           type: "array",
           maxItems: 25,
           description:
-            "For bug or wrong-outcome reports: the ordered tool calls that led to the problem. Summarize arguments; do not paste raw subscriber data, full email bodies, or secrets.",
+            "For bug or wrong-outcome reports: the ordered tool calls that led to the problem. Summarized arguments are sufficient; raw subscriber data, full email bodies, and secrets are not needed.",
           items: {
             type: "object",
             properties: {

@@ -92,3 +92,58 @@ describe("get_event_schema tool", () => {
     );
   });
 });
+
+describe("get_event_sample", () => {
+  it("exposes a read-only object schema and recorded payload output", () => {
+    const tool = tools.find(
+      (candidate) => candidate.name === "get_event_sample"
+    );
+    expect(tool?.annotations?.readOnlyHint).toBe(true);
+    expect(tool?.inputSchema).toMatchObject({
+      type: "object",
+      required: ["eventName"],
+    });
+    expect(tool?.outputSchema?.properties).toHaveProperty("sample");
+  });
+  it("forwards exact custom names/company and returns nested payloads unchanged", async () => {
+    const response = {
+      eventName: "cart & order",
+      sample: {
+        eventTime: "2024-01-01T00:00:00Z",
+        subscriberId: "sub",
+        properties: { tickets: [{ id: 1 }], note: null },
+      },
+    };
+    mockApiRequest.mockResolvedValue(response);
+    const result = await handleToolCall("get_event_sample", {
+      eventName: "cart & order",
+      companyId: "company",
+    });
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "GET",
+      "/api/v1/events/sample?eventName=cart+%26+order",
+      undefined,
+      "company"
+    );
+    expect(JSON.stringify(result)).toContain("tickets");
+    expect(result.isError).toBeUndefined();
+  });
+  it("rejects blank names without a request", async () => {
+    mockApiRequest.mockClear();
+    const result = await handleToolCall("get_event_sample", { eventName: " " });
+    expect(result.isError).toBe(true);
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+  it("preserves empty results and reports backend errors", async () => {
+    mockApiRequest.mockResolvedValue({ eventName: "none", sample: null });
+    expect(
+      JSON.stringify(
+        await handleToolCall("get_event_sample", { eventName: "none" })
+      )
+    ).toContain("sample");
+    mockApiRequest.mockRejectedValue(new Error("Service unavailable"));
+    expect(
+      (await handleToolCall("get_event_sample", { eventName: "none" })).isError
+    ).toBe(true);
+  });
+});

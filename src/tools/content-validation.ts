@@ -6,6 +6,7 @@ import { isRecord, optionalString } from "./common-primitives.js";
 import {
   discountMergeTagsHint,
   sequenceEmailBlocksDescription,
+  sequenceWaitUntilKeyDateSchema,
   sequenceWaitUntilSchema,
   sequenceWaitUntilWeekdaySchema,
   sequenceDelaySchema,
@@ -99,6 +100,8 @@ export function validateCreateTemplateContentArgs(
   }
 }
 
+const MAX_CAMPAIGN_RECIPIENT_LIMIT = 10_000_000;
+
 export function validateCampaignDeliveryPacingArgs(
   toolName: "update_campaign" | "schedule_campaign",
   args: Record<string, unknown>
@@ -123,6 +126,19 @@ export function validateCampaignDeliveryPacingArgs(
         `\`sendTimeWindowHours\` must be an integer between 1 and 24 when calling \`${toolName}\`.`
       );
     }
+  }
+
+  if (
+    args.maxRecipients !== undefined &&
+    args.maxRecipients !== null &&
+    (typeof args.maxRecipients !== "number" ||
+      !Number.isInteger(args.maxRecipients) ||
+      args.maxRecipients < 1 ||
+      args.maxRecipients > MAX_CAMPAIGN_RECIPIENT_LIMIT)
+  ) {
+    throw new Error(
+      `\`maxRecipients\` must be an integer between 1 and 10,000,000, or null to remove the limit, when calling \`${toolName}\`.`
+    );
   }
 }
 
@@ -420,9 +436,10 @@ export const sequencePathStepConfigSchema = {
         "field_less_than",
         "has_phone",
         "sms_subscribed",
+        "has_push_device",
       ],
       description:
-        "logic_condition: condition evaluated before continuing. has_phone and sms_subscribed need no resource fields.",
+        "logic_condition: condition evaluated before continuing. has_phone, sms_subscribed and has_push_device need no resource fields. has_push_device passes when the contact has an active push device on a platform the workspace has push credentials for, unless its app reports notifications denied or not yet asked.",
     },
     segmentId: {
       type: "string",
@@ -598,6 +615,68 @@ export const sequenceEmailStepIdentityProperties = {
   },
 } as const;
 
+/**
+ * In-app step fields shared by create_sequence, sequence paths and
+ * insert_sequence_step. title, body and imageUrl are shared with push steps.
+ */
+export const inAppStepProperties = {
+  kind: {
+    type: "string",
+    enum: ["message", "card"],
+    description: "In-app: message (default, shown once) or card.",
+  },
+  format: {
+    type: "string",
+    enum: ["modal", "banner", "fullscreen", "html"],
+    description:
+      "In-app message format (default modal). html: custom HTML in `html`; title becomes its accessible name.",
+  },
+  showCloseButton: {
+    type: "boolean",
+    description:
+      "In-app format html: native close button (default true); off when the HTML closes itself.",
+  },
+  position: {
+    type: "string",
+    enum: ["top", "bottom", "center"],
+    description:
+      "In-app position. Banners: top or bottom (default). Modals: bottom (a sheet, default) or center.",
+  },
+  eyebrow: {
+    type: "string",
+    maxLength: 40,
+    description:
+      "In-app: short line above the title, e.g. '3 days left'. Merge tags work.",
+  },
+  imagePlacement: {
+    type: "string",
+    enum: ["top", "background"],
+    description:
+      "In-app modals and full screens with an image: top (default, image above the text) or background (image fills the message, text on a dark scrim).",
+  },
+  buttons: {
+    type: "array",
+    maxItems: 2,
+    items: { type: "object" },
+    description:
+      "In-app: up to 2 {label, action: open_url|dismiss|request_push_permission, url} buttons; request_push_permission asks for notification permission.",
+  },
+  data: {
+    type: "object",
+    description: "In-app: string key/values passed to the app.",
+  },
+  expiresAfterDays: {
+    type: "number",
+    description: "In-app: days in the feed (messages default 30).",
+  },
+  pinned: { type: "boolean", description: "In-app cards: show first." },
+  style: {
+    type: "object",
+    description:
+      "In-app look: {preset: brand|soft|bold|dark, backgroundColor, textColor, buttonColor, buttonTextColor (#rrggbb), cornerRadius 0-32, buttonRadius 0-40}. Colors default to the brand; updates merge, null resets.",
+  },
+} as const;
+
 export const sequencePathStepSchema = {
   type: "object",
   description:
@@ -608,6 +687,8 @@ export const sequencePathStepSchema = {
       enum: [
         "email",
         "sms",
+        "push",
+        "in_app",
         "delay",
         "create_discount",
         "discount",
@@ -625,6 +706,8 @@ export const sequencePathStepSchema = {
         "logic_delay",
         "action_email",
         "action_sms",
+        "action_push",
+        "action_in_app",
         "action_create_discount",
         "action_add_tag",
         "action_remove_tag",
@@ -656,7 +739,7 @@ export const sequencePathStepSchema = {
     html: {
       type: "string",
       description:
-        "HTML content for email steps. Stored as one raw HTML block. Use this for imported provider HTML.",
+        "HTML content for email steps. Stored as one raw HTML block. Use this for imported provider HTML. In-app format html: the message document (100 KB max; see validate_in_app_html).",
     },
     isTransactional: {
       type: "boolean",
@@ -684,7 +767,7 @@ export const sequencePathStepSchema = {
         required: ["filename", "path"],
       },
       description:
-        "Email only: URL-backed file attachments (max 10, 7MB total per email). path may be a public HTTPS URL or an {{event.*}} URL template resolved from the enrollment event at send time.",
+        "Email only: URL-backed file attachments (max 10, 15MB total per email). path may be a public HTTPS URL or an {{event.*}} URL template resolved from the enrollment event at send time.",
     },
     text: {
       type: "string",
@@ -695,10 +778,37 @@ export const sequencePathStepSchema = {
       items: { type: "string" },
       description: "SMS only: up to two public MMS image URLs.",
     },
+    title: {
+      type: "string",
+      description: "Push and in-app: title.",
+    },
+    body: {
+      type: "string",
+      description: "Push and in-app: message text.",
+    },
+    url: {
+      type: ["string", "null"],
+      description: "Push only: https link or app deep link opened on tap.",
+    },
+    imageUrl: {
+      type: ["string", "null"],
+      description: "Push and in-app: optional https image.",
+    },
+    iconUrl: {
+      type: ["string", "null"],
+      description: "Push only: optional https web push icon.",
+    },
+    platforms: {
+      type: "array",
+      items: { type: "string", enum: ["web", "ios", "android"] },
+      description: "Push only: limit delivery to these platforms.",
+    },
+    ...inAppStepProperties,
     ineligibleAction: {
       type: "string",
       enum: ["skip", "exit"],
-      description: "SMS only: behavior when the contact cannot receive SMS.",
+      description:
+        "SMS and push: behavior when the contact cannot receive the message.",
     },
     delay: sequenceDelaySchema,
     delayMs: {
@@ -708,6 +818,7 @@ export const sequencePathStepSchema = {
     },
     waitUntil: sequenceWaitUntilSchema,
     waitUntilWeekday: sequenceWaitUntilWeekdaySchema,
+    waitUntilKeyDate: sequenceWaitUntilKeyDateSchema,
     name: {
       type: "string",
       description: "Email template name for email steps.",
@@ -807,9 +918,10 @@ export const sequenceBranchConditionSchema = {
         "field_less_than",
         "has_phone",
         "sms_subscribed",
+        "has_push_device",
       ],
       description:
-        "Condition for this path. has_phone and sms_subscribed need no resource fields. Required unless the branch sets splitMode 'random', where paths are chosen by percentage and this field must be omitted.",
+        "Condition for this path. has_phone, sms_subscribed and has_push_device need no resource fields. has_push_device passes when the contact has an active push device on a platform the workspace has push credentials for, unless its app reports notifications denied or not yet asked. Required unless the branch sets splitMode 'random', where paths are chosen by percentage and this field must be omitted.",
     },
     tagName: {
       type: "string",

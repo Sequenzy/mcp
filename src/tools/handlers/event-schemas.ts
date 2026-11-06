@@ -9,6 +9,17 @@ export async function handleEventSchemaTools(
   name: string,
   args: Record<string, unknown>
 ): Promise<{ handled: boolean; result: unknown }> {
+  if (name === "get_event_sample") {
+    const eventName = optionalString(args, "eventName")?.trim();
+    if (!eventName) throw new Error("eventName is required");
+    const result = await apiRequest(
+      "GET",
+      `/api/v1/events/sample?${new URLSearchParams({ eventName })}`,
+      undefined,
+      optionalString(args, "companyId")
+    );
+    return { handled: true, result };
+  }
   if (name !== "get_event_schema") {
     return { handled: false, result: undefined };
   }

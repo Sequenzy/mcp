@@ -65,7 +65,7 @@ export const templateToolDefinitions: Tool[] = [
   {
     name: "create_template",
     description:
-      "Create a new email template. For net-new email content requested in natural language, use `prompt`; do not write HTML or construct blocks yourself. Use `blocks` only for finished caller-supplied Sequenzy content and `html` only for supplied or explicitly requested preserved HTML. Creating a standalone copy of a saved design and AI rewriting within its layout are currently dashboard-only workflows; this tool has no source-design operation, and `prompt` does not preserve an existing layout. For a campaign copy, use create_campaign with templateId.",
+      "Create a new email template. `prompt` generates net-new email content from natural language. `blocks` is for finished caller-supplied Sequenzy content and `html` for supplied or explicitly requested preserved HTML. Creating a standalone copy of a saved design and AI rewriting within its layout are currently dashboard-only workflows; this tool has no source-design operation, and `prompt` does not preserve an existing layout. For a campaign copy, use create_campaign with templateId.",
     inputSchema: {
       type: "object",
       properties: {
@@ -131,7 +131,7 @@ export const templateToolDefinitions: Tool[] = [
   {
     name: "update_template",
     description:
-      "Update an existing template. At least one of `name`, `subject`, `previewText`, `html`, `blocks`, `labels`, or `isTemplate` is required, and only those update fields are accepted.",
+      "Update an existing template. At least one of `name`, `subject`, `previewText`, `html`, `blocks`, `labels`, or `isTemplate` is required, and only those update fields are accepted. For the double opt-in email (`consent.doubleOptInEmailId` from `get_tracking_settings`), new `html` or `blocks` must keep `{{DOUBLE_OPT_IN_URL}}` or nothing is saved.",
     inputSchema: {
       type: "object",
       properties: {
@@ -189,7 +189,7 @@ export const templateToolDefinitions: Tool[] = [
   {
     name: "set_template_localization",
     description:
-      "Create or replace one caller-supplied localized variant of a template. The locale must be enabled for the company and cannot be its primary locale. Provide exactly one of `html` or `blocks`.",
+      "Create or replace one caller-supplied localized variant of a template. The locale must be enabled for the company and cannot be its primary locale. Provide exactly one of `html` or `blocks`. By default, automatic translation on save replaces it when the original changes. Set `keepEdits` to protect it like a dashboard edit: it is marked as edited (`editedAt`) and becomes `stale` instead of being replaced.",
     inputSchema: {
       type: "object",
       properties: {
@@ -226,6 +226,11 @@ export const templateToolDefinitions: Tool[] = [
             type: "object",
           },
         },
+        keepEdits: {
+          type: "boolean",
+          description:
+            "Protect this translation from automatic translation on save, like an edit made in the dashboard. Defaults to false.",
+        },
       },
       required: ["templateId", "locale", "subject"],
       additionalProperties: false,
@@ -234,7 +239,7 @@ export const templateToolDefinitions: Tool[] = [
   {
     name: "sync_template_localizations",
     description:
-      "Queue AI translation for selected template locales. Omit `locales` to sync every enabled non-primary locale. This works even when automatic on-save localization is disabled.",
+      "Queue AI translation for selected template locales. Omit `locales` to sync every enabled non-primary locale. This works even when automatic on-save localization is disabled. By default it also retranslates locales someone edited; set `skipEdited` to keep those and get them back in `skippedLocales`.",
     inputSchema: {
       type: "object",
       properties: {
@@ -255,8 +260,53 @@ export const templateToolDefinitions: Tool[] = [
             type: "string",
           },
         },
+        skipEdited: {
+          type: "boolean",
+          description:
+            "Keep translations someone edited (set via set_template_localization or the dashboard) instead of retranslating them. Defaults to false.",
+        },
       },
       required: ["templateId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_template_localization_coverage",
+    description:
+      "Show how many emails that keep sending are translated into each enabled language: every email step and A/B variant in sequences that are not archived, plus enabled transactional emails (left out for marketer keys). Per language it returns total, upToDate, edited, outdated (translated before the original changed; still sends), translating, failed and missing counts. Use it to follow progress after translate_missing_template_localizations or after a language was added in the dashboard.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "translate_missing_template_localizations",
+    description:
+      "Queue AI translation, in one call, for every sequence email (including sequence A/B variants) and enabled transactional email that has no translation in a language yet or whose last translation failed. Translations someone edited, up-to-date ones and outdated ones are left alone; use sync_template_localizations on one template to retranslate it. Omit `locales` for every enabled non-primary locale. Adding a language in the dashboard already does this for that language. Translations run in the background; follow them with get_template_localization_coverage.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        locales: {
+          type: "array",
+          description:
+            "Optional enabled non-primary locale codes to translate into. Omit for every enabled non-primary locale.",
+          items: {
+            type: "string",
+          },
+        },
+      },
       additionalProperties: false,
     },
   },

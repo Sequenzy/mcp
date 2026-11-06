@@ -5,6 +5,7 @@ import {
   setSelectedCompanyId,
 } from "../../runtime.js";
 import {
+  buildCreateCompanyBody,
   buildUpdateCompanyBody,
   buildUpdateTrackingSettingsBody,
   isRecord,
@@ -35,6 +36,7 @@ const NOTIFICATION_MODES_BY_EVENT = {
   form_submitted: ["off", "instant"],
   campaign_completed: ["off", "instant"],
   weekly_report: ["off", "weekly"],
+  account_health: ["off", "instant"],
 } as const;
 
 function validateNotificationPreferences(value: unknown): void {
@@ -170,11 +172,10 @@ export async function handleAccountTools(
       const createResult = await apiRequest<{
         success: boolean;
         company: { id: string; name: string; status: string };
+        welcomeAutomationId?: string | null;
+        welcomeEnrichmentJobId?: string | null;
         message?: string;
-      }>("POST", "/api/v1/companies", {
-        name: args.name,
-        domain: args.domain,
-      });
+      }>("POST", "/api/v1/companies", buildCreateCompanyBody(args));
 
       if (!createResult.success) {
         throw new Error("Failed to create company");
@@ -224,6 +225,8 @@ export async function handleAccountTools(
       result = {
         success: true,
         company: finalResult.company,
+        welcomeAutomationId: createResult.welcomeAutomationId ?? null,
+        welcomeEnrichmentJobId: createResult.welcomeEnrichmentJobId ?? null,
         message:
           finalStatus === "processing"
             ? "Company created but still processing. You can continue using it while processing completes."
@@ -307,6 +310,43 @@ export async function handleAccountTools(
         body,
         companyId
       );
+      break;
+    }
+
+    case "get_design_md": {
+      const companyId = args.companyId as string | undefined;
+      result = await apiRequest(
+        "GET",
+        "/api/v1/design-md",
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "update_design_md": {
+      const companyId = args.companyId as string | undefined;
+      if (typeof args.markdown !== "string") {
+        throw new Error(
+          "Pass the full design.md document as `markdown` when calling `update_design_md`; get it first with `get_design_md`."
+        );
+      }
+      const body: Record<string, unknown> = { markdown: args.markdown };
+      if (args.expectedVersion !== undefined) {
+        if (typeof args.expectedVersion !== "string" || !args.expectedVersion) {
+          throw new Error(
+            "`expectedVersion` must be the version string returned by `get_design_md`."
+          );
+        }
+        body["expectedVersion"] = args.expectedVersion;
+      }
+      if (args.dryRun !== undefined) {
+        if (typeof args.dryRun !== "boolean") {
+          throw new Error("`dryRun` must be true or false.");
+        }
+        body["dryRun"] = args.dryRun;
+      }
+      result = await apiRequest("PUT", "/api/v1/design-md", body, companyId);
       break;
     }
 
@@ -453,7 +493,70 @@ export async function handleAccountTools(
       result = await apiRequest(
         "POST",
         "/api/v1/websites",
+        {
+          domain: args.domain,
+          ...(args.mailFromPrefix !== undefined && {
+            mailFromPrefix: args.mailFromPrefix,
+          }),
+          ...(args.trackingPrefix !== undefined && {
+            trackingPrefix: args.trackingPrefix,
+          }),
+        },
+        companyId
+      );
+      break;
+    }
+
+    case "configure_sending_domain": {
+      const companyId = args.companyId as string | undefined;
+      result = await apiRequest(
+        "PATCH",
+        `/api/v1/websites/${encodeURIComponent(String(args.domain))}`,
+        { trackingPrefix: args.trackingPrefix },
+        companyId
+      );
+      break;
+    }
+
+    case "get_tracking_domain": {
+      const companyId = args.companyId as string | undefined;
+      result = await apiRequest(
+        "GET",
+        "/api/v1/tracking-domain",
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "set_tracking_domain": {
+      const companyId = args.companyId as string | undefined;
+      result = await apiRequest(
+        "PUT",
+        "/api/v1/tracking-domain",
         { domain: args.domain },
+        companyId
+      );
+      break;
+    }
+
+    case "verify_tracking_domain": {
+      const companyId = args.companyId as string | undefined;
+      result = await apiRequest(
+        "POST",
+        "/api/v1/tracking-domain/verify",
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "remove_tracking_domain": {
+      const companyId = args.companyId as string | undefined;
+      result = await apiRequest(
+        "DELETE",
+        "/api/v1/tracking-domain",
+        undefined,
         companyId
       );
       break;
@@ -476,6 +579,19 @@ export async function handleAccountTools(
         "POST",
         `/api/v1/websites/${encodeURIComponent(String(args.domain))}/verify`,
         undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "upgrade_sending_domain_dns": {
+      const companyId = args.companyId as string | undefined;
+      result = await apiRequest(
+        "POST",
+        `/api/v1/websites/${encodeURIComponent(String(args.domain))}/dns-upgrade`,
+        args.mailFromPrefix !== undefined
+          ? { mailFromPrefix: args.mailFromPrefix }
+          : undefined,
         companyId
       );
       break;
@@ -562,6 +678,39 @@ export async function handleAccountTools(
         {
           listSanitizationConfirmed: args.listSanitizationConfirmed === true,
         },
+        companyId
+      );
+      break;
+    }
+
+    case "get_frequency_cap": {
+      const companyId = args.companyId as string | undefined;
+      result = await apiRequest(
+        "GET",
+        "/api/v1/frequency-cap",
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "set_frequency_cap": {
+      const companyId = args.companyId as string | undefined;
+      result = await apiRequest(
+        "PUT",
+        "/api/v1/frequency-cap",
+        { maxEmails: args.maxEmails, windowHours: args.windowHours },
+        companyId
+      );
+      break;
+    }
+
+    case "clear_frequency_cap": {
+      const companyId = args.companyId as string | undefined;
+      result = await apiRequest(
+        "DELETE",
+        "/api/v1/frequency-cap",
+        undefined,
         companyId
       );
       break;

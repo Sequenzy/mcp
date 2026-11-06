@@ -230,6 +230,7 @@ export const COMPANY_UPDATE_FIELDS = [
   "name",
   "description",
   "logoUrl",
+  "darkModeLogoUrl",
   "founderName",
   "primaryColor",
   "brandColors",
@@ -239,6 +240,11 @@ export const COMPANY_UPDATE_FIELDS = [
   "companyContext",
   "emailDesignPrompt",
   "emailLengthPreference",
+  "emailStylePreference",
+  "websiteType",
+  "emailPreset",
+  "footerStyle",
+  "footerTheme",
   "socialLinks",
   "privacyPolicyUrl",
   "termsUrl",
@@ -258,6 +264,8 @@ export const COMPANY_UPDATE_FIELDS = [
   "replyTrackingDomainMode",
   "forwardReplies",
   "defaultSubscriberListIds",
+  "renameMatchingFooters",
+  "previousCompanyName",
 ] as const;
 
 export function validateOptionalObjectArg(
@@ -284,9 +292,67 @@ export function validateOptionalArrayArg(
   }
 }
 
+export function buildCreateCompanyBody(
+  args: Record<string, unknown>
+): Record<string, unknown> {
+  for (const key of ["domain", "name", "description", "websiteType"] as const) {
+    if (args[key] !== undefined && typeof args[key] !== "string")
+      throw new Error(`${key} must be a string.`);
+  }
+  for (const key of ["noWebsite", "withWelcomeSequence"] as const) {
+    if (args[key] !== undefined && typeof args[key] !== "boolean")
+      throw new Error(`${key} must be a boolean.`);
+  }
+  const domain = (args.domain as string | undefined)?.trim();
+  const name = (args.name as string | undefined)?.trim();
+  // Any domain string keeps the original request shape, blank included; only
+  // noWebsite without a domain starts without a website.
+  const startsWithoutWebsite = args.noWebsite === true && !domain;
+  if (!startsWithoutWebsite && domain === undefined)
+    throw new Error("domain is required unless noWebsite is true");
+  if (startsWithoutWebsite && !name)
+    throw new Error("name is required when creating without a website");
+  return {
+    // With a website, forward domain and name exactly as the tool always
+    // did, so existing calls store the same values.
+    ...(startsWithoutWebsite
+      ? { name, noWebsite: true }
+      : {
+          domain: args.domain,
+          ...(args.name !== undefined ? { name: args.name } : {}),
+        }),
+    ...(args.description !== undefined
+      ? { description: args.description }
+      : {}),
+    ...(args.withWelcomeSequence === true ? { withWelcomeSequence: true } : {}),
+    ...(args.websiteType !== undefined
+      ? { websiteType: args.websiteType }
+      : {}),
+  };
+}
+
 export function buildUpdateCompanyBody(
   args: Record<string, unknown>
 ): Record<string, unknown> {
+  if (
+    args.renameMatchingFooters !== undefined &&
+    typeof args.renameMatchingFooters !== "boolean"
+  )
+    throw new Error("renameMatchingFooters must be a boolean.");
+  if (
+    args.previousCompanyName !== undefined &&
+    typeof args.previousCompanyName !== "string"
+  )
+    throw new Error("previousCompanyName must be a string.");
+  if (
+    args.renameMatchingFooters &&
+    (typeof args.name !== "string" ||
+      !args.name.trim() ||
+      typeof args.previousCompanyName !== "string")
+  )
+    throw new Error(
+      "Renaming matching footers requires name and previousCompanyName."
+    );
   const allowedKeys = new Set(["companyId", ...COMPANY_UPDATE_FIELDS]);
   const unsupportedKeys = Object.keys(args).filter(
     (key) => !allowedKeys.has(key)
@@ -311,6 +377,16 @@ export function buildUpdateCompanyBody(
     );
   }
 
+  if (
+    args["darkModeLogoUrl"] !== undefined &&
+    args["darkModeLogoUrl"] !== null &&
+    typeof args["darkModeLogoUrl"] !== "string"
+  ) {
+    throw new Error(
+      "`darkModeLogoUrl` must be a URL string, or null to use the automatic dark-mode logo, when calling `update_company`."
+    );
+  }
+
   for (const key of [
     "name",
     "description",
@@ -321,6 +397,8 @@ export function buildUpdateCompanyBody(
     "companyContext",
     "emailDesignPrompt",
     "emailLengthPreference",
+    "emailPreset",
+    "footerStyle",
     "privacyPolicyUrl",
     "termsUrl",
     "address",
@@ -342,6 +420,29 @@ export function buildUpdateCompanyBody(
     }
   }
 
+  // null clears the category, so it is not a plain string arg. The API
+  // validates the value itself.
+  if (
+    args.websiteType !== undefined &&
+    args.websiteType !== null &&
+    typeof args.websiteType !== "string"
+  ) {
+    throw new Error(
+      "`websiteType` must be saas, content, ecommerce, offline, mobile_app, other, or null when calling `update_company`."
+    );
+  }
+
+  // null clears the AI email style choice, so it is not a plain string arg.
+  if (
+    args.emailStylePreference !== undefined &&
+    args.emailStylePreference !== null &&
+    typeof args.emailStylePreference !== "string"
+  ) {
+    throw new Error(
+      "`emailStylePreference` must be visual, plain, or null when calling `update_company`."
+    );
+  }
+
   validateOptionalObjectArg("update_company", args, "brandColors");
   validateOptionalObjectArg("update_company", args, "socialLinks");
   validateOptionalObjectArg("update_company", args, "pricing");
@@ -355,6 +456,16 @@ export function buildUpdateCompanyBody(
   ) {
     throw new Error(
       "`emailTheme` must be an object or null when calling `update_company`."
+    );
+  }
+  // footerTheme is nullable too: null resets the auto-added footer theme.
+  if (
+    args.footerTheme !== undefined &&
+    args.footerTheme !== null &&
+    !isRecord(args.footerTheme)
+  ) {
+    throw new Error(
+      "`footerTheme` must be an object or null when calling `update_company`."
     );
   }
   validateOptionalArrayArg("update_company", args, "valueProps");
@@ -436,6 +547,7 @@ export const TRACKING_SETTINGS_UPDATE_FIELDS = [
   "transactionalClickTrackingEnabled",
   "strictBotFilteringEnabled",
   "unsubscribeTrackingEnabled",
+  "emailContentStorageEnabled",
   "defaultAttributionWindowHours",
   "doubleOptInEnabled",
   "doubleOptInRedirectUrl",
@@ -488,6 +600,7 @@ export function buildUpdateTrackingSettingsBody(
     "transactionalClickTrackingEnabled",
     "strictBotFilteringEnabled",
     "unsubscribeTrackingEnabled",
+    "emailContentStorageEnabled",
     "doubleOptInEnabled",
     "autoUtmEnabled",
   ] as const) {
@@ -887,6 +1000,19 @@ export function buildUpdateSequenceBody(
       "Provide either `bccEmails` or `clearBccEmails` when calling `update_sequence`, not both."
     );
   }
+  if (args.clearKeyDates === true && args.keyDates !== undefined) {
+    throw new Error(
+      "Provide either `keyDates` or `clearKeyDates` when calling `update_sequence`, not both."
+    );
+  }
+  if (
+    args.clearAudienceAutoEnroll === true &&
+    args.audienceAutoEnroll !== undefined
+  ) {
+    throw new Error(
+      "Provide either `audienceAutoEnroll` or `clearAudienceAutoEnroll` when calling `update_sequence`, not both."
+    );
+  }
   if (args.branch !== undefined && args.insertSteps !== undefined) {
     throw new Error(
       "Provide either `branch` or `insertSteps` when calling `update_sequence`, not both."
@@ -895,9 +1021,15 @@ export function buildUpdateSequenceBody(
   validateUpdateSequenceStepIdentities(args);
 
   const body = { ...args };
+  // The company travels in the X-Company-Id header and the sequence in the
+  // path; the API reports body fields it ignores as warnings.
+  delete body.companyId;
+  delete body.sequenceId;
   delete body.clearEnrollmentFieldPath;
   delete body.clearSendingWindow;
   delete body.clearBccEmails;
+  delete body.clearKeyDates;
+  delete body.clearAudienceAutoEnroll;
 
   if (args.clearEnrollmentFieldPath === true) {
     body.enrollmentFieldPath = null;
@@ -908,8 +1040,111 @@ export function buildUpdateSequenceBody(
   if (args.clearBccEmails === true) {
     body.bccEmails = null;
   }
+  if (args.clearKeyDates === true) {
+    body.keyDates = null;
+  }
+  if (args.clearAudienceAutoEnroll === true) {
+    body.audienceAutoEnroll = null;
+  }
 
   return body;
+}
+
+const SEQUENCE_AUDIENCE_TYPES = new Set([
+  "all",
+  "lists",
+  "segment",
+  "filtered",
+  "rules",
+]);
+
+export function buildSequenceAudienceEnrollmentBody(
+  args: Record<string, unknown>
+): {
+  audience: Record<string, unknown>;
+  targetNodeId?: string;
+  /** ISO date-time to start the run later (ignored on dry runs). */
+  scheduledFor?: string;
+  /** Run-level data read in emails as {{enrollment.<path>}} (ignored on dry runs). */
+  data?: Record<string, unknown>;
+  /** Estimate only (default). Only an explicit false starts a run. */
+  dryRun: boolean;
+} {
+  const audience = args.audience;
+  if (
+    typeof audience !== "object" ||
+    audience === null ||
+    Array.isArray(audience) ||
+    !SEQUENCE_AUDIENCE_TYPES.has(
+      String((audience as Record<string, unknown>).type)
+    )
+  ) {
+    throw new Error(
+      "Provide `audience` with a `type` of all, lists, segment, filtered, or rules when calling `enroll_sequence_audience`."
+    );
+  }
+  const typed = audience as Record<string, unknown>;
+  if (
+    typed.type === "lists" &&
+    (!Array.isArray(typed.listIds) || typed.listIds.length === 0)
+  ) {
+    throw new Error(
+      "`audience.listIds` must contain at least one list ID when `audience.type` is lists."
+    );
+  }
+  if (typed.type === "segment" && typeof typed.segmentId !== "string") {
+    throw new Error(
+      "`audience.segmentId` is required when `audience.type` is segment."
+    );
+  }
+  const targetNodeId =
+    typeof args.targetNodeId === "string" && args.targetNodeId.trim()
+      ? args.targetNodeId.trim()
+      : undefined;
+  if (
+    args.dryRun !== undefined &&
+    typeof args.dryRun !== "boolean" &&
+    args.dryRun !== "true" &&
+    args.dryRun !== "false"
+  ) {
+    throw new Error(
+      "`dryRun` must be a boolean when calling `enroll_sequence_audience`."
+    );
+  }
+  const dryRun = args.dryRun !== false && args.dryRun !== "false";
+  const scheduledFor =
+    typeof args.scheduledFor === "string" && args.scheduledFor.trim()
+      ? args.scheduledFor.trim()
+      : undefined;
+  if (args.scheduledFor !== undefined && scheduledFor === undefined) {
+    throw new Error(
+      "`scheduledFor` must be an ISO 8601 date-time when calling `enroll_sequence_audience`."
+    );
+  }
+  if (scheduledFor !== undefined && Number.isNaN(Date.parse(scheduledFor))) {
+    throw new Error(
+      "`scheduledFor` must be an ISO 8601 date-time when calling `enroll_sequence_audience`."
+    );
+  }
+  // `{}` and null mean "no data", same as the REST API and CLI.
+  let data: Record<string, unknown> | undefined;
+  if (args.data !== undefined && args.data !== null) {
+    if (typeof args.data !== "object" || Array.isArray(args.data)) {
+      throw new Error(
+        '`data` must be a JSON object (for example {"discount_percent": 20}) when calling `enroll_sequence_audience`.'
+      );
+    }
+    if (Object.keys(args.data).length > 0) {
+      data = args.data as Record<string, unknown>;
+    }
+  }
+  return {
+    audience: typed,
+    ...(targetNodeId ? { targetNodeId } : {}),
+    ...(scheduledFor ? { scheduledFor } : {}),
+    ...(data ? { data } : {}),
+    dryRun,
+  };
 }
 
 function validateGoalTriggerArgs(

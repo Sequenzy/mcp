@@ -20,10 +20,12 @@ import {
   rawHtmlContentWarning,
   replacementEmailBlocksDescription,
   sequenceEmailBlocksDescription,
+  sequenceDelaySchema,
   sequenceNodeChangesSchema,
   sequenceStepBlocksFormatHint,
   sequenceStepBlocksFormatHintForNodeChanges,
   sequenceStepEmailThemeSchema,
+  sequenceWaitUntilWeekdaySchema,
 } from "./descriptions";
 
 describe("blockConditionsHint", () => {
@@ -268,6 +270,16 @@ describe("sequence step emailTheme schema", () => {
     ).toContain("preserve its current value");
   });
 
+  it("offers left or centered content alignment in the layout", () => {
+    const layout = companyEmailThemeSchema.properties.layout;
+    expect(layout.additionalProperties).toBe(false);
+    expect(layout.properties.contentAlign).toMatchObject({
+      type: "string",
+      enum: ["center", "left"],
+    });
+    expect(layout.properties.contentWidth).toEqual({ type: "number" });
+  });
+
   it("states that the patch is per-email and that null clears it", () => {
     const description = sequenceStepEmailThemeSchema.description;
     expect(description).toContain("company-wide default is left untouched");
@@ -301,6 +313,43 @@ describe("sequence step Reply-To identity descriptions", () => {
     ).toContain("display name override");
     expect(sequencePathStepSchema.properties.replyToName.description).toContain(
       "display name override"
+    );
+  });
+});
+
+describe("weekday wait timezone source schema", () => {
+  it("offers the contact timezone on both weekday wait shapes", () => {
+    for (const property of [
+      sequenceWaitUntilWeekdaySchema.properties.timezoneSource,
+      sequenceWaitUntilWeekdaySchema.properties.untilTimezoneSource,
+      sequenceDelaySchema.properties.untilTimezoneSource,
+    ]) {
+      expect(property).toMatchObject({
+        type: "string",
+        enum: ["fixed", "subscriber"],
+      });
+    }
+    expect(sequenceWaitUntilWeekdaySchema.description).toContain(
+      "timezoneSource: 'subscriber'"
+    );
+  });
+});
+
+describe("weekday wait minimum wait schema", () => {
+  it("offers a plain duration object for the minimum wait", () => {
+    expect(sequenceWaitUntilWeekdaySchema.properties.minimumWait).toMatchObject(
+      {
+        type: "object",
+        properties: {
+          days: { type: "number", minimum: 0 },
+          hours: { type: "number", minimum: 0 },
+          minutes: { type: "number", minimum: 0 },
+        },
+        additionalProperties: false,
+      }
+    );
+    expect(sequenceWaitUntilWeekdaySchema.description).toContain(
+      "minimumWait: { days: 6 }"
     );
   });
 });

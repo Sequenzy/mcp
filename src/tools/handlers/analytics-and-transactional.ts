@@ -1,6 +1,7 @@
 import { apiRequest } from "../../runtime.js";
 import {
   validateHtmlOrBlocksArgs,
+  validateLabelsArg,
   validateCreateTransactionalContentArgs,
   validateSendingIdentityArgs,
   requireSubscriberIdentifier,
@@ -16,6 +17,24 @@ import {
   assertSendRecipientPolicy,
 } from "../internal.js";
 
+/** Custom range, provider, recipient domain, source and outcome filters shared by the stats tools. */
+function setDrillDownParams(
+  params: URLSearchParams,
+  args: Record<string, unknown>
+): void {
+  for (const field of [
+    "start",
+    "end",
+    "mailboxProvider",
+    "recipientDomain",
+    "source",
+    "outcome",
+  ] as const) {
+    const value = optionalString(args, field);
+    if (value) params.set(field, value);
+  }
+}
+
 export async function handleAnalyticsAndTransactionalTools(
   name: string,
   args: Record<string, unknown>
@@ -26,6 +45,7 @@ export async function handleAnalyticsAndTransactionalTools(
     case "list_transactional_emails": {
       const companyId = args.companyId as string | undefined;
       const params = new URLSearchParams();
+      validateLabelsArg(name, args);
       const search = optionalString(args, "search");
       const status = optionalAllowedString(
         "list_transactional_emails",
@@ -45,6 +65,8 @@ export async function handleAnalyticsAndTransactionalTools(
         "order",
         ["asc", "desc"]
       );
+      for (const label of optionalStringArray(name, args, "labels"))
+        params.append("label", label);
       if (search) params.set("search", search);
       if (status) params.set("status", status);
       if (sort) params.set("sort", sort);
@@ -81,6 +103,7 @@ export async function handleAnalyticsAndTransactionalTools(
         "slug",
         "subject",
         "previewText",
+        "labels",
         "html",
         "blocks",
         "prompt",
@@ -94,10 +117,11 @@ export async function handleAnalyticsAndTransactionalTools(
 
       if (unsupportedTransactionalCreateKeys.length > 0) {
         throw new Error(
-          `\`create_transactional_email\` accepts only \`name\`, \`slug\`, \`subject\`, \`previewText\`, \`html\`, \`blocks\`, \`prompt\`, \`style\`, \`tone\`, and \`enabled\` fields. Unsupported field${unsupportedTransactionalCreateKeys.length === 1 ? "" : "s"}: ${unsupportedTransactionalCreateKeys.map((key) => `\`${key}\``).join(", ")}.`
+          `\`create_transactional_email\` accepts only \`name\`, \`slug\`, \`subject\`, \`previewText\`, \`html\`, \`blocks\`, \`prompt\`, \`style\`, \`tone\`, \`enabled\`, and \`labels\` fields. Unsupported field${unsupportedTransactionalCreateKeys.length === 1 ? "" : "s"}: ${unsupportedTransactionalCreateKeys.map((key) => `\`${key}\``).join(", ")}.`
         );
       }
 
+      validateLabelsArg(name, args);
       validateCreateTransactionalContentArgs(args);
 
       const createBody = Object.fromEntries(
@@ -122,6 +146,7 @@ export async function handleAnalyticsAndTransactionalTools(
         "enabled",
         "subject",
         "previewText",
+        "labels",
         "html",
         "blocks",
       ]);
@@ -131,13 +156,15 @@ export async function handleAnalyticsAndTransactionalTools(
 
       if (unsupportedTransactionalUpdateKeys.length > 0) {
         throw new Error(
-          `\`update_transactional_email\` accepts only \`name\`, \`enabled\`, \`subject\`, \`previewText\`, \`html\`, and \`blocks\` update fields. Unsupported field${unsupportedTransactionalUpdateKeys.length === 1 ? "" : "s"}: ${unsupportedTransactionalUpdateKeys.map((key) => `\`${key}\``).join(", ")}.`
+          `\`update_transactional_email\` accepts only \`name\`, \`enabled\`, \`subject\`, \`previewText\`, \`html\`, \`blocks\`, and \`labels\` update fields. Unsupported field${unsupportedTransactionalUpdateKeys.length === 1 ? "" : "s"}: ${unsupportedTransactionalUpdateKeys.map((key) => `\`${key}\``).join(", ")}.`
         );
       }
 
+      validateLabelsArg(name, args);
       validateHtmlOrBlocksArgs("update_transactional_email", args);
 
       if (
+        args.labels === undefined &&
         args.name === undefined &&
         args.enabled === undefined &&
         args.subject === undefined &&
@@ -146,7 +173,7 @@ export async function handleAnalyticsAndTransactionalTools(
         args.blocks === undefined
       ) {
         throw new Error(
-          "Provide at least one of `name`, `enabled`, `subject`, `previewText`, `html`, or `blocks` when calling `update_transactional_email`."
+          "Provide at least one of `name`, `enabled`, `subject`, `previewText`, `html`, `blocks`, or `labels` when calling `update_transactional_email`."
         );
       }
 
@@ -206,6 +233,10 @@ export async function handleAnalyticsAndTransactionalTools(
         args.html === undefined
           ? undefined
           : requiredString("send_email", args, "html");
+      const trackAs =
+        args.trackAs === undefined
+          ? undefined
+          : requiredString("send_email", args, "trackAs");
       const emailType =
         args.emailType === undefined
           ? undefined
@@ -323,6 +354,12 @@ export async function handleAnalyticsAndTransactionalTools(
         );
       }
 
+      if (templateId !== undefined && trackAs !== undefined) {
+        throw new Error(
+          "`trackAs` only applies to direct `subject` and `html` sends; saved templates already track their own stats when calling `send_email`."
+        );
+      }
+
       if (
         templateId === undefined &&
         (subject === undefined || html === undefined)
@@ -343,8 +380,7 @@ export async function handleAnalyticsAndTransactionalTools(
       });
 
       let trackingSettings:
-        | { clickTracking?: boolean; openTracking?: boolean }
-        | undefined;
+        { clickTracking?: boolean; openTracking?: boolean } | undefined;
       if (args.trackingSettings !== undefined) {
         if (
           typeof args.trackingSettings !== "object" ||
@@ -369,6 +405,28 @@ export async function handleAnalyticsAndTransactionalTools(
         }
       }
 
+      let headers: Record<string, string> | undefined;
+      if (args.headers !== undefined) {
+        if (
+          typeof args.headers !== "object" ||
+          args.headers === null ||
+          Array.isArray(args.headers)
+        ) {
+          throw new Error(
+            "`headers` must be an object of header names to string values when calling `send_email`."
+          );
+        }
+        headers = {};
+        for (const [name, value] of Object.entries(args.headers)) {
+          if (typeof value !== "string") {
+            throw new Error(
+              `\`headers.${name}\` must be a string when calling \`send_email\`.`
+            );
+          }
+          headers[name] = value;
+        }
+      }
+
       const sendBody = Object.fromEntries(
         Object.entries({
           to,
@@ -377,6 +435,7 @@ export async function handleAnalyticsAndTransactionalTools(
           slug: templateId,
           subject,
           body: html,
+          trackAs,
           variables: args.variables,
           subscriberExternalId,
           emailType,
@@ -388,6 +447,7 @@ export async function handleAnalyticsAndTransactionalTools(
           replyToName,
           attachments,
           trackingSettings,
+          headers,
         }).filter(([, value]) => value !== undefined)
       );
 
@@ -428,12 +488,35 @@ export async function handleAnalyticsAndTransactionalTools(
       if (emailType) {
         params.set("emailType", emailType);
       }
+      setDrillDownParams(params, args);
       if (args.includeMachineEngagement === true) {
         params.set("includeMachineEngagement", "true");
       }
       result = await apiRequest(
         "GET",
         `/api/v1/metrics?${params.toString()}`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "get_stats_breakdown": {
+      const companyId = args.companyId as string | undefined;
+      const params = new URLSearchParams();
+      for (const field of ["by", "period", "emailType"] as const) {
+        const value = optionalString(args, field);
+        if (value) params.set(field, value);
+      }
+      setDrillDownParams(params, args);
+      if (args.limit !== undefined) params.set("limit", String(args.limit));
+      if (args.includeMachineEngagement === true) {
+        params.set("includeMachineEngagement", "true");
+      }
+      const query = params.toString();
+      result = await apiRequest(
+        "GET",
+        `/api/v1/metrics/breakdown${query ? `?${query}` : ""}`,
         undefined,
         companyId
       );
@@ -453,6 +536,60 @@ export async function handleAnalyticsAndTransactionalTools(
       result = await apiRequest(
         "GET",
         `/api/v1/metrics/campaigns/${args.campaignId}${query ? `?${query}` : ""}`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "get_email_client_stats": {
+      const companyId = args.companyId as string | undefined;
+      const campaignId = optionalString(args, "campaignId");
+      const params = new URLSearchParams();
+      const filters = campaignId
+        ? (["mailboxProvider"] as const)
+        : (["period", "start", "end", "emailType", "mailboxProvider"] as const);
+      for (const field of filters) {
+        const value = optionalString(args, field);
+        if (value) params.set(field, value);
+      }
+      if (args.includeMachineEngagement === true) {
+        params.set("includeMachineEngagement", "true");
+      }
+      const query = params.toString();
+      const path = campaignId
+        ? `/api/v1/metrics/campaigns/${encodeURIComponent(campaignId)}/clients`
+        : "/api/v1/metrics/clients";
+      result = await apiRequest(
+        "GET",
+        `${path}${query ? `?${query}` : ""}`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "get_link_click_stats": {
+      const companyId = args.companyId as string | undefined;
+      const params = new URLSearchParams();
+      for (const field of [
+        "period",
+        "start",
+        "end",
+        "emailType",
+        "mailboxProvider",
+      ] as const) {
+        const value = optionalString(args, field);
+        if (value) params.set(field, value);
+      }
+      if (args.limit !== undefined) params.set("limit", String(args.limit));
+      if (args.includeMachineEngagement === true) {
+        params.set("includeMachineEngagement", "true");
+      }
+      const query = params.toString();
+      result = await apiRequest(
+        "GET",
+        `/api/v1/metrics/links${query ? `?${query}` : ""}`,
         undefined,
         companyId
       );

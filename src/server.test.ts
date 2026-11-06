@@ -1,8 +1,10 @@
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 
+import { MCP_SIGNUP_URL } from "./error-output";
 import { setSelectedCompanyId } from "./runtime";
 import { createSequenzyMcpServer } from "./server";
+import type { SequenzyMcpProfile } from "./tools/profiles";
 
 const originalApiKey = process.env["SEQUENZY_API_KEY"];
 const originalApiUrl = process.env["SEQUENZY_API_URL"];
@@ -57,8 +59,11 @@ function stubApi(options: { companies?: Array<{ id: string; name: string }> }) {
 }
 
 /** A stdio-shaped server: no host-provided per-request context. */
-async function connectStdioShapedClient() {
-  const server = createSequenzyMcpServer();
+async function connectStdioShapedClient(
+  profile: SequenzyMcpProfile = "standard",
+  options: { apiKeyMissing?: boolean } = {}
+) {
+  const server = createSequenzyMcpServer({ profile, ...options });
   const client = new Client({ name: "test", version: "0.0.0" });
   const [clientTransport, serverTransport] =
     InMemoryTransport.createLinkedPair();
@@ -236,6 +241,168 @@ describe("createSequenzyMcpServer without a host request context", () => {
       expect(errorText).not.toContain("person@example.com");
       expect(errorText).not.toContain("request-private");
       expect(errorText).not.toContain("Details:");
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+  it.each(["standard", "openai"] as const)(
+    "delivers structured tool errors through the real SDK (%s)",
+    async (profile) => {
+      let calls = 0;
+      globalThis.fetch = (async () => {
+        calls += 1;
+        return Response.json(
+          {
+            error: "private@example.com private backend message",
+            code: "SECRET_TOKEN_ABC123456789",
+            description: "private context",
+            details: "private diagnostics",
+          },
+          { status: 429, headers: { "Retry-After": "7" } }
+        );
+      }) as unknown as typeof fetch;
+      const { client, server } = await connectStdioShapedClient(profile);
+      try {
+        await client.listTools();
+        const result = await client.callTool({
+          name: "list_campaigns",
+          arguments: { companyId: "company-b" },
+        });
+        expect(result.isError).toBe(true);
+        expect(result.structuredContent).toMatchObject({
+          success: false,
+          error: {
+            code:
+              profile === "openai"
+                ? "RATE_LIMITED"
+                : "SECRET_TOKEN_ABC123456789",
+            statusCode: 429,
+            retryAfterSeconds: 7,
+          },
+        });
+        expect(result.content).toMatchObject([{ type: "text" }]);
+        expect(calls).toBe(1);
+        if (profile === "openai") {
+          expect(JSON.stringify(result)).not.toContain("private");
+          expect(JSON.stringify(result)).not.toContain("SECRET_TOKEN");
+        }
+      } finally {
+        await client.close();
+        await server.close();
+      }
+    }
+  );
+});
+
+describe("stdio server started without an API key", () => {
+  beforeEach(() => {
+    delete process.env["SEQUENZY_API_KEY"];
+    setSelectedCompanyId(null);
+  });
+
+  afterEach(() => {
+    if (originalApiKey === undefined) {
+      delete process.env["SEQUENZY_API_KEY"];
+    } else {
+      process.env["SEQUENZY_API_KEY"] = originalApiKey;
+    }
+    globalThis.fetch = originalFetch;
+  });
+
+  it("lists tools and answers every call with signup and setup steps without calling the API", async () => {
+    let calls = 0;
+    globalThis.fetch = (async () => {
+      calls += 1;
+      return Response.json({});
+    }) as unknown as typeof fetch;
+    const { client, server } = await connectStdioShapedClient("standard", {
+      apiKeyMissing: true,
+    });
+
+    try {
+      expect(client.getInstructions()).toContain(MCP_SIGNUP_URL);
+      expect((await client.listTools()).tools.length).toBeGreaterThan(0);
+
+      const result = await client.callTool({
+        name: "get_account",
+        arguments: {},
+      });
+      expect(result.isError).toBe(true);
+      expect(result.structuredContent).toMatchObject({
+        success: false,
+        error: { code: "MCP_AUTH_REQUIRED", statusCode: 401 },
+      });
+      const howToFix = (
+        result.structuredContent as { error: { howToFix: string } }
+      ).error.howToFix;
+      expect(howToFix).toContain(MCP_SIGNUP_URL);
+      expect(howToFix).toContain("npx @sequenzy/setup");
+      expect(calls).toBe(0);
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
+  it("answers every tool with the signup error, including ones that never reach the API", async () => {
+    let calls = 0;
+    globalThis.fetch = (async () => {
+      calls += 1;
+      return Response.json({});
+    }) as unknown as typeof fetch;
+
+    for (const profile of ["standard", "openai"] as const) {
+      const { client, server } = await connectStdioShapedClient(profile, {
+        apiKeyMissing: true,
+      });
+
+      try {
+        const { tools } = await client.listTools();
+        for (const tool of tools) {
+          const result = await client.callTool({
+            name: tool.name,
+            arguments: {},
+          });
+          expect(result.isError).toBe(true);
+          expect(result.structuredContent).toMatchObject({
+            error: { code: "MCP_AUTH_REQUIRED" },
+          });
+        }
+      } finally {
+        await client.close();
+        await server.close();
+      }
+    }
+    expect(calls).toBe(0);
+  });
+
+  it("only mentions enabling tools on the connector outside the OpenAI surface", async () => {
+    process.env["SEQUENZY_API_KEY"] = "seq_user_test_key";
+    for (const [profile, expected] of [
+      ["standard", true],
+      ["openai", false],
+    ] as const) {
+      const { client, server } = await connectStdioShapedClient(profile);
+      try {
+        const instructions = client.getInstructions() ?? "";
+        expect(instructions.includes("Sequenzy connector")).toBe(expected);
+        expect(instructions).toContain(
+          "update_template and update_sequence_node do not edit variant bodies."
+        );
+      } finally {
+        await client.close();
+        await server.close();
+      }
+    }
+  });
+
+  it("keeps signup guidance out of the instructions when a key is configured", async () => {
+    process.env["SEQUENZY_API_KEY"] = "seq_user_test_key";
+    const { client, server } = await connectStdioShapedClient();
+
+    try {
+      expect(client.getInstructions()).not.toContain(MCP_SIGNUP_URL);
     } finally {
       await client.close();
       await server.close();

@@ -23,7 +23,7 @@ export const webhookToolDefinitions: Tool[] = [
   {
     name: "create_webhook",
     description:
-      "Create an outbound webhook endpoint. IMPORTANT: the response includes a signingSecret that is returned only once - show it to the user immediately so they can store it and verify webhook signatures. If events is omitted, a default set of event types is subscribed.",
+      "Create an outbound webhook endpoint. The response includes a signingSecret that is returned only once; it is needed to verify webhook signatures and cannot be retrieved later. If events is omitted, a default set of event types is subscribed.",
     inputSchema: {
       type: "object",
       properties: {
@@ -47,7 +47,7 @@ export const webhookToolDefinitions: Tool[] = [
             enum: [...OUTBOUND_WEBHOOK_EVENT_TYPES],
           },
           description:
-            "Event types to subscribe to. If omitted, a default set is used.",
+            "Event types to subscribe to. If omitted, a default set is used. email.received (new mail to inbox addresses and receiving domains, not replies to your emails; not sent for spam) is opt-in: list it explicitly.",
         },
       },
       required: ["name", "url"],
@@ -56,7 +56,7 @@ export const webhookToolDefinitions: Tool[] = [
   {
     name: "update_webhook",
     description:
-      "Update an outbound webhook endpoint's name, URL, subscribed events, or status (enabled/disabled). Providing events replaces the existing event list.",
+      "Update an outbound webhook endpoint's name, URL, subscribed events, or status (enabled/disabled). Providing events replaces the existing event list. Sequenzy disables an endpoint automatically after every delivery fails for 7 days (autoDisabledAt is set); enabling it or changing its URL clears that state.",
     inputSchema: {
       type: "object",
       properties: {

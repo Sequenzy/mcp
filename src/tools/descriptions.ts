@@ -63,9 +63,13 @@ export const blockStylesHint =
 export const blockFieldWarningsHint =
   " Unsupported fields are discarded and reported in the response `warnings` array rather than rejected.";
 
-export const emailBlocksDescription = `Sequenzy email blocks. Use this for editor-compatible content, including conditional and repeat blocks. For provider-migrated HTML from another email platform, prefer the \`html\` field instead; Sequenzy stores it as one raw HTML block to preserve the original design. ${blockStylesHint} Repeat blocks use { type: 'repeat', source: 'items', itemAlias: 'item', children: [...] }.${rawHtmlMergeTagHint}${
-  blockConditionsHint
-}${buttonColorHint}${blockFieldWarningsHint}${pollBlockHint}${imageBlockHint}${videoBlockHint}${coreEmailBlockExamples}`;
+/**
+ * The guidance every `blocks` parameter ends with, after its own opening. The
+ * OpenAI surface lists it once per tool family (openai-size-rewrites.ts).
+ */
+export const emailBlockGuidanceHint = `${rawHtmlMergeTagHint}${blockConditionsHint}${buttonColorHint}${blockFieldWarningsHint}${pollBlockHint}${imageBlockHint}${videoBlockHint}${coreEmailBlockExamples}`;
+
+export const emailBlocksDescription = `Sequenzy email blocks. Use this for editor-compatible content, including conditional and repeat blocks. For provider-migrated HTML from another email platform, prefer the \`html\` field instead; Sequenzy stores it as one raw HTML block to preserve the original design. ${blockStylesHint} Repeat blocks use { type: 'repeat', source: 'items', itemAlias: 'item', children: [...] }.${emailBlockGuidanceHint}`;
 
 /**
  * Sequence email steps are the only blocks route that re-applies managed chrome
@@ -85,13 +89,9 @@ export const sequenceStepBlocksFormatHint =
  */
 export const sequenceStepBlocksFormatHintForNodeChanges = ` For action_email:${sequenceStepBlocksFormatHint}`;
 
-export const replacementEmailBlocksDescription = `Replacement Sequenzy email blocks. ${blockStylesHint}${rawHtmlMergeTagHint}${
-  blockConditionsHint
-}${buttonColorHint}${blockFieldWarningsHint}${pollBlockHint}${imageBlockHint}${videoBlockHint}${coreEmailBlockExamples}`;
+export const replacementEmailBlocksDescription = `Replacement Sequenzy email blocks. ${blockStylesHint}${emailBlockGuidanceHint}`;
 
-export const sequenceEmailBlocksDescription = `Sequenzy email blocks. Provide blocks or html for email steps. For migrated provider HTML, prefer \`html\`; Sequenzy stores it as one raw HTML block and does not recreate it as native blocks. ${blockStylesHint} Blocks can include repeat blocks over array variables such as items.${rawHtmlMergeTagHint}${
-  blockConditionsHint
-}${buttonColorHint}${blockFieldWarningsHint}${pollBlockHint}${imageBlockHint}${videoBlockHint}${coreEmailBlockExamples}`;
+export const sequenceEmailBlocksDescription = `Sequenzy email blocks. Provide blocks or html for email steps. For migrated provider HTML, prefer \`html\`; Sequenzy stores it as one raw HTML block and does not recreate it as native blocks. ${blockStylesHint} Blocks can include repeat blocks over array variables such as items.${emailBlockGuidanceHint}`;
 
 /**
  * A mailbox may carry several From display names, so `fromName` selects one
@@ -169,6 +169,9 @@ export const campaignStoNotCompanyOrSequenceHint =
 export const campaignSendTimeOptimizationFieldDescription =
   "Deliver each recipient at their predicted best open hour within sendTimeWindowHours of scheduledAt (default 12h). Campaign-only: there is no company or sequence STO toggle. Sequences use sendingWindow instead. spreadOverHours takes precedence and turns STO off; sendInRecipientTimezone also turns it off.";
 
+export const campaignMaxRecipientsFieldDescription =
+  "Send to at most this many audience members: an integer from 1 to 10,000,000, or null to remove the limit. The first N matching subscribers (by subscriber id) receive the campaign after every audience and suppression rule is applied, and recipients already reached count against the cap when a paused send resumes. Use it to ramp up a new domain or to soft-launch an offer; duplicate the campaign and exclude contacts who already received it to send the next batch. Applies to email campaigns.";
+
 export const campaignSendTimeWindowHoursFieldDescription =
   "STO delivery window in hours from scheduledAt (integer 1-24, default 12). Only used when sendTimeOptimization is true. Recipients whose predicted hour falls outside the window are snapped to the nearest edge. Sequences have no equivalent.";
 
@@ -224,19 +227,191 @@ export const sequenceDelayOffsetSchema = {
   additionalProperties: false,
 } as const;
 
+export const sequenceKeyDatesSchema = {
+  type: "object",
+  description:
+    'Named absolute moments the sequence counts down to, e.g. Black Friday. Delay steps use waitUntilKeyDate to wait relative to one of them, so the whole countdown is re-timed by editing these dates. Keys default to a slug of the label ("Black Friday starts" -> black_friday_starts). Changing a key date on a live sequence re-schedules contacts already waiting on it. Pass null (update_sequence: clearKeyDates) to remove all key dates.',
+  properties: {
+    timezone: {
+      type: "string",
+      description:
+        "IANA timezone the dates are shown and edited in, e.g. America/New_York.",
+    },
+    dates: {
+      type: "array",
+      description: "Up to 20 key dates.",
+      items: {
+        type: "object",
+        properties: {
+          key: {
+            type: "string",
+            description:
+              "Stable identifier used by waitUntilKeyDate.key (lowercase letters, digits, underscores). Defaults to a slug of the label.",
+          },
+          label: {
+            type: "string",
+            description: "Human label, e.g. Black Friday starts.",
+          },
+          at: {
+            type: "string",
+            description:
+              "ISO 8601 date-time with offset or Z, e.g. 2026-11-27T00:00:00-05:00.",
+          },
+        },
+        required: ["label", "at"],
+        additionalProperties: false,
+      },
+    },
+    sendWindow: {
+      type: "object",
+      description:
+        "How sends timed from these moments are spread out so a whole audience is not emailed in the same second. Each contact gets their own stable send time within spreadOverHours: after the moment for steps at or after it, and in the hours leading up to the step's time for steps timed before it, so a deadline email always arrives before the deadline. Omit to keep the current spread (new sequences use 4 hours).",
+      properties: {
+        spreadOverHours: {
+          type: "number",
+          minimum: 0,
+          maximum: 24,
+          description:
+            "Spread each email over this many hours. 0 sends everyone at the exact time. Default 4.",
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  required: ["dates"],
+  additionalProperties: false,
+} as const;
+
+export const sequenceWaitUntilKeyDateSchema = {
+  type: "object",
+  description:
+    "Wait relative to one of the sequence's key dates before this step, e.g. { key: 'black_friday_starts', days: 7, direction: 'before' } or { key: 'black_friday_ends', hours: 1 }. The key must exist in the sequence's keyDates. pastAction decides what a late enrollee does when the moment already passed: skip (default) skips the following steps until the next wait, continue sends immediately, exit ends the enrollment. Use with a manual trigger for one-time countdown campaigns.",
+  properties: {
+    key: {
+      type: "string",
+      description: "Key date identifier from keyDates.",
+    },
+    untilKeyDate: { type: "string", description: "Alias for key." },
+    offset: sequenceDelayOffsetSchema,
+    days: {
+      type: "number",
+      description: "Offset days shorthand. Ignored when offset is provided.",
+    },
+    hours: {
+      type: "number",
+      description: "Offset hours shorthand. Ignored when offset is provided.",
+    },
+    minutes: {
+      type: "number",
+      description: "Offset minutes shorthand. Ignored when offset is provided.",
+    },
+    direction: {
+      type: "string",
+      enum: ["before", "after"],
+      description:
+        "Whether the offset applies before or after the key date. Defaults to before.",
+    },
+    untilOffsetDirection: {
+      type: "string",
+      enum: ["before", "after"],
+      description: "Alias for direction.",
+    },
+    pastAction: {
+      type: "string",
+      enum: ["continue", "skip", "exit"],
+      description:
+        "What late enrollees do when the moment already passed. Defaults to skip.",
+    },
+    untilPastAction: {
+      type: "string",
+      enum: ["continue", "skip", "exit"],
+      description: "Alias for pastAction.",
+    },
+    missingAction: {
+      type: "string",
+      enum: ["continue", "exit"],
+      description:
+        "What to do if the key date no longer exists. Defaults to exit.",
+    },
+    untilMissingAction: {
+      type: "string",
+      enum: ["continue", "exit"],
+      description: "Alias for missingAction.",
+    },
+  },
+  additionalProperties: false,
+} as const;
+
+export const sequenceAudienceSchema = {
+  type: "object",
+  description:
+    "Who to enroll. { type: 'all' } for every active contact with an email, { type: 'lists', listIds: [...] }, { type: 'segment', segmentId: '...' }, { type: 'filtered', filters: [...] } with subscriber filters, or { type: 'rules', include: [...], exclude: [...] } combining several. For hand-picked contacts beyond the 500 cap of enroll_subscribers_in_sequence, use { type: 'rules', include: [], includedSubscriberIds: [...] }. Same shape as campaign targetLists.",
+  properties: {
+    type: {
+      type: "string",
+      enum: ["all", "lists", "segment", "filtered", "rules"],
+    },
+    listIds: { type: "array", items: { type: "string" } },
+    segmentId: { type: "string" },
+    filters: {
+      type: "array",
+      items: { type: "object", additionalProperties: true },
+    },
+    filterJoinOperator: { type: "string", enum: ["and", "or"] },
+    include: {
+      type: "array",
+      items: { type: "object", additionalProperties: true },
+    },
+    exclude: {
+      type: "array",
+      items: { type: "object", additionalProperties: true },
+    },
+    excludedSubscriberIds: {
+      type: "array",
+      items: { type: "string" },
+      description:
+        "Contacts removed from the include rules. Does not remove includedSubscriberIds.",
+    },
+    includedSubscriberIds: {
+      type: "array",
+      items: { type: "string" },
+      description:
+        "Specific contacts to enroll in addition to the include rules. Unsubscribed, bounced and email-less contacts are skipped.",
+    },
+    excludedCampaignOpenerIds: {
+      type: "array",
+      items: { type: "string" },
+      description: "Exclude contacts who opened any of these campaigns.",
+    },
+  },
+  required: ["type"],
+  additionalProperties: false,
+} as const;
+
 export const sequenceWaitUntilSchema = {
   type: "object",
   description:
-    "Wait until a date from the trigger event before this step. Use this for renewal reminders, appointment follow-ups, trial-expiry nudges, and other subscriber-specific dates. The field value must be an ISO date string or Unix timestamp.",
+    "Wait until a date from the trigger event or a contact attribute before this step. Use this for renewal reminders, appointment follow-ups, trial-expiry nudges, due-date or anniversary timelines, and other subscriber-specific dates. The field value must be an ISO date string or Unix timestamp. For a per-contact timeline that contacts can join late (e.g. emails at 20, 12 and 4 weeks before a dueDate attribute), use source attribute with pastAction skip on every wait so late joiners only get the steps still ahead, and pastAction continue on a final wait that everyone should reach.",
   properties: {
     field: {
       type: "string",
       description:
-        "Dot-path into the trigger event properties, e.g. renews_at or booking.startsAt.",
+        "Dot-path into the trigger event properties (source event) or the contact's custom attributes (source attribute), e.g. renews_at, booking.startsAt or dueDate.",
     },
     untilDateField: {
       type: "string",
       description: "Alias for field.",
+    },
+    source: {
+      type: "string",
+      enum: ["event", "attribute"],
+      description:
+        "Where field is read from. event (default) reads the trigger event properties and needs an event trigger. attribute reads the contact's custom attributes when the step is reached, so it works with any trigger. If the date moves later while a contact is waiting, the contact waits for the new date; moving it earlier does not release them sooner, and a date removed while waiting follows missingAction.",
+    },
+    untilDateSource: {
+      type: "string",
+      enum: ["event", "attribute"],
+      description: "Alias for source.",
     },
     offset: sequenceDelayOffsetSchema,
     days: {
@@ -266,12 +441,23 @@ export const sequenceWaitUntilSchema = {
       type: "string",
       enum: ["continue", "exit"],
       description:
-        "What to do if the event field is missing or invalid. Defaults to continue.",
+        "What to do if the date field is missing or invalid. Defaults to continue.",
     },
     untilMissingAction: {
       type: "string",
       enum: ["continue", "exit"],
       description: "Alias for missingAction.",
+    },
+    pastAction: {
+      type: "string",
+      enum: ["continue", "skip", "exit"],
+      description:
+        "What to do when the date (after the offset) already passed when the contact reaches this wait. continue (default) moves on immediately, skip skips the following email and action steps until the next wait, condition or branch, exit ends the enrollment. Omitted waitUntil fields reset to their defaults when updating a step, so resend source and pastAction.",
+    },
+    untilPastAction: {
+      type: "string",
+      enum: ["continue", "skip", "exit"],
+      description: "Alias for pastAction.",
     },
   },
   additionalProperties: false,
@@ -280,7 +466,7 @@ export const sequenceWaitUntilSchema = {
 export const sequenceWaitUntilWeekdaySchema = {
   type: "object",
   description:
-    "Wait until the next occurrence of a weekday inside a local-time window before this step, e.g. { day: 'sunday', startTime: '09:00', endTime: '12:00', timezone: 'America/Los_Angeles' }. Continues immediately when the step is reached inside the window, so a Sunday-morning enrollment is not pushed a full week. Place it immediately before the email when the send day matters - it controls when the flow resumes, so any step between it and the email shifts the send off the window (a sequence-level sendingWindow only holds emails at send time; it does not reschedule the graph).",
+    "Wait until the next occurrence of a weekday inside a local-time window before this step, e.g. { day: 'sunday', startTime: '09:00', endTime: '12:00', timezone: 'America/Los_Angeles' }. timezoneSource: 'subscriber' uses each contact's own timezone. Continues immediately when the step is reached inside the window, so a Sunday-morning enrollment is not pushed a full week. Add minimumWait: { days: 6 } to wait at least that long first and then release at the next window: one step instead of a fixed delay followed by a separate weekday wait. Place it immediately before the email when the send day matters - it controls when the flow resumes, so any step between it and the email shifts the send off the window (a sequence-level sendingWindow only holds emails at send time; it does not reschedule the graph).",
   properties: {
     day: {
       type: "string",
@@ -306,11 +492,33 @@ export const sequenceWaitUntilWeekdaySchema = {
     timezone: {
       type: "string",
       description:
-        "IANA timezone the window is evaluated in, e.g. America/Los_Angeles. Required.",
+        "IANA timezone the window is evaluated in, e.g. America/Los_Angeles. Required; the fallback for timezoneSource 'subscriber'.",
+    },
+    timezoneSource: {
+      type: "string",
+      enum: ["fixed", "subscriber"],
+      description:
+        "fixed (default): timezone for everyone. subscriber: each contact's timezone, else timezone; re-read on resume.",
     },
     untilStartTime: { type: "string", description: "Alias for startTime." },
     untilEndTime: { type: "string", description: "Alias for endTime." },
     untilTimezone: { type: "string", description: "Alias for timezone." },
+    untilTimezoneSource: {
+      type: "string",
+      enum: ["fixed", "subscriber"],
+      description: "Alias for timezoneSource.",
+    },
+    minimumWait: {
+      type: "object",
+      description:
+        "Wait at least this long before looking for the window, e.g. { days: 6 }. Once it ends, the contact continues at that moment if it falls inside the window, otherwise at the next window opening. Omit for no minimum.",
+      properties: {
+        days: { type: "number", minimum: 0 },
+        hours: { type: "number", minimum: 0 },
+        minutes: { type: "number", minimum: 0 },
+      },
+      additionalProperties: false,
+    },
   },
   additionalProperties: false,
 } as const;
@@ -318,16 +526,32 @@ export const sequenceWaitUntilWeekdaySchema = {
 export const sequenceDelaySchema = {
   type: "object",
   description:
-    "Fixed delay before this step. For a dynamic wait-until-date delay, either set mode:'until_date' plus untilDateField here, or use waitUntil. For a wait-until-weekday-window delay, either set mode:'until_weekday' plus untilDays/untilStartTime/untilTimezone here, or use waitUntilWeekday.",
+    "Fixed delay before this step. For a dynamic wait-until-date delay, either set mode:'until_date' plus untilDateField here, or use waitUntil. For a wait-until-weekday-window delay, either set mode:'until_weekday' plus untilDays/untilStartTime/untilTimezone here, or use waitUntilWeekday (use waitUntilWeekday.minimumWait to wait a few days first; days/hours/minutes here are ignored in that mode).",
   properties: {
     days: { type: "number" },
     hours: { type: "number" },
     minutes: { type: "number" },
     mode: {
       type: "string",
-      enum: ["duration", "until_date", "until_weekday"],
+      enum: ["duration", "until_date", "until_weekday", "until_key_date"],
       description:
-        "Use duration for a fixed wait, until_date to resolve a date from the trigger event, or until_weekday to wait for the next weekday/time window.",
+        "Use duration for a fixed wait, until_date to resolve a date from the trigger event or a contact attribute, until_weekday to wait for the next weekday/time window, or until_key_date to wait relative to a sequence key date (prefer waitUntilKeyDate).",
+    },
+    untilKeyDate: {
+      type: "string",
+      description: "For mode:'until_key_date', the key of a sequence key date.",
+    },
+    keyDate: { type: "string", description: "Alias for untilKeyDate." },
+    untilPastAction: {
+      type: "string",
+      enum: ["continue", "skip", "exit"],
+      description:
+        "For mode:'until_key_date' or 'until_date', what late enrollees do when the moment already passed. Defaults to skip for until_key_date and continue for until_date.",
+    },
+    pastAction: {
+      type: "string",
+      enum: ["continue", "skip", "exit"],
+      description: "Alias for untilPastAction.",
     },
     untilDays: {
       type: "array",
@@ -348,22 +572,39 @@ export const sequenceDelaySchema = {
     untilTimezone: {
       type: "string",
       description:
-        "For mode:'until_weekday', IANA timezone the window is evaluated in.",
+        "For mode:'until_weekday', IANA timezone the window is evaluated in (fallback for untilTimezoneSource subscriber).",
+    },
+    untilTimezoneSource: {
+      type: "string",
+      enum: ["fixed", "subscriber"],
+      description:
+        "For mode:'until_weekday': fixed (default) or subscriber (each contact's timezone, else untilTimezone).",
     },
     untilDateField: {
       type: "string",
       description:
-        "For mode:'until_date', dot-path into the trigger event properties.",
+        "For mode:'until_date', dot-path into the trigger event properties or, with untilDateSource attribute, the contact's custom attributes.",
     },
     field: {
       type: "string",
       description: "Alias for untilDateField.",
     },
+    untilDateSource: {
+      type: "string",
+      enum: ["event", "attribute"],
+      description:
+        "For mode:'until_date', read untilDateField from the trigger event (event, default) or the contact's custom attributes (attribute).",
+    },
+    source: {
+      type: "string",
+      enum: ["event", "attribute"],
+      description: "Alias for untilDateSource.",
+    },
     untilOffsetDirection: {
       type: "string",
       enum: ["before", "after"],
       description:
-        "For mode:'until_date', whether days/hours/minutes are before or after the event date. Defaults to after.",
+        "For mode:'until_date', whether days/hours/minutes are before or after the resolved date. Defaults to after.",
     },
     direction: {
       type: "string",
@@ -431,7 +672,7 @@ export const emailThemePatchProperties = {
   },
   typography: {
     type: "object",
-    description: "Numeric type settings.",
+    description: "Type settings; numbers except the font-family stacks.",
     properties: {
       baseFontSize: { type: "number" },
       leadFontSize: { type: "number" },
@@ -459,6 +700,19 @@ export const emailThemePatchProperties = {
         description:
           "Heading letter spacing in pixels (negative = tighter), clamped to -2..4. Omit for natural tracking.",
       },
+      footerFontFamily: {
+        type: ["string", "null"],
+        description:
+          "Footer font stack, also used by the auto-added footer. null removes it.",
+      },
+      footerFontSize: {
+        type: ["number", "null"],
+        description: "Footer px, 10-16 (default 12).",
+      },
+      footerLineHeight: {
+        type: ["number", "null"],
+        description: "Footer line height, 1-2 (default 1.333).",
+      },
     },
     additionalProperties: false,
   },
@@ -469,9 +723,16 @@ export const emailThemePatchProperties = {
   },
   layout: {
     type: "object",
-    description: "Numeric layout settings.",
+    description:
+      "Layout settings. Every field is a number except contentAlign.",
     properties: {
       contentWidth: { type: "number" },
+      contentAlign: {
+        type: "string",
+        enum: ["center", "left"],
+        description:
+          'Where the content column sits in a wide email client: "center" (default) or "left" (flush left, like a plain personal email; buttons, the logo and footers move left too unless set to right, or kept centered with block `styles.keepAlign: true`). Phones show the column full width either way.',
+      },
       containerPaddingX: { type: "number" },
       containerPaddingY: { type: "number" },
       blockSpacing: { type: "number" },
@@ -517,7 +778,7 @@ export const campaignEmailPresetSchema = {
 
 export const sequenceNodeChangesSchema = {
   type: "object",
-  description: `Type-aware patch for the existing node. Start from get_sequence.sequence.nodes[].config. For logic_delay, set exactly one of delay ({ days, hours, minutes }), delayMs, waitUntil, or waitUntilWeekday ({ day, startTime, endTime, timezone } - hold until the next weekday window); optional label is also accepted. For action_email, use name/label, subject, previewText, html/htmlContent or blocks, emailPreset, emailTheme (per-email colors/typography/layout override - patch { colors: { background: '#ffffff' } } to repaint one step without touching the company default, or null to inherit it again), isTransactional, attachments ([{ filename, path }] URL-backed files fetched at send time; path may use {{event.*}} from the enrollment event; [] removes them), and sender/reply identity fields. For action_sms, use text, blocks, imageUrls, label, or ineligibleAction. Other node types accept their editable config keys. For an existing random logic_branch, randomPercentages may be updated with one non-negative value per branch summing to 100. splitMode cannot be converted in place because condition and random splits have different graph topology; build a new random split with insert_sequence_step. Managed IDs, nodeType conversion, and branch path IDs/count are not editable here; use edit_sequence_graph for topology. Webhook header patches are merged, and redacted values from get_sequence must be omitted or replaced with a real new value.${sequenceStepBlocksFormatHintForNodeChanges}`,
+  description: `Type-aware patch for the existing node. Start from get_sequence.sequence.nodes[].config. For logic_delay, set exactly one of delay ({ days, hours, minutes }), delayMs, waitUntil, or waitUntilWeekday ({ day, startTime, endTime, timezone, timezoneSource, minimumWait } - hold until the next weekday window; timezoneSource 'subscriber' uses each contact's timezone; minimumWait { days, hours, minutes } waits at least that long first; waitUntilWeekday replaces the whole wait, so resend timezoneSource and minimumWait); optional label is also accepted. For action_email, use name/label, subject, previewText, html/htmlContent or blocks, emailPreset, emailTheme (per-email colors/typography/layout override - patch { colors: { background: '#ffffff' } } to repaint one step without touching the company default, or null to inherit it again), isTransactional, attachments ([{ filename, path }] URL-backed files fetched at send time; path may use {{event.*}} from the enrollment event; [] removes them), and sender/reply identity fields. For action_sms, use text, blocks, imageUrls, label, or ineligibleAction. For action_in_app, use the in-app step fields (format, title, body, buttons, style...); a custom HTML message takes format:'html' with html (the document, Braze Liquid converted) and showCloseButton. Other node types accept their editable config keys. For an existing random logic_branch, randomPercentages may be updated with one non-negative value per branch summing to 100. splitMode cannot be converted in place because condition and random splits have different graph topology; build a new random split with insert_sequence_step. Managed IDs, nodeType conversion, and branch path IDs/count are not editable here; use edit_sequence_graph for topology. Webhook header patches are merged, and redacted values from get_sequence must be omitted or replaced with a real new value.${sequenceStepBlocksFormatHintForNodeChanges}`,
   properties: {
     emailTheme: sequenceEmailThemeSchema,
     emailPreset: {
@@ -580,6 +841,7 @@ export const OUTBOUND_WEBHOOK_EVENT_TYPES = [
   "email.opened",
   "email.clicked",
   "email.replied",
+  "email.received",
   "email.unsubscribed",
   "campaign.sent",
   "sms.sent",

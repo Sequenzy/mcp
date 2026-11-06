@@ -25,6 +25,10 @@ export const segmentOperatorsByField = {
     "less_than_count",
   ],
   emailComplained: ["is", "is_not", "at_least", "less_than_count"],
+  pushDevice: ["is", "is_not"],
+  pushSent: ["is", "is_not"],
+  pushDelivered: ["is", "is_not"],
+  pushClicked: ["is", "is_not"],
   attribute: [
     "is",
     "is_not",
@@ -45,6 +49,7 @@ export const segmentOperatorsByField = {
   stripeTrialProduct: ["is", "is_not", "gte", "lte", "gt", "lt"],
   commerceProduct: ["is", "is_not", "at_least", "less_than_count"],
   commerceCollection: ["is", "is_not", "at_least", "less_than_count"],
+  geofence: ["is", "is_not", "at_least", "less_than_count"],
 } as const satisfies Record<string, readonly string[]>;
 
 export const segmentFilterOperatorHelp = Object.entries(segmentOperatorsByField)
@@ -78,6 +83,10 @@ export const segmentFilterItemSchema = {
         "emailClicked",
         "emailBounced",
         "emailComplained",
+        "pushDevice",
+        "pushSent",
+        "pushDelivered",
+        "pushClicked",
         "attribute",
         "event",
         "pollResponse",
@@ -87,8 +96,9 @@ export const segmentFilterItemSchema = {
         "stripeTrialProduct",
         "commerceProduct",
         "commerceCollection",
+        "geofence",
       ],
-      description: `Filter field. Use \`email\` with is/is_not for exact, case-insensitive address matching (allowlists and exclusions) and with contains/not_contains for domain or substring matching. Use \`phone\` with is_not_empty/is_empty to check whether a subscriber has a phone number, and \`smsStatus\` (is/is_not one of \`subscribed\`, \`unsubscribed\`, \`not_subscribed\`) for SMS marketing consent. Use \`event\` for custom subscriber events, \`segment\` for saved segment membership, \`stripeProduct\`/\`stripeCurrentProduct\`/\`stripeTrialProduct\` for Stripe product-based segments, and \`commerceProduct\` for products purchased through commerce orders - the value is \`provider:productId\` (provider one of \`shopify\`, \`woocommerce\`, \`api\`; product ids are provider-scoped), optionally with an order-count threshold (\`provider:productId:count\`) for at_least/less_than_count; a bare product id matches the id on any provider. Use \`commerceCollection\` to segment on anyone who bought ANY product in a store collection - the value is the collection id or handle (e.g. \`skincare\`), optionally provider-prefixed and/or with an order-count threshold (\`shopify:skincare:2\`); collection membership is resolved from the synced catalog as it stands now, and only Shopify collections and WooCommerce categories are synced. Engagement fields (\`emailSent\`, \`emailDelivered\`, \`emailOpened\`, \`emailClicked\`, \`emailBounced\`, \`emailComplained\`) accept a time range as the value, a specific campaign via \`campaign:<campaign_id>\`, an email-type scope via \`marketing:<timeRange>\` (marketing-policy campaign, automation, and Send API traffic) or \`transactional:<timeRange>\` (transactional-policy sends), or \`count:timeRange\` (e.g. \`10:30d\`, \`10:all\`) with at_least/less_than_count to segment by number of opens/clicks. ${pollRespondentFilterHint}`,
+      description: `Filter field. Use \`email\` with is/is_not for exact, case-insensitive address matching (allowlists and exclusions) and with contains/not_contains for domain or substring matching. Use \`phone\` with is_not_empty/is_empty to check whether a subscriber has a phone number, and \`smsStatus\` (is/is_not one of \`subscribed\`, \`unsubscribed\`, \`not_subscribed\`) for SMS marketing consent. Use \`event\` for custom subscriber events, \`segment\` for saved segment membership, \`stripeProduct\`/\`stripeCurrentProduct\`/\`stripeTrialProduct\` for Stripe product-based segments, and \`commerceProduct\` for products purchased through commerce orders - the value is \`provider:productId\` (provider one of \`shopify\`, \`woocommerce\`, \`api\`; product ids are provider-scoped), optionally with an order-count threshold (\`provider:productId:count\`) for at_least/less_than_count; a bare product id matches the id on any provider. Use \`commerceCollection\` to segment on anyone who bought ANY product in a store collection - the value is the collection id or handle (e.g. \`skincare\`), optionally provider-prefixed and/or with an order-count threshold (\`shopify:skincare:2\`); collection membership is resolved from the synced catalog as it stands now, and only Shopify collections and WooCommerce categories are synced. Engagement fields (\`emailSent\`, \`emailDelivered\`, \`emailOpened\`, \`emailClicked\`, \`emailBounced\`, \`emailComplained\`) accept a time range as the value, a specific campaign via \`campaign:<campaign_id>\`, an email-type scope via \`marketing:<timeRange>\` (marketing-policy campaign, automation, and Send API traffic) or \`transactional:<timeRange>\` (transactional-policy sends), or \`count:timeRange\` (e.g. \`10:30d\`, \`10:all\`) with at_least/less_than_count to segment by number of opens/clicks. Use \`attribute\` with \`name:value\` for custom attributes; in a workspace with Organizations, names such as \`organization.plan\`, \`organization.role\` (owner, admin, member) or \`organization.externalId\` filter on the contact's organization. Push fields: \`pushDevice\` (is = has, is_not = has no) takes \`any\`, \`web\`, \`ios\`, or \`android\` and matches active push devices; \`pushSent\`, \`pushDelivered\` (displayed on a device), and \`pushClicked\` take is/is_not with a time range (\`30d\`, \`all\`) and ignore test sends. Use \`geofence\` for visits to places your mobile app watches: value \`transition:target:timeRange\` (count operators \`transition:target:count:timeRange\`), where transition is entered, exited or dwelled, target is any, group=<group> or id=<geofenceId>[,<geofenceId>...], and timeRange is <N>d or all, e.g. entered:group=stores:30d or dwelled:id=geo_1:2:90d. ${pollRespondentFilterHint}`,
     },
     operator: {
       type: "string",
@@ -114,7 +124,7 @@ export const segmentFilterItemSchema = {
     },
     value: {
       type: "string",
-      description: `Filter value. For custom attribute empty checks, use \`attributeName:\` such as \`last_logged_in:\`. Array-of-object attributes use wildcard paths such as \`history_events[].eventvenue_id:2103\`; AND-ing two such positive filters on the same \`foo[]\` prefix matches one shared element (negative filters like is_not/not_contains/is_empty stay independent). Event examples: \`saas.purchase:30d\`, \`saas.purchase:all\`, or \`saas.purchase:5:30d\` for thresholds. Segment values are segment IDs. Stripe product examples: \`prod_123\` for bought/didn't buy/current/trialing, \`prod_123:3\` for payment thresholds, \`prod_123:is_canceled\` for products set to cancel, \`prod_123:cancels_at:2026-05-26\`, \`prod_123:end_at:2026-05-26\`, or \`prod_123:start_at:7 days ago\` for product-scoped dates. Engagement examples: \`7d\`, \`30d\`, \`90d\`, \`180d\`, \`all\` for rolling time windows, \`campaign:<campaign_id>\` to scope to a specific sent campaign (use \`list_campaigns\` to find IDs), \`marketing:7d\` / \`transactional:30d\` to scope by email type (marketing includes marketing-policy campaign, automation, and Send API traffic; policy scopes require a send-time policy snapshot, so ambiguous older events remain unscoped; email-type values work with is/is_not and the emailBounced subtype operators, e.g. emailSent is_not \`marketing:7d\` = no captured marketing email in the last 7 days), or \`count:timeRange\` like \`10:30d\` / \`10:all\` with at_least/less_than_count operators (e.g. emailClicked at_least \`10:all\` = clicked 10 or more times ever). ${pollRespondentFilterHint}`,
+      description: `Filter value. For custom attribute empty checks, use \`attributeName:\` such as \`last_logged_in:\`. Array-of-object attributes use wildcard paths such as \`history_events[].eventvenue_id:2103\`; AND-ing two such positive filters on the same \`foo[]\` prefix matches one shared element (negative filters like is_not/not_contains/is_empty stay independent). Event examples: \`saas.purchase:30d\`, \`saas.purchase:all\`, or \`saas.purchase:5:30d\` for thresholds. Segment values are segment IDs. Stripe product examples: \`prod_123\` for bought/didn't buy/current/trialing, \`prod_123:3\` for payment thresholds, \`prod_123:is_canceled\` for products set to cancel, \`prod_123:cancels_at:2026-05-26\`, \`prod_123:end_at:2026-05-26\`, or \`prod_123:start_at:7 days ago\` for product-scoped dates. Engagement examples: \`24h\`, \`7d\`, \`30d\`, \`90d\`, \`180d\`, \`all\` for rolling time windows (whole hours from \`1h\` to \`8760h\` are accepted for windows under a few days), \`campaign:<campaign_id>\` to scope to a specific sent campaign (use \`list_campaigns\` to find IDs), \`marketing:7d\` / \`transactional:30d\` to scope by email type (marketing includes marketing-policy campaign, automation, and Send API traffic; policy scopes require a send-time policy snapshot, so ambiguous older events remain unscoped; email-type values work with is/is_not and the emailBounced subtype operators, e.g. emailSent is_not \`marketing:7d\` = no captured marketing email in the last 7 days), or \`count:timeRange\` like \`10:30d\` / \`2:24h\` / \`10:all\` with at_least/less_than_count operators (e.g. emailClicked at_least \`10:all\` = clicked 10 or more times ever). ${pollRespondentFilterHint}`,
     },
   },
   required: ["field", "operator", "value"],
@@ -227,6 +237,24 @@ export function isSegmentTimeRange(value: string): boolean {
   return Number.isInteger(days) && days > 0;
 }
 
+/** Longest email engagement hour window; mirrors the server validator. */
+const MAX_ENGAGEMENT_TIME_RANGE_HOURS = 8760;
+
+/**
+ * Email engagement windows also accept whole hours ("24h"). Event and push
+ * filters keep day windows.
+ */
+export function isSegmentEngagementTimeRange(value: string): boolean {
+  if (isSegmentTimeRange(value)) {
+    return true;
+  }
+  const match = /^([1-9]\d*)h$/.exec(value);
+  return (
+    match?.[1] !== undefined &&
+    Number.parseInt(match[1], 10) <= MAX_ENGAGEMENT_TIME_RANGE_HOURS
+  );
+}
+
 const segmentEngagementFields = new Set([
   "emailSent",
   "emailDelivered",
@@ -258,13 +286,13 @@ export function getSegmentEngagementValueValidationError(
       return "Email-type engagement values cannot be combined with count operators.";
     }
     const colonIndex = value.indexOf(":");
-    return isSegmentTimeRange(value.slice(colonIndex + 1).trim())
+    return isSegmentEngagementTimeRange(value.slice(colonIndex + 1).trim())
       ? null
-      : 'Email-type engagement filters must use "marketing:<timeRange>" or "transactional:<timeRange>", like "marketing:7d".';
+      : 'Email-type engagement filters must use "marketing:<timeRange>" or "transactional:<timeRange>", like "marketing:7d" or "marketing:24h".';
   }
 
   if (isCountOperator) {
-    if (isSegmentTimeRange(value)) {
+    if (isSegmentEngagementTimeRange(value)) {
       return null;
     }
     const colonIndex = value.indexOf(":");
@@ -275,14 +303,14 @@ export function getSegmentEngagementValueValidationError(
       /^\d+$/.test(thresholdValue) &&
       Number.isInteger(threshold) &&
       threshold > 0 &&
-      isSegmentTimeRange(timeRange)
+      isSegmentEngagementTimeRange(timeRange)
       ? null
-      : 'Engagement count filters must use "count:timeRange", like "10:30d" or "10:all".';
+      : `Engagement count filters must use "count:timeRange", like "10:30d", "2:24h" or "10:all". Hour windows go up to ${MAX_ENGAGEMENT_TIME_RANGE_HOURS}h.`;
   }
 
-  return isSegmentTimeRange(value)
+  return isSegmentEngagementTimeRange(value)
     ? null
-    : 'Engagement filters must use a time range like "30d" or "all", "campaign:<campaignId>", or an email-type scope like "marketing:7d" or "transactional:7d".';
+    : `Engagement filters must use a time range like "24h", "30d" or "all" (hour windows go up to ${MAX_ENGAGEMENT_TIME_RANGE_HOURS}h), "campaign:<campaignId>", or an email-type scope like "marketing:7d" or "transactional:24h".`;
 }
 
 export function getSegmentEventValueValidationError(
@@ -680,6 +708,25 @@ export function getSegmentFilterValidationError(
     }
   }
 
+  if (
+    field === "pushDevice" &&
+    typeof value === "string" &&
+    !["any", "web", "ios", "android"].includes(value)
+  ) {
+    return "pushDevice filters must use one of: any, web, ios, android.";
+  }
+
+  if (
+    (field === "pushSent" ||
+      field === "pushDelivered" ||
+      field === "pushClicked") &&
+    typeof value === "string" &&
+    (!isSegmentTimeRange(value) ||
+      (value !== "all" && Number.parseInt(value, 10) > 36500))
+  ) {
+    return `${field} filters must use a time range like "30d" (up to 36500d) or "all".`;
+  }
+
   if (field === "pollResponse" && typeof value === "string") {
     const pollResponseValueError =
       getSegmentPollResponseValueValidationError(value);
@@ -711,6 +758,16 @@ export function getSegmentFilterValidationError(
     );
     if (commerceValueError) {
       return commerceValueError;
+    }
+  }
+
+  if (field === "geofence" && typeof value === "string") {
+    const geofenceValueError = getSegmentGeofenceValueValidationError(
+      operator,
+      value
+    );
+    if (geofenceValueError) {
+      return geofenceValueError;
     }
   }
 
@@ -762,4 +819,28 @@ export function collectSegmentFilterValidationErrors(input: unknown): string[] {
   }
 
   return [];
+}
+
+const GEOFENCE_TARGET_PATTERN =
+  "(?:any|group=[A-Za-z0-9 _.-]{1,64}|id=[A-Za-z0-9_-]{1,128}(?:,[A-Za-z0-9_-]{1,128}){0,99})";
+const GEOFENCE_VALUE_PATTERN = new RegExp(
+  `^(?:entered|exited|dwelled):${GEOFENCE_TARGET_PATTERN}:(?:[1-9]\\d*d|all)$`
+);
+const GEOFENCE_COUNT_VALUE_PATTERN = new RegExp(
+  `^(?:entered|exited|dwelled):${GEOFENCE_TARGET_PATTERN}:[1-9]\\d*:(?:[1-9]\\d*d|all)$`
+);
+
+/** Mirrors the API's geofence filter format so mistakes fail before the call. */
+export function getSegmentGeofenceValueValidationError(
+  operator: unknown,
+  value: string
+): string | null {
+  const isCount = operator === "at_least" || operator === "less_than_count";
+  const pattern = isCount
+    ? GEOFENCE_COUNT_VALUE_PATTERN
+    : GEOFENCE_VALUE_PATTERN;
+  if (pattern.test(value)) return null;
+  return isCount
+    ? 'Geofence count filters use "transition:target:count:timeRange", like "entered:group=stores:2:30d".'
+    : 'Geofence filters use "transition:target:timeRange", like "entered:id=geo_1:30d" or "dwelled:any:all".';
 }

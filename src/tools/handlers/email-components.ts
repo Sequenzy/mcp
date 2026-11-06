@@ -25,8 +25,10 @@ const EMAIL_COMPONENT_TOOL_NAMES = new Set([
   "get_email_component",
   "get_default_email_component",
   "set_default_email_component",
+  "preview_default_email_component",
   "create_email_component",
   "update_email_component",
+  "duplicate_email_component",
   "delete_email_component",
 ]);
 
@@ -87,7 +89,10 @@ export async function handleEmailComponentTools(
     return { handled: true, result };
   }
 
-  if (name === "set_default_email_component") {
+  if (
+    name === "set_default_email_component" ||
+    name === "preview_default_email_component"
+  ) {
     const slot = requiredString(name, args, "slot");
     const blocks = requiredBlocks(name, args);
     const body: Record<string, unknown> = { blocks };
@@ -96,9 +101,18 @@ export async function handleEmailComponentTools(
     if (componentName !== undefined) body["name"] = componentName;
     if (description !== undefined) body["description"] = description;
 
+    for (const key of [
+      "application",
+      "previewToken",
+      "renderPreview",
+      "sample",
+    ]) {
+      if (args[key] !== undefined) body[key] = args[key];
+    }
+    const preview = name === "preview_default_email_component";
     const result = await apiRequest(
-      "PUT",
-      `/api/v1/email-components/defaults/${encodeURIComponent(slot)}`,
+      preview ? "POST" : "PUT",
+      `/api/v1/email-components/defaults/${encodeURIComponent(slot)}${preview ? "/preview" : ""}`,
       body,
       companyId
     );
@@ -143,6 +157,19 @@ export async function handleEmailComponentTools(
       "PATCH",
       `/api/v1/email-components/${encodeURIComponent(componentId)}`,
       body,
+      companyId
+    );
+
+    return { handled: true, result };
+  }
+
+  if (name === "duplicate_email_component") {
+    const componentId = requiredString(name, args, "componentId");
+    const componentName = optionalString(args, "name");
+    const result = await apiRequest(
+      "POST",
+      `/api/v1/email-components/${encodeURIComponent(componentId)}/duplicate`,
+      componentName !== undefined ? { name: componentName } : {},
       companyId
     );
 

@@ -10,7 +10,7 @@ export const webTrackingToolDefinitions: Tool[] = [
   {
     name: "list_web_tracking_keys",
     description:
-      "List the publishable keys that let a non-Shopify website send on-site events (product views, cart activity, collection views, search) into this workspace. Check this BEFORE promising that browse abandonment, cart recovery, or any product-view trigger will work on a custom site: without an installed key those events never arrive, the sequences built on them never fire, and nothing reports an error anywhere. Each key returns `allowedOrigins`, `unrestricted`, `lastUsedAt`, and a paste-ready `installSnippet`. A key with `lastUsedAt: null` has not successfully authenticated an event yet; it may be undeployed, have no instrumented traffic, or be sending requests rejected by its origin allowlist. Shopify stores do not use these keys; they use the storefront pixel, so check get_integration_pixel instead.",
+      "List the publishable keys that let a non-Shopify website send on-site events (product views, cart activity, collection views, search, and page views reported with sequenzy.page()) into this workspace. Whether browse abandonment, cart recovery, or any product-view trigger can work on a custom site depends on an installed key: without one those events never arrive, the sequences built on them never fire, and nothing reports an error anywhere. Each key returns `allowedOrigins`, `allowedAppIds` (iOS bundle IDs and Android package names for the mobile SDKs), `unrestricted`, `lastUsedAt`, and a paste-ready `installSnippet`. A key with `lastUsedAt: null` has not successfully authenticated an event yet; it may be undeployed, have no instrumented traffic, or be sending requests rejected by its origin or app ID allowlist. Shopify stores do not use these keys; they use the storefront pixel, which get_integration_pixel reports.",
     inputSchema: {
       type: "object",
       properties: { companyId: companyIdProperty },
@@ -35,7 +35,7 @@ export const webTrackingToolDefinitions: Tool[] = [
   {
     name: "create_web_tracking_key",
     description:
-      "Create a publishable key for the browser tracking SDK and return the install snippet. This is what turns on product views, cart activity, and browse abandonment for a site that is NOT Shopify or WooCommerce (custom storefronts, headless shops, marketplaces, SaaS marketing sites). Events start flowing once the snippet is deployed and nothing is backfilled for the period before that, so create and install it BEFORE building the sequence that depends on it. Always pass allowedOrigins: a key with none accepts anonymous events from any site. Identified events require a short-lived token minted by the customer's authenticated backend through POST /api/v1/web-tracking-identities (passing the key's publicKey or keyId), then `sequenzy.identify(email, identityToken)`; a publishable key alone can never trigger subscriber automation.",
+      "Create a publishable key for the browser tracking SDK and return the install snippet. This is what turns on product views, cart activity, and browse abandonment for a site that is NOT Shopify or WooCommerce (custom storefronts, headless shops, marketplaces, SaaS marketing sites). Events start flowing once the snippet is deployed and nothing is backfilled for the period before that, so create and install it BEFORE building the sequence that depends on it. Always pass allowedOrigins for a website or allowedAppIds for an iOS or Android app using the mobile SDKs: a key with neither accepts anonymous events from any site or app, and a key with only allowedAppIds is rejected from browsers. Identified events require a short-lived token minted by the customer's authenticated backend through POST /api/v1/web-tracking-identities (passing the key's publicKey or keyId), then `sequenzy.identify(email, identityToken)`; a publishable key alone can never trigger subscriber automation.",
     inputSchema: {
       type: "object",
       properties: {
@@ -48,7 +48,13 @@ export const webTrackingToolDefinitions: Tool[] = [
           type: "array",
           items: { type: "string" },
           description:
-            "Origins allowed to use this key, e.g. ['https://example.com', 'https://*.example.com']. A bare domain is read as https. A `*.` wildcard matches subdomains at any depth but NOT the apex, so list the apex separately if you need it. Include the development origin (e.g. http://localhost:3000) while wiring the SDK up. Omitting this leaves the key unrestricted, which should be a deliberate choice for a native app or server-side caller.",
+            "Origins allowed to use this key, e.g. ['https://example.com', 'https://*.example.com']. A bare domain is read as https. A `*.` wildcard matches subdomains at any depth but NOT the apex, so list the apex separately if you need it. Include the development origin (e.g. http://localhost:3000) while wiring the SDK up. Omitting this and allowedAppIds leaves the key unrestricted, which should be a deliberate choice for a server-side caller.",
+        },
+        allowedAppIds: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "iOS bundle IDs and Android package names allowed to use this key from the Sequenzy mobile SDKs, e.g. ['com.example.app']. Matched case-insensitively against the x-sequenzy-app-id header on requests without an Origin header. Native apps cannot prove their identity, so this keeps a copied key from being reused by mistake; identity tokens still protect contact data.",
         },
         companyId: companyIdProperty,
       },
@@ -58,7 +64,7 @@ export const webTrackingToolDefinitions: Tool[] = [
   {
     name: "update_web_tracking_key",
     description:
-      "Rename a web tracking key, replace its allowed origins, or revoke it. `allowedOrigins` REPLACES the whole list rather than appending, so include the origins you want to keep. Revoking with isActive: false stops events within about a minute while preserving the key value, so the customer can still find and remove the matching snippet from their site; use delete_web_tracking_key only once the snippet is gone.",
+      "Rename a web tracking key, replace its allowed origins or app IDs, or revoke it. `allowedOrigins` and `allowedAppIds` each REPLACE the whole list rather than appending, so include the entries you want to keep. Revoking with isActive: false stops events within about a minute while preserving the key value, so the customer can still find and remove the matching snippet from their site; use delete_web_tracking_key only once the snippet is gone.",
     inputSchema: {
       type: "object",
       properties: {
@@ -71,7 +77,13 @@ export const webTrackingToolDefinitions: Tool[] = [
           type: "array",
           items: { type: "string" },
           description:
-            "Replacement allowed-origins list. Pass an empty array to make the key unrestricted.",
+            "Replacement allowed-origins list. The key becomes unrestricted when both this and allowedAppIds are empty.",
+        },
+        allowedAppIds: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Replacement list of iOS bundle IDs and Android package names. The key becomes unrestricted when both this and allowedOrigins are empty. Adding app IDs to a key with no origins makes it app-only: a website already using it stops sending events, so add the site's origins too or create a separate key for the app.",
         },
         isActive: {
           type: "boolean",

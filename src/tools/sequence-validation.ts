@@ -271,6 +271,8 @@ export function buildInsertSequenceStepBody(
   const allowedStepTypes = new Set([
     "email",
     "sms",
+    "push",
+    "in_app",
     "delay",
     "create_discount",
     "update_subscriber",
@@ -362,6 +364,7 @@ export function buildInsertSequenceStepBody(
       "field_less_than",
       "has_phone",
       "sms_subscribed",
+      "has_push_device",
     ]);
     const splitMode = optionalString(args, "splitMode") ?? "condition";
     if (splitMode !== "condition" && splitMode !== "random") {
@@ -535,17 +538,24 @@ export function buildInsertSequenceStepBody(
     let step: Record<string, unknown>;
     if (stepType === "delay") {
       step = { type: "delay" };
-      for (const key of ["delay", "delayMs", "waitUntil", "waitUntilWeekday"]) {
+      for (const key of [
+        "delay",
+        "delayMs",
+        "waitUntil",
+        "waitUntilWeekday",
+        "waitUntilKeyDate",
+      ]) {
         if (args[key] !== undefined) step[key] = args[key];
       }
       if (
         step.delay === undefined &&
         step.delayMs === undefined &&
         step.waitUntil === undefined &&
-        step.waitUntilWeekday === undefined
+        step.waitUntilWeekday === undefined &&
+        step.waitUntilKeyDate === undefined
       ) {
         throw new Error(
-          "Provide `delay`, `delayMs`, `waitUntil`, or `waitUntilWeekday` when inserting a delay step."
+          "Provide `delay`, `delayMs`, `waitUntil`, `waitUntilWeekday`, or `waitUntilKeyDate` when inserting a delay step."
         );
       }
     } else if (stepType === "create_discount") {
@@ -668,7 +678,7 @@ export function buildInsertSequenceStepBody(
         type: "ai",
         nodeType: "action_ai",
         config: {
-          label: optionalString(args, "label") ?? "Ask AI",
+          label: optionalString(args, "label") ?? "Call AI",
           prompt: requiredString("insert_sequence_step", args, "prompt"),
           resultKey: requiredString("insert_sequence_step", args, "resultKey"),
           outputFields: args.outputFields,
@@ -709,6 +719,7 @@ export function buildInsertSequenceStepBody(
         "field_less_than",
         "has_phone",
         "sms_subscribed",
+        "has_push_device",
       ]);
       if (!allowedConditionTypes.has(conditionType)) {
         throw new Error(
@@ -809,10 +820,103 @@ export function buildInsertSequenceStepBody(
       step = { nodeType, config };
     }
 
-    for (const key of ["delay", "delayMs", "waitUntil", "waitUntilWeekday"]) {
+    for (const key of [
+      "delay",
+      "delayMs",
+      "waitUntil",
+      "waitUntilWeekday",
+      "waitUntilKeyDate",
+    ]) {
       if (stepType !== "delay" && args[key] !== undefined) {
         step[key] = args[key];
       }
+    }
+    const insertSteps: Record<string, unknown> = { steps: [step] };
+    const afterNodeId = optionalString(args, "afterNodeId");
+    if (afterNodeId) insertSteps.afterNodeId = afterNodeId;
+    return {
+      ...(args.confirmStructuralChange !== undefined && {
+        confirmStructuralChange: args.confirmStructuralChange,
+      }),
+      insertSteps,
+    };
+  }
+
+  if (stepType === "push") {
+    const title = optionalString(args, "title");
+    const body = optionalString(args, "body");
+    if (!title && !body) {
+      throw new Error(
+        "Provide `title` and/or `body` when inserting a push step with `insert_sequence_step`."
+      );
+    }
+    const step: Record<string, unknown> = { type: "push" };
+    for (const key of [
+      "title",
+      "body",
+      "url",
+      "imageUrl",
+      "iconUrl",
+      "platforms",
+      "label",
+      "name",
+      "ineligibleAction",
+      "delay",
+      "delayMs",
+      "waitUntil",
+      "waitUntilWeekday",
+      "waitUntilKeyDate",
+    ]) {
+      if (args[key] !== undefined) step[key] = args[key];
+    }
+    const insertSteps: Record<string, unknown> = { steps: [step] };
+    const afterNodeId = optionalString(args, "afterNodeId");
+    if (afterNodeId) insertSteps.afterNodeId = afterNodeId;
+    return {
+      ...(args.confirmStructuralChange !== undefined && {
+        confirmStructuralChange: args.confirmStructuralChange,
+      }),
+      insertSteps,
+    };
+  }
+
+  if (stepType === "in_app") {
+    const title = optionalString(args, "title");
+    const body = optionalString(args, "body");
+    const html = optionalString(args, "html");
+    if (args.format === "html" ? !html : !title && !body) {
+      throw new Error(
+        args.format === "html"
+          ? "Provide `html` when inserting a custom HTML in-app step with `insert_sequence_step`."
+          : "Provide `title` and/or `body` when inserting an in-app step with `insert_sequence_step`."
+      );
+    }
+    const step: Record<string, unknown> = { type: "in_app" };
+    for (const key of [
+      "kind",
+      "format",
+      "position",
+      "eyebrow",
+      "title",
+      "body",
+      "imageUrl",
+      "imagePlacement",
+      "buttons",
+      "data",
+      "expiresAfterDays",
+      "pinned",
+      "style",
+      "html",
+      "showCloseButton",
+      "label",
+      "name",
+      "delay",
+      "delayMs",
+      "waitUntil",
+      "waitUntilWeekday",
+      "waitUntilKeyDate",
+    ]) {
+      if (args[key] !== undefined) step[key] = args[key];
     }
     const insertSteps: Record<string, unknown> = { steps: [step] };
     const afterNodeId = optionalString(args, "afterNodeId");
@@ -854,6 +958,7 @@ export function buildInsertSequenceStepBody(
       "delayMs",
       "waitUntil",
       "waitUntilWeekday",
+      "waitUntilKeyDate",
     ]) {
       if (args[key] !== undefined) {
         step[key] = args[key];
@@ -881,6 +986,7 @@ export function buildInsertSequenceStepBody(
       "delayMs",
       "waitUntil",
       "waitUntilWeekday",
+      "waitUntilKeyDate",
       "senderProfileId",
       "fromEmail",
       "fromName",
@@ -1132,5 +1238,68 @@ export function buildMoveSequenceEnrollmentBody(
     ...(tags.length > 0 && { tags }),
     ...(reason !== undefined && { reason }),
     ...(typeof args.dryRun === "boolean" && { dryRun: args.dryRun }),
+  };
+}
+
+const MAX_SEQUENCE_SUBSCRIBER_PAUSE_TARGETS = 500;
+
+function pauseTargetArray(
+  toolName: string,
+  args: Record<string, unknown>,
+  key: "subscriberIds" | "emails"
+): string[] {
+  const raw = args[key];
+  if (raw === undefined || raw === null) {
+    return [];
+  }
+  if (!Array.isArray(raw) || raw.some((value) => typeof value !== "string")) {
+    throw new Error(
+      `\`${key}\` must be an array of strings when calling \`${toolName}\`.`
+    );
+  }
+  return Array.from(
+    new Set(
+      raw
+        .map((value) => (value as string).trim())
+        .filter((value) => value.length > 0)
+    )
+  );
+}
+
+/**
+ * Shared by pause_sequence_subscribers and resume_sequence_subscribers. The
+ * API enforces the same rules; checking here gives the agent a message that
+ * names the tool instead of a bare 400.
+ */
+export function buildSequenceSubscriberPauseBody(
+  toolName: "pause_sequence_subscribers" | "resume_sequence_subscribers",
+  args: Record<string, unknown>
+): Record<string, unknown> {
+  const subscriberIds = pauseTargetArray(toolName, args, "subscriberIds");
+  const emails = pauseTargetArray(toolName, args, "emails");
+
+  if (subscriberIds.length === 0 && emails.length === 0) {
+    throw new Error(
+      `Provide \`subscriberIds\`, \`emails\`, or both when calling \`${toolName}\`.`
+    );
+  }
+  if (
+    subscriberIds.length + emails.length >
+    MAX_SEQUENCE_SUBSCRIBER_PAUSE_TARGETS
+  ) {
+    throw new Error(
+      `\`${toolName}\` accepts at most ${MAX_SEQUENCE_SUBSCRIBER_PAUSE_TARGETS} subscriberIds and emails combined per call.`
+    );
+  }
+
+  const reason =
+    toolName === "pause_sequence_subscribers"
+      ? optionalString(args, "reason")
+      : undefined;
+
+  return {
+    ...(subscriberIds.length > 0 && { subscriberIds }),
+    ...(emails.length > 0 && { emails }),
+    ...(reason !== undefined && { reason }),
   };
 }

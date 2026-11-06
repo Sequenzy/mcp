@@ -22,6 +22,7 @@ export type JsonSchemaObject = {
 export type Tool = {
   name: string;
   title?: string;
+  _meta?: Record<string, unknown>;
   description?: string;
   inputSchema: JsonSchemaObject & {
     type: "object";

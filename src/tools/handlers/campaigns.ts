@@ -161,6 +161,7 @@ export async function handleCampaignTools(
         "previewText",
         "html",
         "blocks",
+        "keepEdits",
       ]);
       const unsupportedKeys = Object.keys(args).filter(
         (key) => !allowedKeys.has(key)
@@ -185,11 +186,60 @@ export async function handleCampaignTools(
       if (args.blocks !== undefined) {
         localizationBody.blocks = args.blocks;
       }
+      if (args.keepEdits !== undefined) {
+        if (typeof args.keepEdits !== "boolean") {
+          throw new Error(
+            "`keepEdits` must be a boolean when calling `set_template_localization`."
+          );
+        }
+        if (args.keepEdits) {
+          localizationBody.keepEdits = true;
+        }
+      }
 
       result = await apiRequest(
         "PUT",
         `/api/v1/templates/${encodeURIComponent(templateId)}/localizations/${encodeURIComponent(locale)}`,
         localizationBody,
+        companyId
+      );
+      break;
+    }
+
+    case "get_template_localization_coverage": {
+      const companyId = args.companyId as string | undefined;
+      result = await apiRequest(
+        "GET",
+        "/api/v1/templates/localizations/coverage",
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "translate_missing_template_localizations": {
+      const companyId = args.companyId as string | undefined;
+      // Unknown arguments are rejected before dispatch (unknown-arguments.ts).
+      let locales: string[] | undefined;
+      if (args.locales !== undefined) {
+        if (
+          !Array.isArray(args.locales) ||
+          args.locales.length === 0 ||
+          args.locales.some(
+            (locale) => typeof locale !== "string" || locale.trim().length === 0
+          )
+        ) {
+          throw new Error(
+            "`locales` must contain at least one non-empty locale string when calling `translate_missing_template_localizations`."
+          );
+        }
+        locales = args.locales.map((locale) => locale.trim());
+      }
+
+      result = await apiRequest(
+        "POST",
+        "/api/v1/templates/localizations/translate-missing",
+        { ...(locales !== undefined && { locales }) },
         companyId
       );
       break;
@@ -202,7 +252,12 @@ export async function handleCampaignTools(
         args,
         "templateId"
       );
-      const allowedKeys = new Set(["companyId", "templateId", "locales"]);
+      const allowedKeys = new Set([
+        "companyId",
+        "templateId",
+        "locales",
+        "skipEdited",
+      ]);
       const unsupportedKeys = Object.keys(args).filter(
         (key) => !allowedKeys.has(key)
       );
@@ -227,11 +282,22 @@ export async function handleCampaignTools(
         }
         locales = args.locales.map((locale) => locale.trim());
       }
+      if (
+        args.skipEdited !== undefined &&
+        typeof args.skipEdited !== "boolean"
+      ) {
+        throw new Error(
+          "`skipEdited` must be a boolean when calling `sync_template_localizations`."
+        );
+      }
 
       result = await apiRequest(
         "POST",
         `/api/v1/templates/${encodeURIComponent(templateId)}/localizations/sync`,
-        locales === undefined ? {} : { locales },
+        {
+          ...(locales !== undefined && { locales }),
+          ...(args.skipEdited === true && { skipEdited: true }),
+        },
         companyId
       );
       break;
@@ -394,6 +460,26 @@ export async function handleCampaignTools(
       break;
     }
 
+    case "resume_ab_test": {
+      const companyId = args.companyId as string | undefined;
+      const abTestId = requiredString("resume_ab_test", args, "abTestId");
+      if (
+        args.confirmLiveChange !== undefined &&
+        typeof args.confirmLiveChange !== "boolean"
+      ) {
+        throw new Error(
+          "`confirmLiveChange` must be a boolean when calling `resume_ab_test`."
+        );
+      }
+      result = await apiRequest(
+        "POST",
+        `/api/v1/ab-tests/${abTestId}/resume`,
+        args.confirmLiveChange === true ? { confirmLiveChange: true } : {},
+        companyId
+      );
+      break;
+    }
+
     case "select_ab_test_winner": {
       const companyId = args.companyId as string | undefined;
       const abTestId = requiredString(
@@ -406,10 +492,21 @@ export async function handleCampaignTools(
         args,
         "variantId"
       );
+      if (
+        args.confirmLiveChange !== undefined &&
+        typeof args.confirmLiveChange !== "boolean"
+      ) {
+        throw new Error(
+          "`confirmLiveChange` must be a boolean when calling `select_ab_test_winner`."
+        );
+      }
       result = await apiRequest(
         "POST",
         `/api/v1/ab-tests/${abTestId}/select-winner`,
-        { variantId },
+        {
+          variantId,
+          ...(args.confirmLiveChange === true && { confirmLiveChange: true }),
+        },
         companyId
       );
       break;
@@ -478,9 +575,15 @@ export async function handleCampaignTools(
         "testPercentage",
         "testDurationMinutes",
         "winnerCriteria",
+        "winnerGoalId",
+        "winnerEventName",
         "testType",
         "winnerThreshold",
+        "autoSelectWinner",
         "confirmLiveChange",
+        "cancelSampleUpdate",
+        "endTestNow",
+        "expectedUpdatedAt",
       ]);
       const unsupportedAbTestSettingsKeys = Object.keys(args).filter(
         (key) => !allowedAbTestSettingsKeys.has(key)
@@ -499,6 +602,26 @@ export async function handleCampaignTools(
         );
       }
 
+      if (
+        args.cancelSampleUpdate !== undefined &&
+        typeof args.cancelSampleUpdate !== "boolean"
+      )
+        throw new Error(
+          "`cancelSampleUpdate` must be a boolean when calling `update_ab_test`."
+        );
+      if (args.endTestNow !== undefined && typeof args.endTestNow !== "boolean")
+        throw new Error(
+          "`endTestNow` must be a boolean when calling `update_ab_test`."
+        );
+      if (
+        args.autoSelectWinner !== undefined &&
+        typeof args.autoSelectWinner !== "boolean"
+      ) {
+        throw new Error(
+          "`autoSelectWinner` must be a boolean when calling `update_ab_test`."
+        );
+      }
+      const expectedUpdatedAt = optionalString(args, "expectedUpdatedAt");
       const name = optionalString(args, "name");
       const testPercentage = optionalIntegerInRange(
         "update_ab_test",
@@ -518,8 +641,16 @@ export async function handleCampaignTools(
         "update_ab_test",
         args,
         "winnerCriteria",
-        ["open_rate", "click_rate"]
+        [
+          "open_rate",
+          "click_rate",
+          "goal_conversion_rate",
+          "goal_value",
+          "event_rate",
+        ]
       );
+      const winnerGoalId = optionalString(args, "winnerGoalId");
+      const winnerEventName = optionalString(args, "winnerEventName");
       const testType = optionalAllowedString(
         "update_ab_test",
         args,
@@ -538,11 +669,16 @@ export async function handleCampaignTools(
         testPercentage === undefined &&
         testDurationMinutes === undefined &&
         winnerCriteria === undefined &&
+        winnerGoalId === undefined &&
+        winnerEventName === undefined &&
         testType === undefined &&
-        winnerThreshold === undefined
+        winnerThreshold === undefined &&
+        args.autoSelectWinner === undefined &&
+        args.cancelSampleUpdate !== true &&
+        args.endTestNow !== true
       ) {
         throw new Error(
-          "Provide at least one of `name`, `testPercentage`, `testDurationMinutes`, `winnerCriteria`, `testType`, or `winnerThreshold` when calling `update_ab_test`."
+          "Provide at least one of `name`, `testPercentage`, `testDurationMinutes`, `winnerCriteria`, `winnerGoalId`, `winnerEventName`, `testType`, `winnerThreshold`, `autoSelectWinner`, or `endTestNow` when calling `update_ab_test`."
         );
       }
 
@@ -550,12 +686,20 @@ export async function handleCampaignTools(
         "PATCH",
         `/api/v1/ab-tests/${encodeURIComponent(abTestId)}`,
         {
+          ...(args.cancelSampleUpdate === true && { cancelSampleUpdate: true }),
+          ...(args.endTestNow === true && { endTestNow: true }),
+          ...(expectedUpdatedAt !== undefined && { expectedUpdatedAt }),
           ...(name !== undefined && { name }),
           ...(testPercentage !== undefined && { testPercentage }),
           ...(testDurationMinutes !== undefined && { testDurationMinutes }),
           ...(winnerCriteria !== undefined && { winnerCriteria }),
+          ...(winnerGoalId !== undefined && { winnerGoalId }),
+          ...(winnerEventName !== undefined && { winnerEventName }),
           ...(testType !== undefined && { testType }),
           ...(winnerThreshold !== undefined && { winnerThreshold }),
+          ...(typeof args.autoSelectWinner === "boolean" && {
+            autoSelectWinner: args.autoSelectWinner,
+          }),
           ...(args.confirmLiveChange === true && { confirmLiveChange: true }),
         },
         companyId
@@ -599,8 +743,16 @@ export async function handleCampaignTools(
         "create_ab_test",
         args,
         "winnerCriteria",
-        ["open_rate", "click_rate"]
+        [
+          "open_rate",
+          "click_rate",
+          "goal_conversion_rate",
+          "goal_value",
+          "event_rate",
+        ]
       );
+      const winnerGoalId = optionalString(args, "winnerGoalId");
+      const winnerEventName = optionalString(args, "winnerEventName");
       const testType = optionalAllowedString(
         "create_ab_test",
         args,
@@ -668,6 +820,8 @@ export async function handleCampaignTools(
           ...(testPercentage !== undefined && { testPercentage }),
           ...(testDurationMinutes !== undefined && { testDurationMinutes }),
           ...(winnerCriteria !== undefined && { winnerCriteria }),
+          ...(winnerGoalId !== undefined && { winnerGoalId }),
+          ...(winnerEventName !== undefined && { winnerEventName }),
           ...(testType !== undefined && { testType }),
           ...(winnerThreshold !== undefined && { winnerThreshold }),
           ...(args.variants !== undefined && { variants: args.variants }),
@@ -819,6 +973,8 @@ export async function handleCampaignTools(
         "transactionalEmailId",
         "automationId",
         "automationNodeId",
+        "mailboxProvider",
+        "listId",
       ] as const;
       for (const key of stringFilters) {
         const value = optionalString(args, key);
@@ -846,7 +1002,7 @@ export async function handleCampaignTools(
         "list_email_sends",
         args,
         "bounceType",
-        ["Permanent", "Transient"]
+        ["Permanent", "Transient", "Soft", "Blocked"]
       );
       const sortField = optionalAllowedString(
         "list_email_sends",
@@ -913,6 +1069,22 @@ export async function handleCampaignTools(
       break;
     }
 
+    case "create_campaign_for_audience": {
+      if (!isRecord(args.selection))
+        throw new Error("selection must be an object");
+      const companyId = optionalString(args, "companyId");
+      const body = Object.fromEntries(
+        Object.entries(args).filter(([key]) => key !== "companyId")
+      );
+      result = await apiRequest(
+        "POST",
+        "/api/v1/campaigns/from-audience",
+        body,
+        companyId
+      );
+      break;
+    }
+
     case "create_campaign": {
       const companyId = args.companyId as string | undefined;
       validateCreateCampaignContentArgs(args);
@@ -957,6 +1129,8 @@ export async function handleCampaignTools(
         "labels",
         "sendTimeOptimization",
         "sendTimeWindowHours",
+        "maxRecipients",
+        "attachments",
       ]);
       const unsupportedCampaignUpdateKeys = Object.keys(args).filter(
         (key) => !allowedCampaignUpdateKeys.has(key)
@@ -964,7 +1138,7 @@ export async function handleCampaignTools(
 
       if (unsupportedCampaignUpdateKeys.length > 0) {
         throw new Error(
-          `\`update_campaign\` accepts only content, sending identity, campaign data, computed list, audience, label, and delivery pacing update fields. Unsupported field${unsupportedCampaignUpdateKeys.length === 1 ? "" : "s"}: ${unsupportedCampaignUpdateKeys.map((key) => `\`${key}\``).join(", ")}.`
+          `\`update_campaign\` accepts only content, sending identity, campaign data, computed list, audience, label, delivery pacing, recipient limit, and attachment update fields. Unsupported field${unsupportedCampaignUpdateKeys.length === 1 ? "" : "s"}: ${unsupportedCampaignUpdateKeys.map((key) => `\`${key}\``).join(", ")}.`
         );
       }
 
@@ -1006,10 +1180,12 @@ export async function handleCampaignTools(
         args.listIds === undefined &&
         args.labels === undefined &&
         args.sendTimeOptimization === undefined &&
-        args.sendTimeWindowHours === undefined
+        args.sendTimeWindowHours === undefined &&
+        args.maxRecipients === undefined &&
+        args.attachments === undefined
       ) {
         throw new Error(
-          "Provide at least one campaign content, sending identity, campaign data, computed list, audience, label, or delivery pacing field when calling `update_campaign`."
+          "Provide at least one campaign content, sending identity, campaign data, computed list, audience, label, delivery pacing, recipient limit, or attachment field when calling `update_campaign`."
         );
       }
 
@@ -1033,6 +1209,7 @@ export async function handleCampaignTools(
         "sendTimeOptimization",
         "sendTimeWindowHours",
         "spreadOverHours",
+        "maxRecipients",
         "sendInRecipientTimezone",
         "scheduledTimezone",
         "recurringInterval",
@@ -1043,7 +1220,7 @@ export async function handleCampaignTools(
 
       if (unsupportedCampaignScheduleKeys.length > 0) {
         throw new Error(
-          `\`schedule_campaign\` accepts only \`campaignId\`, \`scheduledAt\`, \`targetLists\`, \`listIds\`, \`sendTimeOptimization\`, \`sendTimeWindowHours\`, \`spreadOverHours\`, \`sendInRecipientTimezone\`, \`scheduledTimezone\`, and \`recurringInterval\`. Unsupported field${unsupportedCampaignScheduleKeys.length === 1 ? "" : "s"}: ${unsupportedCampaignScheduleKeys.map((key) => `\`${key}\``).join(", ")}.`
+          `\`schedule_campaign\` accepts only \`campaignId\`, \`scheduledAt\`, \`targetLists\`, \`listIds\`, \`sendTimeOptimization\`, \`sendTimeWindowHours\`, \`spreadOverHours\`, \`maxRecipients\`, \`sendInRecipientTimezone\`, \`scheduledTimezone\`, and \`recurringInterval\`. Unsupported field${unsupportedCampaignScheduleKeys.length === 1 ? "" : "s"}: ${unsupportedCampaignScheduleKeys.map((key) => `\`${key}\``).join(", ")}.`
         );
       }
 
@@ -1068,6 +1245,9 @@ export async function handleCampaignTools(
           }),
           ...(args.spreadOverHours !== undefined && {
             spreadOverHours: args.spreadOverHours,
+          }),
+          ...(args.maxRecipients !== undefined && {
+            maxRecipients: args.maxRecipients,
           }),
           ...(args.sendInRecipientTimezone !== undefined && {
             sendInRecipientTimezone: args.sendInRecipientTimezone,

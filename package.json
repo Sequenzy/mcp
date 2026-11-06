@@ -1,7 +1,7 @@
 {
   "name": "@sequenzy/mcp",
-  "version": "0.0.158",
-  "mcpName": "io.github.sequenzy/mcp",
+  "version": "0.0.246",
+  "mcpName": "io.github.Sequenzy/mcp",
   "description": "Sequenzy MCP server for AI-powered email marketing automation",
   "type": "module",
   "bin": {
@@ -15,14 +15,15 @@
     "./server.json": "./server.json"
   },
   "scripts": {
-    "dev": "bun --watch src/index.ts",
-    "build": "bun build src/index.ts src/server.ts src/runtime.ts --outdir dist --target node --minify --packages=external",
+    "dev": "bun run build:app && bun --watch src/index.ts",
+    "build": "bun run build:app && bun build src/index.ts src/server.ts src/runtime.ts --outdir dist --target node --minify --packages=external",
     "start": "node dist/index.js",
     "lint": "eslint src",
-    "type-check": "bunx --bun tsc --noEmit",
+    "type-check": "bun check && bun check -p ui/tsconfig.json && bun check -p scripts/tsconfig.json",
     "test": "bun test",
     "test:watch": "bun test --watch",
-    "prepublishOnly": "bun run build"
+    "prepublishOnly": "bun run build",
+    "build:app": "bun scripts/build-app.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/server": "2.0.0"
@@ -32,6 +33,7 @@
     "@types/bun": "latest",
     "@types/node": "^22.0.0",
     "bun-types": "latest",
+    "happy-dom": "20.14.5",
     "typescript": "^7.0.2"
   },
   "files": [

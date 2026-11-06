@@ -8,6 +8,46 @@ export async function handleSavedFormTools(
   let result: unknown;
 
   switch (name) {
+    case "list_capture_submissions": {
+      const sourceId = requiredString(name, args, "sourceId");
+      const sourceType = requiredString(name, args, "sourceType");
+      if (!["form", "popup", "landing_page"].includes(sourceType))
+        throw new Error("Invalid sourceType");
+      const query = new URLSearchParams();
+      for (const key of ["cursor", "field", "value", "format"] as const) {
+        if (args[key] !== undefined) {
+          if (typeof args[key] !== "string")
+            throw new Error(`${key} must be a string`);
+          query.set(key, args[key]);
+        }
+      }
+      if (args.limit !== undefined) {
+        if (
+          typeof args.limit !== "number" ||
+          !Number.isInteger(args.limit) ||
+          args.limit < 1 ||
+          args.limit > 100
+        )
+          throw new Error("limit must be an integer from 1 to 100");
+        query.set("limit", String(args.limit));
+      }
+      if ((args.field === undefined) !== (args.value === undefined))
+        throw new Error("Provide both field and value");
+      if (
+        args.format !== undefined &&
+        args.format !== "json" &&
+        args.format !== "csv"
+      )
+        throw new Error("format must be json or csv");
+      result = await apiRequest(
+        "GET",
+        `/api/v1/submissions/${sourceType}/${encodeURIComponent(sourceId)}?${query}`,
+        undefined,
+        args.companyId as string | undefined
+      );
+      break;
+    }
+
     case "list_forms": {
       const companyId = args.companyId as string | undefined;
       result = await apiRequest("GET", "/api/v1/forms", undefined, companyId);
@@ -34,6 +74,12 @@ export async function handleSavedFormTools(
         "duplicateStrategy",
         ["skip", "merge", "overwrite"]
       );
+      const resubscribeBehavior = optionalAllowedString(
+        "create_form",
+        args,
+        "resubscribeBehavior",
+        ["reactivate", "double_opt_in"]
+      );
       const body: Record<string, unknown> = {
         name: nameValue,
         listIds,
@@ -48,6 +94,7 @@ export async function handleSavedFormTools(
         "redirectUrl",
         "showFirstName",
         "showLastName",
+        "botProtection",
         "theme",
       ]) {
         if (args[key] !== undefined) {
@@ -56,6 +103,9 @@ export async function handleSavedFormTools(
       }
       if (duplicateStrategy !== undefined) {
         body["duplicateStrategy"] = duplicateStrategy;
+      }
+      if (resubscribeBehavior !== undefined) {
+        body["resubscribeBehavior"] = resubscribeBehavior;
       }
 
       result = await apiRequest("POST", "/api/v1/forms", body, companyId);
@@ -71,6 +121,12 @@ export async function handleSavedFormTools(
         "duplicateStrategy",
         ["skip", "merge", "overwrite"]
       );
+      const resubscribeBehavior = optionalAllowedString(
+        "update_form",
+        args,
+        "resubscribeBehavior",
+        ["reactivate", "double_opt_in"]
+      );
       const body: Record<string, unknown> = {};
 
       for (const key of [
@@ -82,6 +138,7 @@ export async function handleSavedFormTools(
         "description",
         "successMessage",
         "redirectUrl",
+        "botProtection",
         "theme",
         "blocks",
       ]) {
@@ -91,6 +148,9 @@ export async function handleSavedFormTools(
       }
       if (duplicateStrategy !== undefined) {
         body["duplicateStrategy"] = duplicateStrategy;
+      }
+      if (resubscribeBehavior !== undefined) {
+        body["resubscribeBehavior"] = resubscribeBehavior;
       }
       if (Object.keys(body).length === 0) {
         throw new Error(

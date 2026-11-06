@@ -10,6 +10,7 @@ const SHARED_POPUP_BODY_KEYS = [
   "buttonText",
   "successMessage",
   "redirectUrl",
+  "botProtection",
   "presentation",
   "placement",
   "trigger",
@@ -17,6 +18,7 @@ const SHARED_POPUP_BODY_KEYS = [
   "schedule",
   "frequency",
   "visual",
+  "reward",
   "theme",
   "blocks",
 ] as const;
@@ -63,6 +65,12 @@ export async function handleSavedPopupTools(
         "duplicateStrategy",
         ["skip", "merge", "overwrite"]
       );
+      const resubscribeBehavior = optionalAllowedString(
+        "create_popup",
+        args,
+        "resubscribeBehavior",
+        ["reactivate", "double_opt_in"]
+      );
       const status = optionalAllowedString("create_popup", args, "status", [
         "draft",
         "published",
@@ -78,6 +86,9 @@ export async function handleSavedPopupTools(
       }
       if (duplicateStrategy !== undefined) {
         body["duplicateStrategy"] = duplicateStrategy;
+      }
+      if (resubscribeBehavior !== undefined) {
+        body["resubscribeBehavior"] = resubscribeBehavior;
       }
       if (status !== undefined) {
         body["status"] = status;
@@ -99,6 +110,12 @@ export async function handleSavedPopupTools(
         "duplicateStrategy",
         ["skip", "merge", "overwrite"]
       );
+      const resubscribeBehavior = optionalAllowedString(
+        "update_popup",
+        args,
+        "resubscribeBehavior",
+        ["reactivate", "double_opt_in"]
+      );
       const status = optionalAllowedString("update_popup", args, "status", [
         "draft",
         "published",
@@ -116,6 +133,9 @@ export async function handleSavedPopupTools(
       }
       if (duplicateStrategy !== undefined) {
         body["duplicateStrategy"] = duplicateStrategy;
+      }
+      if (resubscribeBehavior !== undefined) {
+        body["resubscribeBehavior"] = resubscribeBehavior;
       }
       if (status !== undefined) {
         body["status"] = status;

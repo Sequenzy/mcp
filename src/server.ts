@@ -2,9 +2,19 @@ import { McpServer, type ListToolsResult } from "@modelcontextprotocol/server";
 
 import packageJson from "../package.json";
 
+import {
+  APP_RESOURCE_URI,
+  appResource,
+  readAppResource,
+} from "./app-resource.js";
+import {
+  buildMcpErrorResult,
+  formatMcpError,
+  MCP_SIGNUP_URL,
+} from "./error-output.js";
 import { handleResourceRead, resources } from "./resources/index.js";
 import type { McpRequestContext } from "./runtime.js";
-import { withMcpRequestContext } from "./runtime.js";
+import { createMissingApiKeyError, withMcpRequestContext } from "./runtime.js";
 import { handleToolCall, tools } from "./tools/index.js";
 import {
   getToolsForProfile,
@@ -17,6 +27,8 @@ const LIST_CACHE_HINT = {
 };
 
 interface CreateSequenzyMcpServerOptions {
+  /** The stdio server started without an API key; tell the agent how to fix it. */
+  apiKeyMissing?: boolean;
   getRequestContext?: () => McpRequestContext | undefined;
   onRequestContextUpdated?: (
     context: McpRequestContext
@@ -65,19 +77,34 @@ export function createSequenzyMcpServer(
       },
       instructions: [
         "Sequenzy email marketing MCP server: manage subscribers, campaigns, sequences, templates, and delivery stats.",
-        ...(profile === "openai"
+        ...(options.apiKeyMissing
           ? [
-              "This OpenAI-reviewed surface accepts only ordinary business, contact, marketing, and commerce data. Never provide payment-card data, health or medical data, government identifiers, biometric or genetic data, authentication credentials or secrets, sensitive demographic data, or precise geolocation. Credential-producing operations and raw outbound-webhook delivery tools are intentionally unavailable here; use the Sequenzy dashboard or local CLI for those workflows.",
+              `No Sequenzy API key is configured, so every tool returns MCP_AUTH_REQUIRED. Before calling tools, tell the user to create a free account at ${MCP_SIGNUP_URL} (or sign in), then run \`npx @sequenzy/setup\`, or add a key from Settings > API Keys as SEQUENZY_API_KEY in this MCP server's environment and restart the client.`,
             ]
           : []),
-        "If you have access to multiple companies, call get_account and then select_company (or pass companyId per call) before other tools.",
-        "Sequence A/B step variant bodies are on get_sequence.sequence.emails[].abTest.variants[].blocks when the key has ab_tests:read. get_ab_test is optional for that copy audit; it still returns settings, localization, and stats. Write those bodies with update_ab_test_variant (IDs from the same variants list). If that tool is not in the tool list, enable it on the Sequenzy connector - do not write through update_template or update_sequence_node.",
         ...(profile === "openai"
           ? [
-              "Only call submit_feedback when the user explicitly asks you to send feedback to Sequenzy. Before calling it, tell the user that the message goes to the Sequenzy team. Include no subscriber data, message content, identifiers, credentials, raw tool calls, API responses, errors, or debug payloads.",
+              "This connector accepts only ordinary business, contact, marketing, and commerce data. Never provide payment-card data, health or medical data, government identifiers, biometric or genetic data, authentication credentials or secrets, sensitive demographic data, or precise geolocation; tools reject recognizable values, and a rejected value must not be retried under another field. API keys, webhook secrets, storage and warehouse credentials, and push credentials are entered and viewed only in the Sequenzy dashboard; no tool here accepts or returns them. Web tracking keys are publishable browser keys, not API credentials.",
+              "Tools act on the selected company by default. Call get_account when the user asks which companies they can access, names another company, or a tool reports that a company must be chosen; then use select_company or pass companyId.",
             ]
           : [
-              "Only call submit_feedback when the user explicitly asks you to send feedback to Sequenzy. Before calling it, tell the user that the message goes to the Sequenzy team. Include only reproduction details and resource IDs needed for that report; never include unrelated subscriber data, message content, credentials, raw API payloads, or debug data.",
+              "Keys with access to multiple companies need a target company: get_account lists them, select_company chooses one, or companyId can be passed per call.",
+            ]),
+        ...(profile === "muse"
+          ? [
+              "This connector carries the everyday email marketing tools. Some tool descriptions mention tools that are not in this list (A/B tests, sequence graph editing, integrations, landing pages and more); those are on the full Sequenzy MCP server at https://api.sequenzy.com/v1/mcp or in the Sequenzy dashboard, so tell the user where to do that instead of guessing another tool.",
+            ]
+          : [
+              `Sequence A/B step variant bodies are on get_sequence.sequence.emails[].abTest.variants[].blocks when the ${profile === "openai" ? "connection" : "key"} has ab_tests:read. get_ab_test is optional for that copy audit; it still returns settings, localization, and stats. Write those bodies with update_ab_test_variant (IDs from the same variants list).${
+                profile === "openai"
+                  ? ""
+                  : " If that tool is not in the tool list, it can be enabled on the Sequenzy connector;"
+              } update_template and update_sequence_node do not edit variant bodies.`,
+            ]),
+        ...(profile !== "standard"
+          ? []
+          : [
+              "submit_feedback delivers a message to the Sequenzy team and is intended for user-requested feedback; it needs only the reproduction details and resource IDs for that report, not unrelated subscriber data, message content, credentials, raw API payloads, or debug data.",
             ]),
       ].join("\n"),
       cacheHints: {
@@ -94,17 +121,41 @@ export function createSequenzyMcpServer(
 
   server.server.setRequestHandler("tools/call", async (request) => {
     const { name, arguments: args } = request.params;
+    // A stdio server cannot gain a key without a restart, so answer before any
+    // tool runs: some tools validate input or build URLs locally and would
+    // otherwise send the agent somewhere other than the signup steps.
+    if (options.apiKeyMissing) {
+      const error = createMissingApiKeyError();
+      const includeDetails = profile !== "openai";
+      return {
+        isError: true,
+        structuredContent: buildMcpErrorResult(error, {
+          includeDetails,
+          reviewedSurface: profile === "openai",
+        }),
+        content: [
+          {
+            type: "text",
+            text: formatMcpError(error, {
+              includeDetails,
+              reviewedSurface: profile === "openai",
+            }),
+          },
+        ],
+      };
+    }
     return withRequestContext(options, () =>
       handleToolCall(name, args ?? {}, { profile })
     );
   });
 
   server.server.setRequestHandler("resources/list", async () => {
-    return { resources };
+    return { resources: [...resources, appResource] };
   });
 
   server.server.setRequestHandler("resources/read", async (request) => {
     const { uri } = request.params;
+    if (uri === APP_RESOURCE_URI) return readAppResource(profile);
     return withRequestContext(options, () =>
       handleResourceRead(uri, { profile })
     );

@@ -2,11 +2,13 @@ import { AsyncLocalStorage } from "node:async_hooks";
 
 import packageJson from "../package.json";
 
+import { parseRetryAfter } from "./error-metadata.js";
 import {
   formatMcpError,
   McpApiError,
   type McpApiErrorContext,
 } from "./error-output.js";
+import { fetchWithTransientRetry } from "./transient-retry.js";
 
 const DEFAULT_API_URL = "https://api.sequenzy.com";
 const AUTHENTICATED_IMAGE_UPLOAD_PATHS = new Set([
@@ -93,12 +95,7 @@ function buildApiHeaders(
 ): Record<string, string> {
   const apiKey = getApiKey();
   if (!apiKey) {
-    throw new McpApiError(
-      "SEQUENZY_API_KEY environment variable is required",
-      401,
-      undefined,
-      "MCP_AUTH_REQUIRED"
-    );
+    throw createMissingApiKeyError();
   }
 
   const headers: Record<string, string> = {
@@ -118,21 +115,25 @@ function buildApiHeaders(
   return headers;
 }
 
+export function createMissingApiKeyError(): McpApiError {
+  return new McpApiError(
+    "SEQUENZY_API_KEY environment variable is required",
+    401,
+    undefined,
+    "MCP_AUTH_REQUIRED"
+  );
+}
+
+export function hasConfiguredApiKey(): boolean {
+  return Boolean(getApiKey());
+}
+
 export function assertConfiguredApiKey(): void {
-  if (getApiKey()) {
+  if (hasConfiguredApiKey()) {
     return;
   }
 
-  console.error(
-    formatMcpError(
-      new McpApiError(
-        "SEQUENZY_API_KEY environment variable is required",
-        401,
-        undefined,
-        "MCP_AUTH_REQUIRED"
-      )
-    )
-  );
+  console.error(formatMcpError(createMissingApiKeyError()));
   process.exit(1);
 }
 
@@ -254,11 +255,13 @@ export async function apiRequest<T>(
   let response: Response;
 
   try {
-    response = await fetch(`${getApiUrl()}${path}`, {
-      method,
-      headers,
-      body: body ? JSON.stringify(body) : undefined,
-    });
+    response = await fetchWithTransientRetry(method, () =>
+      fetch(`${getApiUrl()}${path}`, {
+        method,
+        headers,
+        body: body ? JSON.stringify(body) : undefined,
+      })
+    );
   } catch (error) {
     throw new McpApiError(
       error instanceof Error ? error.message : "Failed to reach Sequenzy API",
@@ -276,7 +279,8 @@ export async function apiRequest<T>(
       response.status,
       parsedError.details ?? rawError,
       parsedError.code,
-      parsedError.context
+      parsedError.context,
+      parseRetryAfter(response.headers.get("Retry-After"))
     );
   }
 
@@ -334,7 +338,8 @@ export async function apiUploadRequest(
       response.status,
       parsedError.details ?? rawError,
       parsedError.code,
-      parsedError.context
+      parsedError.context,
+      parseRetryAfter(response.headers.get("Retry-After"))
     );
   }
 }

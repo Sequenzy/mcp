@@ -1,7 +1,7 @@
 import type { Tool } from "../../mcp-types.js";
 
 const POPUP_TEMPLATE_DESCRIPTION =
-  "Starting design. One of: newsletter-modal, discount-offer, countdown-launch, minimal-slide-in, exit-lead-magnet, live-demo, launch-modal, paper-digest, stark-takeover, top-bar, announcement-bar, fullscreen-welcome. Defaults to newsletter-modal.";
+  "Starting design. One of: newsletter-modal, discount-offer, scratch-to-reveal, countdown-launch, minimal-slide-in, exit-lead-magnet, live-demo, launch-modal, paper-digest, stark-takeover, top-bar, announcement-bar, fullscreen-welcome. Defaults to newsletter-modal.";
 
 const POPUP_TRIGGER_DESCRIPTION =
   'When the popup opens. { "type": "delay" | "scroll" | "exit-intent" | "click" | "manual", "delaySeconds": 0-3600, "scrollPercent": 1-100, "clickSelector": "#join" }. Only the key each type uses matters: delay reads delaySeconds, scroll reads scrollPercent, and click requires a clickSelector CSS selector. Merged into the current trigger, so patching one key keeps the rest.';
@@ -17,6 +17,9 @@ const POPUP_FREQUENCY_DESCRIPTION =
 
 const POPUP_VISUAL_DESCRIPTION =
   'Media panel and urgency treatment: { "style": "none" | "accent" | "header" | "rail" | "image" | "countdown", "placement": "top" | "left" | "center" | "right", "imageUrl": "https://...", "imageAlt": "...", "countdownMinutes": 1-10080 }. Use style "image" with an imageUrl for a product panel, or "countdown" with countdownMinutes for a deadline. Style "image" requires an https imageUrl - without one the popup renders the accent rail instead of the split layout, so setting it without an image is rejected. Merged into the current visual.';
+
+const POPUP_REWARD_DESCRIPTION =
+  'Scratch-to-reveal reward. When enabled the popup opens on a scratch card: the visitor scratches (or taps "Tap to reveal") to see a public teaser, clicks Claim, enters their email, and only then sees the reward. { "enabled": true, "value": "10% off your first order" (required when enabled, max 120, private), "code": "WELCOME10" (optional, letters/numbers/-/_, max 64, private), "heading": "Try your luck", "subheading": "Scratch below to see what you win", "teaserEyebrow": "You\'ve got a", "teaser": "Mystery discount", "claimText": "Claim", "coverText": "Scratch here", "coverStyle": "gold" | "silver" | "rose-gold" | "holographic" | "accent" | "custom", "coverColor": "#rrggbb" (used by custom), "coverTextColor": "#rrggbb" | null, "coverPattern": "sheen" | "sparkle" | "plain", "coverImageUrl": "https://..." | null (needs CORS headers, otherwise the foil shows), "prizeBackgroundColor": "#rrggbb" | null, "prizeTextColor": "#rrggbb" | null, "cardRadius": 0-32 }. value and code never appear in the embed script; a successful submit returns them and saves them on the subscriber as the `discount` attribute, so welcome emails can use {{discount.value}} and {{discount.code}} (a create-discount step in the same sequence takes precedence). A `discount` attribute the contact already has from another source is never overwritten. Rejected while enabled: an empty value, a redirect after submission (send redirectUrl ""), the floating-bar presentation, and form fields named `discount`. Merged into the current reward.';
 
 const POPUP_BLOCKS_DESCRIPTION =
   'Full replacement for the popup\'s content blocks. Fetch the current blocks from get_popup, modify them, and send the complete array - the popup must keep exactly one required email field and one submit button. Blocks render in array order; every block needs a globally unique "id" and a "kind", and "sectionId" ("success" or "error") moves a content block into that screen. Layout groups use { id, kind: "group", label, layout: "stack" | "row" | "grid" | "overlay", columns (1-4), gap (0-64), padding (0-64), overlayColor (hex), overlayPosition ("top" | "center" | "bottom"), overlayShade (0-100), children: [...] }. In Overlay, gap spaces foreground children while the direct image remains the background. Overlay needs exactly one direct image; images inside subgroups only enable Overlay for that subgroup, while zero or multiple direct images fall back to Stack. Groups may nest to three levels; descendants must use the same sectionId as their group, while form-step, success-screen, and error-state remain at the root. Input blocks are kind "form-field": { id, kind: "form-field", fieldType, name, label, placeholder, required, defaultValue, showLabel, width ("full" | "half"), mapsTo, options }. fieldType is one of text, email, phone, number, textarea, select, radio, checkbox, consent, hidden. mapsTo is one of email, firstName, lastName, phone, customAttribute and defaults to customAttribute, which stores the answer under the block\'s "name" as a subscriber custom attribute. select, radio, and checkbox fields require options: [{ value, label, id }] - label and id default to value when omitted. Other kinds and their properties: heading { content, level (1-3), align }, text { content, variant ("paragraph" | "eyebrow" | "caption"), align }, image { src, alt, fit ("cover" | "contain") }, button { text, url, variant, align }, divider {}, spacer { height (8-160) }, custom-html { html, height (40-1200) } - the markup goes in "html", not "content" - feature-grid { features: [{ title, description }], columns }, testimonial { testimonials: [{ quote, name, role }] }, countdown { label, endsAt }, form-step { title, description, blockIds }, submit-button { text, width }, success-screen { heading, message }, error-state { message }. Properties outside a kind\'s list are rejected rather than dropped, so a typo is reported instead of silently saving an empty block. Validation errors name the offending property, for example "blocks[3].children[0].options[0].value".';
@@ -49,7 +52,7 @@ export const savedPopupToolDefinitions: Tool[] = [
   {
     name: "get_popup",
     description:
-      "Get one saved popup with its complete content blocks, trigger, targeting, schedule, frequency, and theme. Read this before editing blocks so the replacement array stays complete.",
+      "Get one saved popup with its complete content blocks, trigger, targeting, schedule, frequency, and theme. Read this before editing blocks so the replacement array stays complete. For a Webflow-connected company, a published popup reports embed.disabled and the native Webflow settings path instead of custom code.",
     inputSchema: {
       type: "object",
       properties: {
@@ -71,7 +74,7 @@ export const savedPopupToolDefinitions: Tool[] = [
   {
     name: "create_popup",
     description:
-      "Create a saved signup popup and get the one-line script tag that deploys it. The popup is published by default; its trigger, targeting, audience, and duplicate handling stay server-side, so the deployed script carries no API key. Pick a template for the starting design, then refine copy and behavior with update_popup.",
+      "Create a saved signup popup and, for non-Webflow sites, get the one-line script tag that deploys it. The popup is published by default; its trigger, targeting, audience, and duplicate handling stay server-side, so the deployed script carries no API key. Pick a template for the starting design, then refine copy and behavior with update_popup. For a Webflow-connected company, the popup is saved but embed returns disabled plus the native Webflow settings path; custom popups are not part of the Marketplace integration.",
     inputSchema: {
       type: "object",
       properties: {
@@ -125,6 +128,17 @@ export const savedPopupToolDefinitions: Tool[] = [
           enum: ["skip", "merge", "overwrite"],
           description:
             "How to handle an existing subscriber. Defaults to skip.",
+        },
+        resubscribeBehavior: {
+          type: "string",
+          enum: ["reactivate", "double_opt_in"],
+          description:
+            "What happens when a contact who unsubscribed from all email submits this popup again. reactivate (the default) resubscribes them and restores the popup's lists; double_opt_in sends a confirmation email first and resubscribes them when they confirm. Workspace double opt-in always requires confirmation. duplicateStrategy never changes subscription status.",
+        },
+        botProtection: {
+          type: "boolean",
+          description:
+            "Turn on a Cloudflare Turnstile bot check before each signup. It runs invisibly for most visitors; signups that fail it must confirm by email before they are subscribed; turning it on requires a double opt-in confirmation email and a sender profile, otherwise the API returns 400. Defaults to false.",
         },
         headline: {
           type: "string",
@@ -181,6 +195,11 @@ export const savedPopupToolDefinitions: Tool[] = [
         visual: {
           type: "object",
           description: POPUP_VISUAL_DESCRIPTION,
+          additionalProperties: true,
+        },
+        reward: {
+          type: "object",
+          description: POPUP_REWARD_DESCRIPTION,
           additionalProperties: true,
         },
         theme: {
@@ -242,6 +261,17 @@ export const savedPopupToolDefinitions: Tool[] = [
           enum: ["skip", "merge", "overwrite"],
           description: "How to handle an existing subscriber.",
         },
+        resubscribeBehavior: {
+          type: "string",
+          enum: ["reactivate", "double_opt_in"],
+          description:
+            "What happens when a contact who unsubscribed from all email submits this popup again. reactivate (the default) resubscribes them and restores the popup's lists; double_opt_in sends a confirmation email first and resubscribes them when they confirm. Workspace double opt-in always requires confirmation. duplicateStrategy never changes subscription status.",
+        },
+        botProtection: {
+          type: "boolean",
+          description:
+            "Turn on a Cloudflare Turnstile bot check before each signup. It runs invisibly for most visitors; signups that fail it must confirm by email before they are subscribed; turning it on requires a double opt-in confirmation email and a sender profile, otherwise the API returns 400. Omit to keep the current setting.",
+        },
         headline: {
           type: "string",
           description:
@@ -300,6 +330,11 @@ export const savedPopupToolDefinitions: Tool[] = [
           description: POPUP_VISUAL_DESCRIPTION,
           additionalProperties: true,
         },
+        reward: {
+          type: "object",
+          description: POPUP_REWARD_DESCRIPTION,
+          additionalProperties: true,
+        },
         theme: {
           type: "object",
           description: POPUP_THEME_DESCRIPTION,
@@ -318,7 +353,7 @@ export const savedPopupToolDefinitions: Tool[] = [
   {
     name: "get_popup_embed",
     description:
-      "Get a published popup's script URL and ready-to-paste embed snippets for plain HTML, React/Next.js, WordPress, and Shopify. The snippet contains no API key - the trigger, targeting, and audience rules stay server-side.",
+      "Get a published popup's script URL and ready-to-paste embed snippets for plain HTML, React/Next.js, WordPress, and Shopify. The snippet contains no API key - the trigger, targeting, and audience rules stay server-side. For a Webflow-connected company, returns embed.disabled plus the native Webflow settings path and no custom code.",
     inputSchema: {
       type: "object",
       properties: {

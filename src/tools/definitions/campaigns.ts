@@ -1,6 +1,7 @@
 import type { Tool } from "../../mcp-types.js";
 import {
   campaignEmailPresetSchema,
+  campaignMaxRecipientsFieldDescription,
   campaignSendTimeOptimizationFieldDescription,
   campaignSendTimeWindowHoursFieldDescription,
   campaignStoListFieldsHint,
@@ -10,6 +11,38 @@ import {
   replyToNameDescription,
   senderFromNameDescription,
 } from "../internal.js";
+
+import { createCampaignForAudienceTool } from "./campaign-audience-selection.js";
+
+const campaignAttachmentItemSchema = {
+  type: "object",
+  properties: {
+    filename: {
+      type: "string",
+      description:
+        "Name recipients see, such as report.pdf. Its extension sets the file type when contentType is omitted.",
+    },
+    content: {
+      type: "string",
+      description:
+        "Base64 file content. Sequenzy stores the file and returns a path. Provide content or path, not both.",
+    },
+    path: {
+      type: "string",
+      description:
+        "Public HTTP(S) URL fetched when the campaign starts sending. Provide content or path, not both.",
+    },
+    contentType: {
+      type: "string",
+      description:
+        "MIME type for Base64 content, such as application/pdf. PDF, Office, ZIP, image, audio, video and text files are accepted; HTML and SVG are not.",
+    },
+  },
+  required: ["filename"],
+} as const;
+
+const campaignAttachmentsDescription =
+  "Files attached to every recipient's email, including CC/BCC copies and test sends: up to 10 files and 5MB in total. Each item has a filename plus Base64 `content` or a public `path` URL. Inline images (contentId) are not supported on campaigns. If a file cannot be fetched or is too large when sending starts, nothing is sent and the campaign returns to draft.";
 
 /**
  * Shared JSON schema for `targetLists` arguments so agents can discover the
@@ -56,13 +89,25 @@ function buildTargetListsInputSchema(
         type: "array",
         items: { type: "object" },
         description:
-          "Include rules. Required when type is 'rules'; at least one is needed to schedule. Each rule is {type:'all'} | {type:'lists', listIds:[...]} | {type:'segments', segmentIds:[...]} | {type:'filtered', filters:[...]}.",
+          "Include rules. Required when type is 'rules'; an include rule or explicit includedSubscriberIds are needed to schedule. Each rule is {type:'all'} | {type:'lists', listIds:[...]} | {type:'segments', segmentIds:[...]} | {type:'filtered', filters:[...]}.",
       },
       exclude: {
         type: "array",
         items: { type: "object" },
         description:
           "Exclude rules for type 'rules'. Optional. Same shapes as include except {type:'all'}.",
+      },
+      includedSubscriberIds: {
+        type: "array",
+        items: { type: "string" },
+        description:
+          "Explicit selected contacts, including frozen groups from create_campaign_for_audience. An empty include array is allowed when these IDs are present.",
+      },
+      excludedSubscriberIds: {
+        type: "array",
+        items: { type: "string" },
+        description:
+          "Individual contacts to exclude from the audience. Explicit includedSubscriberIds override exclusions; remove a contact from that array to exclude it from a frozen group.",
       },
     },
     required: ["type"],
@@ -71,6 +116,7 @@ function buildTargetListsInputSchema(
 }
 
 export const campaignToolDefinitions: Tool[] = [
+  createCampaignForAudienceTool,
   // ============================================================================
   // Campaigns
   // ============================================================================
@@ -110,7 +156,7 @@ export const campaignToolDefinitions: Tool[] = [
   },
   {
     name: "get_campaign",
-    description: `Get campaign details and stats, including rejectionComment reviewer feedback for rejected campaigns. \`emailId\` is the campaign's linked email body - the same record returned by the templates tools - and can be passed as templateId to create_campaign to reuse the design; it is null for SMS campaigns. \`emailPreset\` reports that email's Style > Format the same way get_sequence does per step (branded or minimal; null for SMS campaigns and standalone raw HTML emails), so campaign chrome can be compared against sequence steps and transactional templates without rendering them - minimal suppresses the company logo at render time. \`targetLists\` holds the raw audience targeting (IDs only); call get_campaign_audience for resolved list/segment names and a recipient count. Note that \`computedLists\` is email personalization (product lists rendered inside the email), not audience targeting. For native sends, \`sentAt\` is stamped when the last recipient is handed off, so on a paced send it is the end of the delivery window; \`spreadOverHours\`, \`sendTimeOptimization\`, and \`sendTimeWindowHours\` report recorded pacing. Change draft pacing with update_campaign, or apply it when calling schedule_campaign. ${
+    description: `Get campaign details and stats, including rejectionComment reviewer feedback for rejected campaigns. \`emailId\` is the campaign's linked email body - the same record returned by the templates tools - and can be passed as templateId to create_campaign to reuse the design; it is null for SMS campaigns. \`emailPreset\` reports that email's Style > Format the same way get_sequence does per step (branded or minimal; null for SMS campaigns and standalone raw HTML emails), so campaign chrome can be compared against sequence steps and transactional templates without rendering them - minimal suppresses the company logo at render time. \`targetLists\` holds the raw audience targeting (IDs only); call get_campaign_audience for resolved list/segment names and a recipient count. Note that \`computedLists\` is email personalization (product lists rendered inside the email), not audience targeting. For native sends, \`sentAt\` is stamped when the last recipient is handed off, so on a paced send it is the end of the delivery window; \`spreadOverHours\`, \`sendTimeOptimization\`, and \`sendTimeWindowHours\` report recorded pacing, and \`maxRecipients\` reports the recipient cap (null = whole audience). Change draft pacing or the cap with update_campaign, or apply them when calling schedule_campaign. ${
       campaignStoNotCompanyOrSequenceHint
     } Imported campaigns may not include pacing metadata from their source provider, so absent pacing fields do not prove that delivery happened all at once.`,
     inputSchema: {
@@ -194,7 +240,7 @@ export const campaignToolDefinitions: Tool[] = [
   {
     name: "list_email_sends",
     description:
-      "List and filter the recent sent-email delivery history shown in the dashboard. Search subject/title or recipient, filter by delivery status, email type, bounce type, or source ID, then pass a returned emailSendId to get_email_send for exact open/click timestamps and the complete event timeline. Each row carries recipientEmail, subscriberId, automationNodeId, abTestVariantId, and sent/delivered/opened/clicked timestamps, so rows join into a recipient-level delivery matrix without re-reading the raw event stream. Pass automationNodeId to list only the recipients of one sequence step. Delivery rows are retained for 14 days, so this is the wrong tool for send totals: read get_sequence_stats steps[] or list_email_metrics, which cover the full retained event window. Successful live-test and other test sends are omitted so they do not bury real deliveries; only failed, bounced, or suppressed test sends appear. Replies to those test sends show in list_conversations only when inbound reply capture is enabled; otherwise the send uses the original Reply-To and Sequenzy never sees the reply.",
+      "List and filter the recent sent-email delivery history shown in the dashboard. Search subject/title or recipient, filter by delivery status, email type, bounce type, source ID, recipient mailbox provider, or list membership, then pass a returned emailSendId to get_email_send for exact open/click timestamps and the complete event timeline. Each row carries recipientEmail, subscriberId, automationNodeId, abTestVariantId, and sent/delivered/opened/clicked timestamps, so rows join into a recipient-level delivery matrix without re-reading the raw event stream. Pass automationNodeId to list only the recipients of one sequence step. Delivery rows are retained for 14 days, so this is the wrong tool for send totals: read get_sequence_stats steps[] or list_email_metrics, which cover the full retained event window. Successful live-test and other test sends are omitted so they do not bury real deliveries; only failed, bounced, or suppressed test sends appear. Replies to those test sends show in list_conversations only when inbound reply capture is enabled; otherwise the send uses the original Reply-To and Sequenzy never sees the reply.",
     inputSchema: {
       type: "object",
       properties: {
@@ -227,7 +273,8 @@ export const campaignToolDefinitions: Tool[] = [
         },
         bounceType: {
           type: "string",
-          description: "Bounce type: Permanent or Transient.",
+          description:
+            "Bounce type: Permanent, Transient, Soft, or Blocked. Transient is every temporary bounce; Blocked is the part the receiver refused on content, policy, or reputation grounds, and Soft is the rest.",
         },
         campaignId: {
           type: "string",
@@ -245,6 +292,16 @@ export const campaignToolDefinitions: Tool[] = [
           type: "string",
           description:
             "Filter deliveries from one email step of a sequence, using the nodeId from get_sequence_stats steps[] or get_sequence nodes.",
+        },
+        mailboxProvider: {
+          type: "string",
+          description:
+            "Recipient mailbox provider, with the same values and domain classification as the analytics mailboxProvider filter (e.g. gmail, microsoft, yahoo, icloud, orange). Use it to list the deliveries behind a provider's analytics numbers. `other` matches every domain outside the named providers.",
+        },
+        listId: {
+          type: "string",
+          description:
+            "Only deliveries to active subscribers currently on this list (list ID from list_lists), the same audience the analytics list filter uses.",
         },
         days: {
           type: "number",
@@ -293,7 +350,7 @@ export const campaignToolDefinitions: Tool[] = [
   {
     name: "create_campaign",
     description:
-      "Create a new campaign. Omit all content fields to create an empty draft. For net-new natural-language content use `prompt`; do not author HTML or blocks. `blocks` are finished caller-supplied Sequenzy content and `html` is preserved/imported markup. Pass `emailPreset` with native blocks to set Style > Format (minimal or branded); `style` is a prompt-generation hint only. Defaults to draft; status 'sent' only archives an already-sent campaign.",
+      "Create a new campaign. Omit all content fields to create an empty draft. `prompt` generates net-new content from natural language. `blocks` are finished caller-supplied Sequenzy content and `html` is preserved/imported markup. Pass `emailPreset` with native blocks to set Style > Format (minimal or branded); `style` is a prompt-generation hint only. Defaults to draft; status 'sent' only archives an already-sent campaign.",
     inputSchema: {
       type: "object",
       properties: {
@@ -425,13 +482,19 @@ export const campaignToolDefinitions: Tool[] = [
             type: "string",
           },
         },
+        attachments: {
+          type: "array",
+          description: campaignAttachmentsDescription,
+          items: campaignAttachmentItemSchema,
+          maxItems: 10,
+        },
       },
       required: ["name"],
     },
   },
   {
     name: "update_campaign",
-    description: `Update a draft campaign's content, audience, sending identity, labels, Style > Format, or delivery pacing. Pass emailPreset to change Style > Format on native blocks without rewriting copy. sendTimeOptimization and sendTimeWindowHours persist on the draft and are used when the campaign is later scheduled unless schedule_campaign overrides them. ${
+    description: `Update a draft campaign's content, audience, sending identity, labels, Style > Format, delivery pacing, or recipient limit. Pass emailPreset to change Style > Format on native blocks without rewriting copy. sendTimeOptimization, sendTimeWindowHours and maxRecipients persist on the draft and are used when the campaign is later scheduled unless schedule_campaign overrides them. ${
       campaignStoNotCompanyOrSequenceHint
     }`,
     inputSchema: {
@@ -557,6 +620,16 @@ export const campaignToolDefinitions: Tool[] = [
           type: "number",
           description: campaignSendTimeWindowHoursFieldDescription,
         },
+        maxRecipients: {
+          type: ["number", "null"],
+          description: campaignMaxRecipientsFieldDescription,
+        },
+        attachments: {
+          type: ["array", "null"],
+          description: `${campaignAttachmentsDescription} Replaces the saved list; send an empty array or null to remove every attachment, or omit to leave them unchanged.`,
+          items: campaignAttachmentItemSchema,
+          maxItems: 10,
+        },
       },
       required: ["campaignId"],
       additionalProperties: false,
@@ -565,7 +638,7 @@ export const campaignToolDefinitions: Tool[] = [
   {
     name: "schedule_campaign",
     description:
-      "Schedule a draft or already scheduled campaign as a one-off send or on a repeating weekly/monthly cadence via `recurringInterval`. The campaign must have a non-empty subject, at least one content block, and at least one audience include rule. Use `recurringInterval` for newsletters that go out on a fixed schedule instead of creating one campaign per issue. Send Time Optimization (sendTimeOptimization) delivers each recipient at their predicted best hour within sendTimeWindowHours of scheduledAt (default 12h, max 24); it is campaign-only and is not available on sequences. spreadOverHours takes precedence and turns STO off; sendInRecipientTimezone also turns it off. Returns dashboard edit and preview URLs; validation errors explain what must be fixed before retrying.",
+      "Schedule a draft or already scheduled campaign as a one-off send or on a repeating weekly/monthly cadence via `recurringInterval`. The campaign must have a non-empty subject, at least one content block, and at least one audience include rule or an explicit selected contact. Use `recurringInterval` for newsletters that go out on a fixed schedule instead of creating one campaign per issue. Send Time Optimization (sendTimeOptimization) delivers each recipient at their predicted best hour within sendTimeWindowHours of scheduledAt (default 12h, max 24); it is campaign-only and is not available on sequences. spreadOverHours takes precedence and turns STO off; sendInRecipientTimezone also turns it off. Returns dashboard edit and preview URLs; validation errors explain what must be fixed before retrying. Only draft or scheduled campaigns can be scheduled, so a repeat call replaces the schedule and cannot send the campaign twice. Check `status` in the result: `waiting_approval` means the campaign is held for safety review (new senders get an automated screen that can take up to about two minutes; flagged content waits for a person). That is a normal outcome, not an error: report it and poll get_campaign for `scheduled` or `rejected` (with rejectionComment) instead of scheduling again, which does not clear the hold.",
     inputSchema: {
       type: "object",
       properties: {
@@ -584,7 +657,7 @@ export const campaignToolDefinitions: Tool[] = [
             "Future ISO 8601 timestamp for the send, for example 2026-06-01T14:00:00Z.",
         },
         targetLists: buildTargetListsInputSchema(
-          "Optional campaign targeting object. Omit to use saved targeting - or, when none is saved, ALL active subscribers. Examples: {type:'all'}, {type:'lists', listIds:['list_123']}, {type:'segment', segmentId:'seg_123'}, {type:'filtered', filters:[...], filterJoinOperator:'and'}, or {type:'rules', include:[{type:'lists', listIds:['list_123']}], exclude:[{type:'segments', segmentIds:['seg_123']}]}. Rules audiences require at least one include rule. Mutually exclusive with `listIds`."
+          "Optional campaign targeting object. Omit to use saved targeting - or, when none is saved, ALL active subscribers. Examples: {type:'all'}, {type:'lists', listIds:['list_123']}, {type:'segment', segmentId:'seg_123'}, {type:'filtered', filters:[...], filterJoinOperator:'and'}, or {type:'rules', include:[{type:'lists', listIds:['list_123']}], exclude:[{type:'segments', segmentIds:['seg_123']}]}. Rules audiences require at least one include rule or a nonempty includedSubscriberIds array. Mutually exclusive with `listIds`."
         ),
         listIds: {
           type: "array",
@@ -604,6 +677,10 @@ export const campaignToolDefinitions: Tool[] = [
           type: "number",
           description:
             "Spread delivery over an integer number of hours from 1 to 72. When set, spread delivery takes precedence over send-time optimization.",
+        },
+        maxRecipients: {
+          type: ["number", "null"],
+          description: `${campaignMaxRecipientsFieldDescription} Omit to keep the draft's saved cap. For A/B tests, allow at least one recipient per variant plus one for the winner; smaller limits are rejected before scheduling.`,
         },
         sendInRecipientTimezone: {
           type: "boolean",
@@ -629,7 +706,7 @@ export const campaignToolDefinitions: Tool[] = [
   {
     name: "send_test_email",
     description:
-      "Queue a campaign test email to a single address. Returns a durable emailSendId; pass it to get_email_send for delivery status and failure details.",
+      "Queue a campaign test email to a single address. Returns a durable emailSendId; pass it to get_email_send for delivery status and failure details. Each successful call queues another test email.",
     inputSchema: {
       type: "object",
       properties: {
@@ -789,7 +866,7 @@ export const campaignToolDefinitions: Tool[] = [
   {
     name: "resend_campaign_to_non_openers",
     description:
-      "Create a draft that resends a sent campaign to everyone in the same audience who didn't open it. Copies the campaign email and reuses the original audience with a 'didn't open this campaign' rule added. Only available 6 hours after the campaign finishes sending, and never for imported already-sent campaigns (Sequenzy has no opens for a send it did not deliver). The draft must be scheduled or sent separately. Returns the new draft and an estimate of how many subscribers haven't opened the original.",
+      "Create a draft that resends a sent campaign to everyone in the same audience who didn't open it. Copies the campaign email and reuses the original audience with a 'didn't open this campaign' rule added. Only available 6 hours after the campaign finishes sending, and never for imported already-sent campaigns (Sequenzy has no opens for a send it did not deliver). The draft must be scheduled or sent separately. Returns the new draft and an estimate of how many subscribers haven't opened the original. Every audience format preserves hard opener exclusions, including earlier campaigns when resending a resend; manual additions cannot override them. Audience membership is live, so new members can qualify. Recreate older drafts missing excludedCampaignOpenerIds from the original campaign and review before scheduling.",
     inputSchema: {
       type: "object",
       properties: {

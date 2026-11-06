@@ -5,10 +5,13 @@ import {
   assertOpenAiInputPolicy,
   OPENAI_EXCLUDED_TOOL_NAMES,
   OPENAI_RESTRICTED_DATA_NOTICE,
+  OPENAI_TOOL_RENAMES,
   projectOpenAiToolResult,
   withOpenAiToolProfile,
 } from "./openai-profile.js";
 import { withToolOutputSchema } from "./output-schemas.js";
+import { getToolsForProfile } from "./profiles.js";
+import { collapseRepeatedSchemas } from "./schema-collapse.js";
 import { withRequiredToolHints } from "./tool-hints.js";
 
 function openAiTools() {
@@ -32,13 +35,105 @@ function findSchemaKeyword(value: unknown, keyword: string): boolean {
   );
 }
 
+describe("OpenAI tools/list size", () => {
+  it("omits output schemas and stays under 1 MB", () => {
+    const tools = openAiTools();
+    expect(tools.filter((tool) => tool.outputSchema)).toEqual([]);
+    expect(
+      toolDefinitions
+        .map(withToolOutputSchema)
+        .some((tool) => tool.outputSchema)
+    ).toBe(true);
+    // OpenAI's hard limit is 1 MB. Measure what tools/list actually serves:
+    // split tools, effects sentences and UTF-8 bytes included.
+    const listed = getToolsForProfile(
+      toolDefinitions.map(withToolOutputSchema).map(withRequiredToolHints),
+      "openai"
+    );
+    expect(
+      new TextEncoder().encode(JSON.stringify({ tools: listed })).length
+    ).toBeLessThan(1_000_000);
+    const updateSequence = tools.find(
+      (tool) => tool.name === "update_sequence"
+    );
+    expect(JSON.stringify(updateSequence?.inputSchema)).toContain(
+      "Same schema as `branch.branches[].steps` in this tool."
+    );
+  });
+
+  it("collapses large repeated subtrees after their first use", () => {
+    const big = {
+      type: "object",
+      properties: { text: { type: "string", description: "x".repeat(5000) } },
+    };
+    const small = { type: "string", description: "short" };
+    const collapsed = collapseRepeatedSchemas({
+      type: "object",
+      properties: {
+        first: { ...big, description: "First copy." },
+        nested: {
+          type: "array",
+          items: { ...big, description: "Second copy." },
+        },
+        a: small,
+        b: small,
+      },
+    });
+
+    expect(collapsed.properties?.["first"]).toEqual({
+      ...big,
+      description: "First copy.",
+    });
+    expect(collapsed.properties?.["nested"]).toEqual({
+      type: "array",
+      items: {
+        type: "object",
+        description: "Second copy. Same schema as `first` in this tool.",
+      },
+    });
+    expect(collapsed.properties?.["b"]).toEqual(small);
+  });
+});
+
+describe("OpenAI product tools", () => {
+  it("describe catalog-only commerce and drop local uploads", () => {
+    const tools = openAiTools();
+    const attach = tools.find((tool) => tool.name === "attach_product_file");
+    const upsert = tools.find((tool) => tool.name === "upsert_products");
+    expect(attach?.inputSchema.properties).not.toHaveProperty("filePath");
+    expect(attach?.inputSchema.required).toEqual(["productId"]);
+    for (const tool of [attach, upsert]) {
+      expect(tool?.description).toContain(
+        "does not sell products or take payments"
+      );
+    }
+    expect(upsert?.description).toContain("back-in-stock emails");
+    const standard = toolDefinitions.find(
+      (tool) => tool.name === "attach_product_file"
+    );
+    expect(standard?.inputSchema.properties).toHaveProperty("filePath");
+  });
+});
+
+describe("OpenAI integration capabilities", () => {
+  it("describes providers without comparing them or steering the model", () => {
+    const tool = openAiTools().find(
+      (candidate) => candidate.name === "list_integration_capabilities"
+    );
+    expect(tool?.description).toContain("Stripe, Shopify or Clerk");
+    expect(tool?.description).not.toMatch(
+      /compare|recommend|sharply|only Shopify|rather than assuming/i
+    );
+  });
+});
+
 describe("OpenAI MCP profile", () => {
   it("keeps every standard tool except the narrow reviewed-route denylist", () => {
     const standardNames = new Set(toolDefinitions.map((tool) => tool.name));
     const openAiNames = new Set(openAiTools().map((tool) => tool.name));
 
     for (const toolName of standardNames) {
-      expect(openAiNames.has(toolName)).toBe(
+      expect(openAiNames.has(OPENAI_TOOL_RENAMES[toolName] ?? toolName)).toBe(
         !OPENAI_EXCLUDED_TOOL_NAMES.has(toolName)
       );
     }
@@ -53,9 +148,10 @@ describe("OpenAI MCP profile", () => {
     );
     expect(openAiNames.has("create_api_key")).toBe(false);
     expect(openAiNames.has("create_webhook")).toBe(false);
-    expect(openAiNames.has("list_api_keys")).toBe(true);
+    expect(openAiNames.has("list_api_keys")).toBe(false);
+    expect(openAiNames.has("request_api_key_handoff")).toBe(false);
     expect(openAiNames.has("list_integrations")).toBe(true);
-    expect(openAiNames.has("submit_feedback")).toBe(true);
+    expect(openAiNames.has("submit_feedback")).toBe(false);
   });
 
   it("publishes plain object schemas without unsupported composition", () => {
@@ -102,30 +198,9 @@ describe("OpenAI MCP profile", () => {
     expect(
       (
         openAiSubscriber?.inputSchema.properties?.customAttributes as
-          | { description?: string }
-          | undefined
+          { description?: string } | undefined
       )?.description
     ).toContain(OPENAI_RESTRICTED_DATA_NOTICE);
-  });
-
-  it("reduces OpenAI feedback to generalized, explicitly disclosed fields", () => {
-    const standard = toolDefinitions.find(
-      (tool) => tool.name === "submit_feedback"
-    );
-    expect(standard).toBeDefined();
-
-    const openAi = withOpenAiToolProfile(
-      withToolOutputSchema(standard as NonNullable<typeof standard>)
-    );
-    expect(Object.keys(openAi?.inputSchema.properties ?? {})).toEqual([
-      "companyId",
-      "message",
-      "category",
-      "context",
-    ]);
-    expect(openAi?.inputSchema.additionalProperties).toBe(false);
-    expect(standard?.inputSchema.properties).toHaveProperty("message");
-    expect(standard?.inputSchema.properties).toHaveProperty("resourceIds");
   });
 
   it("scans protected data fields but leaves campaign copy alone", () => {
@@ -634,6 +709,63 @@ describe("OpenAI MCP profile", () => {
     });
   });
 
+  it("drops restricted attribute records from the attribute listing", () => {
+    const projected = projectOpenAiToolResult("list_subscriber_attributes", {
+      success: true,
+      attributes: [
+        {
+          key: "ssn",
+          valueType: "string",
+          isArray: false,
+          sampleValue: "111-22-3333",
+          sampledContacts: 4,
+        },
+        {
+          key: "latitude",
+          valueType: "number",
+          isArray: false,
+          sampleValue: "38.7223",
+          sampledContacts: 2,
+        },
+        {
+          key: "plan",
+          valueType: "string",
+          isArray: false,
+          sampleValue: "pro",
+          sampledContacts: 9,
+        },
+      ],
+      sampledContacts: 10,
+    }) as { attributes: Array<{ key: string }>; sampledContacts: number };
+
+    expect(projected.attributes.map((attribute) => attribute.key)).toEqual([
+      "plan",
+    ]);
+    expect(projected.sampledContacts).toBe(10);
+  });
+
+  it("keeps a custom attribute named key in attribute maps", () => {
+    expect(() =>
+      assertOpenAiInputPolicy("add_subscriber", {
+        email: "person@example.com",
+        attributes: { key: "token", plan: "pro" },
+      })
+    ).not.toThrow();
+
+    const projected = projectOpenAiToolResult("update_subscriber", {
+      subscriber: {
+        email: "person@example.com",
+        attributes: { key: "pin", plan: "pro" },
+      },
+    });
+    expect(projected).toEqual({
+      subscriber: {
+        email: "person@example.com",
+        attributes: { key: "pin", plan: "pro" },
+      },
+    });
+  });
+
   it("blocks common coordinate key shapes as precise geolocation", () => {
     for (const attributes of [
       { lat: 38.7223, lng: -9.1393 },
@@ -713,43 +845,6 @@ describe("OpenAI MCP profile", () => {
           "https://cdn.example.test/logo.png?X-Amz-Credential=AKIAEXAMPLE%2F20260903%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Signature=0123456789abcdef",
       })
     ).toThrow("authentication credentials or secrets");
-  });
-
-  it("blocks subscriber and account identifiers in OpenAI feedback", () => {
-    expect(() =>
-      assertOpenAiInputPolicy("submit_feedback", {
-        message: "Campaign for person@example.com failed",
-      })
-    ).toThrow("an email address");
-
-    expect(() =>
-      assertOpenAiInputPolicy("submit_feedback", {
-        message: "Scheduling failed",
-        context: "Tried update_campaign on tz4a98xxat96iws9zmbrgj3a",
-      })
-    ).toThrow("a resource ID");
-
-    expect(() =>
-      assertOpenAiInputPolicy("submit_feedback", {
-        message: "Subscriber 6f1c2d3e-4b5a-4c6d-8e7f-9a0b1c2d3e4f was skipped",
-      })
-    ).toThrow("a UUID");
-
-    expect(() =>
-      assertOpenAiInputPolicy("submit_feedback", {
-        message:
-          "schedule_campaign rejected a 2026-09-03 send even though the campaign was ready.",
-        category: "bug",
-        context: "Tried schedule_campaign then update_campaign.",
-      })
-    ).not.toThrow();
-
-    // Standard MCP keeps its structured resourceIds field; only the OpenAI
-    // profile promises identifier-free feedback.
-    const standard = toolDefinitions.find(
-      (tool) => tool.name === "submit_feedback"
-    );
-    expect(standard?.inputSchema.properties).toHaveProperty("resourceIds");
   });
 
   it("blocks demographic and geolocation prose in free text on input and output", () => {
@@ -1089,8 +1184,7 @@ describe("OpenAI MCP profile", () => {
     expect(
       (
         openAi?.inputSchema.properties?.fieldValues as
-          | { description?: string }
-          | undefined
+          { description?: string } | undefined
       )?.description
     ).toContain("fieldPath is required");
 

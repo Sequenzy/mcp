@@ -1,6 +1,11 @@
 import { describe, expect, it } from "bun:test";
 
-import { formatMcpError, McpApiError } from "./error-output.js";
+import {
+  buildMcpErrorResult,
+  formatMcpError,
+  MCP_SIGNUP_URL,
+  McpApiError,
+} from "./error-output.js";
 
 describe("formatMcpError", () => {
   it("formats missing MCP API key errors with setup guidance", () => {
@@ -15,6 +20,10 @@ describe("formatMcpError", () => {
 
     expect(message).toContain("Sequenzy MCP error: Missing MCP API key");
     expect(message).toContain("npx @sequenzy/setup");
+    expect(message).toContain(MCP_SIGNUP_URL);
+    expect(MCP_SIGNUP_URL).toBe(
+      "https://sequenzy.com/sign-up?utm_source=mcp&utm_medium=mcp-no-key"
+    );
     expect(message).toContain("https://docs.sequenzy.com/concepts/mcp");
   });
 
@@ -75,6 +84,9 @@ describe("formatMcpError", () => {
     expect(message).toContain("REPLACE the whole selection");
     expect(message).toContain("retry the same tool call");
     expect(message).not.toContain("cannot be edited in place");
+    expect(message).toContain(
+      "https://docs.sequenzy.com/concepts/mcp-permissions#recover-from-missing-permissions"
+    );
   });
 
   it("formats multiple missing read scopes with safe preset guidance", () => {
@@ -271,7 +283,147 @@ describe("formatMcpError", () => {
     expect(message).toContain("confirmLiveChange");
     expect(message).toContain("Safer agent access");
     expect(message).toContain(
-      "https://docs.sequenzy.com/concepts/mcp#editing-the-content-of-a-sequence-ab-step"
+      "https://docs.sequenzy.com/concepts/mcp-tools#editing-the-content-of-a-sequence-ab-step"
     );
+  });
+});
+
+describe("structured MCP errors", () => {
+  it("includes safe recovery fields, status, API code and retry hint", () => {
+    expect(
+      buildMcpErrorResult(
+        new McpApiError(
+          "slow down",
+          429,
+          "private",
+          "RATE_LIMITED",
+          undefined,
+          4
+        )
+      )
+    ).toMatchObject({
+      success: false,
+      error: { code: "RATE_LIMITED", statusCode: 429, retryAfterSeconds: 4 },
+    });
+    expect(
+      JSON.stringify(
+        buildMcpErrorResult(new McpApiError("slow down", 429, "private"))
+      )
+    ).not.toContain("private");
+  });
+  it("omits unavailable status and retry information for local failures", () => {
+    expect(buildMcpErrorResult(new Error("name is required"))).toMatchObject({
+      success: false,
+      error: { code: "TOOL_ERROR" },
+    });
+    expect(buildMcpErrorResult("unknown").error).not.toHaveProperty(
+      "statusCode"
+    );
+    expect(buildMcpErrorResult(new Error("unknown")).error).not.toHaveProperty(
+      "retryAfterSeconds"
+    );
+  });
+  it("does not echo backend messages, details or context into the strict profile", () => {
+    const failure = new McpApiError(
+      "alice@example.com seq_user_supersecret123",
+      403,
+      "private subscriber data",
+      "FORBIDDEN",
+      {
+        title: "private title",
+        description: "private description",
+        howToFix: "private recovery",
+        docsUrl: "https://private.example",
+      }
+    );
+    const result = buildMcpErrorResult(failure, { includeDetails: false });
+    expect(result.error.code).toBe("FORBIDDEN");
+    const serialized = JSON.stringify(result);
+    for (const secret of [
+      "alice@example.com",
+      "seq_user_supersecret123",
+      "private",
+    ])
+      expect(serialized).not.toContain(secret);
+    expect(result.error.docsUrl).toContain("docs.sequenzy.com");
+    expect(buildMcpErrorResult(failure).error.message).toBe(
+      "private description"
+    );
+  });
+});
+
+it("strict-profile machine codes cannot echo sensitive API data", () => {
+  for (const code of [
+    "SSN_123_45_6789",
+    "CARD_4111111111111111",
+    "SECRET_TOKEN_ABC123456789",
+  ]) {
+    const failure = new McpApiError("private", 403, undefined, code);
+    expect(
+      buildMcpErrorResult(failure, { includeDetails: false }).error.code
+    ).toBe("FORBIDDEN");
+    expect(buildMcpErrorResult(failure).error.code).toBe(code);
+  }
+});
+
+describe("segment reference limit errors", () => {
+  // The API body a too-deep segment count returns, as the MCP runtime parses it.
+  const apiFailure = (code: string) =>
+    new McpApiError(
+      "Segment references are nested too deeply. A segment filter can reference other segments up to 16 levels deep, and the reference to segment seg_q would be level 17 (chain: seg_b > seg_q).",
+      400,
+      '{"limit":"depth","segmentId":"seg_q","referenceChain":["seg_b"],"maxDepth":16,"maxReferences":1000}',
+      code,
+      {
+        title: "Segment references nested too deeply",
+        description:
+          "Segment references are nested too deeply. A segment filter can reference other segments up to 16 levels deep, and the reference to segment seg_q would be level 17 (chain: seg_b > seg_q).",
+        howToFix:
+          "Copy the conditions of an inner segment into its parent instead of referencing it to reduce the nesting.",
+      }
+    );
+
+  it("shows the API explanation, fix and details in the full profile", () => {
+    const message = formatMcpError(
+      apiFailure("SEGMENT_REFERENCE_DEPTH_EXCEEDED")
+    );
+
+    expect(message).toContain(
+      "Sequenzy MCP error: Segment references nested too deeply"
+    );
+    expect(message).toContain("chain: seg_b > seg_q");
+    expect(message).toContain("Copy the conditions of an inner segment");
+    expect(message).toContain('"segmentId":"seg_q"');
+  });
+
+  it("keeps actionable guidance and the code in the strict profile", () => {
+    for (const code of [
+      "SEGMENT_REFERENCE_DEPTH_EXCEEDED",
+      "SEGMENT_REFERENCE_COUNT_EXCEEDED",
+    ]) {
+      const result = buildMcpErrorResult(apiFailure(code), {
+        includeDetails: false,
+      });
+
+      expect(result.error).toMatchObject({
+        code,
+        statusCode: 400,
+        howToFix: expect.stringContaining("Retrying will not help"),
+        docsUrl: expect.stringContaining("/api-reference/segments/count"),
+      });
+      expect(JSON.stringify(result)).not.toContain("seg_q");
+    }
+  });
+
+  it("gives total-reference failures their own guidance in the strict profile", () => {
+    const text = formatMcpError(
+      apiFailure("SEGMENT_REFERENCE_COUNT_EXCEEDED"),
+      { includeDetails: false }
+    );
+
+    expect(text).toContain("Sequenzy MCP error: Too many segment references");
+    expect(text).toContain("reference fewer segments");
+    expect(text).not.toContain("nested too deeply");
+    expect(text).not.toContain("shallower");
   });
 });

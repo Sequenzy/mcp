@@ -10,11 +10,9 @@ export const accountToolDefinitions: Tool[] = [
   // ============================================================================
   {
     name: "get_account",
-    description: `Get current account information including available companies, the current API key's permission scopes, and the API Keys management URL. Call this after a missing-scope error to inspect access and find the replacement-key settings. IMPORTANT: If you have access to multiple companies, you MUST either:
-1. Call select_company first to choose which company to work with, OR
-2. Pass companyId explicitly in each tool call
+    description: `Get your own Sequenzy account information (not your customers' B2B accounts; use list_accounts for those) including available companies, the current API key's permission scopes, and the API Keys management URL. Useful after a missing-scope error to inspect access and find the replacement-key settings. When the key has access to multiple companies, other tools need a target company: either one selected with select_company or a companyId passed in each call.
 
-The response shows 'companies' (all available) and 'selectedCompanyId' (currently active). All subsequent operations will use the selected company unless you pass a companyId override.`,
+The response shows 'companies' (all available) and 'selectedCompanyId' (currently active). Subsequent operations use the selected company unless a companyId override is passed.`,
     inputSchema: {
       type: "object",
       properties: {},
@@ -95,7 +93,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "create_company",
     description:
-      "Create a new company/brand. Requires a personal account key (seq_user_...); a company/workspace-scoped key (seq_live_.../ek_...) is bound to its one company and is rejected, because it could never access the company it created. This will parse your website to extract brand information. The tool polls every 20 seconds until the company is fully processed (typically 30-60 seconds).",
+      "Create a company with a website domain, or set noWebsite and provide a name. Optionally provide a business description and create a four-email welcome sequence. Requires a personal account key (seq_user_...); company-scoped keys cannot create another workspace. Website creation queues brand processing and this tool polls for completion.",
     inputSchema: {
       type: "object",
       properties: {
@@ -106,15 +104,43 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
         },
         domain: {
           type: "string",
-          description: "The company's website domain (e.g., example.com)",
+          description:
+            "Website domain (e.g., example.com). Required unless noWebsite is true.",
+        },
+        noWebsite: {
+          type: "boolean",
+          description:
+            "Set true to create without a website; requires name when domain is omitted.",
+        },
+        description: {
+          type: "string",
+          description:
+            "Optional business description (up to 500 characters). With a domain, website processing may replace it with the site's own description.",
+        },
+        withWelcomeSequence: {
+          type: "boolean",
+          description:
+            "Set true to create and queue generation of a four-email welcome sequence. Defaults to false.",
+        },
+        websiteType: {
+          type: "string",
+          enum: [
+            "saas",
+            "content",
+            "ecommerce",
+            "offline",
+            "mobile_app",
+            "other",
+          ],
+          description:
+            "Company category, recorded as the user's choice. mobile_app is for iOS/Android apps (typically with RevenueCat, Superwall or Adapty): it recommends push-first mobile journeys from list_sequence_templates. Omit to let website processing detect it.",
         },
       },
-      required: ["domain"],
     },
   },
   {
     name: "get_company",
-    description: `Get company details, processing status, product info, brand colors, AI writing context, reply-tracking settings, effective email localization settings, and the read-only emailBranding entitlement. emailBranding says whether "Sent with Sequenzy" is visible, whether the owner subscription removes it, why, the current tier/status, the required upgrade or renewal action, and the canonical subscriptionUrl. Branding is injected at render/send time rather than stored in footer blocks, so a paid entitlement removes it from future sends by existing live sequences without editing their emails. Also returns defaultSubscriberListIds - the workspace default lists new contacts join when nothing targets them explicitly. A JSON null means every current and future list, not an empty selection; [] means no list at all; an array means exactly those lists. Change it with update_company. Read it before connecting an integration whose provider has no per-integration list targeting (Dodo Payments, PostHog, Polar, Paddle, and similar), because its live contacts and payment-provider backfills land there. PostHog history imports are different: contacts created by that import have no list memberships. ${
+    description: `Get company details, processing status, product info, brand colors, AI writing context, the default AI email style (emailStylePreference: visual, plain, or null when not chosen), the company category (websiteType: saas, content, ecommerce, offline, mobile_app, other or null) with websiteTypeSource (user when chosen, detected when set from the website), header and footer (emailPreset) and the footer style for new AI-designed emails (footerStyle: auto, classic, mono, band or editorial), the auto-added footer's resolved colors and copy (footerTheme; change it with update_company footerTheme), reply-tracking settings, effective email localization settings, and the read-only emailBranding entitlement. emailBranding says whether "Sent with Sequenzy" is visible, whether the owner subscription removes it, why, the current tier/status, the required upgrade or renewal action, and the canonical subscriptionUrl. Branding is injected at render/send time rather than stored in footer blocks, so a paid entitlement removes it from future sends by existing live sequences without editing their emails. Also returns darkModeLogoStatus (pending, outlined, not_needed or custom) and darkModeLogoUrl, the logo emails use so dark transparent logos stay visible in dark-mode inboxes; set your own with update_company darkModeLogoUrl. Also returns defaultSubscriberListIds - the workspace default lists new contacts join when nothing targets them explicitly. A JSON null means every current and future list, not an empty selection; [] means no list at all; an array means exactly those lists. Change it with update_company. Read it before connecting an integration whose provider has no per-integration list targeting (Dodo Payments, PostHog, Polar, Paddle, and similar), because its live contacts and payment-provider backfills land there. PostHog history imports are different: contacts created by that import have no list memberships. ${
       campaignStoNotCompanyOrSequenceHint
     }`,
     inputSchema: {
@@ -140,6 +166,16 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
           description:
             "Company ID. If omitted, uses the selected/current company when available.",
         },
+        renameMatchingFooters: {
+          type: "boolean",
+          description:
+            "Optional, default false. With name and previousCompanyName, rename exact matching footer company names in editable emails and saved components. Preserves custom names and protected campaigns. Requires emails:write, templates:write, campaigns:write, sequences:write, transactional:write and ab_tests:write; personal keys require owner/admin access.",
+        },
+        previousCompanyName: {
+          type: "string",
+          description:
+            "Required when renameMatchingFooters is true. Current name from get_company; stale names return 409. Retrying a completed rename does not change footers again.",
+        },
         name: {
           type: "string",
           description: "Company display name.",
@@ -152,6 +188,11 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
         logoUrl: {
           type: "string",
           description: "Public logo URL.",
+        },
+        darkModeLogoUrl: {
+          type: ["string", "null"],
+          description:
+            "Your own dark-mode version of the logo (public PNG, JPG or GIF URL). Every email uses it instead of the automatic outlined copy, light and dark inboxes alike, so it must read on both. Requires a logo; changing the logo later drops it. Pass null to go back to the automatic one. get_company returns it as darkModeLogoUrl with darkModeLogoStatus custom.",
         },
         founderName: {
           type: "string",
@@ -205,9 +246,80 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
           description:
             "Email length preference: concise, balanced, or detailed. New workspaces default to concise.",
         },
+        websiteType: {
+          type: ["string", "null"],
+          enum: [
+            "saas",
+            "content",
+            "ecommerce",
+            "offline",
+            "mobile_app",
+            "other",
+            null,
+          ],
+          description:
+            "Company category. It decides which sequence templates are recommended (list_sequence_templates) and steers AI writing; mobile_app turns on push-first mobile journeys and app-aware copy. A value set here is the user's choice and website detection never overwrites it. null clears it so detection may classify the company again. Suggest mobile_app after the user connects RevenueCat, Superwall or Adapty.",
+        },
+        emailStylePreference: {
+          type: ["string", "null"],
+          enum: ["visual", "plain", null],
+          description:
+            "How AI writes emails by default: visual for designed emails with sections and imagery, plain for simple text-focused emails with one button. Both still use the company theme, header and footer. null clears the choice: generation then designs emails and the dashboard asks again. A saved reference email (get_email_ai_style) keeps generated emails designed until it is cleared.",
+        },
+        emailPreset: {
+          type: "string",
+          enum: ["branded", "minimal"],
+          description:
+            "Default header and footer for new emails: branded adds the logo header and the full footer with social links, minimal uses no logo and a compact footer. Applies to designed, simple text and hand-built emails. Existing emails keep their own setting. While a saved reference email exists (get_email_ai_style), AI-generated emails use its header and footer instead until it is cleared.",
+        },
+        footerStyle: {
+          type: "string",
+          enum: ["auto", "classic", "mono", "band", "editorial"],
+          description:
+            "Footer style for new AI-designed emails: classic (brand-colored social icons, centered), mono (monochrome icons, company name as a small wordmark), band (mono on a dark full-width band) or editorial (mono, left-aligned). auto (the default) picks one that fits the brand. Existing emails keep their footers; a footer block's own style field sets one email.",
+        },
+        footerTheme: {
+          type: ["object", "null"],
+          description:
+            "Colors and copy of the auto-added footer (appended when an email has no footer block). Merged into the stored theme: omitted fields keep their value, null or an empty string resets one, footerTheme: null resets all. Colors are #rrggbb; empty text uses the localized default. get_company values can be sent back as is. Footer font, size and line height are in emailTheme.typography.",
+          properties: {
+            backgroundColor: {
+              type: ["string", "null"],
+              description: "Default transparent (the email background).",
+            },
+            companyTextColor: { type: ["string", "null"] },
+            metaTextColor: {
+              type: ["string", "null"],
+              description: "Reason and address text.",
+            },
+            linkColor: { type: ["string", "null"] },
+            borderColor: {
+              type: ["string", "null"],
+              description: "Divider above the footer.",
+            },
+            reasonText: {
+              type: ["string", "null"],
+              description: "Why the recipient gets the email.",
+            },
+            unsubscribeText: { type: ["string", "null"] },
+            privacyPolicyText: { type: ["string", "null"] },
+            showCompanyLine: {
+              type: ["boolean", "null"],
+              description: "Company name above the reason. Default false.",
+            },
+            style: {
+              type: ["string", "null"],
+              enum: ["auto", "classic", "mono", "band", "editorial", "", null],
+              description:
+                "Same as footerStyle; both with different values is an error.",
+            },
+          },
+          additionalProperties: false,
+        },
         socialLinks: {
           type: "object",
-          description: "Social profile URLs keyed by platform.",
+          description:
+            "Replacement map of profile URLs keyed by platform. Branded footers show an icon for x (or twitter), threads, bluesky, linkedin, instagram, facebook, youtube, tiktok, pinterest, discord, reddit, and the mobile app store listings appstore and googleplay. Other keys are stored but get no icon.",
           additionalProperties: {
             type: "string",
           },
@@ -281,12 +393,12 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
         replyTrackingEnabled: {
           type: "boolean",
           description:
-            "Enable or disable inbound reply capture for this company.",
+            "Enable or disable inbound reply capture (Inbox) for this company. Turning it on returns 409 receiving_domain_required when the workspace has no verified receiving domain and has never received a conversation: add one with add_receiving_domain instead, and its first verification turns Inbox on.",
         },
         replyTrackingDomainMode: {
           type: "string",
           description:
-            "Reply-tracking domain mode: sequenzy for the managed domain or custom for a configured custom domain.",
+            "Reply-tracking domain mode: sequenzy always uses Sequenzy's shared reply domain; custom uses the workspace's verified receiving domain for emails from every sending domain, falling back to Sequenzy's domain until one is verified.",
         },
         forwardReplies: {
           type: "boolean",
@@ -602,9 +714,58 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
     },
   },
   {
+    name: "get_design_md",
+    description:
+      "Get the company's design.md: its email design brief as one Markdown document. YAML frontmatter holds the exact values Sequenzy applies when rendering AI-generated emails (logo, colors, fonts.body/heading, buttons.style/radius, cornerRadius, layout tokens); prose sections hold the Voice and the Design direction the AI writer follows, plus a read-only Reference email naming the saved AI style. Values shown are the ones emails actually get. Returns markdown, version (pass it to update_design_md as expectedVersion), and the parsed designSystem. Read this before writing or redesigning emails for the company.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "update_design_md",
+    description:
+      "Save an edited design.md (full document from get_design_md). Only values you changed are written: a frontmatter value left as returned is not written and keeps its current behavior, a changed radius or heading font is pinned, and a changed layout token is written into the design direction ahead of its prose. Removing a key or section leaves it unchanged; an empty Voice or Design direction section clears it (an empty direction returns to brand-derived defaults). The Reference email section is read-only. Invalid values fail with line-numbered issues; unknown keys are ignored with warnings. Pass dryRun: true to preview changes and warnings without saving. Pass expectedVersion from get_design_md; on a 409 conflict, read again and reapply your edits.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        markdown: {
+          type: "string",
+          maxLength: 100000,
+          description:
+            "The full design.md document: optional --- YAML frontmatter --- followed by Markdown with ## Voice and ## Design direction sections. Other ## sections are kept as part of the design direction.",
+        },
+        expectedVersion: {
+          type: "string",
+          description:
+            "version from get_design_md. Recommended: the save fails with a conflict if design.md changed since that read.",
+        },
+        dryRun: {
+          type: "boolean",
+          description:
+            "true validates and reports changes and warnings without saving.",
+        },
+      },
+      required: ["markdown"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "create_api_key",
     description:
-      "Create a new API key for a company. Use this when setting up Sequenzy integration in a project. The returned key should be saved to the project's .env file as SEQUENZY_API_KEY. The key can only be retrieved once at creation time.",
+      "Create a new API key for a company, typically when setting up a Sequenzy integration in a project. The CLI reads the key from the SEQUENZY_API_KEY environment variable; SDK clients accept it through the apiKey option, such as apiKey: process.env.SEQUENZY_API_KEY. The key is returned only once at creation time and cannot be retrieved later.",
     inputSchema: {
       type: "object",
       properties: {
@@ -637,7 +798,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "request_api_key_handoff",
     description:
-      "Prepare an owner-confirmed handoff link for creating or rotating an API key. Use this when key management fails because the active key is missing api_keys:manage - that scope fails closed on purpose, and this is the supported way forward instead of asking the user to reason about the dashboard themselves. Returns a URL that opens the dashboard's create-key form with the requested name and permissions already filled in. IMPORTANT: this creates nothing and never returns a key. Give the URL to the workspace owner and stop; they review the form, click Create, and copy the new key from the browser. To rotate, pass replaceApiKeyId (or the literal string 'current' for the key you are authenticated with) and the dashboard offers to revoke the predecessor after the replacement is created. Requires only account:read.",
+      "Prepare an owner-confirmed handoff link for creating or rotating an API key. Intended for when key management fails because the active key is missing api_keys:manage; that scope fails closed on purpose, and this handoff is the supported path. Returns a URL that opens the dashboard's create-key form with the requested name and permissions already filled in. This tool creates nothing and never returns a key: the workspace owner opens the URL, reviews the form, clicks Create, and copies the new key from the browser. To rotate, pass replaceApiKeyId (or the literal string 'current' for the key you are authenticated with) and the dashboard offers to revoke the predecessor after the replacement is created. Requires only account:read.",
     inputSchema: {
       type: "object",
       properties: {
@@ -764,7 +925,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "list_websites",
     description:
-      "List configured sending domains with separate DNS verification, sending readiness, and SPF, DKIM, and MAIL FROM status",
+      "List configured sending domains with separate DNS verification, sending readiness, and SPF, DKIM, and MAIL FROM status.",
     inputSchema: {
       type: "object",
       properties: {
@@ -784,7 +945,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "add_sending_domain",
     description:
-      "Add and configure a sending domain. Publish every cohort-specific DNS record returned, including DMARC when present, before calling verify_sending_domain.",
+      "Add and configure a sending domain. A domain belongs to exactly one company and cannot be moved or removed through the API, CLI or MCP afterwards, so confirm the target company with the user before adding. Before calling verify_sending_domain, publish the DKIM record from website.dnsRecords (when dnsRecords.platformDnsRecords is present, publish those CNAMEs instead: active and spare DKIM selectors plus a recommended bounces CNAME; only required entries block verification), the bounce records described by website.bounceRecords (its cnameRecord when style is cname, otherwise spf.record and mailFrom.mxRecord; never both at the same name), and DMARC when present. Tracked links use the company tracking domain shared by every sending domain; the first domain creates it under itself (links.<domain>) and returns its CNAME as dnsRecords.trackingRecord. It is optional and never blocks verification or sending: until it verifies, links use the shared Sequenzy domain. Manage it with set_tracking_domain.",
     inputSchema: {
       type: "object",
       properties: {
@@ -797,6 +958,16 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
           type: "string",
           description: "Sending domain to add (for example, mail.example.com).",
         },
+        mailFromPrefix: {
+          type: "string",
+          description:
+            "Optional return-path (MAIL FROM) subdomain label, default rp. New domains also get a second return path, usually <label>2 (rp2 by default); publish the returned names. One DNS label of 1 to 63 letters, numbers or hyphens; inbound is reserved. Applies only when the domain is created.",
+        },
+        trackingPrefix: {
+          type: "string",
+          description:
+            "Optional label of the company tracking domain created under the domain (<label>.<domain>, or <label>.<root> when it equals mailFromPrefix), default links (links2 to links5 are tried if it is taken). Used only when the company has no tracking domain yet; ignored otherwise. inbound is reserved. Change it later with set_tracking_domain.",
+        },
       },
       required: ["domain"],
     },
@@ -804,7 +975,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "add_website",
     description:
-      "Compatibility alias for add_sending_domain. Adds a sending domain and returns the DNS records required for setup.",
+      "Compatibility alias for add_sending_domain. Adds a sending domain and returns the DNS records required for setup. The domain cannot be moved to another company afterwards; confirm the target company first.",
     inputSchema: {
       type: "object",
       properties: {
@@ -817,6 +988,16 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
           type: "string",
           description: "The domain to add (e.g., example.com)",
         },
+        mailFromPrefix: {
+          type: "string",
+          description:
+            "Optional return-path (MAIL FROM) subdomain label, default rp. New domains also get a second return path, usually <label>2 (rp2 by default); publish the returned names. One DNS label of 1 to 63 letters, numbers or hyphens; inbound is reserved. Applies only when the domain is created.",
+        },
+        trackingPrefix: {
+          type: "string",
+          description:
+            "Optional label of the company tracking domain created under the domain (<label>.<domain>, or <label>.<root> when it equals mailFromPrefix), default links (links2 to links5 are tried if it is taken). Used only when the company has no tracking domain yet; ignored otherwise. inbound is reserved. Change it later with set_tracking_domain.",
+        },
       },
       required: ["domain"],
     },
@@ -824,7 +1005,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "check_website",
     description:
-      "Read a sending domain's separate DNS verification, sending readiness, and SPF, DKIM, MAIL FROM diagnostics. Use verify_sending_domain to run a fresh DNS check.",
+      "Read a sending domain's separate DNS verification and sending readiness. Use verify_sending_domain to run a fresh check. dnsUpgrade.status: available (see upgrade_sending_domain_dns), in_progress (records to add), completed (oldRecords to delete) or unavailable. Receiving mail (inbox addresses and replies) is set up on receiving domains instead: see list_receiving_domains.",
     inputSchema: {
       type: "object",
       properties: {
@@ -844,7 +1025,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "verify_sending_domain",
     description:
-      "Run a fresh DNS check for a configured sending domain and return DNS verification separately from sending readiness. A DNS-verified domain may still be activating; when readyToSend is false, read readiness.reason rather than the DKIM/SPF/MAIL FROM record statuses, which describe DNS only.",
+      "Run a fresh DNS check for a configured sending domain and return DNS verification separately from sending readiness. When readyToSend is false, read readiness.reason. Receiving mail (inbox addresses and replies) is checked on receiving domains instead: see verify_receiving_domain.",
     inputSchema: {
       type: "object",
       properties: {
@@ -859,6 +1040,57 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
         },
       },
       required: ["domain"],
+    },
+  },
+  {
+    name: "upgrade_sending_domain_dns",
+    description:
+      "Recommended, optional one-time upgrade of a verified sending domain to the current per-domain CNAME DNS records, for better deliverability and security, without removing it; it keeps sending on current records and sending is normally not interrupted at the switch. Once started it runs to the switch. Needs website.dnsUpgrade.status available; an older SES-only domain also needs a DMARC record (400 otherwise). Publish the returned dnsUpgrade.records CNAMEs next to the current records, removing nothing; the domain switches by itself about an hour after the required ones are public (verify_sending_domain checks now, no skip). Removing dnsUpgrade.oldRecords (listed beforehand as replacedRecords) after deleteOldRecordsAfter (8 days) is optional; each is marked removed once gone from public DNS.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        domain: {
+          type: "string",
+          description: "Configured sending domain.",
+        },
+        mailFromPrefix: {
+          type: "string",
+          description:
+            "Optional return-path label, default rp (then rp1, sqrp); SES one is <label>2. Not a label with DNS records.",
+        },
+      },
+      required: ["domain"],
+    },
+  },
+  {
+    name: "configure_sending_domain",
+    description:
+      "Deprecated: tracking is company-wide; prefer set_tracking_domain. Sets <trackingPrefix>.<domain> as the company tracking domain when the company has none. Repeating the company's current tracking hostname is a no-op; a different one changes nothing and the response message says so (use set_tracking_domain to change it). Publish the returned website.tracking.cnameRecord; sending never waits for it.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        domain: {
+          type: "string",
+          description:
+            "Configured sending domain (for example, mail.example.com).",
+        },
+        trackingPrefix: {
+          type: "string",
+          description:
+            "Tracking subdomain label, for example links. One DNS label of 1 to 63 letters, numbers or hyphens; inbound is reserved.",
+        },
+      },
+      required: ["domain", "trackingPrefix"],
     },
   },
   {
@@ -951,13 +1183,13 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   },
   {
     name: "get_sending_status",
-    description: `Check whether company-level email sending is active, paused, or suspended, and what it takes to restore it. Call this FIRST whenever a send, test send, or sequence step fails for a reason that is not a validation error, and whenever the account reports a bounce or complaint rate problem.
+    description: `Check whether company-level email sending is active, paused, or suspended, and what it takes to restore it. Relevant whenever a send, test send, or sequence step fails for a reason that is not a validation error, and whenever the account reports a bounce or complaint rate problem.
 
 Returns the pause reason and reason kind, when it was paused, the automated sender-health review state, whether the one-click resume is currently available (and if not, which gate is blocking it), the enforcement counts and thresholds for permanent bounces, temporary bounces, and complaints, and ordered remediation steps.
 
-IMPORTANT - there is no rolling window and no expiry. Enforcement uses all-time totals counted from a reset watermark, so a paused rate does NOT decay over time. Waiting does not restore sending. The rate only changes as real (non-test) sends accumulate or when a resume moves the watermark. Read \`metricsWindow\` for the exact watermark timestamps rather than telling the user to wait it out.
+There is no rolling window and no expiry. Enforcement uses all-time totals counted from a reset watermark, so a paused rate does NOT decay over time. Waiting does not restore sending. The rate only changes as real (non-test) sends accumulate or when a resume moves the watermark. \`metricsWindow\` contains the exact watermark timestamps.
 
-Requires the account:read scope, so a read-only key can diagnose a blocked account. Use resume_sending once the underlying problem is fixed.`,
+Requires the account:read scope, so a read-only key can diagnose a blocked account. resume_sending restores sending once the underlying problem is fixed.`,
     inputSchema: {
       type: "object",
       properties: {
@@ -973,9 +1205,9 @@ Requires the account:read scope, so a read-only key can diagnose a blocked accou
     name: "resume_sending",
     description: `Request that paused company-level sending be restored after fixing the cause. This is the supported remediation path for an account paused by the permanent-bounce rate limit - it is not a bypass and it never removes suppressions.
 
-Only proceed when the bad source is actually fixed (import, form, or integration) and permanent bounces remain suppressed. Call get_sending_status first: for a paused workspace, resume only restores sending when \`selfResume.canSelfResume\` is true, which requires a hard-bounce pause reason, a cleared automated sender-health review, and no admin block. A workspace that is already active succeeds as an idempotent no-op with \`resumed: false\`; any other blocked state needs a support review, and the error tells you which one.
+Intended for after the bad source (import, form, or integration) is actually fixed while permanent bounces remain suppressed. get_sending_status reports the current gate: for a paused workspace, resume only restores sending when \`selfResume.canSelfResume\` is true, which requires a hard-bounce pause reason, a cleared automated sender-health review, and no admin block. A workspace that is already active succeeds as a no-op with \`resumed: false\`; any other blocked state needs a support review, and the error names which one.
 
-You MUST pass listSanitizationConfirmed: true, and you should only pass it after the user has confirmed the remediation - it is recorded on the account's audit trail as their statement that the list is clean. On success, sending is restored, the bounce watermark resets so the rate is recalculated from later sends, and the service attempts to requeue paused campaigns plus due sequence steps. Relay the response message: it contains support guidance if part of that queue handoff is temporarily unavailable.
+listSanitizationConfirmed: true is required and represents the user's confirmation that the remediation is done; it is recorded on the account's audit trail as their statement that the list is clean. On success, sending is restored, the bounce watermark resets so the rate is recalculated from later sends, and the service attempts to requeue paused campaigns plus due sequence steps. The response message contains support guidance if part of that queue handoff is temporarily unavailable.
 
 Requires the companies:manage scope and owner or admin access to the company.`,
     inputSchema: {
@@ -996,9 +1228,135 @@ Requires the companies:manage scope and owner or admin access to the company.`,
     },
   },
   {
+    name: "get_tracking_domain",
+    description:
+      "Get the company tracking domain every sending domain uses for tracked links and opens: hostname, status, whether links use it now (active), the CNAME record to publish, and the last check. trackingDomain is null when none is set and links use the shared Sequenzy domain.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+      },
+    },
+  },
+  {
+    name: "set_tracking_domain",
+    description:
+      "Set or change the company tracking domain: one hostname every sending domain uses for tracked links and opens, for example links.example.com. Any subdomain the user controls works; a bare root domain is rejected. Publish the returned trackingDomain.cnameRecord. It never blocks sending: until it verifies, links use the shared Sequenzy domain. Changing it keeps the previous hostname serving links in emails already sent while its old CNAME stays. Confirm the hostname with the user first.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        domain: {
+          type: "string",
+          description:
+            "Tracking hostname, a subdomain such as links.example.com.",
+        },
+      },
+      required: ["domain"],
+    },
+  },
+  {
+    name: "verify_tracking_domain",
+    description:
+      "Check the company tracking domain's CNAME and HTTPS certificate now instead of waiting for the automatic check. Returns verified, a message with the next step, and the tracking domain status.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+      },
+    },
+  },
+  {
+    name: "remove_tracking_domain",
+    description:
+      "Remove the company tracking domain. New emails use the shared Sequenzy tracking domain, and links and images in emails already sent through the removed domain stop working. Confirm with the user first.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+      },
+    },
+  },
+  {
+    name: "get_frequency_cap",
+    description:
+      "Get the company frequency cap: the most marketing emails (campaigns plus marketing sequence emails) one contact may receive in a rolling window. frequencyCap is null when no cap is set. Only sequences with frequencyCapEnabled respect it: their email steps are skipped for a contact already at the cap, and the contact moves to the next step. Campaigns count toward the cap but always send. Transactional emails never count and are never skipped.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+      },
+    },
+  },
+  {
+    name: "set_frequency_cap",
+    description:
+      "Set or change the company frequency cap: at most maxEmails marketing emails per contact in any windowHours. Applies from the next email step onward to sequences with frequencyCapEnabled (set it with create_sequence or update_sequence). Campaigns count toward the cap but always send. Transactional emails never count and are never skipped.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        maxEmails: {
+          type: "integer",
+          minimum: 1,
+          maximum: 50,
+          description:
+            "Most marketing emails one contact may receive in the window (1-50). 1 means a contact gets at most one marketing email per window.",
+        },
+        windowHours: {
+          type: "integer",
+          minimum: 1,
+          maximum: 168,
+          description:
+            "Rolling window in hours (1-168). For example 16 for one day of quiet, 168 for a week.",
+        },
+      },
+      required: ["maxEmails", "windowHours"],
+    },
+  },
+  {
+    name: "clear_frequency_cap",
+    description:
+      "Turn the company frequency cap off. Sequences keep their frequencyCapEnabled setting, but nothing is skipped until a cap is set again with set_frequency_cap.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+      },
+    },
+  },
+  {
     name: "get_tracking_settings",
     description:
-      "Get the company's email tracking and signup consent configuration: account-wide and Transactional API open/click defaults, unsubscribe tracking, opt-in strict bot filtering, default attribution window, automatic UTM tagging, the dedicated click-tracking domain and its verification status, inbound reply-tracking settings, and whether double opt-in is required for new contacts. Use this to audit measurement readiness, to explain why opens or clicks may not be recorded, and to check how contacts enter the list before investigating bot or alias signups.",
+      "Get the company's email tracking and signup consent configuration: account-wide and Transactional API open/click defaults, unsubscribe tracking, opt-in strict bot filtering, default attribution window, automatic UTM tagging, the company tracking domain (shared by every sending domain) and its verification status, inbound reply-tracking settings, and whether double opt-in is required for new contacts. Use this to audit measurement readiness, to explain why opens or clicks may not be recorded, and to check how contacts enter the list before investigating bot or alias signups.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1013,7 +1371,7 @@ Requires the companies:manage scope and owner or admin access to the company.`,
   {
     name: "update_tracking_settings",
     description:
-      "Update the company's email tracking defaults: account-wide open and click tracking, narrower open and click defaults for Transactional API sends, unsubscribe tracking, opt-in strict bot filtering, the default attribution window, and automatic UTM tagging, plus the account-wide double opt-in requirement for new contacts. Applies to emails sent afterwards; already-sent emails keep the links they were rendered with. Transactional API defaults cannot enable an account-wide setting that is off, and an individual send may opt out again. Provide at least one field. Reply tracking (inbound email, reply domain mode, reply forwarding) is on update_company, and the dedicated click-tracking domain is configured in the dashboard.",
+      "Update the company's email tracking defaults: account-wide open and click tracking, narrower open and click defaults for Transactional API sends, unsubscribe tracking, opt-in strict bot filtering, the default attribution window, and automatic UTM tagging, plus the account-wide double opt-in requirement for new contacts. Applies to emails sent afterwards; already-sent emails keep the links they were rendered with. Transactional API defaults cannot enable an account-wide setting that is off, and an individual send may opt out again. Provide at least one field. Reply tracking (inbound email, reply domain mode, reply forwarding) is on update_company. The company tracking domain is managed with set_tracking_domain, verify_tracking_domain and remove_tracking_domain.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1045,12 +1403,17 @@ Requires the companies:manage scope and owner or admin access to the company.`,
         strictBotFilteringEnabled: {
           type: "boolean",
           description:
-            "Opt in to aggressive bot detection: strict user-agent patterns, datacenter-IP classification, and cross-send IP sweeps. Off by default because it can also discard real engagement, lowering reported open and click rates. Enable it when the audience sits behind email-security appliances that inflate engagement.",
+            "Opt in to aggressive bot detection: strict user-agent patterns, datacenter and Microsoft Azure IPs, fast campaign and sequence clicks from IPs clicking other recipients' emails, and cross-send IP sweeps. Off by default because it can also discard real engagement, lowering reported open and click rates. Enable it when the audience sits behind email-security appliances that inflate engagement.",
         },
         unsubscribeTrackingEnabled: {
           type: "boolean",
           description:
-            "Whether unsubscribe links are attributed to the email that produced them. Unsubscribe links keep working either way.",
+            "Whether to track unsubscribe link clicks. When false, Sequenzy unsubscribe links go directly to https://sequenzy.com, even with a custom tracking domain. Actual unsubscribes and their email attribution are still recorded.",
+        },
+        emailContentStorageEnabled: {
+          type: "boolean",
+          description:
+            "Leave this true unless the user explicitly needs it off for privacy reasons; most workspaces never change it. Whether Sequenzy keeps each sent email's rendered content and subject, and the IP address, user agent and country of opens and clicks. When false, sent-email records keep the email's name in place of its subject and no body once sent, opens and clicks store no IP address, user agent or country, and view-in-browser links stop working. Body and subject rules apply to emails sent afterwards; IP address, user agent and country follow the setting at each open or click.",
         },
         defaultAttributionWindowHours: {
           type: "number",
@@ -1090,7 +1453,7 @@ Requires the companies:manage scope and owner or admin access to the company.`,
   {
     name: "get_notification_preferences",
     description:
-      "Get the account notification settings for the API key's own user in this company: whether Sequenzy emails them when a new subscriber joins, when a form is submitted, when a campaign finishes sending, and whether they get the Monday weekly report (last week's sends, engagement, new subscribers, revenue, goals, and sequence trends versus the week before; on by default for the workspace owner, off by default for invited members, only sent for weeks with more than 10 emails sent), and whether each arrives per-occurrence, as a daily summary, or weekly. Instant form-submission notifications stop after 50 per workspace per UTC day. Returns the supported modes and the platform defaults for this user's role alongside the current values. These are per-person settings - this never reads a teammate's preferences.",
+      "Get the account notification settings for the API key's own user in this company: whether Sequenzy emails them when a new subscriber joins, when a form is submitted, when a campaign finishes sending, and whether they get the Monday weekly report (last week's sends, engagement, new subscribers, revenue, goals, and sequence trends versus the week before; on by default for the workspace owner, off by default for invited members, only sent for weeks with more than 10 emails sent), whether they get the account health check's findings (account_health: on by default for the owner, opt-in for members; carried inside the Monday report when they get it, otherwise sent as their own email), and whether each arrives per-occurrence, as a daily summary, or weekly. Instant form-submission notifications stop after 50 per workspace per UTC day. Returns the supported modes and the platform defaults for this user's role alongside the current values. These are per-person settings - this never reads a teammate's preferences.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1105,7 +1468,7 @@ Requires the companies:manage scope and owner or admin access to the company.`,
   {
     name: "update_notification_preferences",
     description:
-      "Change which account notifications Sequenzy emails the API key's own user for this company. Requires the companies:manage scope. Useful before a bulk import or a large migration, when per-signup notifications would otherwise flood the inbox, or to turn the Monday weekly report off (it is on by default only for the workspace owner; invited members set weekly_report to 'weekly' to receive it). Modes are 'off', 'instant' (one email per occurrence), 'daily' (one summary per day), and 'weekly' (the Monday report); 'daily' is only valid for new_subscriber, because a campaign finishes once and each form submit is its own lead, and 'weekly' is only valid for weekly_report. Instant form-submission notifications stop after 50 per workspace per UTC day. New-subscriber notifications already fall back to a daily summary automatically on high-volume days, and imports never trigger them at all.",
+      "Change which account notifications Sequenzy emails the API key's own user for this company. Requires the companies:manage scope. Useful before a bulk import or a large migration, when per-signup notifications would otherwise flood the inbox, or to turn the Monday weekly report off (it is on by default only for the workspace owner; invited members set weekly_report to 'weekly' to receive it), or to opt in or out of the account health check's findings (account_health 'instant' or 'off'). Modes are 'off', 'instant' (one email per occurrence), 'daily' (one summary per day), and 'weekly' (the Monday report); 'daily' is only valid for new_subscriber, because a campaign finishes once and each form submit is its own lead, and 'weekly' is only valid for weekly_report; account_health accepts only 'off' or 'instant'. Instant form-submission notifications stop after 50 per workspace per UTC day. New-subscriber notifications already fall back to a daily summary automatically on high-volume days, and imports never trigger them at all.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1128,6 +1491,7 @@ Requires the companies:manage scope and owner or admin access to the company.`,
                   "form_submitted",
                   "campaign_completed",
                   "weekly_report",
+                  "account_health",
                 ],
                 description: "Which notification to configure.",
               },
@@ -1135,7 +1499,7 @@ Requires the companies:manage scope and owner or admin access to the company.`,
                 type: "string",
                 enum: ["off", "instant", "daily", "weekly"],
                 description:
-                  "How to receive it. 'daily' is not supported for form_submitted or campaign_completed. weekly_report accepts only 'off' or 'weekly'.",
+                  "How to receive it. 'daily' is not supported for form_submitted or campaign_completed. weekly_report accepts only 'off' or 'weekly'; account_health only 'off' or 'instant'.",
               },
             },
             required: ["event", "mode"],
@@ -1149,15 +1513,11 @@ Requires the companies:manage scope and owner or admin access to the company.`,
     name: "get_integration_guide",
     description: `Get code examples for integrating Sequenzy into your project.
 
-CRITICAL - FOR SAAS/SUBSCRIPTION APPS:
-If the app uses Stripe, Polar, Paddle, Dodo, or Creem - tell the user to connect it in Sequenzy dashboard (Settings → Integrations).
-The native integration automatically handles all payment events and customer tags - no code needed!
+SaaS and subscription apps: when the app uses Stripe, Polar, Paddle, Dodo, Lemon Squeezy, or Creem, the native integration in the Sequenzy dashboard (Settings -> Integrations) handles payment events and customer tags automatically, so no code is needed for those.
 
-CRITICAL - FOR E-COMMERCE STORES:
-If the store runs on Shopify or WooCommerce - tell the user to connect the native integration in the dashboard instead (it syncs products, orders, and customers automatically).
-For any other e-commerce stack (custom checkouts, CheckoutChamp, Sticky.io, headless storefronts), use the 'ecommerce' use case to integrate via the Commerce API.
+E-commerce stores: Shopify and WooCommerce stores use the native integration in the dashboard, which syncs products, orders, and customers automatically. Other e-commerce stacks (custom checkouts, CheckoutChamp, Sticky.io, headless storefronts) integrate through the 'ecommerce' use case and the Commerce API.
 
-Only provide manual event tracking code if the user explicitly asks for it.
+Manual event tracking code is an opt-in use case for custom events only.
 
 Use cases:
 - 'transactional': Sending one-off emails (welcome, password reset, receipts)
@@ -1165,7 +1525,7 @@ Use cases:
 - 'event_tracking': Tracking CUSTOM events only (not payment events - those come from the integration)
 - 'ecommerce': Connecting a custom e-commerce platform via the Commerce API (sync products, push orders/checkouts, power abandoned cart + back-in-stock automations)
 
-Before protected server-side API work, use create_api_key and save the key to .env as SEQUENZY_API_KEY. Static-site saved forms are the exception: use list_forms/create_form/get_form_embed and never place a secret key in browser code.`,
+Protected server-side API work needs an API key (create_api_key), passed to the SDK as apiKey: process.env.SEQUENZY_API_KEY. Non-Webflow static-site saved forms are the exception: list_forms/create_form/get_form_embed return public embed code, and secret keys must never be placed in browser code. Webflow-connected companies use explicitly selected native forms in Settings -> Integrations -> Webflow; custom embed code is disabled.`,
     inputSchema: {
       type: "object",
       properties: {

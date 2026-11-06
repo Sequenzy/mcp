@@ -1,12 +1,15 @@
 import type { Tool } from "../../mcp-types.js";
 import {
   campaignStoNotCompanyOrSequenceHint,
+  inAppStepProperties,
   discountMergeTagsHint,
   rawHtmlContentDescription,
   replyToNameDescription,
   senderFromNameDescription,
   sequenceEmailBlocksDescription,
+  sequenceKeyDatesSchema,
   sequenceSendingWindowSchema,
+  sequenceWaitUntilKeyDateSchema,
   sequenceWaitUntilSchema,
   sequenceWaitUntilWeekdaySchema,
   sequenceDelaySchema,
@@ -106,10 +109,17 @@ export const sequenceBasicToolDefinitions: Tool[] = [
           type: "array",
           items: {
             type: "string",
-            enum: ["active", "waiting", "completed", "failed", "cancelled"],
+            enum: [
+              "active",
+              "waiting",
+              "paused",
+              "completed",
+              "failed",
+              "cancelled",
+            ],
           },
           description:
-            "Enrollment statuses to include. Defaults to active and waiting, which is every contact still moving through the sequence.",
+            "Enrollment statuses to include. Defaults to active, waiting, and paused, which is every contact still in the sequence. paused means held by pause_sequence_subscribers.",
         },
         subscriberId: {
           type: "array",
@@ -180,9 +190,65 @@ export const sequenceBasicToolDefinitions: Tool[] = [
     },
   },
   {
+    name: "start_sequence_test_run",
+    description:
+      "Run real sequence actions for one active subscriber, including webhooks, tags, attributes and discounts. Emails are marked as tests. Requires sequences:activate and subscribers:read. Does not enable the sequence. Optional customVariables supplies trigger event properties, including nested objects and arrays, available as event.*. Use get_sequence_test_run to inspect progress. A failed run can have completed side effects; inspect before starting again. Ordinary failure retries are disabled. Stalled-job recovery can replay actions after worker loss.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description: "Company override; defaults to the selected company.",
+        },
+        sequenceId: { type: "string", description: "Saved sequence ID." },
+        subscriberId: {
+          type: "string",
+          description:
+            "One active subscriber in the same company with an email address.",
+        },
+        speedMultiplier: {
+          type: "integer",
+          minimum: 60,
+          maximum: 10000,
+          description: "Delay acceleration; defaults to 120.",
+        },
+        customVariables: {
+          type: "object",
+          properties: {},
+          additionalProperties: true,
+          description:
+            "Optional trigger event properties, for example {cart_id: 'cart_123', event_ids: ['event_1']}. Omit or use {} for no event properties. Null is invalid. Does not record a real event.",
+        },
+      },
+      required: ["sequenceId", "subscriberId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_sequence_test_run",
+    description:
+      "Read live sequence test status, recipient, timestamps, step logs and errorMessage. Requires sequences:read and subscribers:read. Inspect failed runs before retrying because completed actions are not rolled back.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description: "Company override; defaults to the selected company.",
+        },
+        sequenceId: { type: "string", description: "Sequence ID." },
+        runId: {
+          type: "string",
+          description: "Run ID returned by start_sequence_test_run.",
+        },
+      },
+      required: ["sequenceId", "runId"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "simulate_sequence",
     description:
-      "Dry-run a sequence without sending mail or enrolling anyone. Requires sequences:read and subscribers:read because results include contact samples. Nobody is auto-enrolled when you activate. Without a subscriber this reports who currently matches (existing list/tag/segment matches are not auto-enrolled) and activation readiness errors. Frequency and inactivity current-match counts are unavailable because the hourly worker evaluates them. Pass subscriberId or email to also walk that stored contact's branch path - use this to check whether a paid user would get an upgrade email. Call this before enable_sequence.",
+      "Dry-run a sequence without sending mail or enrolling anyone. Requires sequences:read and subscribers:read because results include contact samples. Activation does not enroll existing matches unless audienceAutoEnroll is saved. Without a subscriber this reports who currently matches (existing list/tag/segment matches are not auto-enrolled) and activation readiness errors and warnings (for example, an email reading {{webhooks.KEY}} or {{ai.KEY}} that no earlier step saves). Frequency and inactivity current-match counts are unavailable because the hourly worker evaluates them. Pass subscriberId or email to also walk that stored contact's branch path - use this to check whether a specific contact would receive a given step. Call this before enable_sequence.",
     inputSchema: {
       type: "object",
       properties: {
@@ -220,7 +286,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
   {
     name: "send_sequence_test_email",
     description:
-      "Queue a real test send for one saved action_email step in a sequence. Call get_sequence first and pass the target sequence.emails entry's nodeId only when nodeType is action_email; action_ab_test steps are not supported by this tool - inspect variant copy on get_sequence.sequence.emails[].abTest.variants. Accepts 1-10 reviewer email addresses and returns one durable emailSendId per recipient for get_email_send delivery inspection. The sequence is not enabled and no subscribers are enrolled.",
+      "Queue a real test send for one saved action_email step in a sequence. Call get_sequence first and pass the target sequence.emails entry's nodeId only when nodeType is action_email; action_ab_test steps are not supported by this tool - inspect variant copy on get_sequence.sequence.emails[].abTest.variants. Accepts 1-10 reviewer email addresses and returns one durable emailSendId per recipient for get_email_send delivery inspection. The sequence is not enabled and no subscribers are enrolled. Each successful call sends another set of test emails.",
     inputSchema: {
       type: "object",
       properties: {
@@ -254,7 +320,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
   {
     name: "create_sequence",
     description:
-      "Create and persist a disabled draft email sequence, follow-up series, drip campaign, nurture flow, or automation workflow. For natural-language content, provide goal and emailCount. Use explicit steps for finished caller-supplied content, exact workflows, or migrations. Configure trigger plus its relevant field, such as listId/listIds, tagName/tagNames, segmentId, or eventName. Supports email and SMS steps, delays and date waits, actions that dynamically create a provider discount/code (later emails print it with {{discount.code}}), subscriber updates, event filters, enrollment rules, sending windows, and stop conditions. The saved draft appears in list_sequences. Never call enable_sequence unless the user explicitly asks to activate it.",
+      "Create and persist a disabled draft email sequence, follow-up series, drip campaign, nurture flow, or automation workflow. For natural-language content, provide goal and emailCount. Use explicit steps for finished caller-supplied content, exact workflows, or migrations. Configure trigger plus its relevant field, such as listId/listIds, tagName/tagNames, segmentId, or eventName. Supports email and SMS steps, delays and date waits, actions that dynamically create a provider discount/code (later emails print it with {{discount.code}}), subscriber updates, event filters, enrollment rules, sending windows, and stop conditions. The saved draft appears in list_sequences and stays disabled until enable_sequence is used for a user-requested activation.",
     inputSchema: {
       type: "object",
       properties: {
@@ -298,12 +364,18 @@ export const sequenceBasicToolDefinitions: Tool[] = [
         },
         description: {
           type: "string",
-          description: "Optional sequence description shown in the dashboard.",
+          description:
+            "Optional sequence description shown in the dashboard. For seasonal sale sequences it doubles as the offer: generated emails quote its offer sentences verbatim.",
         },
         userCancellable: {
           type: "boolean",
           description:
             "Whether subscribers may cancel their own active enrollment.",
+        },
+        activeSubscribersOnly: {
+          type: "boolean",
+          description:
+            "Only enroll contacts whose status is active. Defaults to false, where unsubscribed and bounced contacts still enter on tag, event, list or contact triggers so non-marketing steps (tags, webhooks, transactional emails) run for them, and their marketing emails are skipped at send time. Set true to keep them out entirely. Pending double opt-in contacts still wait for confirmation.",
         },
         bccEmails: {
           type: "array",
@@ -323,13 +395,15 @@ export const sequenceBasicToolDefinitions: Tool[] = [
             "contact_added",
             "tag_added",
             "segment_entered",
+            "segment_exited",
             "event_received",
             "inbound_webhook",
             "inactivity",
             "frequency",
+            "manual",
           ],
           description:
-            "Trigger type: contact_added, tag_added, segment_entered, event_received, inbound_webhook, inactivity, or frequency. Defaults to contact_added for a blank dashboard-compatible draft.",
+            "Trigger type: contact_added, tag_added, segment_entered, segment_exited, event_received, inbound_webhook, inactivity, frequency, or manual. segment_exited enrolls active contacts who stop matching the segment (unsubscribing or bouncing does not count), from activation onward. manual never enrolls anyone automatically: use it with keyDates and waitUntilKeyDate steps for one-time countdown campaigns (Black Friday, launches) and enroll the audience with enroll_sequence_audience once the sequence is enabled. Defaults to contact_added for a blank dashboard-compatible draft.",
         },
         // contact_added trigger options
         listId: {
@@ -369,7 +443,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
         segmentId: {
           type: "string",
           description:
-            "Segment ID to trigger on (required for segment_entered trigger). Use list_segments first to choose a saved segment.",
+            "Segment ID to trigger on (required for segment_entered and segment_exited triggers). Use list_segments first to choose a saved segment.",
         },
         stopOnSegmentExit: {
           type: "boolean",
@@ -513,9 +587,15 @@ export const sequenceBasicToolDefinitions: Tool[] = [
         enrollmentFieldPath: {
           type: "string",
           description:
-            "Scalar dot-path event property used by enrollmentMode='matching_field', such as 'order.id' or 'product.providerVariantId'. Array traversal with [] is not supported; use propertyFilters for array matching. Leave omitted for Shopify back-in-stock/replenishment product-variant defaults.",
+            "Scalar dot-path event property used by enrollmentMode='matching_field', such as 'order.id' or 'product.providerVariantId'. Use 'organization.externalId' in a workspace with Organizations to run the sequence once per organization for organization events. Array traversal with [] is not supported; use propertyFilters for array matching. Leave omitted for Shopify back-in-stock/replenishment product-variant defaults.",
         },
         sendingWindow: sequenceSendingWindowSchema,
+        frequencyCapEnabled: {
+          type: "boolean",
+          description:
+            "Set true to make this sequence respect the company frequency cap (see get_frequency_cap / set_frequency_cap): an email step is skipped for a contact who already received the cap's number of campaign or marketing sequence emails in its window, and the contact continues to the next step. Transactional steps are never skipped and transactional emails never count. Has no effect until a company cap is set. Defaults to false.",
+        },
+        keyDates: sequenceKeyDatesSchema,
         stopCondition: {
           type: "object",
           description:
@@ -628,7 +708,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
         steps: {
           type: "array",
           description:
-            "Explicit sequence steps. Omit type for email steps, use type: 'sms' for SMS, type: 'create_discount' for a dynamic discount, or type: 'update_subscriber' with nodeType: 'action_update_attributes' and config to copy trigger-event values such as {{event.plan}} into subscriber data.",
+            "Explicit sequence steps. Omit type for email steps, use type: 'sms' for SMS, type: 'push' for a push notification, type: 'in_app' for an in-app message or content card the customer's app fetches, type: 'create_discount' for a dynamic discount, or type: 'update_subscriber' with nodeType: 'action_update_attributes' and config to copy trigger-event values such as {{event.plan}} into subscriber data.",
           items: {
             type: "object",
             properties: {
@@ -637,6 +717,8 @@ export const sequenceBasicToolDefinitions: Tool[] = [
                 enum: [
                   "email",
                   "sms",
+                  "push",
+                  "in_app",
                   "create_discount",
                   "discount",
                   "update_subscriber",
@@ -649,6 +731,8 @@ export const sequenceBasicToolDefinitions: Tool[] = [
                 enum: [
                   "action_email",
                   "action_sms",
+                  "action_push",
+                  "action_in_app",
                   "action_create_discount",
                   "action_update_attributes",
                 ],
@@ -671,7 +755,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
               },
               html: {
                 type: "string",
-                description: `HTML content for email steps. Use this for imported provider HTML. ${rawHtmlContentDescription}`,
+                description: `HTML content for email steps. Use this for imported provider HTML. ${rawHtmlContentDescription} In-app format html: the message document (100 KB max; see validate_in_app_html).`,
               },
               isTransactional: {
                 type: "boolean",
@@ -708,7 +792,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
                   required: ["filename", "path"],
                 },
                 description:
-                  "URL-backed file attachments for this email step (max 10, 7MB total per email). Paths may use {{event.*}} values from the event that enrolled the subscriber; the resolved public URL is validated and fetched at send time.",
+                  "URL-backed file attachments for this email step (max 10, 15MB total per email). Paths may use {{event.*}} values from the event that enrolled the subscriber; the resolved public URL is validated and fetched at send time.",
               },
               ...sequenceEmailStepIdentityProperties,
               text: {
@@ -722,11 +806,41 @@ export const sequenceBasicToolDefinitions: Tool[] = [
                 description:
                   "SMS steps only: up to 2 publicly reachable image URLs sent as MMS media.",
               },
+              title: {
+                type: "string",
+                description:
+                  "Push steps: notification title (max 120 characters). In-app steps: title (max 200). Merge tags work.",
+              },
+              body: {
+                type: "string",
+                description:
+                  "Push steps: notification message (max 500 characters). In-app steps: message text (max 2000). Merge tags work.",
+              },
+              url: {
+                type: ["string", "null"],
+                description:
+                  "Push steps only: link opened on tap (https URL or app deep link).",
+              },
+              imageUrl: {
+                type: ["string", "null"],
+                description: "Push and in-app steps: optional https image.",
+              },
+              iconUrl: {
+                type: ["string", "null"],
+                description: "Push steps only: optional https web push icon.",
+              },
+              platforms: {
+                type: "array",
+                items: { type: "string", enum: ["web", "ios", "android"] },
+                description:
+                  "Push steps only: limit delivery to these platforms; omit for all.",
+              },
+              ...inAppStepProperties,
               ineligibleAction: {
                 type: "string",
                 enum: ["skip", "exit"],
                 description:
-                  "SMS steps only: what happens when the contact can't receive SMS (no phone, not opted in, unsupported country). Default 'skip' continues the sequence.",
+                  "SMS and push steps: what happens when the contact can't receive the message (SMS: no phone, not opted in, unsupported country; push: no active device). Default 'skip' continues the sequence.",
               },
               delay: sequenceDelaySchema,
               delayMs: {
@@ -736,6 +850,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
               },
               waitUntil: sequenceWaitUntilSchema,
               waitUntilWeekday: sequenceWaitUntilWeekdaySchema,
+              waitUntilKeyDate: sequenceWaitUntilKeyDateSchema,
               name: {
                 type: "string",
                 description: "Email template name for email steps.",

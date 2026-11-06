@@ -18,13 +18,7 @@ export type SequenzyToolCallResult = Omit<
   structuredContent?: Record<string, unknown>;
 };
 export type OutputSchemaJsonType =
-  | "object"
-  | "array"
-  | "string"
-  | "number"
-  | "integer"
-  | "boolean"
-  | "null";
+  "object" | "array" | "string" | "number" | "integer" | "boolean" | "null";
 
 export type OutputSchemaProperty = {
   // A type array is the JSON Schema way to spell "nullable". MCP clients
@@ -80,6 +74,16 @@ export function stringOutputProperty(
   return {
     type: "string",
     description,
+  };
+}
+
+function conversationIdListOutputProperty(
+  description: string
+): OutputSchemaProperty {
+  return {
+    type: "array",
+    description,
+    items: { type: "string", description: "Conversation ID." },
   };
 }
 
@@ -182,6 +186,9 @@ export function resourceListOutputProperty(
 const EMAIL_FUNNEL_STATS_HINT =
   "`opened` and `clicked` are unique counts deduplicated by email send (one recipient opening five times counts once), not total open events. Every count is attributed to the sends made inside the requested window, including engagement that arrives after the window ends, so `opened <= delivered <= sent` always holds. Rates use `rateDenominator` (`delivered`, or `sent` when no delivery events were recorded, reported as `rateDenominatorBasis`); `deliveryRate` and `bounceRate` divide by `sent`.";
 
+const RECEIVING_DOMAIN_HINT =
+  "Receiving domain {id, domain, status (verified|pending|failed), records [{type MX|TXT, name, value, priority?, status}] to publish, error, claimExpiresAt (when an unverified name stops being reserved), verifiedAt, lastCheckedAt, createdAt}.";
+
 const SUBSCRIBER_IMPORT_HINT =
   "The subscriber import record: status, totalRows, emailCount, duplicateRows, addedCount, updatedCount, skippedCount, failedCount, processedCount, chunk progress, and the reason maps skippedReasons, failedReasons, and failedChunkReasons. Every excluded row is explained: skippedReasons sums to skippedCount and failedReasons sums to failedCount. Report a shortfall with the import ID instead of guessing which rows are missing.";
 
@@ -191,14 +198,23 @@ const SEQUENCE_RUN_STATE_HINT =
 const SEQUENCE_STEP_NUMBER_HINT =
   "Email numbering: emails[].stepNumber and nodes[].config.stepNumber are legacy stored ordinals retained for compatibility. Prefer emails[].structuralStepNumber and nodes[].structuralStepNumber when explaining the visible sequence position. Structural numbers are graph-derived; emails in parallel branches intentionally share a depth.";
 
+const LIVE_ACTIVITY_DISPATCH_OUTPUT: OutputSchemaProperties = {
+  event: stringOutputProperty("start, update or end."),
+  activityId: stringOutputProperty("The activity the push targets."),
+  tokenCount: numberOutputProperty(
+    "Devices the push was queued for; 0 means nothing was sent."
+  ),
+  jobIds: arrayOutputProperty("Queued delivery job IDs, one per batch."),
+};
+
 export const sequenceOutputProperty: OutputSchemaProperty =
   objectOutputProperty(
-    `The sequence record returned by Sequenzy. ${SEQUENCE_RUN_STATE_HINT} ${SEQUENCE_STEP_NUMBER_HINT} Sequences use sendingWindow for allowed local hours/days; they do not have Send Time Optimization. STO is per-campaign (list_campaigns / get_campaign sendTimeOptimization).`
+    `The sequence record returned by Sequenzy. ${SEQUENCE_RUN_STATE_HINT} ${SEQUENCE_STEP_NUMBER_HINT} Sequences use sendingWindow for allowed local hours/days; they do not have Send Time Optimization. frequencyCapEnabled is true when email steps respect the company frequency cap (get_frequency_cap): contacts already at the cap skip the step. activeSubscribersOnly is true when only active contacts enter; when false, unsubscribed and bounced contacts still enter and only their marketing emails are skipped. STO is per-campaign (list_campaigns / get_campaign sendTimeOptimization).`
   );
 
 export const sequenceListOutputProperty: OutputSchemaProperty =
   arrayOutputProperty(
-    `List of sequence records returned by Sequenzy. ${SEQUENCE_RUN_STATE_HINT}`
+    `List of sequence records returned by Sequenzy. ${SEQUENCE_RUN_STATE_HINT} emailCount is the number of email-sending steps; an A/B test step counts once.`
   );
 
 export const sequenceRunStateOutputProperties: OutputSchemaProperties = {
@@ -263,10 +279,39 @@ export const genericOutputProperties: OutputSchemaProperties = {
   ),
 };
 
+const subscriberOperationOutputProperty: OutputSchemaProperty = {
+  type: "object",
+  properties: {
+    id: stringOutputProperty("Operation ID"),
+    companyId: stringOutputProperty("Owning company"),
+    kind: stringOutputProperty("add_tags"),
+    status: stringOutputProperty(
+      "queued, running, completed, failed or cancelled"
+    ),
+    total: numberOutputProperty("Selected contacts"),
+    processed: numberOutputProperty("Processed contacts"),
+    succeeded: numberOutputProperty(
+      "Successfully processed contacts, including unchanged tags"
+    ),
+    failed: numberOutputProperty("Failed contacts"),
+    error: nullableStringOutputProperty("Operation failure reason"),
+    failures: resourceListOutputProperty("contact failure sample"),
+    createdAt: stringOutputProperty("Creation timestamp"),
+    completedAt: nullableStringOutputProperty("Completion timestamp"),
+    expiresAt: stringOutputProperty("Expiry timestamp"),
+  },
+};
+
 export const outputPropertiesByToolName: Record<
   string,
   OutputSchemaProperties
 > = {
+  start_subscriber_operation: { operation: subscriberOperationOutputProperty },
+  get_subscriber_operation: { operation: subscriberOperationOutputProperty },
+  cancel_subscriber_operation: { operation: subscriberOperationOutputProperty },
+  list_subscriber_operations: {
+    operations: { type: "array", items: subscriberOperationOutputProperty },
+  },
   get_account: {
     account: resourceOutputProperty("account"),
     companies: resourceListOutputProperty("company"),
@@ -302,6 +347,16 @@ export const outputPropertiesByToolName: Record<
   },
   create_company: {
     company: resourceOutputProperty("company"),
+    welcomeAutomationId: {
+      type: ["string", "null"],
+      description:
+        "Created welcome-sequence ID, or null when not requested or unavailable.",
+    },
+    welcomeEnrichmentJobId: {
+      type: ["string", "null"],
+      description:
+        "Queued generation job ID, or null when not requested or enqueue failed.",
+    },
     autoSelected: booleanOutputProperty(
       "Whether the new company was selected for subsequent MCP calls."
     ),
@@ -332,6 +387,51 @@ export const outputPropertiesByToolName: Record<
       "Whether the company now uses the inherited SaaS/ecommerce platform preset."
     ),
   },
+  get_email_ai_style: {
+    style: {
+      type: ["object", "null"],
+      description: "Saved appearance snapshot, or null when none is active.",
+      additionalProperties: true,
+    },
+    revisionId: {
+      type: ["string", "null"],
+      description:
+        "Observed snapshot revision for conditional save/clear; may be nonnull for an unsupported style version.",
+    },
+    canManage: booleanOutputProperty(
+      "Whether this caller can save or clear a style."
+    ),
+  },
+  save_email_ai_style: {
+    style: {
+      type: ["object", "null"],
+      description: "Saved appearance snapshot, or null when none is active.",
+      additionalProperties: true,
+    },
+    revisionId: {
+      type: ["string", "null"],
+      description:
+        "Observed snapshot revision for conditional save/clear; may be nonnull for an unsupported style version.",
+    },
+    canManage: booleanOutputProperty(
+      "Whether this caller can save or clear a style."
+    ),
+  },
+  clear_email_ai_style: {
+    style: {
+      type: ["object", "null"],
+      description: "Saved appearance snapshot, or null when none is active.",
+      additionalProperties: true,
+    },
+    revisionId: {
+      type: ["string", "null"],
+      description:
+        "Observed snapshot revision for conditional save/clear; may be nonnull for an unsupported style version.",
+    },
+    canManage: booleanOutputProperty(
+      "Whether this caller can save or clear a style."
+    ),
+  },
   get_email_design_system: {
     designSystem: objectOutputProperty(
       "The effective email design system parsed from the direction text: designCode (visual grammar tokens), compositionSpine, and source (derived | custom)."
@@ -357,6 +457,43 @@ export const outputPropertiesByToolName: Record<
     },
     isDefault: booleanOutputProperty(
       "True when the resulting identity is the pure brand-derived one - after an explicit reset, or when an adjustment resolved to the derived defaults."
+    ),
+  },
+  get_design_md: {
+    markdown: stringOutputProperty(
+      "The design.md document: YAML frontmatter with exact values, then Voice, Design direction and Reference email sections."
+    ),
+    version: stringOutputProperty(
+      "Content version; pass as expectedVersion to update_design_md."
+    ),
+    designSystem: objectOutputProperty(
+      "The design system parsed from the design direction: designCode, compositionSpine and source (derived | custom)."
+    ),
+  },
+  update_design_md: {
+    message: messageOutputProperty,
+    saved: booleanOutputProperty("True when this call wrote changes."),
+    dryRun: booleanOutputProperty("True when nothing was saved by request."),
+    changes: {
+      type: "array",
+      items: { type: "string" },
+      description:
+        "Changed fields in document terms, e.g. colors.primary, voice, designDirection, layout.spine.",
+    },
+    warnings: {
+      type: "array",
+      items: { type: "object", additionalProperties: true },
+      description:
+        "Non-blocking notes ({message, line?}): ignored keys, read-only sections, values a saved AI style overrides.",
+    },
+    markdown: stringOutputProperty(
+      "The document as it reads after the save (or would read, for a dry run)."
+    ),
+    version: stringOutputProperty(
+      "Current version after the call; unchanged for a dry run or an untouched document."
+    ),
+    designSystem: objectOutputProperty(
+      "The design system in effect after the save."
     ),
   },
   get_shopify_automation_settings: {
@@ -428,12 +565,12 @@ export const outputPropertiesByToolName: Record<
   },
   list_integrations: {
     integrations: resourceListOutputProperty(
-      "connected integration, including provider, provider account ID, active and sync status, last sync time, last sync error, allowlisted non-secret details, and lastSyncSkipped (records the last sync could not import normally: suppressed profiles that cannot receive email, plus any that were not imported). Credentials are never included"
+      "connected integration, including provider, provider account ID, active and sync status, last sync time, last sync error, allowlisted non-secret details, cohorts (Mixpanel and Amplitude: each synced cohort's id, name, and tag), eventSettings (Amplitude), and lastSyncSkipped (records the last sync could not import normally: suppressed profiles that cannot receive email, plus any that were not imported). Credentials are never included"
     ),
   },
   get_integration: {
     integration: objectOutputProperty(
-      "The connected integration: provider, display name, category, provider account ID, active and sync status, last sync time and error, and allowlisted non-secret details. Credentials are never included."
+      "The connected integration: provider, display name, category, provider account ID, active and sync status, last sync time and error, allowlisted non-secret details, cohorts (Mixpanel and Amplitude: each synced cohort's id, name, tag, and sync times), and eventSettings (Amplitude). Credentials are never included."
     ),
     capabilities: nullableObjectOutputProperty(
       "What this provider does: category, connect method, what it syncs, every event it emits with when it fires, attributes it writes, supported actions, availability, and caveats. Null for a provider with no catalog entry."
@@ -477,6 +614,52 @@ export const outputPropertiesByToolName: Record<
       "integration provider, including category, connect method, what it syncs, every event it emits with the moment that triggers it, the subscriber attributes it writes, supported actions, availability, and caveats"
     ),
   },
+  list_integration_suggestions: {
+    websiteUrl: nullableStringOutputProperty(
+      "The company website the suggestions were read from."
+    ),
+    scanComplete: booleanOutputProperty(
+      "False while onboarding is still reading the website, including the tool scan that can finish a few seconds later; an empty list then means not scanned yet."
+    ),
+    suggestions: arrayOutputProperty(
+      "Detected providers not yet connected, each with provider, name, category, evidence (homepage, sign_in_page or storefront) and shopDomain (Shopify only, else null)."
+    ),
+    paymentProviders: nullableObjectOutputProperty(
+      "Present when the website lists pricing and no payment or commerce integration is connected: reason (pricing_found), pricingPlanCount, and providers (every payment provider, each with provider and name). Null otherwise."
+    ),
+  },
+  preview_cart_items: {
+    suggestions: {
+      type: "array",
+      items: objectOutputProperty(
+        "Suggested field, relative path and example. Existing mappings are never replaced."
+      ),
+    },
+    priceCandidates: {
+      type: "array",
+      items: objectOutputProperty(
+        "Numeric price path, example and unknown units; confirm before mapping."
+      ),
+    },
+    previewItems: {
+      type: "array",
+      items: objectOutputProperty(
+        "An item object to pass at the block source in render variables."
+      ),
+    },
+    scenario: stringOutputProperty("Selected scenario."),
+    isSample: {
+      type: "boolean",
+      description:
+        "True for synthetic preview scenarios; never use these as recipient data.",
+    },
+    presets: {
+      type: "array",
+      items: objectOutputProperty(
+        "Preset id, label, description and explicit optional block settings."
+      ),
+    },
+  },
   get_email_block_schema: {
     blockTypes: {
       type: "array",
@@ -501,6 +684,14 @@ export const outputPropertiesByToolName: Record<
       type: "string",
       description:
         "Present on a single-type response that omitted `conditionFields`, saying that conditions are per-field and how to get the table. The table is several times the size of one block type's reference, so a targeted lookup does not carry it unless conditions are that type's purpose or you asked for it.",
+    },
+  },
+  get_event_sample: {
+    eventName: { type: "string", description: "Exact recorded event name." },
+    sample: {
+      type: ["object", "null"],
+      description:
+        "Latest received event across workspace subscribers, or null. Contains eventTime (UTC), subscriberId and properties (JSON object). No age cutoff. Copy properties to test customVariables.",
     },
   },
   get_event_schema: {
@@ -536,7 +727,7 @@ export const outputPropertiesByToolName: Record<
         "The connected integration: id, provider, name, providerAccountId, sync state, and safe (non-credential) details.",
     },
     webhookUrl: stringOutputProperty(
-      "Provider webhook URL. Lemon Squeezy may already have it installed when webhookProvisioning is managed; manual mode uses the supplied secret. Empty for outbound-only Attio."
+      "Provider webhook URL. Lemon Squeezy may already have it installed when webhookProvisioning is managed; manual mode uses the supplied secret. SparkLoop's is already registered in SparkLoop. Empty for Attio, which registers its own webhook when inbound mappings are saved."
     ),
     webhookProvisioning: stringOutputProperty(
       "Lemon Squeezy only: managed when Sequenzy provisioned the webhook, or manual when the caller supplied its signing secret."
@@ -550,6 +741,11 @@ export const outputPropertiesByToolName: Record<
     backfillQueued: booleanOutputProperty(
       "Affonso only: whether the affiliate backfill was queued."
     ),
+    publication: {
+      type: "object",
+      description:
+        "SparkLoop only: the publication ({ id, name }) whose partner referrals this workspace receives.",
+    },
     history: {
       type: "object",
       description:
@@ -636,6 +832,18 @@ export const outputPropertiesByToolName: Record<
     },
     message: messageOutputProperty,
   },
+  disconnect_integration: {
+    integrationId: stringOutputProperty("The disconnected integration ID."),
+    provider: stringOutputProperty("lemon_squeezy"),
+    cleanupWarning: {
+      type: ["string", "null"],
+      description:
+        "Null after successful cleanup. A warning means locally disconnected; repeat disconnect to retry managed webhook removal.",
+    },
+    message: stringOutputProperty(
+      "Disconnection result and recovery instructions."
+    ),
+  },
   sync_integration: {
     integrationId: stringOutputProperty("The integration being synced."),
     provider: stringOutputProperty("Provider of the synced integration."),
@@ -657,10 +865,31 @@ export const outputPropertiesByToolName: Record<
       "Saved Sequenzy list id → Attio list UUID or api slug. Empty when nothing is mapped."
     ),
     mappedListCount: numberOutputProperty(
-      "Number of saved mappings whose Sequenzy source and Attio target lists both still exist. Stale saved entries remain in listMap but are not counted. Zero means list joins are not synced."
+      "Number of saved listMap entries whose Sequenzy source and Attio target lists both still exist. Stale saved entries remain in listMap but are not counted. Zero means list joins are not synced to Attio."
     ),
     syncCompanyFromDomain: booleanOutputProperty(
       "Whether a company is upserted from the person's non-free-mail email domain."
+    ),
+    tagMap: objectOutputProperty(
+      "Saved Sequenzy tag → Attio list UUID or api slug (Sequenzy → Attio)."
+    ),
+    inboundListMap: objectOutputProperty(
+      "Saved Attio list UUID → Sequenzy list id (Attio → Sequenzy)."
+    ),
+    inboundTagMap: objectOutputProperty(
+      "Saved Attio list UUID → Sequenzy tag (Attio → Sequenzy)."
+    ),
+    syncRemovals: booleanOutputProperty(
+      "Whether removals are mirrored in every mapped direction. False means add-only."
+    ),
+    mappedTagCount: numberOutputProperty(
+      "Saved tag mappings whose Attio target list still exists."
+    ),
+    inboundMappingCount: numberOutputProperty(
+      "Saved Attio → Sequenzy mappings whose Attio source and Sequenzy target both still exist."
+    ),
+    inbound: objectOutputProperty(
+      "Inbound sync health: enabled, status (`off`, `active`, or `error`), error (what to fix when status is `error`), and webhookUrl."
     ),
     sequenzyLists: {
       type: "array",
@@ -677,6 +906,14 @@ export const outputPropertiesByToolName: Record<
     },
     message: messageOutputProperty,
   },
+  update_amplitude_settings: {
+    integration: objectOutputProperty(
+      "The updated Amplitude integration, including eventSettings and synced cohorts."
+    ),
+    eventSettings: objectOutputProperty(
+      "The saved scope: { syncAllEvents, eventAllowlist, skipInternalEvents }."
+    ),
+  },
   update_attio_settings: {
     integrationId: stringOutputProperty("The Attio integration updated."),
     provider: stringOutputProperty("Always `attio`."),
@@ -688,6 +925,27 @@ export const outputPropertiesByToolName: Record<
     ),
     syncCompanyFromDomain: booleanOutputProperty(
       "Whether company matching from work-email domains is on after the update."
+    ),
+    tagMap: objectOutputProperty(
+      "Saved Sequenzy tag → Attio list UUID or api slug (Sequenzy → Attio)."
+    ),
+    inboundListMap: objectOutputProperty(
+      "Saved Attio list UUID → Sequenzy list id (Attio → Sequenzy)."
+    ),
+    inboundTagMap: objectOutputProperty(
+      "Saved Attio list UUID → Sequenzy tag (Attio → Sequenzy)."
+    ),
+    syncRemovals: booleanOutputProperty(
+      "Whether removals are mirrored in every mapped direction. False means add-only."
+    ),
+    mappedTagCount: numberOutputProperty(
+      "Saved tag mappings whose Attio target list still exists."
+    ),
+    inboundMappingCount: numberOutputProperty(
+      "Saved Attio → Sequenzy mappings whose Attio source and Sequenzy target both still exist."
+    ),
+    inbound: objectOutputProperty(
+      "Inbound sync health: enabled, status (`off`, `active`, or `error`), error (what to fix when status is `error`), and webhookUrl."
     ),
     sequenzyLists: {
       type: "array",
@@ -708,7 +966,7 @@ export const outputPropertiesByToolName: Record<
     changedFields: {
       type: "array",
       description:
-        "Which settings actually moved: listMap and/or syncCompanyFromDomain.",
+        "Which settings actually moved: listMap, tagMap, inboundListMap, inboundTagMap, syncRemovals, and/or syncCompanyFromDomain, plus inboundWebhook when the save set up, repaired or removed the Attio webhook.",
       items: stringOutputProperty("Field name."),
     },
     message: messageOutputProperty,
@@ -720,7 +978,7 @@ export const outputPropertiesByToolName: Record<
       description:
         "Publishable keys for the browser tracking SDK, newest first. A key with lastUsedAt null has not successfully authenticated an event yet; check deployment, instrumentation or traffic, and the origin allowlist.",
       items: objectOutputProperty(
-        "One key: id, name, publicKey, allowedOrigins, isActive, unrestricted, lastUsedAt, installSnippet, endpoint, and warning when unrestricted."
+        "One key: id, name, publicKey, allowedOrigins, allowedAppIds, isActive, unrestricted, lastUsedAt, installSnippet, endpoint, and warning when unrestricted."
       ),
     },
   },
@@ -783,10 +1041,10 @@ export const outputPropertiesByToolName: Record<
       "One entry per notification event with its current mode: off, instant, daily, or weekly. Every event is always present; an event the user has never configured reports the platform default."
     ),
     supportedModes: objectOutputProperty(
-      "Modes each event accepts, keyed by event. form_submitted and campaign_completed do not accept daily; weekly_report accepts only off or weekly."
+      "Modes each event accepts, keyed by event. form_submitted and campaign_completed do not accept daily; weekly_report accepts only off or weekly; account_health only off or instant."
     ),
     defaults: objectOutputProperty(
-      "Mode each event uses when the user has never configured it, resolved for their role: the workspace owner defaults to weekly_report 'weekly', invited members to 'off'."
+      "Mode each event uses when the user has never configured it, resolved for their role: the workspace owner defaults to weekly_report 'weekly' and account_health 'instant', invited members to 'off'."
     ),
   },
   update_notification_preferences: {
@@ -794,10 +1052,10 @@ export const outputPropertiesByToolName: Record<
       "Every notification event with its mode after the update, not only the events that were changed."
     ),
     supportedModes: objectOutputProperty(
-      "Modes each event accepts, keyed by event. form_submitted and campaign_completed do not accept daily; weekly_report accepts only off or weekly."
+      "Modes each event accepts, keyed by event. form_submitted and campaign_completed do not accept daily; weekly_report accepts only off or weekly; account_health only off or instant."
     ),
     defaults: objectOutputProperty(
-      "Mode each event uses when the user has never configured it, resolved for their role: the workspace owner defaults to weekly_report 'weekly', invited members to 'off'."
+      "Mode each event uses when the user has never configured it, resolved for their role: the workspace owner defaults to weekly_report 'weekly' and account_health 'instant', invited members to 'off'."
     ),
   },
   get_sending_status: {
@@ -808,7 +1066,7 @@ export const outputPropertiesByToolName: Record<
       "Exact enforcement message, including the measured rate, the threshold it crossed, and the send volume it was measured over. Null when sending is active."
     ),
     pauseReasonKind: nullableStringOutputProperty(
-      "Machine-readable pause cause: high_hard_bounce_rate, high_soft_bounce_rate, high_complaint_rate, phishing_guard, manual, or other. Only high_hard_bounce_rate can be cleared with resume_sending."
+      "Machine-readable pause cause: high_hard_bounce_rate, high_soft_bounce_rate, high_block_rate, high_complaint_rate, phishing_guard, over_email_limit, manual, or other. Only high_hard_bounce_rate can be cleared with resume_sending; over_email_limit lifts automatically once the account has email allowance again."
     ),
     pausedAt: nullableStringOutputProperty(
       "ISO timestamp when sending was paused. Null when sending is active."
@@ -817,7 +1075,7 @@ export const outputPropertiesByToolName: Record<
       "Whether the account can clear this pause itself: canSelfResume, supported, allowedByAdmin, ownerIsTrusted, the automated aiReviewStatus (not_required, pending, approved, flagged, failed) with its reason and timestamps, and unavailableReason naming the blocking gate (unsupported_reason, waiting_for_review, blocked_by_ai, review_failed, blocked_by_admin)."
     ),
     senderHealth: nullableObjectOutputProperty(
-      "Enforcement counts and the thresholds that apply at this volume for hard bounces, soft bounces, and complaints. bounceScopedSent is the denominator for bounce rates, complaintScopedSent is the denominator for complaint rates, and scopedSent remains as a backward-compatible alias for bounceScopedSent. Also includes enforcementMode. Null when the account has no metrics record yet or sender-health analytics are temporarily unavailable; pause state and remediation remain authoritative."
+      "Enforcement counts and the thresholds that apply at this volume for hard bounces, soft bounces, blocks (block: receivers refusing the sender for spam or content, its domain, policy, or failed SPF, DKIM or DMARC), and complaints. bounceScopedSent is the denominator for bounce rates, blockScopedSent (test sends included) is the denominator for the block rate, complaintScopedSent is the denominator for complaint rates, and scopedSent remains as a backward-compatible alias for bounceScopedSent. Also includes enforcementMode. Null when the account has no metrics record yet or sender-health analytics are temporarily unavailable; pause state and remediation remain authoritative."
     ),
     metricsWindow: objectOutputProperty(
       "Proof that enforcement is not time-windowed: kind is always all_time_since_reset and expiresAt is always null. bounceResetAt and complaintResetAt are the watermarks the totals are counted from. Do not tell the user to wait for a window to expire - there is none."
@@ -844,9 +1102,63 @@ export const outputPropertiesByToolName: Record<
       "Steps to keep sending healthy after the resume, plus supportEmail and docsUrl."
     ),
   },
+  get_account_health: {
+    accountHealth: objectOutputProperty(
+      "eligibility {eligible, minimumActiveSubscribers, activityDays, hasMinimumSubscribers, sentRecently}, settings {enabled, autonomy}, nextRunAt, latestRun (status, summary, stats, insightCount, draftsCreated), runInProgress, and insights (open and snoozed, most severe first) with id, detector, severity, status, title, detail, recommendation, evidence, subject, fixAutomationId, actions (kind, label, targetId, path, confirm, api) and feedback (the key owner's own {rating, comment, updatedAt}, or null)."
+    ),
+  },
+  update_account_health_settings: {
+    settings: objectOutputProperty("The saved settings: enabled and autonomy."),
+    nextRunAt: nullableStringOutputProperty(
+      "When the next scheduled check runs, or null when checks are off."
+    ),
+  },
+  run_account_health_check: {
+    run: objectOutputProperty(
+      "The queued or in-flight run: id, trigger, status, scheduledFor and createdAt."
+    ),
+    alreadyInProgress: booleanOutputProperty(
+      "True when an existing queued or running check was returned instead of a new one."
+    ),
+  },
+  create_account_health_fix: {
+    sequenceId: stringOutputProperty(
+      "The draft sequence that fixes the insight."
+    ),
+    created: booleanOutputProperty(
+      "False when a draft for this insight already existed and was returned."
+    ),
+    enrichmentStatus: stringOutputProperty(
+      "Only when created: processing while AI writes the emails, or not_queued when writing could not start."
+    ),
+  },
+  update_account_health_insight: {
+    insight: objectOutputProperty(
+      "The updated insight with its new status and snoozedUntil."
+    ),
+  },
+  submit_account_health_feedback: {
+    insightId: stringOutputProperty("The rated insight."),
+    feedback: objectOutputProperty(
+      "The saved answer: rating (useful or not_useful), comment (or null) and updatedAt."
+    ),
+  },
+  get_frequency_cap: {
+    frequencyCap: nullableObjectOutputProperty(
+      "The company cap {maxEmails, windowHours}: at most maxEmails marketing emails per contact in any windowHours. Null when no cap is set."
+    ),
+  },
+  set_frequency_cap: {
+    frequencyCap: objectOutputProperty(
+      "The saved cap {maxEmails, windowHours}."
+    ),
+  },
+  clear_frequency_cap: {
+    frequencyCap: nullableObjectOutputProperty("Always null: no cap is set."),
+  },
   get_tracking_settings: {
     tracking: objectOutputProperty(
-      "Account-wide open/click flags, transactionalOpenTrackingEnabled and transactionalClickTrackingEnabled defaults for Transactional API sends, unsubscribe tracking, the opt-in strictBotFilteringEnabled bot-detection flag, plus the default attribution window in hours."
+      "Account-wide open/click flags, transactionalOpenTrackingEnabled and transactionalClickTrackingEnabled defaults for Transactional API sends, unsubscribe tracking, the opt-in strictBotFilteringEnabled bot-detection flag, emailContentStorageEnabled (false: no stored email content or subjects, and no IP address, user agent or country on opens and clicks), plus the default attribution window in hours."
     ),
     consent: objectOutputProperty(
       "Signup consent settings: doubleOptInEnabled, doubleOptInEmailId for the confirmation email sent to pending contacts (null when double opt-in has never been enabled), and doubleOptInRedirectUrl for where the hosted confirmation page sends subscribers after confirming (null keeps them on the branded confirmation page)."
@@ -855,7 +1167,7 @@ export const outputPropertiesByToolName: Record<
       "Automatic UTM tagging state and its configured parameters."
     ),
     trackingDomain: nullableObjectOutputProperty(
-      "Dedicated click-tracking domain with verification and SSL status. Null when click links use the shared Sequenzy tracking domain."
+      "Company tracking domain, used by every sending domain, with verification and SSL status. Null when links use the shared Sequenzy tracking domain; links also use it while the tracking domain is unverified."
     ),
     replyTracking: objectOutputProperty(
       "Inbound reply tracking configuration."
@@ -864,7 +1176,7 @@ export const outputPropertiesByToolName: Record<
   update_tracking_settings: {
     message: messageOutputProperty,
     tracking: objectOutputProperty(
-      "Account-wide open/click flags, transactionalOpenTrackingEnabled and transactionalClickTrackingEnabled defaults for Transactional API sends, unsubscribe tracking, the opt-in strictBotFilteringEnabled bot-detection flag, plus the default attribution window in hours, after the update."
+      "Account-wide open/click flags, transactionalOpenTrackingEnabled and transactionalClickTrackingEnabled defaults for Transactional API sends, unsubscribe tracking, the opt-in strictBotFilteringEnabled bot-detection flag, emailContentStorageEnabled (false: no stored email content or subjects, and no IP address, user agent or country on opens and clicks), plus the default attribution window in hours, after the update."
     ),
     consent: objectOutputProperty(
       "Signup consent settings after the update: doubleOptInEnabled, doubleOptInEmailId for the confirmation email (provisioned automatically the first time double opt-in is enabled), and doubleOptInRedirectUrl for the post-confirmation redirect (null keeps subscribers on the branded confirmation page)."
@@ -873,7 +1185,7 @@ export const outputPropertiesByToolName: Record<
       "Automatic UTM tagging state and its configured parameters, after the update."
     ),
     trackingDomain: nullableObjectOutputProperty(
-      "Dedicated click-tracking domain with verification and SSL status. Null when click links use the shared Sequenzy tracking domain."
+      "Company tracking domain, used by every sending domain, with verification and SSL status. Null when links use the shared Sequenzy tracking domain; links also use it while the tracking domain is unverified."
     ),
     replyTracking: objectOutputProperty(
       "Inbound reply tracking configuration. Unchanged by this tool; set it with update_company."
@@ -881,24 +1193,58 @@ export const outputPropertiesByToolName: Record<
   },
   add_website: {
     website: resourceOutputProperty(
-      "Sending domain with its cohort-specific DNS records. Publish every returned record, including DMARC when present."
+      "Sending domain with its cohort-specific DNS records. Publish the DKIM record (for newer domains, the dnsRecords.platformDnsRecords CNAMEs instead: active and spare DKIM selectors plus a recommended return-path CNAME; only required entries block verification), the bounce records described by bounceRecords (cnameRecord when style is cname, otherwise spf.record and mailFrom.mxRecord, never both) and DMARC when present; trackingRecord is the optional company tracking domain CNAME. tracking {policy, required, hostname, status, ready, error, cnameRecord} reports the company tracking domain (policy is always legacy and required always false; deprecated)."
     ),
   },
   add_sending_domain: {
     website: resourceOutputProperty(
-      "Sending domain with its cohort-specific DNS records. Publish every returned record, including DMARC when present."
+      "Sending domain with its cohort-specific DNS records. Publish the DKIM record (for newer domains, the dnsRecords.platformDnsRecords CNAMEs instead: active and spare DKIM selectors plus a recommended return-path CNAME; only required entries block verification), the bounce records described by bounceRecords (cnameRecord when style is cname, otherwise spf.record and mailFrom.mxRecord, never both) and DMARC when present; trackingRecord is the optional company tracking domain CNAME. tracking {policy, required, hostname, status, ready, error, cnameRecord} reports the company tracking domain (policy is always legacy and required always false; deprecated)."
+    ),
+  },
+  configure_sending_domain: {
+    message: messageOutputProperty,
+    website: resourceOutputProperty(
+      "Sending domain with tracking {policy, required, hostname, status, ready, error, cnameRecord} for the company tracking domain. Publish tracking.cnameRecord; links use it once status is verified."
+    ),
+  },
+  get_tracking_domain: {
+    trackingDomain: nullableObjectOutputProperty(
+      "Company tracking domain {domain, status, active, everVerified, sslStatus, verifiedAt, lastCheckedAt, error, cnameRecord}, or null when links use the shared Sequenzy tracking domain. active is true once it verifies and links use it."
+    ),
+  },
+  set_tracking_domain: {
+    message: messageOutputProperty,
+    trackingDomain: nullableObjectOutputProperty(
+      "Company tracking domain {domain, status, active, everVerified, sslStatus, verifiedAt, lastCheckedAt, error, cnameRecord}. Publish cnameRecord; active is true once it verifies and links use it."
+    ),
+  },
+  verify_tracking_domain: {
+    message: messageOutputProperty,
+    verified: booleanOutputProperty(
+      "Whether the tracking domain's CNAME and HTTPS certificate are working."
+    ),
+    trackingDomain: nullableObjectOutputProperty(
+      "Company tracking domain {domain, status, active, everVerified, sslStatus, verifiedAt, lastCheckedAt, error, cnameRecord} after the check."
+    ),
+  },
+  remove_tracking_domain: {
+    removed: booleanOutputProperty(
+      "True when a tracking domain was removed; false when none was set."
+    ),
+    trackingDomain: nullableObjectOutputProperty(
+      "Always null: links now use the shared Sequenzy tracking domain."
     ),
   },
   check_website: {
     website: resourceOutputProperty(
-      "sending domain with separate DNS verification and readyToSend sending readiness; readiness.reason explains a domain that cannot send yet"
+      "sending domain with separate DNS verification and readyToSend sending readiness; readiness.reason explains a domain that cannot send yet. inbound* fields in dnsRecords describe an older reply setup; receiving is managed with receiving domains."
     ),
     ready: booleanOutputProperty("Whether the sender website is ready."),
     status: stringOutputProperty("Current processing or verification status."),
   },
   verify_sending_domain: {
     website: resourceOutputProperty(
-      "Sending domain with current DNS verification, readyToSend sending readiness, SPF, DKIM, and MAIL FROM details. When readyToSend is false, readiness.reason carries why: activation runs after the DNS records are correct, so it can still be pending while dkim.status reads verified."
+      "Sending domain with current DNS verification, readyToSend sending readiness, SPF, DKIM, and MAIL FROM details. When readyToSend is false, read readiness.reason. inbound* fields in dnsRecords describe an older reply setup; receiving is managed with receiving domains."
     ),
     verified: booleanOutputProperty(
       "Whether the sending domain passed the fresh DNS verification check. Correct DNS alone does not mean the domain can send yet."
@@ -907,6 +1253,11 @@ export const outputPropertiesByToolName: Record<
       "Whether DNS and the selected home transport are both ready for sending."
     ),
     message: stringOutputProperty("Verification result summary."),
+  },
+  upgrade_sending_domain_dns: {
+    website: resourceOutputProperty(
+      "Sending domain; dnsUpgrade.records lists the CNAMEs to publish, each {purpose, type, name, value, required, status, diagnostic?}; dnsUpgrade.replacedRecords lists the current records to remove after the switch, each {type, name, removed}"
+    ),
   },
   get_integration_guide: {
     guide: resourceOutputProperty("integration guide"),
@@ -944,6 +1295,14 @@ export const outputPropertiesByToolName: Record<
   list_subscriber_notes: {
     notes: resourceListOutputProperty("subscriber note"),
   },
+  list_subscriber_attributes: {
+    attributes: arrayOutputProperty(
+      "Custom attributes in use, each with key, valueType (string, number, or boolean; string when mixedTypes is true), isArray, mixedTypes (contacts hold different types), sampleValue (null when no example is available), and sampledContacts (0 for names only older contacts carry)."
+    ),
+    sampledContacts: numberOutputProperty(
+      "Recent contacts with custom attributes that were sampled for types and examples."
+    ),
+  },
   add_subscriber_note: {
     note: resourceOutputProperty("subscriber note"),
   },
@@ -952,6 +1311,12 @@ export const outputPropertiesByToolName: Record<
     deleted: booleanOutputProperty("Whether the subscriber note was deleted."),
   },
   trigger_subscriber_event: {
+    account: resourceOutputProperty(
+      "account membership (externalId, role, created), when an account reference was provided"
+    ),
+    accountIgnored: objectOutputProperty(
+      "Present when `account` was ignored because the workspace has not turned Accounts on. Contains reason (accounts_not_enabled) and message."
+    ),
     subscriber: resourceOutputProperty("subscriber"),
     event: resourceOutputProperty(
       "Live event with its name and whether the event definition was created. Historical responses use `events` instead."
@@ -1102,6 +1467,24 @@ export const outputPropertiesByToolName: Record<
   remove_product_file: {
     product: resourceOutputProperty("product"),
   },
+  open_image_upload: {
+    mode: stringOutputProperty("Widget mode: upload."),
+    companyId: stringOutputProperty("Pinned target company ID."),
+  },
+  monitor_subscriber_import: {
+    mode: stringOutputProperty("Widget mode: import."),
+    companyId: stringOutputProperty("Pinned target company ID."),
+    importId: stringOutputProperty("Pinned import ID."),
+    import: objectOutputProperty("Current subscriber import progress."),
+  },
+  preview_sequence: {
+    mode: stringOutputProperty("Widget mode: sequence."),
+    companyId: stringOutputProperty("Pinned target company ID."),
+    sequenceId: stringOutputProperty("Pinned sequence ID."),
+    sequence: objectOutputProperty(
+      "Saved sequence topology and email steps, as returned by get_sequence."
+    ),
+  },
   upload_image_asset: {
     asset: resourceOutputProperty("hosted image asset"),
     imageBlock: objectOutputProperty(
@@ -1111,6 +1494,99 @@ export const outputPropertiesByToolName: Record<
   sync_products: {
     job: resourceOutputProperty("product sync job"),
     jobId: stringOutputProperty("Queued product sync job ID."),
+  },
+  list_accounts: {
+    accounts: arrayOutputProperty(
+      "Accounts (B2B organizations). Each entry includes id, externalId, name, domain, attributes, memberCount, lastEventAt, createdAt and updatedAt."
+    ),
+    total: numberOutputProperty("Total accounts matching the query."),
+    page: numberOutputProperty("Current page."),
+    limit: numberOutputProperty("Page size."),
+    hasMore: booleanOutputProperty("Whether another page exists."),
+  },
+  get_account_by_external_id: {
+    account: resourceOutputProperty("account"),
+    members: arrayOutputProperty(
+      "Members with subscriberId, email, externalId, role, firstName, lastName and status."
+    ),
+  },
+  upsert_account: {
+    account: resourceOutputProperty("account"),
+    created: booleanOutputProperty("True when the account was created."),
+    members: arrayOutputProperty("Members added in this call, when provided."),
+  },
+  delete_account: {
+    deleted: booleanOutputProperty("True when the account was deleted."),
+    membersCleared: numberOutputProperty(
+      "Number of memberships removed (contacts are kept)."
+    ),
+  },
+  list_account_members: {
+    account: resourceOutputProperty("account reference (id, externalId)"),
+    members: arrayOutputProperty("Members with their role, owners first."),
+  },
+  add_account_member: {
+    account: resourceOutputProperty("account"),
+    member: resourceOutputProperty(
+      "membership (subscriberId, email, externalId, role, created, subscriberCreated)"
+    ),
+  },
+  remove_account_member: {
+    account: resourceOutputProperty("account"),
+    removed: booleanOutputProperty("True when a membership was removed."),
+  },
+  trigger_account_event: {
+    account: resourceOutputProperty("account"),
+    event: resourceOutputProperty("recorded event (id, name, time)"),
+    recipients: stringOutputProperty("Recipient rule that was applied."),
+    recipientCount: numberOutputProperty("Contacts that received the event."),
+    deliveries: arrayOutputProperty(
+      "Per-recipient outcome with subscriberId, email, role, success and automationsTriggered."
+    ),
+  },
+  list_account_suggestions: {
+    suggestions: arrayOutputProperty(
+      "Suggested accounts, largest first, each with domain, name, contactCount and up to 10 sampleEmails."
+    ),
+  },
+  accept_account_suggestions: {
+    results: arrayOutputProperty(
+      "Per-domain outcome with domain, status (created, updated, skipped), reason (no_contacts, multiple_accounts, already_in_account or null), account, contactCount, membersAdded and truncated."
+    ),
+    accountsCreated: numberOutputProperty("Accounts created in this call."),
+    membershipsCreated: numberOutputProperty(
+      "Memberships created in this call."
+    ),
+  },
+  detect_account_organization_ids: {
+    candidates: arrayOutputProperty(
+      "Organization ID keys, most useful first, each with source (event or attribute), propertyKey, nameKey, eventCount, accountCount and eventNames."
+    ),
+  },
+  preview_accounts_from_organization_id: {
+    organizations: arrayOutputProperty(
+      "Biggest organizations first, each with externalId, name, domain, contactCount and up to 3 sampleEmails."
+    ),
+  },
+  create_accounts_from_organization_id: {
+    jobId: stringOutputProperty("Background job ID to check."),
+    alreadyRunning: booleanOutputProperty(
+      "True when a run for this key was already queued or running."
+    ),
+    job: resourceOutputProperty(
+      "job status (jobId, state, settings, result, error); when alreadyRunning, settings are the running job's"
+    ),
+  },
+  get_account_organization_id_job: {
+    job: resourceOutputProperty(
+      "job status: jobId, state (queued, running, completed, failed), settings (source, propertyKey, nameKey the run uses), result counts and error"
+    ),
+  },
+  list_account_events: {
+    account: resourceOutputProperty("account reference (id, externalId)"),
+    events: arrayOutputProperty(
+      "Account timeline events with id, name, eventTime, properties and recipientCount."
+    ),
   },
   list_tags: {
     tags: resourceListOutputProperty("tag"),
@@ -1126,7 +1602,7 @@ export const outputPropertiesByToolName: Record<
   },
   list_lists: {
     lists: arrayOutputProperty(
-      "Subscriber lists. Each entry includes id, name, description, isPrivate, createdAt, subscriberCount (current members of any status), and activeSubscriberCount (current members with status=active). Memberships with unsubscribedAt set are excluded."
+      "Subscriber lists. Each entry includes id, name, description, isPrivate, allowMemberUnsubscribe, createdAt, subscriberCount (current members of any status), and activeSubscriberCount (current members with status=active). Memberships with unsubscribedAt set are excluded."
     ),
   },
   create_list: {
@@ -1201,6 +1677,79 @@ export const outputPropertiesByToolName: Record<
   update_template: {
     template: resourceOutputProperty("email template"),
   },
+  list_email_references: {
+    kind: stringOutputProperty("campaign, sequence or transactional."),
+    scope: stringOutputProperty("similar or all."),
+    page: numberOutputProperty("This page of results."),
+    pageCount: numberOutputProperty("How many pages there are."),
+    profile: stringOutputProperty(
+      "ready, or missing when the company has no description or company context to find brands like it (scope similar is then empty). Always ready for scope all."
+    ),
+    brands: arrayOutputProperty(
+      "Scope similar: the gallery brands most like the company, closest first: name, domain, slug and url."
+    ),
+    emails: arrayOutputProperty(
+      "Gallery emails: id, subject, preheader, type, subtype, sentAt, brand (name, domain, slug), url and analysis (null until analyzed): mainButton, buttonLabels, buttonCount, linkCount, wordCount, readingTimeSeconds, imageCount, hasGif, darkMode, fonts, columns, format, voice, language, structure (the email's beats in order), takeaways (why it works) and sender (redacted name and address, or null)."
+    ),
+    sequences: arrayOutputProperty(
+      "Whole gallery sequences (kind sequence, first page only): id, name, emailCount, brand and url."
+    ),
+  },
+  list_gallery_brand_requests: {
+    requests: arrayOutputProperty(
+      "Brand requests, newest first: id, domain, note, status (requested, collecting, available or declined), declineReason, requestedAt and brand (name, slug and url, once its emails are in the gallery)."
+    ),
+    limit: numberOutputProperty("How many requests a company can keep."),
+  },
+  request_gallery_brand: {
+    created: booleanOutputProperty(
+      "False when the company had already requested this domain."
+    ),
+    request: objectOutputProperty(
+      "The request: id, domain, note, status, declineReason, requestedAt and brand."
+    ),
+    message: stringOutputProperty("What happens next."),
+  },
+  remove_gallery_brand_request: {
+    deleted: booleanOutputProperty("True once removed."),
+    id: stringOutputProperty("The removed request ID."),
+  },
+  list_watched_brands: {
+    watchlist: arrayOutputProperty(
+      "Watched brands, newest watch first: id, domain, note, status (available, requested, collecting or declined), declineReason, watchedAt, emailCount, latestEmailAt (when its newest gallery email was sent) and brand (name, slug and url, once its emails are in the gallery)."
+    ),
+    limit: numberOutputProperty(
+      "How many watches and brand requests a company can keep together."
+    ),
+  },
+  watch_brand: {
+    created: booleanOutputProperty(
+      "False when the company already watched this domain."
+    ),
+    watch: objectOutputProperty(
+      "The watch: id, domain, note, status, declineReason, watchedAt, emailCount, latestEmailAt and brand."
+    ),
+    message: stringOutputProperty("What happens next."),
+  },
+  unwatch_brand: {
+    deleted: booleanOutputProperty("True once removed."),
+    id: stringOutputProperty("The removed watch ID."),
+  },
+  list_watched_brand_emails: {
+    emails: arrayOutputProperty(
+      "Emails from watched brands, newest sent first: id, subject, preheader, type, subtype, sentAt, collectedAt (when the gallery received it), brand (name, domain, slug), url (also accepted by create_template_from_example) and analysis (null until analyzed): the same breakdown as list_email_references."
+    ),
+    nextCursor: nullableStringOutputProperty(
+      "Pass as cursor for older emails; null on the last page."
+    ),
+  },
+  create_template_from_example: {
+    template: resourceOutputProperty("email template"),
+    example: objectOutputProperty(
+      "The gallery example it was modeled on: brand, subject and url."
+    ),
+    message: stringOutputProperty("What was created and what to check."),
+  },
   set_template_localization: {
     templateId: stringOutputProperty("Localized template ID."),
     localization: resourceOutputProperty("template localization"),
@@ -1215,6 +1764,43 @@ export const outputPropertiesByToolName: Record<
     queuedVariantCount: numberOutputProperty(
       "Number of localized variants queued for translation."
     ),
+    skippedLocales: {
+      type: "array",
+      description:
+        "Locale codes kept because someone edited them (only with skipEdited).",
+      items: stringOutputProperty("One skipped locale code."),
+    },
+  },
+  get_template_localization_coverage: {
+    primaryLocale: stringOutputProperty("Locale the emails are written in."),
+    totalEmails: numberOutputProperty(
+      "Sequence and transactional emails that should be translated."
+    ),
+    sequenceEmails: numberOutputProperty(
+      "Sequence email steps and sequence A/B variants counted."
+    ),
+    transactionalEmails: numberOutputProperty(
+      "Enabled transactional emails counted (0 for marketer keys)."
+    ),
+    locales: {
+      type: "array",
+      description:
+        "One entry per enabled non-primary locale with total, upToDate, edited, outdated, translating, failed and missing counts.",
+      items: objectOutputProperty("Translation counts for one locale."),
+    },
+  },
+  translate_missing_template_localizations: {
+    locales: {
+      type: "array",
+      description: "Locale codes that were checked for missing translations.",
+      items: stringOutputProperty("One locale code."),
+    },
+    queuedEmails: numberOutputProperty(
+      "Emails with at least one translation queued."
+    ),
+    queuedTranslations: numberOutputProperty(
+      "Email and locale pairs queued for AI translation."
+    ),
   },
   delete_template: {
     templateId: stringOutputProperty("Deleted template ID."),
@@ -1228,14 +1814,28 @@ export const outputPropertiesByToolName: Record<
   get_default_email_component: {
     component: resourceOutputProperty("default email component for the slot"),
   },
+  preview_default_email_component: {
+    application: resourceOutputProperty(
+      "footer application preview: token, counts, affected and skipped email versions"
+    ),
+    renderedPreview: resourceOutputProperty(
+      "optional visual preview: footerHtml, before/after HTML samples, and personalization limitations"
+    ),
+  },
   set_default_email_component: {
     component: resourceOutputProperty("saved default email component"),
+    application: resourceOutputProperty(
+      "applied preview counts and affected/skipped email versions, when application was supplied"
+    ),
   },
   create_email_component: {
     component: resourceOutputProperty("email component"),
   },
   update_email_component: {
     component: resourceOutputProperty("email component"),
+  },
+  duplicate_email_component: {
+    component: resourceOutputProperty("email component copy"),
   },
   delete_email_component: {
     id: stringOutputProperty("Deleted email component ID."),
@@ -1248,13 +1848,62 @@ export const outputPropertiesByToolName: Record<
   },
   get_ab_test_stats: {
     abTest: resourceOutputProperty("A/B test"),
+    abTestId: stringOutputProperty("A/B test ID."),
     stats: resourceOutputProperty("A/B test statistics"),
+    variants: arrayOutputProperty(
+      "Per-variant stats: id, label, subject, isWinner and stats."
+    ),
+    significance: {
+      type: "object",
+      description:
+        "Statistical significance of the winner metric. Before a winner is selected it uses the requested time range; once a winner is selected it compares only emails sent before the winner was chosen and ignores period/start/end. status is insufficient_data (a variant has under 30 recipients or too few opens/clicks), not_significant (the difference could still be chance), or significant (confidence reached confidenceLevel). Report not_significant leaders as ahead, not as winners. Automatic winner selection does not wait for significance.",
+      properties: {
+        metric: {
+          type: "string",
+          enum: [
+            "open_rate",
+            "click_rate",
+            "goal_conversion_rate",
+            "goal_value",
+            "event_rate",
+          ],
+          description:
+            "Metric compared, from the test's winner criteria. Goal and event criteria compare whether recipients converted (goal_value too, since value has no yes/no outcome).",
+        },
+        status: {
+          type: "string",
+          enum: ["insufficient_data", "not_significant", "significant"],
+          description: "Whether the leader's advantage is significant.",
+        },
+        confidenceLevel: numberOutputProperty(
+          "Confidence required for significant, from 0 to 1."
+        ),
+        leaderVariantId: nullableStringOutputProperty(
+          "Variant with the highest rate; null when the top variants tie."
+        ),
+        leaderVariantLabel: nullableStringOutputProperty(
+          "Label of the leading variant."
+        ),
+        confidence: nullableNumberOutputProperty(
+          "One minus the corrected p-value (0-1); at or above confidenceLevel the difference is unlikely to be chance. Very strong results can round to exactly 1 (report as >99.9%). Null while data is insufficient."
+        ),
+        pValue: nullableNumberOutputProperty(
+          "Corrected two-sided p-value; null while data is insufficient."
+        ),
+        relativeLift: nullableNumberOutputProperty(
+          "Leader's relative improvement over the closest variant (0.3 = 30% higher); null without a leader or when the closest variant has no opens/clicks."
+        ),
+      },
+    },
   },
   restart_ab_test: {
     abTest: resourceOutputProperty("A/B test"),
   },
   select_ab_test_winner: {
     abTest: resourceOutputProperty("A/B test with the selected winner"),
+  },
+  resume_ab_test: {
+    abTest: resourceOutputProperty("A/B test that is testing again"),
   },
   update_ab_test_variant: {
     abTest: resourceOutputProperty("A/B test"),
@@ -1279,7 +1928,7 @@ export const outputPropertiesByToolName: Record<
   },
   list_campaigns: {
     campaigns: arrayOutputProperty(
-      `List of campaign records returned by Sequenzy. ${campaignStoOutputHint}`
+      `List of campaign records returned by Sequenzy. hasAudience indicates an explicit audience configuration, not an eligible recipient count. ${campaignStoOutputHint}`
     ),
     pagination: objectOutputProperty(
       "Campaign page window: `limit`, `offset`, `count` returned in this page, `total` matching the filters, and `hasMore`. Keep calling with an advanced `offset` while `hasMore` is true to enumerate every campaign."
@@ -1306,12 +1955,14 @@ export const outputPropertiesByToolName: Record<
   },
   get_email_send: {
     emailSend: resourceOutputProperty(
-      "email send, including copied-recipient identity and primary email send ID when applicable"
+      "email send, including copied-recipient identity and primary email send ID when applicable, and for an email that didn't arrive its outcome (bounced, blocked, delayed or failed) with a one-sentence reason"
     ),
     events: resourceListOutputProperty("email delivery event"),
   },
   list_email_sends: {
-    emailSends: resourceListOutputProperty("email send"),
+    emailSends: resourceListOutputProperty(
+      "email send, with outcome (bounced, blocked, delayed or failed) and reason for an email that didn't arrive"
+    ),
     pagination: resourceOutputProperty("email send pagination"),
     retentionDays: numberOutputProperty(
       "Number of days sent-email rows remain queryable in this collection."
@@ -1354,6 +2005,12 @@ export const outputPropertiesByToolName: Record<
   },
   create_campaign: {
     campaign: resourceOutputProperty("campaign"),
+  },
+  create_campaign_for_audience: {
+    campaign: resourceOutputProperty("draft campaign with frozen targetLists"),
+    audience: resourceOutputProperty(
+      "selection source, selectedCount, eligibleCount and selectedAt"
+    ),
   },
   update_campaign: {
     campaign: resourceOutputProperty("campaign"),
@@ -1403,7 +2060,7 @@ export const outputPropertiesByToolName: Record<
   },
   update_sms_number_label: {
     number: resourceOutputProperty(
-      "updated SMS number (label + brandPrefix override)"
+      "updated SMS number (label, brandPrefix override, linkShorteningEnabled)"
     ),
   },
   release_sms_number: {
@@ -1430,25 +2087,39 @@ export const outputPropertiesByToolName: Record<
       "Estimated number of subscribers who haven't opened the original campaign."
     ),
   },
+  list_capture_submissions: {
+    source: resourceOutputProperty(
+      "form, popup or landing page; id, name and type"
+    ),
+    submissions: resourceListOutputProperty(
+      "saved submission with id, companyId, sourceType, sourceId, nullable formId/popupId/landingPageId, subscriberId, createdAt, normalized payload and fieldLabels; optional payload.recovery marks reconstructed records with evidenceType, evidenceId, recoveredAt, sourceAttribution=inferred and timestampMeaning=event_time"
+    ),
+    nextCursor: nullableStringOutputProperty(
+      "Cursor for the next page, or null when complete."
+    ),
+    csv: stringOutputProperty(
+      "CSV for this page, present only when format is csv."
+    ),
+  },
   list_forms: {
     forms: resourceListOutputProperty("saved form"),
   },
   create_form: {
     form: resourceOutputProperty("saved form"),
     embed: objectOutputProperty(
-      "Public action URL plus JavaScript, native form, and fetch snippets."
+      "Public action URL plus JavaScript, native form, and fetch snippets, with recommendedSnippet and reducedProtectionWarning."
     ),
   },
   update_form: {
     form: resourceOutputProperty("saved form"),
     embed: objectOutputProperty(
-      "Public action URL plus JavaScript, native form, and fetch snippets (published forms only)."
+      "Public action URL plus JavaScript, native form, and fetch snippets, with recommendedSnippet and reducedProtectionWarning (published forms only)."
     ),
   },
   get_form_embed: {
     form: resourceOutputProperty("saved form"),
     embed: objectOutputProperty(
-      "Public action URL plus JavaScript, native form, and fetch snippets."
+      "Public action URL plus JavaScript, native form, and fetch snippets, with recommendedSnippet (javascript, the only one with spam protection), placeholder (positions the javascript form when its script loads elsewhere) and reducedProtectionWarning to show when nativeForm or fetch is used."
     ),
   },
   list_popups: {
@@ -1560,7 +2231,7 @@ export const outputPropertiesByToolName: Record<
     statuses: {
       type: "array",
       description:
-        "Enrollment statuses included in this response. Defaults to active and waiting.",
+        "Enrollment statuses included in this response. Defaults to active, waiting, and paused.",
       items: { type: "string", description: "Enrollment status." },
     },
     stopCondition: objectOutputProperty(
@@ -1598,7 +2269,7 @@ export const outputPropertiesByToolName: Record<
             "Subscriber status (active, unsubscribed, bounced), or null when the subscriber record no longer exists."
           ),
           status: stringOutputProperty(
-            "Enrollment status: active, waiting, completed, failed, or cancelled."
+            "Enrollment status: active, waiting, paused, completed, failed, or cancelled."
           ),
           currentNodeId: stringOutputProperty(
             "Sequence node this enrollment is currently sitting on."
@@ -1635,6 +2306,12 @@ export const outputPropertiesByToolName: Record<
           ),
           moveReason: nullableStringOutputProperty(
             "Note recorded with that release, or null when none was given."
+          ),
+          pausedAt: nullableStringOutputProperty(
+            "When pause_sequence_subscribers paused this enrollment, or null when it is not paused."
+          ),
+          pauseReason: nullableStringOutputProperty(
+            "Reason passed to pause_sequence_subscribers, or null."
           ),
           stopConditionMatches: nullableBooleanOutputProperty(
             "Whether the sequence's stop condition matches for this contact right now. Null when it was not determined: stopConditionMatch was not requested, the sequence has no stop condition, this enrollment is no longer active or waiting, or it fell outside the evaluated window. Null never means `does not match`. This is a non-atomic snapshot: the worker re-checks before a future step, but the condition can change and a step already past its stop check may still finish."
@@ -1754,6 +2431,16 @@ export const outputPropertiesByToolName: Record<
       "Where the branch history came from: node_events, token_context, both, or none."
     ),
   },
+  start_sequence_test_run: {
+    run: objectOutputProperty(
+      "Created run with id, status, recipientEmails, subscriberId, speedMultiplier, timestamps, steps, errorMessage and jobId."
+    ),
+  },
+  get_sequence_test_run: {
+    run: objectOutputProperty(
+      "Run with id, status, recipientEmails, subscriberId, speedMultiplier, timestamps, steps and errorMessage."
+    ),
+  },
   simulate_sequence: {
     sequenceId: stringOutputProperty("Sequence ID."),
     sequenceName: stringOutputProperty("Sequence name."),
@@ -1762,7 +2449,7 @@ export const outputPropertiesByToolName: Record<
       "Always false. Simulation never sends mail or enrolls anyone."
     ),
     enrollment: objectOutputProperty(
-      "Who currently matches and the confirmation that nobody is auto-enrolled on activate. List, tag, and segment matches can still be enrolled by hand."
+      "Who currently matches and the confirmation that enable_sequence does not enroll existing contacts. List, tag, and segment matches can still be enrolled by hand."
     ),
     readiness: objectOutputProperty(
       "Activation checks: ready, errors that should be fixed before enable_sequence, and non-blocking warnings."
@@ -1777,6 +2464,35 @@ export const outputPropertiesByToolName: Record<
     results: arrayOutputProperty(
       "Per-recipient test-send results containing recipientEmail, durable emailSendId, and legacy jobId."
     ),
+  },
+  preview_template_from_example: {
+    preview: objectOutputProperty(
+      "The unsaved rewrite: brandName and website (whose brand it is written in; website null for this company's own), subject, previewText and html."
+    ),
+    example: objectOutputProperty(
+      "The gallery example it is modeled on: brand, subject and url."
+    ),
+    message: stringOutputProperty(
+      "That nothing was saved, and how to save it."
+    ),
+  },
+  preview_sequence_from_example: {
+    preview: objectOutputProperty(
+      "The unsaved rewrite: brandName, website (null for this company's own brand), emails (stepNumber, day, originalSubject, subject, previewText, html for each of the first emails), remainingEmailCount and failedEmailCount."
+    ),
+    example: objectOutputProperty(
+      "The gallery sequence it is modeled on: brand, name, emailCount and url."
+    ),
+    message: stringOutputProperty(
+      "That nothing was saved, and how to clone it."
+    ),
+  },
+  create_sequence_from_example: {
+    sequence: sequenceOutputProperty,
+    example: objectOutputProperty(
+      "The gallery sequence it was cloned from: brand, name, url, omittedEmailCount (the example's emails left out: not chosen in stepNumbers, or beyond the 12-step limit) and stepNumbers (positions of the cloned emails in the example)."
+    ),
+    message: stringOutputProperty("What was created and what happens next."),
   },
   create_sequence: {
     sequence: sequenceOutputProperty,
@@ -1803,6 +2519,75 @@ export const outputPropertiesByToolName: Record<
   },
   edit_sequence_graph: {
     sequence: sequenceMutationOutputProperty,
+  },
+  get_sequence_definition: {
+    format: stringOutputProperty(
+      "readable or raw: which form definition is in."
+    ),
+    definition: objectOutputProperty(
+      "The sequence definition: key, id, name, description, managedBy, status, settings, steps and connections."
+    ),
+  },
+  push_sequence_definition: {
+    dryRun: booleanOutputProperty(
+      "Whether the changes were only returned, not saved."
+    ),
+    created: booleanOutputProperty("Whether the push created a new sequence."),
+    hasChanges: booleanOutputProperty(
+      "Whether the document differs from what is stored."
+    ),
+    sequence: objectOutputProperty(
+      "The sequence: id, key, name, status and managedBy."
+    ),
+    changes: objectOutputProperty(
+      "Changed sequence fields, added/changed/removed steps (with waiting contact counts) and added/removed connections."
+    ),
+    warnings: arrayOutputProperty(
+      "Fields that were ignored or need attention."
+    ),
+  },
+  edit_sequence_emails: {
+    dryRun: booleanOutputProperty(
+      "Whether the changes were only returned, not saved."
+    ),
+    emails: resourceListOutputProperty("edited sequence email"),
+    skipped: resourceListOutputProperty("skipped sequence step"),
+  },
+  list_sequence_email_variations: {
+    mode: stringOutputProperty("Widget mode: variations."),
+    target: stringOutputProperty("What they are variations of: sequence."),
+    sequenceId: stringOutputProperty("Pinned sequence ID."),
+    emailId: stringOutputProperty("Pinned email ID."),
+    email: objectOutputProperty(
+      "The email they are variations of: emailId, nodeId and label."
+    ),
+    companyId: stringOutputProperty("Pinned company ID, when one was passed."),
+    variations: resourceListOutputProperty("sequence email variation"),
+  },
+  generate_sequence_email_variations: {
+    mode: stringOutputProperty("Widget mode: variations."),
+    target: stringOutputProperty("What they are variations of: sequence."),
+    sequenceId: stringOutputProperty("Pinned sequence ID."),
+    emailId: stringOutputProperty("Pinned email ID."),
+    email: objectOutputProperty(
+      "The email they are variations of: emailId, nodeId and label."
+    ),
+    companyId: stringOutputProperty("Pinned company ID, when one was passed."),
+    newVariationIds: {
+      type: "array",
+      description: "IDs of the variations this call started.",
+      items: stringOutputProperty("Variation ID."),
+    },
+    variations: resourceListOutputProperty("sequence email variation"),
+  },
+  use_sequence_email_variation: {
+    dryRun: booleanOutputProperty(
+      "Whether the result was only returned, not saved."
+    ),
+    emails: resourceListOutputProperty("changed sequence email"),
+  },
+  discard_sequence_email_variation: {
+    discarded: booleanOutputProperty("Whether the variation was discarded."),
   },
   insert_sequence_step: {
     sequence: resourceOutputProperty("sequence"),
@@ -1857,6 +2642,53 @@ export const outputPropertiesByToolName: Record<
   list_campaign_goals: {
     goals: resourceListOutputProperty("campaign goal"),
   },
+  list_campaign_variations: {
+    mode: stringOutputProperty("Widget mode: variations."),
+    target: stringOutputProperty("What they are variations of: campaign."),
+    campaignId: stringOutputProperty("Pinned campaign ID."),
+    companyId: stringOutputProperty("Pinned company ID, when one was passed."),
+    variations: resourceListOutputProperty("campaign variation"),
+  },
+  get_campaign_variation: {
+    variation: resourceOutputProperty("campaign variation"),
+  },
+  generate_campaign_variations: {
+    mode: stringOutputProperty("Widget mode: variations."),
+    target: stringOutputProperty("What they are variations of: campaign."),
+    campaignId: stringOutputProperty("Pinned campaign ID."),
+    companyId: stringOutputProperty("Pinned company ID, when one was passed."),
+    newVariationIds: {
+      type: "array",
+      description: "IDs of the variations this call started.",
+      items: stringOutputProperty("Variation ID."),
+    },
+    variations: resourceListOutputProperty("campaign variation"),
+  },
+  create_campaign_variation: {
+    variation: resourceOutputProperty("campaign variation"),
+  },
+  update_campaign_variation: {
+    variation: resourceOutputProperty("campaign variation"),
+  },
+  discard_campaign_variation: {
+    discarded: booleanOutputProperty("Whether the variation was discarded."),
+  },
+  restore_campaign_variation: {
+    variation: resourceOutputProperty("campaign variation"),
+  },
+  use_campaign_variation: {
+    variation: resourceOutputProperty("campaign variation"),
+    savedPrevious: nullableObjectOutputProperty(
+      "The email's previous content, saved as a variation. Null when it already was one."
+    ),
+  },
+  generate_campaign_variation_section_options: {
+    options: resourceListOutputProperty("section option"),
+  },
+  edit_campaign_variation: {
+    variation: resourceOutputProperty("campaign variation"),
+    summary: stringOutputProperty("What the edit changed."),
+  },
   create_campaign_goal: {
     goal: resourceOutputProperty("campaign goal"),
   },
@@ -1868,6 +2700,12 @@ export const outputPropertiesByToolName: Record<
   },
   list_sequence_goals: {
     goals: resourceListOutputProperty("sequence goal"),
+  },
+  list_sequence_templates: {
+    templates: resourceListOutputProperty("sequence template"),
+  },
+  create_sequence_from_template: {
+    sequence: resourceOutputProperty("sequence"),
   },
   create_sequence_goal: {
     goal: resourceOutputProperty("sequence goal"),
@@ -1907,6 +2745,73 @@ export const outputPropertiesByToolName: Record<
     enrolled: numberOutputProperty("Number of subscribers enrolled."),
     skipped: numberOutputProperty("Number of subscribers skipped."),
   },
+  enroll_sequence_audience: {
+    dryRun: booleanOutputProperty(
+      "True when this call only estimated the audience instead of starting a run."
+    ),
+    matchingCount: numberOutputProperty(
+      "Estimate only: contacts matching the audience."
+    ),
+    alreadyEnrolledCount: numberOutputProperty(
+      "Estimate only: matching contacts skipped because they are already in the sequence."
+    ),
+    enrollableCount: numberOutputProperty(
+      "Estimate only: contacts that would be enrolled."
+    ),
+    audienceEnrollment: nullableObjectOutputProperty(
+      "Started run: id, status, estimatedCount, processedCount, enrolledCount, skippedCount, targetNodeId, data (run-level values read as {{enrollment.*}}, or null) and timestamps. Null for estimates. includedSubscriberCount gives the number of hand-picked contacts; audience.includedSubscriberIds lists at most the first 20, with includedSubscriberIdsTruncated true when cut."
+    ),
+  },
+  list_sequence_audience_enrollments: {
+    audienceEnrollments: resourceListOutputProperty(
+      "audience enrollment run with status and counters (hand-picked ID lists are cut to the first 20; see includedSubscriberCount)"
+    ),
+  },
+  get_sequence_audience_enrollment: {
+    audienceEnrollment: objectOutputProperty(
+      "Audience enrollment run: id, status (queued, running, completed, cancelled, failed), estimatedCount, processedCount, enrolledCount, skippedCount, data (run-level values read as {{enrollment.*}}, or null), error and timestamps. includedSubscriberCount gives the number of hand-picked contacts; audience.includedSubscriberIds lists at most the first 20, with includedSubscriberIdsTruncated true when cut."
+    ),
+  },
+  cancel_sequence_audience_enrollment: {
+    audienceEnrollment: objectOutputProperty(
+      "The run after cancellation: status cancelled, or running with cancelRequestedAt while it stops."
+    ),
+  },
+  get_sequence_recurring_enrollment: {
+    enrollmentMode: stringOutputProperty(
+      "Who enters at each run: unlimited (everyone who matches) or one_time (only people who never entered). The sequence's enrollment mode."
+    ),
+    recurringEnrollment: nullableObjectOutputProperty(
+      'The schedule: enabled, audience, schedule (frequency, weekdays, monthDays with "last" for the last day, time, timezone), enabledAt, nextRunAt, lastRunAt, lastRunId, lastSkippedAt, lastSkipReason (not_accepting or missed) and endsAt (no runs after it; nextRunAt is null once nothing is left). Null when the sequence has no schedule.'
+    ),
+    description: nullableStringOutputProperty(
+      'Readable summary such as "Monthly on the 1st and the last day at 10:00 (Europe/London)", or null.'
+    ),
+    upcomingRuns: {
+      type: "array",
+      items: { type: "string" },
+      description:
+        "Next run times as ISO 8601 instants; empty while switched off.",
+    },
+  },
+  set_sequence_recurring_enrollment: {
+    enrollmentMode: stringOutputProperty(
+      "Who enters at each run: unlimited (everyone who matches) or one_time (only people who never entered). The sequence's enrollment mode."
+    ),
+    recurringEnrollment: nullableObjectOutputProperty(
+      "The stored schedule (same shape as get_sequence_recurring_enrollment), or null after remove."
+    ),
+    description: nullableStringOutputProperty(
+      "Readable summary of the schedule, or null."
+    ),
+    upcomingRuns: {
+      type: "array",
+      items: { type: "string" },
+      description:
+        "Next run times as ISO 8601 instants; empty while switched off or removed.",
+    },
+    message: stringOutputProperty("What was saved and when the first run is."),
+  },
   cancel_sequence_enrollments: {
     sequenceId: stringOutputProperty("Sequence ID."),
     dryRun: booleanOutputProperty(
@@ -1916,7 +2821,7 @@ export const outputPropertiesByToolName: Record<
       "Resolved cancellation target: mode all, subscriber, subscribers (with notFoundSubscriberIds), or field."
     ),
     matchedCount: numberOutputProperty(
-      "Active/waiting enrollments matching the target when the request started."
+      "Active, waiting, or paused enrollments matching the target when the request started."
     ),
     cancelledCount: numberOutputProperty("Enrollments cancelled by this call."),
     remainingCount: numberOutputProperty(
@@ -1980,6 +2885,65 @@ export const outputPropertiesByToolName: Record<
     hasMore: booleanOutputProperty(
       "Whether more enrollments matched than the returned sample."
     ),
+  },
+  pause_sequence_subscribers: {
+    sequenceId: stringOutputProperty("Sequence ID."),
+    enrollments: {
+      type: "array",
+      description:
+        "Every live enrollment of the targeted contacts in this sequence with its outcome: enrollmentId, subscriberId, subscriberEmail, currentNodeId, status after the call, waitUntil (when a waiting enrollment next runs), pausedAt (null unless paused), and outcome.",
+      items: objectOutputProperty("One enrollment and its outcome."),
+    },
+    notEnrolled: {
+      type: "array",
+      description:
+        "Contacts that exist but have no active, waiting, or paused enrollment in this sequence.",
+      items: objectOutputProperty("One subscriberId with its email."),
+    },
+    notFound: objectOutputProperty(
+      "subscriberIds and emails that match no contact in this company."
+    ),
+    pausedCount: numberOutputProperty("Enrollments paused by this call."),
+    alreadyPausedCount: numberOutputProperty(
+      "Enrollments that were already paused and were left as they were."
+    ),
+    inProgressCount: numberOutputProperty(
+      "Enrollments not paused because a worker was running their current step at that moment (outcome in_progress). Call again shortly to pause them."
+    ),
+  },
+  resume_sequence_subscribers: {
+    sequenceId: stringOutputProperty("Sequence ID."),
+    enrollments: {
+      type: "array",
+      description:
+        "Every live enrollment of the targeted contacts in this sequence with its outcome: enrollmentId, subscriberId, subscriberEmail, currentNodeId, status after the call, waitUntil (when a waiting enrollment next runs), pausedAt (null unless paused), and outcome.",
+      items: objectOutputProperty("One enrollment and its outcome."),
+    },
+    notEnrolled: {
+      type: "array",
+      description:
+        "Contacts that exist but have no active, waiting, or paused enrollment in this sequence.",
+      items: objectOutputProperty("One subscriberId with its email."),
+    },
+    notFound: objectOutputProperty(
+      "subscriberIds and emails that match no contact in this company."
+    ),
+    resumedCount: numberOutputProperty("Enrollments resumed by this call."),
+    notPausedCount: numberOutputProperty(
+      "Enrollments of the targeted contacts that were not paused (outcome not_paused) and were left alone."
+    ),
+    sequenceRunning: booleanOutputProperty(
+      "False when the sequence itself is disabled or not live; resumed contacts then continue once it is enabled."
+    ),
+    enqueuedCount: numberOutputProperty(
+      "Resumed enrollments handed to the worker queue. Zero while the sequence is not running."
+    ),
+    enqueueErrors: {
+      type: "array",
+      description:
+        "Resumed enrollments whose queue handoff failed. They stay resumed and are recovered by the stuck-enrollment sweeper.",
+      items: objectOutputProperty("One enrollmentId with its enqueue error."),
+    },
   },
   realign_sequence_enrollments: {
     sequenceId: stringOutputProperty("Sequence ID."),
@@ -2051,7 +3015,7 @@ export const outputPropertiesByToolName: Record<
   },
   delete_transactional_email: {
     deleted: objectOutputProperty(
-      "Deleted transactional email: id, slug, name, and emailId of the email content that was kept as a reusable template."
+      "Deleted transactional email: id, slug, name, emailId of the email content, and emailDeleted (true for code-managed emails, whose content snapshot was deleted; false when the content was kept as a reusable template)."
     ),
   },
   send_email: {
@@ -2082,6 +3046,36 @@ export const outputPropertiesByToolName: Record<
         "Accepted blind-carbon-copy recipients, lowercased, with addresses already in `to` or `cc` removed. Present only when the send has bcc recipients.",
     },
     transactional: resourceOutputProperty("transactional email"),
+    ignoredHeaders: {
+      type: "array",
+      items: {
+        type: "object",
+        required: ["name", "reason"],
+        properties: {
+          name: stringOutputProperty(
+            "Header name as sent, or `*` when `headers` was not an object."
+          ),
+          reason: {
+            type: "string",
+            // Mirrors IGNORED_CALLER_HEADER_REASONS (parity-tested in
+            // scripts/docs/send-contract.test.ts).
+            enum: [
+              "invalid_headers",
+              "invalid_name",
+              "invalid_value",
+              "duplicate",
+              "reserved",
+              "managed_in_marketing_mode",
+              "requires_list_unsubscribe",
+              "too_many_headers",
+            ],
+            description: "Why the header was not applied.",
+          },
+        },
+      },
+      description:
+        "Entries in `headers` the send was accepted without. Present only when at least one header was not applied.",
+    },
   },
   get_stats: {
     stats: objectOutputProperty(
@@ -2089,6 +3083,18 @@ export const outputPropertiesByToolName: Record<
     ),
     emailType: stringOutputProperty(
       "Applied structural email type filter when one was requested."
+    ),
+    mailboxProvider: stringOutputProperty(
+      "Applied recipient mailbox provider filter when one was requested."
+    ),
+    recipientDomain: stringOutputProperty(
+      "Applied recipient domain filter when one was requested."
+    ),
+    source: stringOutputProperty(
+      "Applied email source filter (<type>:<id>) when one was requested. Filtered responses report replies as 0."
+    ),
+    outcome: stringOutputProperty(
+      "Applied send outcome filter (permanent_bounce, temporary_bounce, blocked or complaint) when one was requested. Filtered responses report replies as 0."
     ),
     subscriberCount: numberOutputProperty(
       "Live count of every stored contact in the company. Independent of period. Use this for 'how many subscribers do I have'."
@@ -2099,6 +3105,95 @@ export const outputPropertiesByToolName: Record<
     commerceForecast: resourceOutputProperty(
       "Optional background-computed commerce AOV, 12-month customer value, and 90-day revenue forecast. Omitted when no snapshot is available; insufficient_data is returned only after eligibility was evaluated successfully."
     ),
+  },
+  get_stats_breakdown: {
+    by: stringOutputProperty("Dimension the rows are grouped by."),
+    period: stringOutputProperty("Applied period (custom for start/end)."),
+    start: stringOutputProperty("Start of the window the rows cover."),
+    end: stringOutputProperty("End of the window the rows cover."),
+    emailType: stringOutputProperty(
+      "Applied structural email type filter when one was requested."
+    ),
+    mailboxProvider: stringOutputProperty(
+      "Applied recipient mailbox provider filter when one was requested."
+    ),
+    recipientDomain: stringOutputProperty(
+      "Applied recipient domain filter when one was requested."
+    ),
+    source: stringOutputProperty(
+      "Applied email source filter (<type>:<id>) when one was requested."
+    ),
+    outcome: stringOutputProperty(
+      "Applied send outcome filter (permanent_bounce, temporary_bounce, blocked or complaint) when one was requested."
+    ),
+    rows: {
+      type: "array",
+      description:
+        "One row per dimension value, most sends first. Rates are percentages: deliveryRate and bounceRate divide by sent, the others by delivered. conversions and revenue (in currency units) count orders credited to the row's sends. filter is the value that narrows another call to this row, or null when the row cannot be drilled into.",
+      items: objectOutputProperty(
+        "One row with key, label, detail, filter, sent, delivered, opened, clicked, bounced, complained, unsubscribed, rates, conversions and revenue."
+      ),
+    },
+  },
+  get_email_client_stats: {
+    campaignId: stringOutputProperty(
+      "Campaign the breakdown covers. Present only for a campaign breakdown."
+    ),
+    period: stringOutputProperty(
+      "Applied company-wide period (custom for start/end). Absent for a campaign breakdown."
+    ),
+    emailType: stringOutputProperty(
+      "Applied structural email type filter when one was requested."
+    ),
+    mailboxProvider: stringOutputProperty(
+      "Applied recipient mailbox provider filter when one was requested."
+    ),
+    start: stringOutputProperty("Custom range start when start/end was used."),
+    end: stringOutputProperty("Custom range end when start/end was used."),
+    totalOpens: numberOutputProperty(
+      "Unique opens (one per email send) the breakdown covers. 0 means nothing was opened, so clients and devices are empty."
+    ),
+    privacyProxyOpens: numberOutputProperty(
+      "Opens through Gmail, Yahoo or Apple Mail Privacy Protection proxies, which hide the device."
+    ),
+    clients: {
+      type: "array",
+      description:
+        "Mail clients, most opens first. key is apple_mail, gmail, outlook, yahoo_mail, thunderbird, android_mail_app, web_browser, or other; share is the unrounded percentage of totalOpens.",
+      items: objectOutputProperty("One client with key, label, opens, share."),
+    },
+    devices: {
+      type: "array",
+      description:
+        "Device types, most opens first. key is desktop, mobile, tablet, or unknown; share is the percentage of totalOpens.",
+      items: objectOutputProperty("One device with key, label, opens, share."),
+    },
+  },
+  get_link_click_stats: {
+    period: stringOutputProperty("Applied period (custom for start/end)."),
+    emailType: stringOutputProperty(
+      "Applied structural email type filter when one was requested."
+    ),
+    mailboxProvider: stringOutputProperty(
+      "Applied recipient mailbox provider filter when one was requested."
+    ),
+    start: stringOutputProperty("Custom range start when start/end was used."),
+    end: stringOutputProperty("Custom range end when start/end was used."),
+    totalClicks: numberOutputProperty(
+      "Click events across every destination before limit, repeats included. 0 means nothing was clicked, so links is empty."
+    ),
+    totalUniqueClicks: numberOutputProperty(
+      "Sum of every destination's uniqueClicks before limit."
+    ),
+    totalLinks: numberOutputProperty("Distinct destinations before limit."),
+    links: {
+      type: "array",
+      description:
+        "Destinations, most unique clicks first. url has no query string, fragment or trailing slash; clicks counts every click including repeats, uniqueClicks counts subscribers who clicked it once each (recipients without a subscriber record count once per email), and share is the percentage of totalUniqueClicks rounded to two decimals.",
+      items: objectOutputProperty(
+        "One destination with url, clicks, uniqueClicks, share."
+      ),
+    },
   },
   get_campaign_stats: {
     campaign: resourceOutputProperty("campaign"),
@@ -2155,7 +3250,7 @@ export const outputPropertiesByToolName: Record<
       "clicked link with click count and percentage share"
     ),
     bounceBreakdown: resourceOutputProperty(
-      "permanent, transient, and undetermined bounce counts plus subtype details"
+      "permanent, transient, blocked, and undetermined bounce counts plus subtype details; blocked is the part of transient the receiver refused on content, policy, or reputation grounds, and soft bounces are transient minus blocked"
     ),
     engagementBreakdown: resourceOutputProperty(
       "human and machine open and click counts"
@@ -2190,6 +3285,9 @@ export const outputPropertiesByToolName: Record<
           ),
           failedSubscribers: arrayOutputProperty(
             "Up to 20 of the failed contacts on this step, as { subscriberId, email, failedAt, failedReason }."
+          ),
+          polls: arrayOutputProperty(
+            "Poll and NPS summaries for this step, in the same shape as get_campaign_stats polls: each subscriber counts once per poll block with their latest answer. Lifetime results, not limited by period or start/end. Omitted when the step has no responses. Call list_poll_responses with this step's nodeId as campaignId to read the individual respondents."
           ),
         },
         required: ["step", "nodeId", "stats"],
@@ -2266,6 +3364,9 @@ export const outputPropertiesByToolName: Record<
       required: ["count", "byReason"],
       additionalProperties: false,
     },
+    pausedEnrollments: objectOutputProperty(
+      "Live count of enrollments held by pause_sequence_subscribers: total, and byCurrentNode (currentNodeId, currentNodeMissing, count). Kept separate from enrollmentCounts, whose active, waiting, and total exclude paused enrollments. Absent from API versions before per-subscriber pause."
+    ),
     recommendations: objectOutputProperty(
       "Product recommendation funnel aggregated across the sequence's email nodes: impressions, recipients, clicks, clickers, orders, legacy revenueCents, currency-safe revenueByCurrency totals, and topProducts. Present only when the sequence rendered product recommendation blocks."
     ),
@@ -2375,11 +3476,197 @@ export const outputPropertiesByToolName: Record<
   update_conversation_status: {
     conversation: resourceOutputProperty("inbox conversation"),
   },
+  bulk_update_conversation_status: {
+    status: stringOutputProperty("Status applied to the conversations."),
+    requested: numberOutputProperty("Distinct conversation IDs requested."),
+    updated: numberOutputProperty("Conversations whose status changed."),
+    unchanged: numberOutputProperty(
+      "Conversations that already had the status."
+    ),
+    notFound: numberOutputProperty(
+      "IDs that do not exist in the selected company."
+    ),
+    updatedIds: conversationIdListOutputProperty("IDs whose status changed."),
+    unchangedIds: conversationIdListOutputProperty(
+      "IDs that already had the status."
+    ),
+    notFoundIds: conversationIdListOutputProperty(
+      "IDs that do not exist in the selected company."
+    ),
+  },
+  bulk_update_conversation_spam: {
+    spam: {
+      type: "boolean",
+      description: "True when the conversations were moved to Spam.",
+    },
+    requested: numberOutputProperty("Distinct conversation IDs requested."),
+    updated: numberOutputProperty("Conversations that moved."),
+    unchanged: numberOutputProperty("Conversations that were already there."),
+    notFound: numberOutputProperty(
+      "IDs that do not exist in the selected company."
+    ),
+    updatedIds: conversationIdListOutputProperty("IDs that moved."),
+    unchangedIds: conversationIdListOutputProperty(
+      "IDs that were already there."
+    ),
+    notFoundIds: conversationIdListOutputProperty(
+      "IDs that do not exist in the selected company."
+    ),
+  },
+  list_conversation_recipients: {
+    addresses: {
+      type: "array",
+      description: "Inbox addresses conversations started at.",
+      items: stringOutputProperty("Inbox address."),
+    },
+  },
+  list_receiving_domains: {
+    receivingDomains: {
+      type: "array",
+      description: "The company's receiving domains.",
+      items: objectOutputProperty(RECEIVING_DOMAIN_HINT),
+    },
+  },
+  add_receiving_domain: {
+    created: booleanOutputProperty(
+      "True when the domain was added; false when the company already had it."
+    ),
+    receivingDomain: objectOutputProperty(RECEIVING_DOMAIN_HINT),
+  },
+  get_receiving_domain: {
+    receivingDomain: objectOutputProperty(RECEIVING_DOMAIN_HINT),
+  },
+  verify_receiving_domain: {
+    receivingDomain: objectOutputProperty(RECEIVING_DOMAIN_HINT),
+  },
+  remove_receiving_domain: {
+    receivingDomain: objectOutputProperty(
+      "The receiving domain that was removed. Mail to it no longer arrives."
+    ),
+  },
   mark_conversation_read: {
     conversation: resourceOutputProperty("inbox conversation"),
   },
+  mark_conversation_unread: {
+    conversation: resourceOutputProperty("inbox conversation"),
+  },
+  forward_conversation_message: {
+    forward: resourceOutputProperty("conversation forward"),
+  },
+  update_inbox_address: {
+    inbox: objectOutputProperty(
+      "Inbox address after the change, including customAddress and its status."
+    ),
+  },
+  get_inbox_address: {
+    inbox: objectOutputProperty(
+      "Inbox address, custom-domain addresses, receiving state, attachment availability and retention."
+    ),
+  },
+  list_data_exports: {
+    dataExports: resourceListOutputProperty("data export"),
+  },
+  get_data_export: {
+    dataExport: resourceOutputProperty("data export"),
+  },
+  create_data_export: {
+    dataExport: resourceOutputProperty("data export"),
+  },
+  update_data_export: {
+    dataExport: resourceOutputProperty("data export"),
+  },
+  delete_data_export: {
+    dataExportId: stringOutputProperty("Deleted data export ID."),
+  },
+  test_data_export: {
+    testedAt: stringOutputProperty(
+      "When the test file was written (ISO timestamp)."
+    ),
+  },
+  run_data_export: {
+    queued: {
+      type: "boolean",
+      description: "True when the export run was queued.",
+    },
+    dataExport: resourceOutputProperty("data export"),
+  },
+  list_data_export_runs: {
+    runs: resourceListOutputProperty("data export run"),
+  },
+  list_warehouse_connections: {
+    connections: resourceListOutputProperty("warehouse connection"),
+  },
+  get_warehouse_connection: {
+    connection: resourceOutputProperty("warehouse connection"),
+  },
+  create_warehouse_connection: {
+    connection: resourceOutputProperty("warehouse connection"),
+  },
+  update_warehouse_connection: {
+    connection: resourceOutputProperty("warehouse connection"),
+  },
+  delete_warehouse_connection: {
+    connectionId: stringOutputProperty("Deleted warehouse connection ID."),
+  },
+  test_warehouse_connection: {
+    connection: resourceOutputProperty("warehouse connection"),
+  },
+  preview_warehouse_query: {
+    columns: resourceListOutputProperty("query column"),
+    rows: resourceListOutputProperty("preview row"),
+  },
+  list_warehouse_syncs: {
+    syncs: resourceListOutputProperty("warehouse sync"),
+  },
+  get_warehouse_sync: {
+    sync: resourceOutputProperty("warehouse sync"),
+  },
+  create_warehouse_sync: {
+    sync: resourceOutputProperty("warehouse sync"),
+  },
+  update_warehouse_sync: {
+    sync: resourceOutputProperty("warehouse sync"),
+  },
+  delete_warehouse_sync: {
+    syncId: stringOutputProperty("Deleted warehouse sync ID."),
+  },
+  run_warehouse_sync: {
+    queued: {
+      type: "boolean",
+      description: "True when the run was queued.",
+    },
+    sync: resourceOutputProperty("warehouse sync"),
+  },
+  list_warehouse_sync_runs: {
+    runs: resourceListOutputProperty("warehouse sync run"),
+  },
   list_webhooks: {
     webhooks: resourceListOutputProperty("outbound webhook"),
+  },
+  list_geofences: {
+    geofences: resourceListOutputProperty("geofence"),
+    nextCursor: nullableStringOutputProperty(
+      "Cursor for the next page, or null on the last page."
+    ),
+  },
+  get_geofence: {
+    geofence: resourceOutputProperty("geofence"),
+  },
+  create_geofence: {
+    geofence: resourceOutputProperty("geofence"),
+  },
+  update_geofence: {
+    geofence: resourceOutputProperty("geofence"),
+  },
+  delete_geofence: {
+    id: stringOutputProperty("Deleted geofence ID."),
+  },
+  import_geofences: {
+    created: numberOutputProperty("Geofences created."),
+    updated: numberOutputProperty("Geofences updated."),
+    errors: arrayOutputProperty(
+      "Rows that were skipped, each with its index, externalId and error."
+    ),
   },
   create_webhook: {
     webhook: resourceOutputProperty("outbound webhook"),
@@ -2439,7 +3726,184 @@ export const outputPropertiesByToolName: Record<
   },
   get_sms_settings: {
     sms: objectOutputProperty(
-      "SMS add-on status: enabled, planEligible, creditsBalance, brandPrefix (account-wide default), numbers (each with id, e164, label tag, brandPrefix override, status), readyToSend (paid plan or credits plus an active number)."
+      "SMS add-on status: enabled, planEligible, creditsBalance, brandPrefix (account-wide default), numbers (each with id, e164, label tag, brandPrefix override, linkShorteningEnabled, status), readyToSend (paid plan or credits plus an active number)."
+    ),
+  },
+  get_push_settings: {
+    push: objectOutputProperty(
+      "Push readiness: web (enabled, vapidPublicKey), ios (configured, keyId, teamId, bundleId, environment, lastError), android (configured, projectId, clientEmail, lastError), defaultIconUrl, brandIconUrl (company logo used when defaultIconUrl is null), devices (active counts per platform, identifiedActive, totalActive, permissions: iOS/Android devices by reported notification permission (granted, provisional, ephemeral, denied, notDetermined, unknown) and optInRate 0-1 or null))."
+    ),
+  },
+  update_web_push_settings: {
+    push: objectOutputProperty("Updated push settings summary."),
+    siteKey: {
+      type: ["object", "null"],
+      description:
+        "When enabling: the web tracking site key web push uses (publicKey, allowedOrigins, installSnippet), created for the company website if none existed; null when there is none.",
+      additionalProperties: true,
+    },
+    siteKeyCreated: {
+      type: "boolean",
+      description: "True when enabling created the site key.",
+    },
+  },
+  set_apns_credentials: {
+    push: objectOutputProperty("Updated push settings summary (no secrets)."),
+  },
+  remove_apns_credentials: {
+    push: objectOutputProperty("Updated push settings summary."),
+  },
+  set_fcm_credentials: {
+    push: objectOutputProperty("Updated push settings summary (no secrets)."),
+  },
+  remove_fcm_credentials: {
+    push: objectOutputProperty("Updated push settings summary."),
+  },
+  get_push_import_preflight: {
+    warnings: arrayOutputProperty(
+      "Push settings checks: { code, severity (warning|info), message }."
+    ),
+  },
+  list_push_imports: {
+    imports: resourceListOutputProperty("push import"),
+  },
+  get_push_import: {
+    import: resourceOutputProperty("push import"),
+    message: stringOutputProperty("Status summary."),
+  },
+  create_push_import: {
+    import: resourceOutputProperty("push import (draft, with warnings)"),
+    message: stringOutputProperty("What to do next."),
+  },
+  add_push_import_rows: {
+    rowsAdded: numberOutputProperty("Rows staged from this part."),
+    totalRows: numberOutputProperty("Rows staged in the import so far."),
+    message: stringOutputProperty("Summary."),
+  },
+  start_push_import: {
+    import: resourceOutputProperty("push import"),
+    message: stringOutputProperty("Status summary."),
+  },
+  cancel_push_import: {
+    import: resourceOutputProperty("push import"),
+    message: stringOutputProperty("Status summary."),
+  },
+  list_push_devices: {
+    devices: resourceListOutputProperty("push device"),
+    nextCursor: nullableStringOutputProperty(
+      "Cursor for the next page, or null on the last page."
+    ),
+  },
+  list_in_app_messages: {
+    subscriberId: stringOutputProperty("Resolved subscriber ID."),
+    status: stringOutputProperty("open or all."),
+    messages: resourceListOutputProperty("in-app message"),
+  },
+  record_in_app_event: {
+    recorded: booleanOutputProperty(
+      "True when this report set the timestamp; false for a repeat."
+    ),
+    message: resourceOutputProperty("in-app message"),
+  },
+  delete_in_app_message: {
+    messageId: stringOutputProperty("Deleted in-app message ID."),
+  },
+  list_in_app_templates: {
+    templates: resourceListOutputProperty("in-app template"),
+  },
+  write_in_app_copy: {
+    copy: objectOutputProperty(
+      "eyebrow, title, body and buttons ({label, action}) to put in an in-app step."
+    ),
+  },
+  validate_in_app_html: {
+    valid: booleanOutputProperty("True when the document can be saved."),
+    bytes: numberOutputProperty("Size in UTF-8 bytes after Braze conversion."),
+    maxBytes: numberOutputProperty("Size limit in bytes (100 KB)."),
+    conversions: arrayOutputProperty(
+      "Braze Liquid tags converted: {from, to, count}."
+    ),
+    scriptHosts: arrayOutputProperty(
+      "Hosts the document loads scripts from; a website CSP must allow them."
+    ),
+    closesItself: booleanOutputProperty(
+      "True when the document calls sequenzy.close() or brazeBridge.closeMessage()."
+    ),
+    warnings: arrayOutputProperty("Warnings: {code, message}."),
+    errors: arrayOutputProperty("Problems that block saving."),
+  },
+  get_in_app_step_stats: {
+    stepId: stringOutputProperty("In-app step (node) ID."),
+    sequenceId: stringOutputProperty("Sequence ID."),
+    stats: objectOutputProperty(
+      "Counts: created, displayed, clicked, dismissed, pushPermissionGranted and pushPermissionDenied (push primers)."
+    ),
+  },
+  register_push_device: {
+    created: booleanOutputProperty("True when the token was new."),
+    device: resourceOutputProperty("push device"),
+  },
+  remove_push_device: {
+    deviceId: stringOutputProperty("Unsubscribed device ID."),
+  },
+  send_test_push: {
+    pushSendId: stringOutputProperty("Test push send ID."),
+    deviceCount: numberOutputProperty("Devices the test was queued for."),
+    remainingToday: numberOutputProperty(
+      "Test pushes left in the rolling 24-hour window."
+    ),
+  },
+  list_live_activities: {
+    summary: objectOutputProperty(
+      "pushToStartDevices, activeActivities and activityTypes [{activityType, pushToStartDevices, activeActivities}]."
+    ),
+    tokens: resourceListOutputProperty("Live Activity token"),
+    nextCursor: nullableStringOutputProperty(
+      "Cursor for the next page, or null on the last page."
+    ),
+  },
+  start_live_activity: LIVE_ACTIVITY_DISPATCH_OUTPUT,
+  update_live_activity: LIVE_ACTIVITY_DISPATCH_OUTPUT,
+  end_live_activity: LIVE_ACTIVITY_DISPATCH_OUTPUT,
+  list_push_campaigns: {
+    campaigns: resourceListOutputProperty("push campaign"),
+    total: numberOutputProperty("Total matching push campaigns."),
+  },
+  get_push_campaign: {
+    campaign: resourceOutputProperty("push campaign"),
+    stats: nullableObjectOutputProperty(
+      "Delivery stats once the campaign has started sending, else null."
+    ),
+  },
+  create_push_campaign: {
+    campaign: resourceOutputProperty("push campaign"),
+  },
+  update_push_campaign: {
+    campaign: resourceOutputProperty("push campaign"),
+  },
+  estimate_push_campaign_recipients: {
+    audienceCount: numberOutputProperty("Contacts in the audience."),
+    eligibleCount: numberOutputProperty(
+      "Contacts with an active push device on the selected platforms."
+    ),
+  },
+  send_push_campaign: {
+    campaign: resourceOutputProperty("push campaign"),
+  },
+  unschedule_push_campaign: {
+    campaign: resourceOutputProperty("push campaign"),
+  },
+  cancel_push_campaign: {
+    campaign: resourceOutputProperty("push campaign"),
+  },
+  duplicate_push_campaign: {
+    campaign: resourceOutputProperty("new push campaign draft"),
+  },
+  get_push_campaign_stats: {
+    campaignId: stringOutputProperty("Push campaign ID."),
+    status: stringOutputProperty("Campaign status."),
+    stats: objectOutputProperty(
+      "total, pending, sent, failed, skipped, delivered (device-reported displays), clicked, devicesTargeted, devicesAccepted, skipReasons, failureReasons."
     ),
   },
   get_sms_usage: {
@@ -2448,6 +3912,46 @@ export const outputPropertiesByToolName: Record<
     ),
   },
   submit_feedback: {},
+  check_email: {
+    score: numberOutputProperty(
+      "Overall score from 0 to 100 across subject, preview text and content, including live link findings. Sender settings are not part of this check."
+    ),
+    grade: stringOutputProperty("Letter grade: A, B, C, D or F."),
+    placement: stringOutputProperty(
+      "Predicted inbox tab: Primary, Promotions or Spam."
+    ),
+    categories: objectOutputProperty(
+      "Per-category scores as { subject, preview, content }, each { score, maxScore }."
+    ),
+    issues: arrayOutputProperty(
+      'Findings sorted by severity, as [{ category, severity, message, rule?, blockId?, url? }]. severity is "error" (fix before sending), "warning" (review) or "info" (tip). rule is a stable id such as links.broken, links.missing-scheme, images.missing-alt or content.placeholder-text; its prefix groups it (links, images, content, subject, preview, accessibility, compatibility). blockId names the block to edit when the issue has one location.'
+    ),
+    links: arrayOutputProperty(
+      'Every link and image in the email, as [{ url, kind, label, blockId, blockType, status, httpStatus, finalUrl, message, findings }]. kind is "link" or "image". status is the live result - "ok", "broken" (404/410, unknown domain, certificate problem, redirect loop), "invalid" (can never work: a rule found it unusable, such as localhost or a missing https://, or it resolves to a private address), "server_error" (5xx), "unreachable" (timeout or refused connection), "restricted" (the site refused an automated check, e.g. 401/403/429; it may work in a browser) - or "personalized" for merge-tag URLs filled per recipient, or "not_checked" for mailto/tel links, links not reached before the 25-second limit, and when links is false. findings lists the no-network rule results for that URL.'
+    ),
+    linkSummary: objectOutputProperty(
+      "Counts over links: total, checked, ok, broken, warnings (server_error + unreachable), restricted, notChecked."
+    ),
+    linksChecked: booleanOutputProperty(
+      "Whether live link verification ran. False when links was false."
+    ),
+    subject: stringOutputProperty(
+      "Subject line with merge tags resolved for the checked contact."
+    ),
+    previewText: nullableStringOutputProperty(
+      "Preview text with merge tags resolved, or null when unset."
+    ),
+    locale: stringOutputProperty("Localization locale the check used."),
+    unresolvedMergeTags: arrayOutputProperty(
+      "Merge tags that did not resolve, as [{ tag, reason }]; same meaning as in render_email."
+    ),
+    unevaluatedConditions: arrayOutputProperty(
+      "Block conditions this check could not decide; same meaning as in render_email."
+    ),
+    entity: objectOutputProperty(
+      "Which entity was checked: type, id, and variantId."
+    ),
+  },
   render_email: {
     html: stringOutputProperty(
       "Email-safe HTML document, rendered exactly as it would be sent."

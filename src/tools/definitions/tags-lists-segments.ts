@@ -11,7 +11,7 @@ export const tagListSegmentToolDefinitions: Tool[] = [
   // ============================================================================
   {
     name: "list_tags",
-    description: "List all tags in the account",
+    description: "List all tags in the account.",
     inputSchema: {
       type: "object",
       properties: {
@@ -109,7 +109,8 @@ export const tagListSegmentToolDefinitions: Tool[] = [
   },
   {
     name: "create_list",
-    description: "Create a new subscriber list",
+    description:
+      "Create a new subscriber list. Lists are public by default: public lists appear to subscribers in the email preference center, where they can join or leave them. Set isPrivate to keep the list internal.",
     inputSchema: {
       type: "object",
       properties: {
@@ -117,6 +118,11 @@ export const tagListSegmentToolDefinitions: Tool[] = [
           type: "string",
           description:
             "Company ID to create the list in. If not provided, uses the currently selected company.",
+        },
+        allowMemberUnsubscribe: {
+          type: "boolean",
+          description:
+            "Allow existing private-list members to unsubscribe in email preferences. Defaults false on creation; omission preserves on update, false disables. No effect on public lists. Does not allow joining or rejoining private lists.",
         },
         name: {
           type: "string",
@@ -126,6 +132,10 @@ export const tagListSegmentToolDefinitions: Tool[] = [
           type: "string",
           description: "List description",
         },
+        isPrivate: {
+          type: "boolean",
+          description: "Whether the list is private. Defaults false.",
+        },
       },
       required: ["name"],
     },
@@ -133,7 +143,7 @@ export const tagListSegmentToolDefinitions: Tool[] = [
   {
     name: "update_list",
     description:
-      "Update a subscriber list's name, description, or privacy. Only the provided fields are changed.",
+      "Update a subscriber list's name, description, or privacy. Only the provided fields are changed. A public list's name is shown to subscribers in the email preference center, and making a list public lets subscribers join it there.",
     inputSchema: {
       type: "object",
       properties: {
@@ -145,6 +155,11 @@ export const tagListSegmentToolDefinitions: Tool[] = [
         listId: {
           type: "string",
           description: "Subscriber list ID to update.",
+        },
+        allowMemberUnsubscribe: {
+          type: "boolean",
+          description:
+            "Allow existing private-list members to unsubscribe in email preferences. Defaults false on creation; omission preserves on update, false disables. No effect on public lists. Does not allow joining or rejoining private lists.",
         },
         name: {
           type: "string",
@@ -251,7 +266,7 @@ export const tagListSegmentToolDefinitions: Tool[] = [
   },
   {
     name: "list_segments",
-    description: "List all segments",
+    description: "List all segments.",
     inputSchema: {
       type: "object",
       properties: {
@@ -365,7 +380,7 @@ export const tagListSegmentToolDefinitions: Tool[] = [
   },
   {
     name: "get_segment_count",
-    description: "Get the number of subscribers in a segment",
+    description: "Get the number of subscribers in a segment.",
     inputSchema: {
       type: "object",
       properties: {

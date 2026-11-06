@@ -87,6 +87,37 @@ export async function handleSubscriberTools(
   let result: unknown;
 
   switch (name) {
+    case "start_subscriber_operation": {
+      const { companyId, ...body } = args;
+      result = await apiRequest(
+        "POST",
+        "/api/v1/subscribers/operations",
+        body,
+        companyId as string | undefined
+      );
+      break;
+    }
+    case "list_subscriber_operations":
+      result = await apiRequest(
+        "GET",
+        "/api/v1/subscribers/operations",
+        undefined,
+        args.companyId as string | undefined
+      );
+      break;
+    case "get_subscriber_operation":
+    case "cancel_subscriber_operation": {
+      const id = requiredString(name, args, "operationId");
+      let suffix = "";
+      if (name === "cancel_subscriber_operation") suffix = "/cancel";
+      result = await apiRequest(
+        name === "cancel_subscriber_operation" ? "POST" : "GET",
+        `/api/v1/subscribers/operations/${encodeURIComponent(id)}${suffix}`,
+        undefined,
+        args.companyId as string | undefined
+      );
+      break;
+    }
     case "add_subscriber": {
       const companyId = args.companyId as string | undefined;
       const phone =
@@ -259,7 +290,7 @@ export async function handleSubscriberTools(
         "update_subscriber",
         args,
         "status",
-        ["active", "unsubscribed", "bounced"] as const
+        ["active", "unsubscribed", "bounced", "complained"] as const
       );
       const resolvedCustomAttributes = resolveSubscriberCustomAttributes(
         "update_subscriber",
@@ -400,6 +431,19 @@ export async function handleSubscriberTools(
       break;
     }
 
+    case "list_subscriber_attributes": {
+      const companyId = args.companyId as string | undefined;
+      result = await apiRequest(
+        "GET",
+        args.includeNested === true
+          ? "/api/v1/subscribers/attributes?includeNested=true"
+          : "/api/v1/subscribers/attributes",
+        undefined,
+        companyId
+      );
+      break;
+    }
+
     case "add_subscriber_note": {
       const companyId = args.companyId as string | undefined;
       const identifier = requireSubscriberIdentifier(
@@ -450,6 +494,19 @@ export async function handleSubscriberTools(
         args
       );
       const event = requiredString("trigger_subscriber_event", args, "event");
+      if (
+        args.account !== undefined &&
+        !(typeof args.account === "string" && args.account.trim()) &&
+        !(
+          isRecord(args.account) &&
+          typeof args.account.externalId === "string" &&
+          args.account.externalId.trim()
+        )
+      ) {
+        throw new Error(
+          "`account` must be a non-empty external ID or an object with externalId."
+        );
+      }
       if (args.properties !== undefined && !isRecord(args.properties)) {
         throw new Error(
           "`properties` must be an object when calling `trigger_subscriber_event`."
@@ -462,6 +519,7 @@ export async function handleSubscriberTools(
         {
           ...identifier,
           event,
+          ...(args.account !== undefined && { account: args.account }),
           ...(args.properties !== undefined && { properties: args.properties }),
           ...(args.firstName !== undefined && { firstName: args.firstName }),
           ...(args.lastName !== undefined && { lastName: args.lastName }),

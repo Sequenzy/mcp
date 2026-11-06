@@ -7,11 +7,11 @@ import {
   areLocalFileUploadsEnabled,
 } from "../runtime.js";
 
-export const IMAGE_ASSET_MAX_SIZE_BYTES = 5 * 1024 * 1024;
+export const IMAGE_ASSET_MAX_SIZE_BYTES = 10 * 1024 * 1024;
 
 const IMAGE_ASSET_MAX_BASE64_LENGTH =
   Math.ceil(IMAGE_ASSET_MAX_SIZE_BYTES / 3) * 4;
-const IMAGE_ASSET_MAX_BASE64_INPUT_LENGTH =
+export const IMAGE_ASSET_MAX_BASE64_INPUT_LENGTH =
   Math.ceil(IMAGE_ASSET_MAX_BASE64_LENGTH * 1.05) + 256;
 
 const IMAGE_CONTENT_TYPE_BY_EXTENSION: Record<string, string> = {
@@ -76,7 +76,7 @@ function defaultAltText(filename: string): string {
 
 function assertBase64ImageInputLength(value: string): void {
   if (value.length > IMAGE_ASSET_MAX_BASE64_INPUT_LENGTH) {
-    throw new Error("Image assets must be 5MB or smaller.");
+    throw new Error("Image assets must be 10MB or smaller.");
   }
 }
 
@@ -101,7 +101,7 @@ function assertBase64ImageSize(value: string): void {
   const decodedLength =
     Math.floor((encodedLength * 3) / 4) - Math.min(paddingLength, 2);
   if (decodedLength > IMAGE_ASSET_MAX_SIZE_BYTES) {
-    throw new Error("Image assets must be 5MB or smaller.");
+    throw new Error("Image assets must be 10MB or smaller.");
   }
 }
 
@@ -137,7 +137,7 @@ function assertUploadSize(fileSizeBytes: number): void {
     throw new Error("The image file is empty.");
   }
   if (fileSizeBytes > IMAGE_ASSET_MAX_SIZE_BYTES) {
-    throw new Error("Image assets must be 5MB or smaller.");
+    throw new Error("Image assets must be 10MB or smaller.");
   }
 }
 

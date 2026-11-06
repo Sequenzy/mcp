@@ -27,6 +27,105 @@ export const analyticsToolDefinitions: Tool[] = [
           description:
             "Optional structural email type filter: campaign, transactional, or sequence. Use transactional for Send API and transactional SMTP traffic.",
         },
+        start: {
+          type: "string",
+          description: "ISO 8601 range start; needs end. Max 90 days.",
+        },
+        end: {
+          type: "string",
+          description: "ISO 8601 range end; needs start.",
+        },
+        mailboxProvider: {
+          type: "string",
+          description: "Mailbox provider filter, e.g. gmail or microsoft.",
+        },
+        recipientDomain: {
+          type: "string",
+          description: "Recipient domain filter, e.g. gmail.com.",
+        },
+        source: {
+          type: "string",
+          description:
+            "Source filter <type>:<id> with type campaign, sequence, sequence_step or transactional.",
+        },
+        outcome: {
+          type: "string",
+          enum: [
+            "permanent_bounce",
+            "temporary_bounce",
+            "blocked",
+            "complaint",
+          ],
+          description:
+            "Only sends that bounced this way or drew a spam complaint. With get_stats_breakdown by=email it shows which emails the bounces or complaints came from. Filtered stats report replies as 0.",
+        },
+        includeMachineEngagement: includeMachineEngagementToolProperty,
+      },
+    },
+  },
+  {
+    name: "get_stats_breakdown",
+    description:
+      "Funnel per email, sequence, email_type, mailbox_provider or recipient_domain, most sends first, with rates and attributed revenue. Drill in by passing a row's filter values to get_stats or another breakdown. Defaults: 30d, 25 rows.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        by: {
+          type: "string",
+          description:
+            "Dimension: email (default), sequence, email_type, mailbox_provider, or recipient_domain.",
+        },
+        period: {
+          type: "string",
+          description:
+            "Time period: 1h, 24h, 7d, 30d, or 90d. Defaults to 30d.",
+        },
+        emailType: {
+          type: "string",
+          description:
+            "Optional structural email type filter: campaign, transactional, or sequence.",
+        },
+        start: {
+          type: "string",
+          description: "ISO 8601 range start; needs end. Max 90 days.",
+        },
+        end: {
+          type: "string",
+          description: "ISO 8601 range end; needs start.",
+        },
+        mailboxProvider: {
+          type: "string",
+          description: "Mailbox provider filter, e.g. gmail or microsoft.",
+        },
+        recipientDomain: {
+          type: "string",
+          description: "Recipient domain filter, e.g. gmail.com.",
+        },
+        source: {
+          type: "string",
+          description:
+            "Source filter <type>:<id> with type campaign, sequence, sequence_step or transactional.",
+        },
+        outcome: {
+          type: "string",
+          enum: [
+            "permanent_bounce",
+            "temporary_bounce",
+            "blocked",
+            "complaint",
+          ],
+          description:
+            "Only sends that bounced this way or drew a spam complaint. With get_stats_breakdown by=email it shows which emails the bounces or complaints came from. Filtered stats report replies as 0.",
+        },
+        limit: {
+          type: "number",
+          description: "Rows to return, 1 to 100. Defaults to 25.",
+        },
         includeMachineEngagement: includeMachineEngagementToolProperty,
       },
     },
@@ -70,7 +169,7 @@ export const analyticsToolDefinitions: Tool[] = [
   {
     name: "get_campaign_stats",
     description:
-      "Get detailed statistics for a campaign, including replies and reply rate, attributed conversions, revenue (revenueCents), attached campaign conversion goals in the top-level goals array (sent → opened → clicked → each named goal), product recommendation funnel metrics, a per-link click breakdown in the top-level clickedLinks array, and any Poll or NPS survey summaries in the top-level polls array",
+      "Get detailed statistics for a campaign, including replies and reply rate, attributed conversions, revenue (revenueCents), attached campaign conversion goals in the top-level goals array (sent → opened → clicked → each named goal), product recommendation funnel metrics, a per-link click breakdown in the top-level clickedLinks array, and any Poll or NPS survey summaries in the top-level polls array.",
     inputSchema: {
       type: "object",
       properties: {
@@ -103,6 +202,98 @@ export const analyticsToolDefinitions: Tool[] = [
     },
   },
   {
+    name: "get_email_client_stats",
+    description:
+      "Get which mail clients (Apple Mail, Gmail, Outlook, Yahoo Mail, Thunderbird, Android mail app, web browser, other) and device types (desktop, mobile, tablet, unknown) opened your emails, as shares of unique opens. Pass campaignId for one campaign (all time); omit it for the whole company over period or start/end (default 90d) with an optional emailType. Each email send counts once, attributed to the client of its first open. Gmail, Yahoo and Apple Mail Privacy Protection fetch images through proxies, so those opens report the client with an unknown device; privacyProxyOpens counts them. Report shares, not absolute reach: recipients who never open are not represented. New Outlook for Windows and Outlook.com count as web_browser, and some WebKit apps such as Outlook for Mac count as apple_mail.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        campaignId: {
+          type: "string",
+          description:
+            "Campaign ID for a single campaign's breakdown. When set, period, start, end and emailType are ignored.",
+        },
+        period: {
+          type: "string",
+          description:
+            "Company-wide time period: 1h, 24h, 7d, 30d, or 90d. Defaults to 90d.",
+        },
+        start: {
+          type: "string",
+          description:
+            "Company-wide custom range start as an ISO 8601 timestamp; provide end too. Maximum range is 90 days.",
+        },
+        end: {
+          type: "string",
+          description:
+            "Company-wide custom range end as an ISO 8601 timestamp; provide start too.",
+        },
+        emailType: {
+          type: "string",
+          description:
+            "Company-wide structural email type filter: campaign, sequence, or transactional.",
+        },
+        mailboxProvider: {
+          type: "string",
+          description:
+            "Optional recipient mailbox provider filter, for example gmail, microsoft, or yahoo.",
+        },
+        includeMachineEngagement: includeMachineEngagementToolProperty,
+      },
+    },
+  },
+  {
+    name: "get_link_click_stats",
+    description:
+      "Get clicks per link destination across every email in the company over period or start/end (default 90d), ranked by unique clicks, with an optional emailType. Destinations ignore query strings, fragments and trailing slashes, so the same page linked with different UTM tags counts as one link. Each link reports clicks (every click, repeats included), uniqueClicks (subscribers who clicked it, each counted once) and share (percentage of totalUniqueClicks). totalClicks, totalUniqueClicks and totalLinks cover every destination before limit. For one campaign's links, read clickedLinks from get_campaign_stats instead.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        period: {
+          type: "string",
+          description:
+            "Time period: 1h, 24h, 7d, 30d, or 90d. Defaults to 90d.",
+        },
+        start: {
+          type: "string",
+          description:
+            "Custom range start as an ISO 8601 timestamp; provide end too. Maximum range is 90 days.",
+        },
+        end: {
+          type: "string",
+          description:
+            "Custom range end as an ISO 8601 timestamp; provide start too.",
+        },
+        emailType: {
+          type: "string",
+          description:
+            "Structural email type filter: campaign, sequence, or transactional.",
+        },
+        mailboxProvider: {
+          type: "string",
+          description:
+            "Optional recipient mailbox provider filter, for example gmail, microsoft, or yahoo.",
+        },
+        limit: {
+          type: "number",
+          description:
+            "Number of destinations to return, 1 to 50. Defaults to 10.",
+        },
+        includeMachineEngagement: includeMachineEngagementToolProperty,
+      },
+    },
+  },
+  {
     name: "list_poll_responses",
     description:
       "List individual Poll and NPS responses for a campaign, newest answer first, with each respondent's email, their answer and stored value, the subscriber attribute the answer was saved to, and the response time. get_campaign_stats reports the totals; this reports who answered what and when. Only each subscriber's latest answer per poll block is returned, so the counts match the campaign stats summary. Do not reconstruct respondents by scanning subscribers for the poll attribute - the attribute carries no response time and reflects the latest answer to any email. Multi-select answers list every selected option in answers/values. Results are paginated: read the returned pagination object and keep paging with page while page < totalPages.",
@@ -122,7 +313,7 @@ export const analyticsToolDefinitions: Tool[] = [
         blockId: {
           type: "string",
           description:
-            "Restrict to one poll block. Block IDs come from the polls array of get_campaign_stats. Omit to return every poll block in the email.",
+            "Restrict to one poll block. Block IDs come from the polls array of get_campaign_stats, or steps[].polls of get_sequence_stats for a sequence step. Omit to return every poll block in the email.",
         },
         page: {
           type: "number",
@@ -140,7 +331,7 @@ export const analyticsToolDefinitions: Tool[] = [
   {
     name: "get_sequence_stats",
     description:
-      "Get statistics for a sequence. The steps array is the per-step breakdown: one entry per email step in graph order with its step number, automation nodeId, subject, and its own sent, delivered, bounced, opened, clicked, replies, and unsubscribed counts plus rates - so this is where you read how many of Email 4 went out, without reconstructing anything from list_sequence_events. Step counts come from the retained event stream, not the 14-day delivery history behind list_email_sends, so they stay answerable for old sends. Also returns the aggregate funnel across every step, attributed conversions and revenue (revenueCents), product recommendation funnel metrics, per-step failed subscribers and failure reasons, and enrollmentSkipped counts for trigger matches where the contact could not be enrolled (unsubscribed/bounced). Pass period or start/end to use one explicit window for every historical metric; without them, step and aggregate counts are all-time and enrollmentSkipped defaults to the last 30 days. The enrollmentCounts field is a live snapshot of active and waiting enrollments grouped by current node, so it is not limited by period or start/end. To compare the same step across many sequences in one call, use list_email_metrics instead.",
+      "Get statistics for a sequence. The steps array is the per-step breakdown: one entry per email step in graph order with its step number, automation nodeId, subject, and its own sent, delivered, bounced, opened, clicked, replies, and unsubscribed counts plus rates - so this is where you read how many of Email 4 went out, without reconstructing anything from list_sequence_events. Step counts come from the retained event stream, not the 14-day delivery history behind list_email_sends, so they stay answerable for old sends. Also returns the aggregate funnel across every step, attributed conversions and revenue (revenueCents), product recommendation funnel metrics, per-step failed subscribers and failure reasons, per-step Poll and NPS summaries in steps[].polls (lifetime, same shape as get_campaign_stats polls), and enrollmentSkipped counts for trigger matches where the contact could not be enrolled (unsubscribed/bounced). Pass period or start/end to use one explicit window for every historical metric; without them, step and aggregate counts are all-time and enrollmentSkipped defaults to the last 30 days. The enrollmentCounts field is a live snapshot of active and waiting enrollments grouped by current node, so it is not limited by period or start/end; contacts held by pause_sequence_subscribers are counted separately in pausedEnrollments. To compare the same step across many sequences in one call, use list_email_metrics instead.",
     inputSchema: {
       type: "object",
       properties: {
@@ -357,7 +548,7 @@ export const analyticsToolDefinitions: Tool[] = [
   {
     name: "get_subscriber_activity",
     description:
-      "Get recent activity, email stats, and current sequence enrollments for a subscriber",
+      "Get recent activity, email stats, and current sequence enrollments for a subscriber.",
     inputSchema: {
       type: "object",
       properties: {

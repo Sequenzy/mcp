@@ -1,12 +1,16 @@
 import type { Tool } from "../../mcp-types.js";
 import {
+  inAppStepProperties,
   rawHtmlContentDescription,
   replacementEmailBlocksDescription,
   replyToNameDescription,
   senderFromNameDescription,
   sequenceEmailBlocksDescription,
   sequenceStepBlocksFormatHint,
+  sequenceAudienceSchema,
+  sequenceKeyDatesSchema,
   sequenceSendingWindowSchema,
+  sequenceWaitUntilKeyDateSchema,
   sequenceWaitUntilSchema,
   sequenceWaitUntilWeekdaySchema,
   sequenceDelaySchema,
@@ -26,7 +30,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
   {
     name: "update_sequence",
     description:
-      "Update an existing sequence: both its settings and its steps. Sequence-level settings live directly on this tool - name, description, labels, trigger (with its trigger-specific field), enrollmentMode plus enrollmentFieldPath, enrollmentPaused, userCancellable, stopCondition, sendingWindow, bccEmails, and the sender/reply identity. This is the only way to change enrollmentMode after create_sequence, so use it to move a tag- or event-triggered sequence off the default 'unlimited' re-entry to 'one_time' or 'matching_field'. To target a specific existing step, use IDs returned by get_sequence. The emails/steps arrays edit email steps, smsSteps edits SMS steps, and subscriberUpdateSteps replaces the config of action_update_attributes steps. The emails/steps arrays reach action_email steps only: an action_ab_test step keeps its copy on the A/B test variants, so read variant blocks from get_sequence.sequence.emails[].abTest.variants and change each variant with update_ab_test_variant. If update_ab_test_variant is not in the tool list, enable it on the Sequenzy connector rather than writing through update_template. To insert new linear steps, use insertSteps with an afterNodeId from get_sequence; omit afterNodeId only to append to an unambiguous linear tail. Deleting a step immediately moves parked recipients to its unique surviving successor, or completes them when no successor remains; inspect migratedRecipientCount and completedRecipientCount in the returned sequence. For active sequences, structural changes such as insertSteps or branch require confirmStructuralChange:true after the user confirms the live-flow impact.",
+      "Update an existing sequence: both its settings and its steps. Sequence-level settings live directly on this tool - name, description, labels, trigger (with its trigger-specific field), enrollmentMode plus enrollmentFieldPath, enrollmentPaused, userCancellable, activeSubscribersOnly, stopCondition, sendingWindow, frequencyCapEnabled, bccEmails, and the sender/reply identity. This is the only way to change enrollmentMode after create_sequence, so use it to move a tag- or event-triggered sequence off the default 'unlimited' re-entry to 'one_time' or 'matching_field'. To target a specific existing step, use IDs returned by get_sequence. The emails/steps arrays edit email steps, smsSteps edits SMS steps, and subscriberUpdateSteps replaces the config of action_update_attributes steps. The emails/steps arrays reach action_email steps only: an action_ab_test step keeps its copy on the A/B test variants, so read variant blocks from get_sequence.sequence.emails[].abTest.variants and change each variant with update_ab_test_variant. If update_ab_test_variant is not in the tool list, enable it on the Sequenzy connector rather than writing through update_template. To insert new linear steps, use insertSteps with an afterNodeId from get_sequence; omit afterNodeId only to append to an unambiguous linear tail. Deleting a step immediately moves parked recipients to its unique surviving successor, or completes them when no successor remains; inspect migratedRecipientCount and completedRecipientCount in the returned sequence. For active sequences, structural changes such as insertSteps or branch require confirmStructuralChange:true after the user confirms the live-flow impact.",
     inputSchema: {
       type: "object",
       properties: {
@@ -52,6 +56,11 @@ export const sequenceEditingToolDefinitions: Tool[] = [
           description:
             "Whether subscribers may cancel their own active enrollment.",
         },
+        activeSubscribersOnly: {
+          type: "boolean",
+          description:
+            "Only enroll contacts whose status is active. Defaults to false, where unsubscribed and bounced contacts still enter on tag, event, list or contact triggers so non-marketing steps (tags, webhooks, transactional emails) run for them, and their marketing emails are skipped at send time. Set true to keep them out entirely. Pending double opt-in contacts still wait for confirmation.",
+        },
         labels: {
           type: "array",
           items: { type: "string" },
@@ -64,10 +73,12 @@ export const sequenceEditingToolDefinitions: Tool[] = [
             "contact_added",
             "tag_added",
             "segment_entered",
+            "segment_exited",
             "event_received",
             "inbound_webhook",
             "inactivity",
             "frequency",
+            "manual",
           ],
           description:
             "Atomically replace the existing dashboard trigger. Include the fields required by the new trigger type. Active sequences also require confirmLiveChange:true.",
@@ -105,7 +116,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         segmentId: {
           type: "string",
           description:
-            "Saved segment ID required for a segment_entered trigger replacement.",
+            "Saved segment ID required for a segment_entered or segment_exited trigger replacement.",
         },
         stopOnSegmentExit: {
           type: "boolean",
@@ -273,7 +284,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         enrollmentFieldPath: {
           type: "string",
           description:
-            "Scalar dot-path event property used by enrollmentMode='matching_field', such as 'order.id' or 'product.providerVariantId'. Array traversal with [] is not supported; use propertyFilters for array matching. Omit to leave unchanged. Use clearEnrollmentFieldPath to clear it.",
+            "Scalar dot-path event property used by enrollmentMode='matching_field', such as 'order.id' or 'product.providerVariantId'. Use 'organization.externalId' in a workspace with Organizations to run the sequence once per organization for organization events. Array traversal with [] is not supported; use propertyFilters for array matching. Omit to leave unchanged. Use clearEnrollmentFieldPath to clear it.",
         },
         clearEnrollmentFieldPath: {
           type: "boolean",
@@ -285,6 +296,38 @@ export const sequenceEditingToolDefinitions: Tool[] = [
           type: "boolean",
           description:
             "Set true to remove the sequence sending window. Do not provide this together with sendingWindow.",
+        },
+        frequencyCapEnabled: {
+          type: "boolean",
+          description:
+            "Whether this sequence respects the company frequency cap (see get_frequency_cap / set_frequency_cap). When true, an email step is skipped for a contact already at the cap and the contact continues to the next step; transactional steps are never skipped. Omit to leave unchanged.",
+        },
+        keyDates: sequenceKeyDatesSchema,
+        clearKeyDates: {
+          type: "boolean",
+          description:
+            "Set true to remove every key date. Rejected while a delay step still waits for one of them. Do not provide this together with keyDates.",
+        },
+        audienceAutoEnroll: {
+          type: "object",
+          description:
+            "Manual countdowns only: keep enrolling people who join the audience later (new list members, new segment matches) until the last key date passes, landing them on the current step. { audience, enabled? } where audience has the enroll_sequence_audience shape; enabled defaults to true. Switching on enrolls the current audience right away and re-checks every few minutes. It ends itself after the last key date.",
+          properties: {
+            enabled: { type: "boolean" },
+            audience: sequenceAudienceSchema,
+            startsAt: {
+              type: "string",
+              description:
+                "ISO 8601 date-time before which no sync runs, e.g. the scheduledFor of the initial enrollment, so late joiners are not enrolled ahead of everyone else.",
+            },
+          },
+          required: ["audience"],
+          additionalProperties: false,
+        },
+        clearAudienceAutoEnroll: {
+          type: "boolean",
+          description:
+            "Set true to stop auto-enrolling later joiners. Do not provide this together with audienceAutoEnroll.",
         },
         bccEmails: {
           type: "array",
@@ -540,7 +583,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
                   required: ["filename", "path"],
                 },
                 description:
-                  "URL-backed file attachments for this email step (max 10, 7MB total per email). path may be a public HTTPS URL or an {{event.*}} URL template resolved from the enrollment event at send time. Pass [] to remove all attachments.",
+                  "URL-backed file attachments for this email step (max 10, 15MB total per email). path may be a public HTTPS URL or an {{event.*}} URL template resolved from the enrollment event at send time. Pass [] to remove all attachments.",
               },
               ...sequenceEmailStepIdentityProperties,
             },
@@ -615,7 +658,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
                   required: ["filename", "path"],
                 },
                 description:
-                  "URL-backed file attachments for this email step (max 10, 7MB total per email). path may be a public HTTPS URL or an {{event.*}} URL template resolved from the enrollment event at send time. Pass [] to remove all attachments.",
+                  "URL-backed file attachments for this email step (max 10, 15MB total per email). path may be a public HTTPS URL or an {{event.*}} URL template resolved from the enrollment event at send time. Pass [] to remove all attachments.",
               },
               ...sequenceEmailStepIdentityProperties,
             },
@@ -746,6 +789,52 @@ export const sequenceEditingToolDefinitions: Tool[] = [
     },
   },
   {
+    name: "edit_sequence_emails",
+    description:
+      'Change a sequence\'s emails with AI in one request, like the Emails view in the sequence editor: the prompt says what to change, in any language ("make the background cream", "remove the header", "new structure for email 2"). Without emailIds the prompt decides which emails: every email, unless it names some. A look change (background, colors, fonts) is made identical across the emails it touches, down to each kind of block\'s style. "Make them all look like email 1" copies that email\'s style exactly without AI, keeping each email\'s words. For design variations of an email use generate_sequence_email_variations: such a prompt returns 400 here. An email written in HTML is edited as HTML and keeps its theme. A/B test steps, steps without an email and steps that send the same email as an earlier step are skipped and listed in skipped. Each email succeeds or fails on its own: emails[].status is changed, unchanged (summary says why) or failed; changed emails are saved (saved:true) unless dryRun is true. Saved changes apply to the next sends of an active sequence. Runs synchronously and can take up to a minute; one request edits up to 12 emails, so pass emailIds in batches for longer sequences. A 503 means the AI could not tell which emails the prompt means and nothing changed: retry or pass emailIds. An email saved elsewhere meanwhile comes back with saved:false and an error instead of being overwritten. If the call times out, read get_sequence before retrying: changes may already be saved. To set exact values instead of asking the AI, use update_sequence_nodes.',
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        sequenceId: {
+          type: "string",
+          description: "Sequence ID.",
+        },
+        prompt: {
+          type: "string",
+          description:
+            "What should change, any language, up to 2000 characters.",
+        },
+        emailIds: {
+          type: "array",
+          items: { type: "string" },
+          minItems: 1,
+          maxItems: 12,
+          description:
+            "Only change these emails (emailId from get_sequence.sequence.emails). Omit to let the prompt decide.",
+        },
+        sectionIds: {
+          type: "array",
+          items: { type: "string" },
+          maxItems: 50,
+          description:
+            "Only change these top-level block ids. Needs exactly one emailId.",
+        },
+        dryRun: {
+          type: "boolean",
+          description:
+            "Return the new content without saving it. Defaults to false.",
+        },
+      },
+      required: ["sequenceId", "prompt"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "edit_sequence_graph",
     description:
       "Restructure an existing sequence graph using node IDs, edges, and graphRevision from get_sequence. move_node repositions one non-split step; duplicate_node creates an independent copy; delete_node safely splices a node and immediately moves parked recipients to its unique surviving successor (or completes them when none remains); replace_edges replaces the complete topology. The returned sequence reports migratedRecipientCount and completedRecipientCount. Always call get_sequence immediately before this tool and pass its graphRevision. Active sequences require confirmStructuralChange:true after the user confirms live-flow impact.",
@@ -836,6 +925,8 @@ export const sequenceEditingToolDefinitions: Tool[] = [
           enum: [
             "email",
             "sms",
+            "push",
+            "in_app",
             "delay",
             "create_discount",
             "update_subscriber",
@@ -881,7 +972,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         },
         html: {
           type: "string",
-          description: `HTML content for an imported provider step. Provide either html or blocks, not both. ${rawHtmlContentDescription}`,
+          description: `HTML content for an imported provider step. Provide either html or blocks, not both. ${rawHtmlContentDescription} In-app format html: the message document (100 KB max; see validate_in_app_html).`,
         },
         isTransactional: {
           type: "boolean",
@@ -909,7 +1000,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
             required: ["filename", "path"],
           },
           description:
-            "Email only: URL-backed file attachments (max 10, 7MB total per email). path may be a public HTTPS URL or an {{event.*}} URL template resolved from the enrollment event at send time.",
+            "Email only: URL-backed file attachments (max 10, 15MB total per email). path may be a public HTTPS URL or an {{event.*}} URL template resolved from the enrollment event at send time.",
         },
         senderProfileId: {
           type: "string",
@@ -952,16 +1043,36 @@ export const sequenceEditingToolDefinitions: Tool[] = [
           description:
             "SMS steps only: up to 2 publicly reachable image URLs sent as MMS media.",
         },
+        title: {
+          type: "string",
+          description:
+            "Push steps: notification title (max 120 characters). In-app steps: title (max 200). Merge tags work.",
+        },
+        imageUrl: {
+          type: ["string", "null"],
+          description: "Push and in-app steps: optional https image.",
+        },
+        iconUrl: {
+          type: ["string", "null"],
+          description: "Push steps only: optional https icon for web push.",
+        },
+        platforms: {
+          type: "array",
+          items: { type: "string", enum: ["web", "ios", "android"] },
+          description:
+            "Push steps only: limit delivery to these platforms; omit for all.",
+        },
+        ...inAppStepProperties,
         label: {
           type: "string",
           description:
-            "Display label for SMS, wait-for-event, or branch steps.",
+            "Display label for SMS, push, in-app, wait-for-event, or branch steps.",
         },
         ineligibleAction: {
           type: "string",
           enum: ["skip", "exit"],
           description:
-            "SMS steps only: what happens when the contact can't receive SMS (no phone, not opted in, unsupported country). Default 'skip' continues the sequence.",
+            "SMS and push steps: what happens when the contact can't receive the message (SMS: no phone, not opted in, unsupported country; push: no active device). Default 'skip' continues the sequence.",
         },
         config: {
           ...subscriberUpdateConfigSchema,
@@ -988,7 +1099,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         url: {
           type: "string",
           description:
-            "webhook only: destination HTTPS URL called when a subscriber reaches this step. Supports merge tags like {{email}} and {{event.order_id}}.",
+            "webhook: destination HTTPS URL called when a subscriber reaches this step. push: link opened on tap (https URL or app deep link). Both support merge tags like {{email}} and {{event.order_id}}.",
         },
         method: {
           type: "string",
@@ -1004,7 +1115,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         body: {
           type: "string",
           description:
-            'webhook only: optional JSON body template for POST/PUT/PATCH. Must be valid JSON as written, with merge tags inside quoted string values ({"email": "{{email}}"}); a tag in a bare value position is rejected. Tags are resolved at execution time; when omitted, the default payload with subscriber and sequence context is sent.',
+            'push: the notification message (up to 500 characters; merge tags allowed). webhook: optional JSON body template for POST/PUT/PATCH. Must be valid JSON as written, with merge tags inside quoted string values ({"email": "{{email}}"}); a tag in a bare value position is rejected. Tags are resolved at execution time; when omitted, the default payload with subscriber and sequence context is sent.',
         },
         resultKey: {
           type: "string",
@@ -1105,6 +1216,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
             "field_less_than",
             "has_phone",
             "sms_subscribed",
+            "has_push_device",
           ],
           description: "condition only: condition evaluated before continuing.",
         },
@@ -1113,7 +1225,11 @@ export const sequenceEditingToolDefinitions: Tool[] = [
           type: "string",
           enum: ["ever", "this_sequence", "previous_email"],
         },
-        fieldName: { type: "string" },
+        fieldName: {
+          type: "string",
+          description:
+            "Contact attribute for field_* conditions, e.g. plan. In a workspace with Organizations, organization.<field> (organization.plan, organization.role) reads the contact's primary organization.",
+        },
         fieldValue: { type: "string" },
         delay: sequenceDelaySchema,
         delayMs: {
@@ -1123,6 +1239,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         },
         waitUntil: sequenceWaitUntilSchema,
         waitUntilWeekday: sequenceWaitUntilWeekdaySchema,
+        waitUntilKeyDate: sequenceWaitUntilKeyDateSchema,
         eventName: {
           type: "string",
           description:
@@ -1192,7 +1309,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
   {
     name: "enable_sequence",
     description:
-      "Enable/activate a sequence. IMPORTANT: Only call this when the user EXPLICITLY asks to enable or activate a sequence. Never enable sequences automatically after creation - the user must review the content first. Call simulate_sequence first to see who currently matches and whether the sequence is ready. Nobody is auto-enrolled on activate.",
+      "Enable/activate a sequence so it starts processing its triggers. Sequences are created disabled so their content can be reviewed before activation; this tool is intended for user-requested activation. simulate_sequence shows who currently matches and whether the sequence is ready. Activation does not enroll existing matches unless audienceAutoEnroll is saved. Relay any response `warnings` to the user, such as a contact_added trigger with no list, which enrolls every new contact.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1366,9 +1483,207 @@ export const sequenceEditingToolDefinitions: Tool[] = [
     },
   },
   {
+    name: "enroll_sequence_audience",
+    description:
+      "Enroll a whole audience (everyone, lists, a segment, a filter, or combined rules) into a sequence as a background run. Unlike enroll_subscribers_in_sequence there is no 500-contact cap: the worker walks the audience in batches, skips contacts already in the sequence (and, for one_time sequences, anyone who completed or was cancelled before), never enrolls unsubscribed or bounced contacts, and reports progress. This is how a manual-trigger countdown sequence (Black Friday) gets its audience: enable the sequence, then call this. Late enrollees skip the steps whose key date already passed. Pass data for run-level values that are the same for everyone in the run (a sale end time, a discount percentage); the sequence's emails read them as {{enrollment.FIELD}}. Defaults to dryRun, which only returns the estimate (matchingCount, alreadyEnrolledCount, enrollableCount); pass dryRun false to start the run and poll get_sequence_audience_enrollment. One run per sequence at a time.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        sequenceId: {
+          type: "string",
+          description: "Sequence ID to enroll the audience in.",
+        },
+        audience: sequenceAudienceSchema,
+        targetNodeId: {
+          type: "string",
+          description:
+            "Optional node ID to start contacts at. Defaults to the first step after the trigger.",
+        },
+        dryRun: {
+          type: "boolean",
+          description:
+            "Defaults to true: estimate only. Pass false to start enrolling.",
+        },
+        scheduledFor: {
+          type: "string",
+          description:
+            "ISO 8601 date-time to start the run later instead of now (with dryRun false). The run stays queued until then and can be cancelled before it starts.",
+        },
+        data: {
+          type: "object",
+          description:
+            'Optional run-level data (with dryRun false): a JSON object of values shared by everyone in this run, up to 8 KB, for example {"sale_ends_at": "2026-11-29T23:59:00Z", "discount_percent": 20}. Each enrolled contact keeps a copy; emails and conditions in the sequence read it as {{enrollment.sale_ends_at}}. Returned as data on the run. Auto-enroll syncs do not carry run data.',
+          additionalProperties: true,
+        },
+      },
+      required: ["sequenceId", "audience"],
+    },
+  },
+  {
+    name: "list_sequence_audience_enrollments",
+    description:
+      "List recent audience enrollment runs for a sequence (newest first) with status queued/running/completed/cancelled/failed and counters estimatedCount, processedCount, enrolledCount, skippedCount. Use get_sequence_audience_enrollment to poll one run.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        sequenceId: { type: "string", description: "Sequence ID." },
+        limit: {
+          type: "number",
+          description: "Runs to return (1-100). Defaults to 20.",
+        },
+      },
+      required: ["sequenceId"],
+    },
+  },
+  {
+    name: "get_sequence_audience_enrollment",
+    description:
+      "Status and counters of one audience enrollment run started with enroll_sequence_audience. Poll while status is queued or running.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        sequenceId: { type: "string", description: "Sequence ID." },
+        runId: {
+          type: "string",
+          description: "Audience enrollment run ID (audienceEnrollment.id).",
+        },
+      },
+      required: ["sequenceId", "runId"],
+    },
+  },
+  {
+    name: "cancel_sequence_audience_enrollment",
+    description:
+      "Stop an audience enrollment run. A queued run is cancelled immediately; a running run stops after the batch it is currently enrolling. Contacts already enrolled stay in the sequence (use cancel_sequence_enrollments to remove them).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        sequenceId: { type: "string", description: "Sequence ID." },
+        runId: {
+          type: "string",
+          description: "Audience enrollment run ID to cancel.",
+        },
+      },
+      required: ["sequenceId", "runId"],
+    },
+  },
+  {
+    name: "get_sequence_recurring_enrollment",
+    description:
+      "Read a sequence's recurring schedule: the audience it re-enrolls, how often (daily, weekly on chosen weekdays, or monthly on chosen days including the last day), the time and IANA timezone, a readable description, the next run times (upcomingRuns), and the last run or skipped occurrence. recurringEnrollment is null when the sequence has no schedule.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        sequenceId: { type: "string", description: "Sequence ID." },
+      },
+      required: ["sequenceId"],
+    },
+  },
+  {
+    name: "set_sequence_recurring_enrollment",
+    description:
+      "Make a manual-trigger sequence recurring: re-enroll an audience every day, on chosen weekdays, or on chosen days of the month (1-31 and/or the last day) at a time in an IANA timezone, for end-of-month updates, balance reminders or daily sends that are not tied to an event. Each run is an audience enrollment run (source recurring, visible in list_sequence_audience_enrollments): contacts who finished an earlier run enter again, contacts still in the sequence are skipped, one_time sequences never re-enroll anyone, and unsubscribed or bounced contacts never join. Nothing is enrolled until the first scheduled time; occurrences while the sequence is paused, disabled or closed are skipped, and a run that cannot start within 6 hours is skipped. Days past the end of a shorter month run on its last day. Requires trigger manual and audienceAutoEnroll off. Saving replaces any existing schedule; pass remove true to delete it. Returns the stored schedule, a description and upcomingRuns so you can confirm it reads as intended.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        sequenceId: { type: "string", description: "Sequence ID." },
+        audience: {
+          ...sequenceAudienceSchema,
+          description:
+            "Who to enroll at each run, re-evaluated every time (same shape as enroll_sequence_audience). Required unless remove is true.",
+        },
+        frequency: {
+          type: "string",
+          enum: ["daily", "weekly", "monthly"],
+          description:
+            "How often to run. Required unless remove is true. weekly needs weekdays; monthly needs monthDays.",
+        },
+        weekdays: {
+          type: "array",
+          items: { type: "number" },
+          description:
+            "For weekly: days to run, 0 (Sunday) to 6 (Saturday). [1,2,3,4,5] is every weekday.",
+        },
+        monthDays: {
+          type: "array",
+          items: { type: "number" },
+          description:
+            "For monthly: days of the month to run, 1 to 31, e.g. [1, 2]. Combine with lastDayOfMonth for the end of the month.",
+        },
+        lastDayOfMonth: {
+          type: "boolean",
+          description:
+            "For monthly: also run on the last day of every month (28th to 31st). Can be the only day.",
+        },
+        time: {
+          type: "string",
+          description:
+            '24-hour run time "HH:MM", e.g. "10:00". Required unless remove is true.',
+        },
+        timezone: {
+          type: "string",
+          description:
+            'IANA timezone the time is read in, e.g. "Europe/London" or "UTC"; runs follow daylight saving. Required unless remove is true.',
+        },
+        enabled: {
+          type: "boolean",
+          description:
+            "Defaults to true. Pass false to keep the schedule but stop its runs.",
+        },
+        endsAt: {
+          type: "string",
+          description:
+            "Optional ISO 8601 date-time after which no run starts, e.g. the end of the last day in the schedule's timezone. Omit for no end date (saving replaces the schedule, so omitting removes an earlier end date).",
+        },
+        enrollmentMode: {
+          type: "string",
+          enum: ["unlimited", "one_time"],
+          description:
+            "Who enters at each run: unlimited (everyone who matches; people still inside are skipped) or one_time (only people who never entered). Sets the sequence's enrollment mode, which also applies to enrollments started by hand. Omit to keep the current mode.",
+        },
+        remove: {
+          type: "boolean",
+          description:
+            "Pass true to delete the schedule; other fields are then ignored. Runs already started and contacts already enrolled are not affected.",
+        },
+      },
+      required: ["sequenceId"],
+    },
+  },
+  {
     name: "cancel_sequence_enrollments",
     description:
-      "Cancel active/waiting enrollments in one sequence. Provide sequenceId and exactly one target: cancelAll to drain every active/waiting enrollment (use this to fully stop a live sequence instead of only freezing enrollment), subscriberIds for a specific batch, subscriberId for one subscriber, or fieldValues to match stored entry event properties. Every bulk target defaults to dryRun, so pass dryRun false to actually cancel. Bulk cancellation is capped per call: while the response reports remainingCount above zero, call again with the same arguments until it reaches zero.",
+      "Cancel active, waiting, or paused enrollments in one sequence. Provide sequenceId and exactly one target: cancelAll to drain every active, waiting, or paused enrollment (use this to fully stop a live sequence instead of only freezing enrollment), subscriberIds for a specific batch, subscriberId for one subscriber, or fieldValues to match stored entry event properties. Every bulk target defaults to dryRun, so pass dryRun false to actually cancel. Bulk cancellation is capped per call: while the response reports remainingCount above zero, call again with the same arguments until it reaches zero.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1384,7 +1699,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         cancelAll: {
           type: "boolean",
           description:
-            "Cancel every active/waiting enrollment in the sequence, regardless of how contacts entered it. Use this when segment-triggered enrollments expose no shared entry field value. Defaults to dryRun; pass dryRun false to apply.",
+            "Cancel every active, waiting, or paused enrollment in the sequence, regardless of how contacts entered it. Use this when segment-triggered enrollments expose no shared entry field value. Defaults to dryRun; pass dryRun false to apply.",
         },
         subscriberId: {
           type: "string",
@@ -1406,7 +1721,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
           type: "array",
           items: { type: "string" },
           description:
-            "Entry field values to match. Cancels all active/waiting enrollments in the sequence whose entry field value is in this list. Provide exactly one target.",
+            "Entry field values to match. Cancels all active, waiting, or paused enrollments in the sequence whose entry field value is in this list. Provide exactly one target.",
         },
         dryRun: {
           type: "boolean",
@@ -1494,6 +1809,77 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         },
       },
       required: ["sequenceId", "fromNodeId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "pause_sequence_subscribers",
+    description:
+      "Hold specific contacts on the sequence step they are on, without cancelling them. Use this when a contact's onboarding (or any sequence) must stop temporarily, for example while their account is blocked, and continue later from the same step with resume_sequence_subscribers. Nothing restarts or is skipped. A paused contact gets no further steps from this sequence, keeps its entry event properties and stop-condition snapshots, and cannot be enrolled in the same sequence again while paused; unsubscribes, bounces and cancel_sequence_enrollments still end it. A wait-for-event step does not react while paused; an event that arrived meanwhile is picked up on resume. Applies immediately (no dryRun). An enrollment whose current step a worker is running at that moment comes back with outcome in_progress: call again shortly. This is per contact: pause_sequence_enrollments instead stops new contacts entering the whole sequence. Provide sequenceId and subscriberIds, emails, or both (up to 500 combined).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        sequenceId: {
+          type: "string",
+          description: "Sequence ID whose enrollments should be paused.",
+        },
+        subscriberIds: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Subscriber IDs to pause. Combined with emails, up to 500. Unknown IDs come back in notFound.subscriberIds.",
+        },
+        emails: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Subscriber email addresses to pause. Combined with subscriberIds, up to 500. Unknown emails come back in notFound.emails.",
+        },
+        reason: {
+          type: "string",
+          description:
+            "Optional note stored on each paused enrollment and returned by list_sequence_enrollments as pauseReason.",
+        },
+      },
+      required: ["sequenceId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "resume_sequence_subscribers",
+    description:
+      "Continue contacts paused with pause_sequence_subscribers from the step they were paused on, with the status they had. Waits keep their original wall-clock time, like a whole-sequence pause: a wait that ran out while paused continues right away (so the next email can send as soon as a worker picks it up), and one that has not still ends when it would have. Contacts that are not paused are reported with outcome not_paused and left alone. When the sequence itself is disabled, sequenceRunning is false and resumed contacts continue once it is enabled. Provide sequenceId and subscriberIds, emails, or both (up to 500 combined).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        sequenceId: {
+          type: "string",
+          description: "Sequence ID whose paused enrollments should resume.",
+        },
+        subscriberIds: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Subscriber IDs to resume. Combined with emails, up to 500.",
+        },
+        emails: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Subscriber email addresses to resume. Combined with subscriberIds, up to 500.",
+        },
+      },
+      required: ["sequenceId"],
       additionalProperties: false,
     },
   },

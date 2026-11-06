@@ -10,10 +10,15 @@ export const transactionalToolDefinitions: Tool[] = [
   {
     name: "list_transactional_emails",
     description:
-      "List transactional email templates with subjects, delivery metrics, API slugs, and dashboard URLs. Each item also carries `emailPreset`, the per-email Style > Format (branded or minimal, null for a standalone raw HTML email), so a chrome drift check across templates does not need one get_transactional_email call each. Search by name, slug, or email title; filter active state; and sort by sends, opens, open rate, clicks, or CTR.",
+      "List transactional email templates with subjects, delivery metrics, API slugs, and dashboard URLs. Each item also carries `emailPreset`, the per-email Style > Format (branded or minimal, null for a standalone raw HTML email), so a chrome drift check across templates does not need one get_transactional_email call each. `managedBy` is `code` for emails created by `send_email` with `trackAs`: their content is a snapshot of recent sends and they cannot be sent by `templateId`. Search by name, slug, or email title; filter active state; and sort by sends, opens, open rate, clicks, or CTR.",
     inputSchema: {
       type: "object",
       properties: {
+        labels: {
+          type: "array",
+          items: { type: "string" },
+          description: "Filter by label names; matches any supplied name.",
+        },
         companyId: {
           type: "string",
           description:
@@ -70,10 +75,16 @@ export const transactionalToolDefinitions: Tool[] = [
   {
     name: "create_transactional_email",
     description:
-      "Create a saved transactional email template with an API slug. For net-new natural-language content use `prompt`; do not author HTML or blocks. `blocks` are finished caller-supplied Sequenzy content and `html` is preserved/imported markup.",
+      "Create a saved transactional email template with an API slug. `prompt` generates net-new content from natural language. `blocks` are finished caller-supplied Sequenzy content and `html` is preserved/imported markup.",
     inputSchema: {
       type: "object",
       properties: {
+        labels: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Label names to assign (created if missing). Replaces all assignments; [] clears them. Omit to leave unchanged.",
+        },
         companyId: {
           type: "string",
           description:
@@ -136,10 +147,16 @@ export const transactionalToolDefinitions: Tool[] = [
   {
     name: "update_transactional_email",
     description:
-      "Update a transactional email by ID or slug. At least one of `name`, `enabled`, `subject`, `previewText`, `html`, or `blocks` is required. Use `html` or `blocks` to replace the linked email body.",
+      "Update a transactional email by ID or slug. At least one of `name`, `enabled`, `subject`, `previewText`, `html`, or `blocks` is required. Use `html` or `blocks` to replace the linked email body. Code-managed emails (`managedBy: code`) accept only `name`, `enabled`, and `labels`; disabling one makes `send_email` reject its `trackAs` sends.",
     inputSchema: {
       type: "object",
       properties: {
+        labels: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Label names to assign (created if missing). Replaces all assignments; [] clears them. Omit to leave unchanged.",
+        },
         companyId: {
           type: "string",
           description:
@@ -185,7 +202,7 @@ export const transactionalToolDefinitions: Tool[] = [
   {
     name: "delete_transactional_email",
     description:
-      "Permanently delete a saved transactional email template by ID or slug. Use this to retire an obsolete template: the slug stops sending and becomes free to reuse. Already-sent deliveries and their stats are kept, so history and analytics survive the delete. The linked email content stays as a reusable template and comes back as `deleted.emailId`; pass that to `delete_template` to remove the content too. To stop sends without losing the template, call `update_transactional_email` with `enabled` set to false instead.",
+      "Permanently delete a saved transactional email template by ID or slug. Use this to retire an obsolete template: the slug stops sending and becomes free to reuse. Already-sent deliveries and their stats are kept, so history and analytics survive the delete. The linked email content stays as a reusable template and comes back as `deleted.emailId`; pass that to `delete_template` to remove the content too. Code-managed emails (`managedBy: code`) are the exception: their content snapshot is deleted with them and `deleted.emailDeleted` is true. To stop sends without losing the template, call `update_transactional_email` with `enabled` set to false instead.",
     inputSchema: {
       type: "object",
       properties: {
@@ -207,7 +224,7 @@ export const transactionalToolDefinitions: Tool[] = [
   {
     name: "send_email",
     description:
-      "Queue one email using either a saved transactional email API slug (`templateId`) or direct `subject` and `html` content. Always provide a stable `idempotencyKey` when an agent or workflow may retry, and reuse it for the same logical email; Sequenzy returns the original send for 14 days and rejects different content under the same key. The default delivery policy is transactional. A transactional send delivers one email to several people at once: `to` takes up to 50 addresses and `cc`/`bcc` take up to 50 each, so everyone sees the same shared recipient list instead of receiving separate copies. Addresses repeated across the fields are dropped from the lower-priority one (to beats cc beats bcc). When the recipient matches a subscriber, saved first and last names fill omitted name variables; explicit variables take precedence. Set `emailType` to `marketing` to add subscriber suppression, a marketing footer, and RFC 8058 one-click unsubscribe; marketing sends take exactly one `to` recipient and no `cc` or `bcc`. When no identity override is provided, a template send keeps its saved From and Reply-To identities, while a direct send uses the company defaults. To send as a non-default verified brand, pass `fromEmail` (and `fromName` if that address has several identities) plus optional `replyTo`/`replyToName`; you do not need profile IDs. `senderProfileId`/`replyProfileId` from `list_sender_profiles` remain available when you already have them. These fields look up existing identities and do not create profiles. `{{viewInBrowserUrl}}` is replaced with a hosted copy URL. Attach up to 10 files with Base64 `content` or a public `path`; `contentId` embeds a CID image referenced by the HTML. When `trackingSettings` is omitted, the company's Transactional API defaults apply. Set `clickTracking` or `openTracking` to `false` to opt out for this send only; these fields cannot enable tracking disabled by account settings. Returns a durable emailSendId, the accepted emailType, and the deduplicated recipient lists; pass the ID to get_email_send for delivery status and failure details.",
+      "Queue one email using either a saved transactional email API slug (`templateId`) or direct `subject` and `html` content. Add `trackAs` to a direct send to track it under one code-managed transactional email for per-email stats. Always provide a stable `idempotencyKey` when an agent or workflow may retry, and reuse it for the same logical email; Sequenzy returns the original send for 14 days and rejects different content under the same key. The default delivery policy is transactional. A transactional send delivers one email to several people at once: `to` takes up to 50 addresses and `cc`/`bcc` take up to 50 each, so everyone sees the same shared recipient list instead of receiving separate copies. Addresses repeated across the fields are dropped from the lower-priority one (to beats cc beats bcc). When the recipient matches a subscriber, saved first and last names fill omitted name variables; explicit variables take precedence. Set `emailType` to `marketing` to add subscriber suppression, a marketing footer, and RFC 8058 one-click unsubscribe; marketing sends take exactly one `to` recipient and no `cc` or `bcc`. When no identity override is provided, a template send keeps its saved From and Reply-To identities, while a direct send uses the company defaults. To send as a non-default verified brand, pass `fromEmail` (and `fromName` if that address has several identities) plus optional `replyTo`/`replyToName`; you do not need profile IDs. `senderProfileId`/`replyProfileId` from `list_sender_profiles` remain available when you already have them. These fields look up existing identities and do not create profiles. `{{viewInBrowserUrl}}` is replaced with a hosted copy URL. Attach up to 10 files with Base64 `content` or a public `path`; `contentId` embeds a CID image referenced by the HTML. When `trackingSettings` is omitted, the company's Transactional API defaults apply. Set `clickTracking` or `openTracking` to `false` to opt out for this send only; these fields cannot enable tracking disabled by account settings. Use `headers` for extra email headers, such as your own one-click `List-Unsubscribe` on a transactional send. Returns a durable emailSendId, the accepted emailType, the deduplicated recipient lists, and `ignoredHeaders` when some headers were not applied; pass the ID to get_email_send for delivery status and failure details.",
     inputSchema: {
       type: "object",
       properties: {
@@ -258,6 +275,12 @@ export const transactionalToolDefinitions: Tool[] = [
           description:
             "Saved transactional email API slug, for example `welcome-email`. The field name is retained for MCP compatibility and is mapped to the transactional API `slug` field.",
         },
+        trackAs: {
+          type: "string",
+          maxLength: 255,
+          description:
+            "Direct `subject`/`html` sends only. Names the email type, for example `weekly-report` (up to 255 ASCII letters, digits, spaces and `. _ - : /`), so every send with the same value is tracked under one code-managed transactional email with its own stats. The first send creates it (`managedBy: code` in list_transactional_emails); later sends link to it. Use a stable name, never per-recipient values: a workspace can have at most 100. Fails if the value matches a dashboard template's slug or the code-managed email is disabled. Code-managed emails cannot be sent with `templateId`.",
+        },
         variables: {
           type: "object",
           description:
@@ -307,7 +330,7 @@ export const transactionalToolDefinitions: Tool[] = [
           type: "array",
           maxItems: 10,
           description:
-            "Files to attach (7MB total). Each item needs `filename` and exactly one of Base64 `content` or public HTTP(S) `path`. Set `contentId` to embed it as a CID image referenced from HTML, and optionally set `contentType` to override MIME detection.",
+            "Files to attach (15MB total). Each item needs `filename` and exactly one of Base64 `content` or public HTTP(S) `path`. Set `contentId` to embed it as a CID image referenced from HTML, and optionally set `contentType` to override MIME detection.",
           items: {
             type: "object",
             properties: {
@@ -338,6 +361,12 @@ export const transactionalToolDefinitions: Tool[] = [
             },
           },
           additionalProperties: false,
+        },
+        headers: {
+          type: "object",
+          description:
+            'Extra email headers as `{ "Header-Name": "value" }`, up to 50. Names use letters, digits, and hyphens; values are one line of printable ASCII. A transactional send can carry the caller\'s own `List-Unsubscribe` and `List-Unsubscribe-Post: List-Unsubscribe=One-Click`. Marketing sends always use Sequenzy\'s signed unsubscribe headers, so those two plus `Precedence` and `Feedback-ID` are not applied. Headers Sequenzy manages (for example From, To, Subject, Reply-To, Message-ID, Content-Type, and `X-Sequenzy-*`) are never applied. Values must be strings. Headers the API does not apply do not fail the send; they are listed in the response `ignoredHeaders` with a reason.',
+          additionalProperties: { type: "string" },
         },
       },
       required: ["to"],

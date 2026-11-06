@@ -1,7 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
 import { McpApiError } from "./error-output";
-import { apiRequest, apiUploadRequest, setSelectedCompanyId } from "./runtime";
+import {
+  apiRequest,
+  apiUploadRequest,
+  createMissingApiKeyError,
+  hasConfiguredApiKey,
+  setSelectedCompanyId,
+  withMcpRequestContext,
+} from "./runtime";
 
 const originalApiKey = process.env["SEQUENZY_API_KEY"];
 const originalApiUrl = process.env["SEQUENZY_API_URL"];
@@ -141,5 +148,98 @@ describe("apiUploadRequest", () => {
         howToFix: "Call get_campaign to refresh status.",
       },
     });
+  });
+  it("retries a read that hits a deploy swap but never a write or upload", async () => {
+    const fetchMock = mock(async () =>
+      fetchMock.mock.calls.length === 1
+        ? new Response("Bad Gateway", { status: 502 })
+        : Response.json({ id: "acct" })
+    );
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    expect(await apiRequest<{ id: string }>("GET", "/api/v1/account")).toEqual({
+      id: "acct",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    for (const upload of [false, true]) {
+      const failing = mock(
+        async () => new Response("Bad Gateway", { status: 502 })
+      );
+      globalThis.fetch = failing as unknown as typeof fetch;
+      const pending = upload
+        ? apiUploadRequest(
+            "/api/v1/media/upload-bytes?key=x",
+            Uint8Array.from([1]),
+            "image/png"
+          )
+        : apiRequest("POST", "/api/v1/subscribers", { email: "a@b.co" });
+      await Promise.resolve(
+        expect(pending).rejects.toMatchObject({ statusCode: 502 })
+      );
+      expect(failing).toHaveBeenCalledTimes(1);
+    }
+  });
+  it("exposes retry hints for both request paths without repeating side effects", async () => {
+    for (const upload of [false, true]) {
+      const fetchMock = mock(async () =>
+        Response.json(
+          { error: "Temporarily unavailable", code: "BUSY" },
+          { status: 503, headers: { "Retry-After": "11" } }
+        )
+      );
+      globalThis.fetch = fetchMock as unknown as typeof fetch;
+      const pending = upload
+        ? apiUploadRequest(
+            "/api/v1/media/upload-bytes?key=x",
+            Uint8Array.from([1]),
+            "image/png",
+            "company-b"
+          )
+        : apiRequest(
+            "POST",
+            "/api/v1/transactional/send",
+            { slug: "receipt" },
+            "company-b",
+            { "Idempotency-Key": "logical-send" }
+          );
+      await Promise.resolve(
+        expect(pending).rejects.toMatchObject({
+          statusCode: 503,
+          code: "BUSY",
+          retryAfterSeconds: 11,
+        })
+      );
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    }
+  });
+});
+
+describe("hasConfiguredApiKey", () => {
+  afterEach(() => {
+    if (originalApiKey === undefined) {
+      delete process.env["SEQUENZY_API_KEY"];
+    } else {
+      process.env["SEQUENZY_API_KEY"] = originalApiKey;
+    }
+  });
+
+  it("reads the environment and the per-request context", async () => {
+    delete process.env["SEQUENZY_API_KEY"];
+    expect(hasConfiguredApiKey()).toBe(false);
+    expect(
+      await withMcpRequestContext({ apiKey: "seq_ctx_key" }, async () =>
+        hasConfiguredApiKey()
+      )
+    ).toBe(true);
+
+    process.env["SEQUENZY_API_KEY"] = "seq_env_key";
+    expect(hasConfiguredApiKey()).toBe(true);
+  });
+
+  it("builds the auth-required error used by startup and every request", () => {
+    const error = createMissingApiKeyError();
+    expect(error).toBeInstanceOf(McpApiError);
+    expect(error.statusCode).toBe(401);
+    expect(error.code).toBe("MCP_AUTH_REQUIRED");
   });
 });

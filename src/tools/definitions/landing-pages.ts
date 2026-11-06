@@ -10,7 +10,7 @@ export const landingPageToolDefinitions: Tool[] = [
   // ============================================================================
   {
     name: "list_landing_pages",
-    description: "List all landing pages for a company",
+    description: "List all landing pages for a company.",
     inputSchema: {
       type: "object",
       properties: {
@@ -47,7 +47,7 @@ export const landingPageToolDefinitions: Tool[] = [
   {
     name: "get_landing_page_stats",
     description:
-      "Get Mailchimp-style landing page analytics: visits, unique visits, clicks, subscribes, conversion rate, a daily histogram, referrers, and UTM sources. Default counts exclude known crawlers; preview URLs and the editor are never counted. Opening the public URL while building the page does count. Pass includeBots to include crawler hits in visits. period defaults to all retained events with a 90-day histogram; dataAvailableFrom identifies the beginning of retained coverage, which may be later than the page's lifetime counters.",
+      "Get landing page analytics: visits, unique visits, clicks, subscribes, conversion rate, a daily histogram, referrers, and UTM sources. Default counts exclude known crawlers; preview URLs and the editor are never counted. Opening the public URL while building the page does count. Pass includeBots to include crawler hits in visits. period defaults to all retained events with a 90-day histogram; dataAvailableFrom identifies the beginning of retained coverage, which may be later than the page's lifetime counters.",
     inputSchema: {
       type: "object",
       properties: {

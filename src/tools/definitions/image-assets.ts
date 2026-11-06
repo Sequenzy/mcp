@@ -4,7 +4,7 @@ export const imageAssetToolDefinitions: Tool[] = [
   {
     name: "upload_image_asset",
     description:
-      "Upload an image to the selected company's shared media library and return a hosted URL plus a ready-to-insert Sequenzy image block. Call this before create/update campaign, sequence, template, or transactional tools, then place the returned imageBlock in the target blocks array. Provide either filePath (local stdio MCP only) or imageBase64 (works with remote MCP when the client can supply attachment bytes), not both. PNG, JPEG, GIF, and WebP are supported up to 5MB. cropHeight with objectFit:'cover' provides a precise centered screenshot crop while displayWidthPercent keeps the image responsive.",
+      "Upload an image to the selected company's shared media library and return a hosted URL plus a ready-to-insert Sequenzy image block. When an email needs a new image, call this before create/update campaign, sequence, template, or transactional tools, then place the returned imageBlock in the target blocks array. Provide either filePath (local stdio MCP only) or imageBase64 (works with remote MCP when the client can supply attachment bytes), not both. PNG, JPEG, GIF, and WebP are supported up to 10MB. cropHeight with objectFit:'cover' provides a precise centered screenshot crop while displayWidthPercent keeps the image responsive.",
     inputSchema: {
       type: "object",
       properties: {

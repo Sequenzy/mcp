@@ -12,7 +12,7 @@ export const abTestToolDefinitions: Tool[] = [
   // ============================================================================
   {
     name: "list_ab_tests",
-    description: "List A/B tests and their variants",
+    description: "List A/B tests and their variants.",
     inputSchema: {
       type: "object",
       properties: {
@@ -51,7 +51,7 @@ export const abTestToolDefinitions: Tool[] = [
   {
     name: "get_ab_test_stats",
     description:
-      "Get A/B test aggregate stats and per-variant stats. Supports period or custom start/end ranges.",
+      "Get A/B test aggregate stats, per-variant stats and whether the winner metric difference is statistically significant (95% confidence). Supports period or custom start/end ranges.",
     inputSchema: {
       type: "object",
       properties: {
@@ -124,7 +124,7 @@ export const abTestToolDefinitions: Tool[] = [
   {
     name: "select_ab_test_winner",
     description:
-      "Select a winner for a campaign A/B test that is currently testing and queue the winning variant for the remaining audience. This starts external email delivery.",
+      "Select a winner for an A/B test. For a campaign A/B test that is currently testing, this queues the winning variant for the remaining audience and starts external email delivery. For a sequence A/B test (nodeType action_ab_test), this selects or changes the winner, including one picked automatically: everyone who reaches the step afterwards gets the new winner, and contacts who already got a variant keep it. Pass confirmLiveChange when the sequence is active.",
     inputSchema: {
       type: "object",
       properties: {
@@ -133,10 +133,44 @@ export const abTestToolDefinitions: Tool[] = [
           description:
             "Company ID. If not provided, uses the currently selected company.",
         },
-        abTestId: { type: "string", description: "Campaign A/B test ID" },
+        abTestId: {
+          type: "string",
+          description: "Campaign or sequence A/B test ID",
+        },
         variantId: { type: "string", description: "Winning variant ID" },
+        confirmLiveChange: {
+          type: "boolean",
+          description:
+            "Sequence tests only. Required as true when the sequence is active, because the new winner goes to everyone who reaches the step from then on.",
+        },
       },
       required: ["abTestId", "variantId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "resume_ab_test",
+    description:
+      "Resume a sequence A/B test (nodeType action_ab_test) that already has a winner, for example one picked automatically before the user was sure. Clears the winner so contacts reaching the step are split across the variants again, keeps the results collected so far, and turns off automatic selection for this test: it keeps splitting until a winner is selected with select_ab_test_winner. Pass confirmLiveChange when the sequence is active.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        abTestId: {
+          type: "string",
+          description: "Sequence A/B test ID to resume",
+        },
+        confirmLiveChange: {
+          type: "boolean",
+          description:
+            "Required as true when the sequence is active, because contacts reaching the step are split again from then on.",
+        },
+      },
+      required: ["abTestId"],
       additionalProperties: false,
     },
   },
@@ -193,10 +227,25 @@ export const abTestToolDefinitions: Tool[] = [
   {
     name: "update_ab_test",
     description:
-      "Update A/B test settings. Campaign tests use testPercentage, testDurationMinutes, and winnerCriteria. Sequence tests use testType, winnerThreshold, and winnerCriteria; changing live or already-used sequence settings requires confirmLiveChange. Provide at least one setting.",
+      "Update A/B test settings. Campaign tests use testPercentage, testDurationMinutes, and winnerCriteria. During testing, duration is total minutes from the original start (a past deadline selects immediately), and audience changes queue a resize that preserves committed sends. Read pendingSampleUpdate and progress using get_ab_test; retry the same percentage after failure or discard a failed request with cancelSampleUpdate. endTestNow ends a running campaign test early: the winner is picked by its criteria from the results so far and sent to the rest of the audience. The winning metric stays fixed once testing starts. Sequence tests use testType, winnerThreshold, winnerCriteria, and autoSelectWinner; changing live or already-used sequence settings requires confirmLiveChange. Provide at least one setting.",
     inputSchema: {
       type: "object",
       properties: {
+        cancelSampleUpdate: {
+          type: "boolean",
+          description:
+            "Discard a failed campaign sample change. Cannot be combined with testPercentage.",
+        },
+        endTestNow: {
+          type: "boolean",
+          description:
+            "End a running campaign test now and pick the winner by its criteria, instead of waiting for testDurationMinutes. Needs the campaigns:send permission. Cannot be combined with testDurationMinutes.",
+        },
+        expectedUpdatedAt: {
+          type: "string",
+          description:
+            "Optional timestamp from get_ab_test. Rejects a change if settings have since changed.",
+        },
         companyId: {
           type: "string",
           description:
@@ -222,9 +271,25 @@ export const abTestToolDefinitions: Tool[] = [
         },
         winnerCriteria: {
           type: "string",
-          enum: ["open_rate", "click_rate"],
+          enum: [
+            "open_rate",
+            "click_rate",
+            "goal_conversion_rate",
+            "goal_value",
+            "event_rate",
+          ],
           description:
-            "Winner selection criteria. Applies to both campaign and sequence tests.",
+            'Winner selection criteria. Applies to both campaign and sequence tests and is locked once a campaign test starts. goal_conversion_rate picks the variant whose recipients convert on winnerGoalId most often, goal_value the one with the most goal value per delivered email (use winnerGoalId "default-revenue" for purchase revenue), and event_rate the one whose recipients most often fire winnerEventName after receiving it. Conversions count when attributed to the email (an open or click within the goal\'s window; for campaigns, revenue and campaign goals also credit a recipient who received the email in that window). When no variant converts, campaign tests fall back to click rate and sequence tests keep splitting.',
+        },
+        winnerGoalId: {
+          type: "string",
+          description:
+            'Goal judged by goal_conversion_rate or goal_value: a goal ID (company-wide, or scoped to this campaign or sequence) or "default-revenue" for built-in purchase revenue. Required for those criteria.',
+        },
+        winnerEventName: {
+          type: "string",
+          description:
+            'Event judged by event_rate, such as "trial.converted". Required for event_rate.',
         },
         testType: {
           type: "string",
@@ -236,6 +301,11 @@ export const abTestToolDefinitions: Tool[] = [
           type: "number",
           description:
             "Sequence-only number of recipients before selecting a winner, from 10 to 1000.",
+        },
+        autoSelectWinner: {
+          type: "boolean",
+          description:
+            "Sequence-only. true picks the leading variant once winnerThreshold is reached (the default); false keeps splitting contacts until select_ab_test_winner. Turning it on can pick a winner on the next send if the threshold is already reached. resume_ab_test sets it to false.",
         },
         confirmLiveChange: {
           type: "boolean",
@@ -290,9 +360,25 @@ export const abTestToolDefinitions: Tool[] = [
         },
         winnerCriteria: {
           type: "string",
-          enum: ["open_rate", "click_rate"],
+          enum: [
+            "open_rate",
+            "click_rate",
+            "goal_conversion_rate",
+            "goal_value",
+            "event_rate",
+          ],
           description:
-            "Winner selection criteria. Campaign tests default to open_rate. For sequence tests, an explicit value overrides the testType default.",
+            'Winner selection criteria. Campaign tests default to open_rate. For sequence tests, an explicit value overrides the testType default. goal_conversion_rate picks the variant whose recipients convert on winnerGoalId most often, goal_value the one with the most goal value per delivered email (use winnerGoalId "default-revenue" for purchase revenue), and event_rate the one whose recipients most often fire winnerEventName after receiving it. Conversions count when attributed to the email (an open or click within the goal\'s window; for campaigns, revenue and campaign goals also credit a recipient who received the email in that window). When no variant converts, campaign tests fall back to click rate and sequence tests keep splitting.',
+        },
+        winnerGoalId: {
+          type: "string",
+          description:
+            'Goal judged by goal_conversion_rate or goal_value: a goal ID (company-wide, or scoped to this campaign or sequence) or "default-revenue" for built-in purchase revenue. Required for those criteria.',
+        },
+        winnerEventName: {
+          type: "string",
+          description:
+            'Event judged by event_rate, such as "trial.converted". Required for event_rate.',
         },
         testType: {
           type: "string",

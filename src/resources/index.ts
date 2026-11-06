@@ -77,6 +77,13 @@ export const resources: Resource[] = [
     mimeType: "application/json",
   },
   {
+    uri: "sequenzy://design-md",
+    name: "design.md",
+    description:
+      "The selected company's email design brief as Markdown: exact brand values, voice and design direction. Edit it with update_design_md.",
+    mimeType: "text/markdown",
+  },
+  {
     uri: "sequenzy://app-routes",
     name: "Dashboard URL Routes",
     description:
@@ -94,6 +101,24 @@ export async function handleResourceRead(
 }> {
   const profile = options.profile ?? "standard";
   try {
+    if (uri === "sequenzy://design-md") {
+      const designMd = await apiRequest<{ markdown: string }>(
+        "GET",
+        "/api/v1/design-md"
+      );
+      // The reviewed profile redacts restricted data (such as credential
+      // URLs) from every resource; markdown gets the same treatment.
+      const projected =
+        profile === "openai"
+          ? (projectOpenAiToolResult(`resource:${uri}`, designMd) as {
+              markdown?: unknown;
+            } | null)
+          : designMd;
+      const text =
+        typeof projected?.markdown === "string" ? projected.markdown : "";
+      return { contents: [{ uri, mimeType: "text/markdown", text }] };
+    }
+
     let data: unknown;
 
     switch (uri) {
@@ -189,6 +214,7 @@ export async function handleResourceRead(
           mimeType: "text/plain",
           text: formatMcpError(error, {
             includeDetails: profile !== "openai",
+            reviewedSurface: profile === "openai",
           }),
         },
       ],

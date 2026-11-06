@@ -2,6 +2,7 @@ const DEFAULT_APP_URL = "https://sequenzy.com";
 
 export const settingsTabs = [
   "product-info",
+  "email-design",
   "domain",
   "tracking",
   "localization",

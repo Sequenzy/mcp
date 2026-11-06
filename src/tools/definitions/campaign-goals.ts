@@ -70,7 +70,7 @@ export const campaignGoalToolDefinitions: Tool[] = [
   {
     name: "list_campaign_goals",
     description:
-      "List persisted conversion goals attached to one email campaign in the dashboard. SMS campaigns are not supported. Campaign goals are attributed to recipients who were sent that campaign (last-touch open/click still wins when the recipient engaged), and appear on the campaign report as named conversion steps after sent/opened/clicked.",
+      "List conversion goals for one email campaign. Returns campaign-specific goals in goals and Settings goals in companyGoals, including inactive goals. Company-wide goals apply automatically after an open or click within their window; manage them in Settings, not through campaign goal update/delete. SMS campaigns are not supported. Campaign goals are attributed to recipients who were sent that campaign (last-touch open/click still wins when the recipient engaged), and appear on the campaign report as named conversion steps after sent/opened/clicked.",
     inputSchema: {
       type: "object",
       properties: companyAndCampaignProperties,

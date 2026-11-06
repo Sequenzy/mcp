@@ -60,8 +60,7 @@ describe("get_email_block_schema", () => {
       (candidate) => candidate.name === "get_email_block_schema"
     );
     const creatableOnly = tool?.inputSchema.properties?.["creatableOnly"] as
-      | { description?: string }
-      | undefined;
+      { description?: string } | undefined;
 
     expect(tool?.description).toContain("group");
     expect(creatableOnly?.description).toContain("group");
@@ -144,8 +143,7 @@ describe("get_email_block_schema", () => {
       (candidate) => candidate.name === "get_email_block_schema"
     );
     const hint = tool?.outputSchema?.properties?.["conditionFieldsHint"] as
-      | { description?: string }
-      | undefined;
+      { description?: string } | undefined;
 
     expect(tool?.inputSchema.properties).toHaveProperty("conditionFields");
     expect(hint?.description).toContain("omitted `conditionFields`");
@@ -160,8 +158,7 @@ describe("block authoring guidance in tool schemas", () => {
     const blockTools = tools.filter((tool) => {
       const properties = tool.inputSchema.properties;
       const blocksProperty = properties?.["blocks"] as
-        | { description?: string }
-        | undefined;
+        { description?: string } | undefined;
       const description = blocksProperty?.description;
       return (
         typeof description === "string" &&
@@ -205,4 +202,43 @@ describe("sequenzy://email-blocks resource", () => {
     expect(resource?.mimeType).toBe("application/json");
     expect(resource?.description).toContain("structural group");
   });
+});
+
+it("previews caller-supplied cart scenarios through the API without saving", async () => {
+  mockApiRequest.mockClear();
+  await handleToolCall("preview_cart_items", {
+    items: [{ name: "Candle" }],
+    itemFields: { title: "name" },
+    priceUnit: "major",
+    scenario: "long-names",
+  });
+  expect(mockApiRequest).toHaveBeenCalledWith(
+    "POST",
+    "/api/v1/email-blocks/line-items/assist",
+    {
+      items: [{ name: "Candle" }],
+      itemFields: { title: "name" },
+      priceUnit: "major",
+      scenario: "long-names",
+    }
+  );
+  await handleToolCall("preview_cart_items", {});
+  expect(mockApiRequest).toHaveBeenLastCalledWith(
+    "POST",
+    "/api/v1/email-blocks/line-items/assist",
+    { items: [] }
+  );
+  const tool = tools.find((entry) => entry.name === "preview_cart_items");
+  expect(tool?.inputSchema.type).toBe("object");
+  expect(JSON.stringify(tool?.inputSchema)).not.toContain('"anyOf"');
+  expect(tool?.annotations?.readOnlyHint).toBe(true);
+});
+
+it("preserves explicit null cart input for API validation", async () => {
+  await handleToolCall("preview_cart_items", { items: null });
+  expect(mockApiRequest).toHaveBeenLastCalledWith(
+    "POST",
+    "/api/v1/email-blocks/line-items/assist",
+    { items: null }
+  );
 });

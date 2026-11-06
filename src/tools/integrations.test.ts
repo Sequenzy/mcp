@@ -21,8 +21,10 @@ const { handleToolCall, tools } = await import("./index.js");
 
 const INTEGRATION_TOOL_NAMES = [
   "connect_integration",
+  "disconnect_integration",
   "get_integration",
   "list_integration_capabilities",
+  "list_integration_suggestions",
   "list_integration_activity",
   "set_integration_sync_enabled",
   "set_integration_list_targeting",
@@ -50,6 +52,7 @@ describe("integration tool definitions", () => {
     for (const name of [
       "get_integration",
       "list_integration_capabilities",
+      "list_integration_suggestions",
       "list_integration_activity",
       "get_integration_pixel",
       "get_attio_mapping",
@@ -81,10 +84,11 @@ describe("integration tool definitions", () => {
     expect(
       byName.get("activate_integration_pixel")?.annotations?.readOnlyHint
     ).toBe(false);
-    // Installing a pixel only adds tracking; nothing existing is removed.
+    // Activation can repoint an existing pixel at this account, so another
+    // account that relied on it stops receiving events.
     expect(
       byName.get("activate_integration_pixel")?.annotations?.destructiveHint
-    ).toBe(false);
+    ).toBe(true);
     expect(byName.get("update_attio_settings")?.annotations?.readOnlyHint).toBe(
       false
     );
@@ -94,9 +98,10 @@ describe("integration tool definitions", () => {
     expect(byName.get("get_attio_mapping")?.annotations?.openWorldHint).toBe(
       true
     );
+    // Replaces the saved Attio list and field mapping.
     expect(
       byName.get("update_attio_settings")?.annotations?.destructiveHint
-    ).toBe(false);
+    ).toBe(true);
     // Retargeting silently changes who future contacts get mailed as, and
     // contacts created under the old targeting are not moved.
     expect(
@@ -127,6 +132,8 @@ describe("integration tool definitions", () => {
 
     expect(description).toContain("does not stop contacts being created");
     expect(description).toContain("contact_added");
+    expect(description).toContain("Webflow is deliberately fail-closed");
+    expect(description).toContain("field allowlists");
   });
 
   // Existing-contact behavior differs by provider, so the tool must not give
@@ -195,8 +202,7 @@ describe("integration tool definitions", () => {
       (tool) => tool.name === "connect_integration"
     );
     const providerSchema = connectTool?.inputSchema.properties?.["provider"] as
-      | { enum?: string[] }
-      | undefined;
+      { enum?: string[] } | undefined;
     const historyInput = connectTool?.inputSchema.properties?.[
       "historyImport"
     ] as
@@ -206,16 +212,16 @@ describe("integration tool definitions", () => {
         }
       | undefined;
     const historyOutput = connectTool?.outputSchema?.properties?.["history"] as
-      | { description?: string }
-      | undefined;
+      { description?: string } | undefined;
     const settingsInput = connectTool?.inputSchema.properties?.["settings"] as
-      | { description?: string }
-      | undefined;
+      { description?: string } | undefined;
     const webhookSecretInput = connectTool?.inputSchema.properties?.[
       "webhookSecret"
     ] as { description?: string } | undefined;
 
     expect(providerSchema?.enum).toContain("segment");
+    expect(providerSchema?.enum).toContain("mixpanel");
+    expect(providerSchema?.enum).toContain("amplitude");
     expect(providerSchema?.enum).toContain("attio");
     expect(providerSchema?.enum).toContain("lemon_squeezy");
     expect(historyInput?.properties).toHaveProperty("region");
@@ -311,8 +317,7 @@ describe("integration tool output schemas", () => {
   it("declares the ingestion block on get_integration", () => {
     const properties = byName.get("get_integration")?.outputSchema?.properties;
     const ingestion = properties?.["ingestion"] as
-      | { description?: string }
-      | undefined;
+      { description?: string } | undefined;
 
     expect(properties).toHaveProperty("ingestion");
     expect(ingestion?.description).toContain("listTargeting");
@@ -382,6 +387,26 @@ describe("integration tool routing", () => {
       "/api/v1/integrations/catalog",
       undefined,
       undefined
+    );
+  });
+
+  it("reads website-based suggestions for the selected or given company", async () => {
+    await handleToolCall("list_integration_suggestions", {});
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/integrations/suggestions",
+      undefined,
+      undefined
+    );
+
+    await handleToolCall("list_integration_suggestions", {
+      companyId: "comp_1",
+    });
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "GET",
+      "/api/v1/integrations/suggestions",
+      undefined,
+      "comp_1"
     );
   });
 
@@ -486,6 +511,60 @@ describe("integration tool routing", () => {
 
     expect(result.isError).toBe(true);
     expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("sends two-way Attio maps and removal mirroring in one PATCH", async () => {
+    await handleToolCall("update_attio_settings", {
+      integrationId: "int_123",
+      tagMap: { vip: "field-guide" },
+      inboundListMap: { "field-guide": "list_seq" },
+      inboundTagMap: {},
+      syncRemovals: true,
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/integrations/int_123/attio",
+      {
+        tagMap: { vip: "field-guide" },
+        inboundListMap: { "field-guide": "list_seq" },
+        inboundTagMap: {},
+        syncRemovals: true,
+      },
+      undefined
+    );
+  });
+
+  it("rejects malformed two-way Attio maps locally", async () => {
+    for (const args of [
+      { tagMap: [] },
+      { inboundListMap: { "field-guide": " " } },
+      { inboundTagMap: { "": "lead" } },
+    ]) {
+      const result = await handleToolCall("update_attio_settings", {
+        integrationId: "int_123",
+        ...args,
+      });
+      expect(result.isError).toBe(true);
+    }
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("exposes two-way Attio fields as plain object-schema properties", () => {
+    const tool = tools.find(
+      (definition) => definition.name === "update_attio_settings"
+    );
+    expect(Object.keys(tool?.inputSchema.properties ?? {})).toEqual(
+      expect.arrayContaining([
+        "listMap",
+        "tagMap",
+        "inboundListMap",
+        "inboundTagMap",
+        "syncRemovals",
+        "syncCompanyFromDomain",
+      ])
+    );
+    expect(JSON.stringify(tool?.inputSchema)).not.toContain("anyOf");
   });
 
   it("sends list targeting, including the clear-to-default null", async () => {
@@ -617,6 +696,28 @@ describe("integration tool routing", () => {
     });
   });
 
+  it("passes PostHog matchByDistinctId through and drops it for other providers", async () => {
+    await handleToolCall("connect_integration", {
+      provider: "posthog",
+      webhookSecret: "ph_whsec",
+      settings: { matchByDistinctId: false },
+    });
+    await handleToolCall("connect_integration", {
+      provider: "segment",
+      webhookSecret: "segment_secret_value",
+      settings: { matchByDistinctId: true },
+    });
+
+    const postHogBody = mockApiRequest.mock.calls[0]?.[2] as {
+      settings?: unknown;
+    };
+    const segmentBody = mockApiRequest.mock.calls[1]?.[2] as {
+      settings?: unknown;
+    };
+    expect(postHogBody.settings).toEqual({ matchByDistinctId: false });
+    expect(segmentBody.settings).toEqual({});
+  });
+
   it("passes the Segment history import through on connect", async () => {
     await handleToolCall("connect_integration", {
       provider: "segment",
@@ -638,6 +739,73 @@ describe("integration tool routing", () => {
     });
   });
 
+  it("connects Amplitude with its event scope, including skipInternalEvents", async () => {
+    await handleToolCall("connect_integration", {
+      provider: "amplitude",
+      webhookSecret: "amplitude_secret_0123456789",
+      settings: {
+        syncAllEvents: false,
+        eventAllowlist: ["Song Played", 3],
+        skipInternalEvents: false,
+      },
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/integrations/connect",
+      {
+        provider: "amplitude",
+        webhookSecret: "amplitude_secret_0123456789",
+        settings: {
+          syncAllEvents: false,
+          eventAllowlist: ["Song Played"],
+          skipInternalEvents: false,
+        },
+      },
+      undefined
+    );
+  });
+
+  it("updates Amplitude event settings through the dedicated route", async () => {
+    await handleToolCall("update_amplitude_settings", {
+      integrationId: "int/amp",
+      syncAllEvents: false,
+      eventAllowlist: ["Song Played"],
+      skipInternalEvents: true,
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/integrations/int%2Famp/amplitude",
+      {
+        syncAllEvents: false,
+        eventAllowlist: ["Song Played"],
+        skipInternalEvents: true,
+      },
+      undefined
+    );
+  });
+
+  it.each([
+    [{ integrationId: "int_amp" }],
+    [{ integrationId: "int_amp", eventAllowlist: ["ok", 3] }],
+    [{ integrationId: "int_amp", eventAllowlist: "Song Played" }],
+  ])("rejects an empty or malformed Amplitude update %j", async (args) => {
+    const result = await handleToolCall("update_amplitude_settings", args);
+
+    expect(result.isError).toBe(true);
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("requires a webhook secret for Mixpanel before calling the API", async () => {
+    const result = await handleToolCall("connect_integration", {
+      provider: "mixpanel",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
   it("rejects a connect without a webhook secret before calling the API", async () => {
     const result = await handleToolCall("connect_integration", {
       provider: "clerk",
@@ -645,6 +813,88 @@ describe("integration tool routing", () => {
 
     expect(result.isError).toBe(true);
     expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("rejects non-string SparkLoop list ids instead of dropping them", async () => {
+    const result = await handleToolCall("connect_integration", {
+      provider: "sparkloop",
+      apiKey: "sl_key",
+      webhookSecret: "sl_token",
+      settings: { listIds: ["list_1", 7] },
+    });
+
+    expect(result.isError).toBe(true);
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("connects SparkLoop with a publication and list targeting", async () => {
+    await handleToolCall("connect_integration", {
+      provider: "sparkloop",
+      apiKey: "sl_key",
+      webhookSecret: "sl_token",
+      providerAccountId: "pub_2",
+      settings: { listIds: ["list_1"] },
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/integrations/connect",
+      {
+        provider: "sparkloop",
+        webhookSecret: "sl_token",
+        apiKey: "sl_key",
+        providerAccountId: "pub_2",
+        settings: { listIds: ["list_1"] },
+      },
+      undefined
+    );
+  });
+
+  it("connects SparkLoop with only its API key", async () => {
+    const result = await handleToolCall("connect_integration", {
+      provider: "sparkloop",
+      apiKey: "sl_key",
+    });
+
+    expect(result.isError).toBeFalsy();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/integrations/connect",
+      { provider: "sparkloop", apiKey: "sl_key" },
+      undefined
+    );
+  });
+
+  it("passes a null SparkLoop listIds through to clear list targeting", async () => {
+    await handleToolCall("connect_integration", {
+      provider: "sparkloop",
+      apiKey: "sl_key",
+      webhookSecret: "sl_token",
+      settings: { listIds: null },
+    });
+
+    const body = mockApiRequest.mock.calls[0]?.[2] as {
+      settings?: unknown;
+    };
+    expect(body.settings).toEqual({ listIds: null });
+  });
+
+  it("rejects a SparkLoop connect without its API key before calling the API", async () => {
+    const result = await handleToolCall("connect_integration", {
+      provider: "sparkloop",
+      webhookSecret: "sl_token",
+    });
+
+    expect(result.isError).toBe(true);
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("lists sparkloop as a connectable provider", () => {
+    const connect = tools.find((tool) => tool.name === "connect_integration");
+    const provider = (
+      connect?.inputSchema.properties as Record<string, { enum?: string[] }>
+    )["provider"];
+    expect(provider?.enum).toContain("sparkloop");
   });
 
   it("connects Attio with an access token and no webhook secret", async () => {
@@ -699,6 +949,44 @@ describe("integration tool routing", () => {
     });
 
     expect(result.isError).toBe(true);
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("disconnects with the shared cleanup response and validates identity", async () => {
+    const response = {
+      success: true,
+      integrationId: "int/123",
+      provider: "lemon_squeezy",
+      cleanupWarning: "Retry cleanup",
+      message: "Disconnected locally",
+    };
+    mockApiRequest.mockResolvedValue(response);
+    const result = await handleToolCall("disconnect_integration", {
+      integrationId: "int/123",
+      companyId: "company",
+    });
+    expect(result.isError).not.toBe(true);
+    expect(JSON.stringify(result)).toContain("Retry cleanup");
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/integrations/int%2F123/disconnect",
+      undefined,
+      "company"
+    );
+    const tool = tools.find((tool) => tool.name === "disconnect_integration");
+    expect(tool?.annotations).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: true,
+      openWorldHint: true,
+    });
+    expect(tool?.inputSchema).toMatchObject({
+      type: "object",
+      required: ["integrationId"],
+    });
+    mockApiRequest.mockClear();
+    expect((await handleToolCall("disconnect_integration", {})).isError).toBe(
+      true
+    );
     expect(mockApiRequest).not.toHaveBeenCalled();
   });
 

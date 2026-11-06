@@ -29,6 +29,8 @@ const subscriberImportRecordSchema = {
     status: {
       type: "string" as const,
       enum: ["active", "unsubscribed", "bounced"],
+      description:
+        "Email status from the source platform; defaults to active. Unsubscribed and bounced records never enroll in sequences or receive a double opt-in email. An active record never resubscribes an unsubscribed or bounced contact. With merge or overwrite, unsubscribed or bounced applies to an existing active contact. Send active for records the source marks not confirmed or pending (as the dashboard and CLI do), and bounced for cleaned addresses.",
     },
     tags: { type: "array" as const, items: { type: "string" as const } },
     customAttributes: {
@@ -54,7 +56,7 @@ export const subscriberToolDefinitions: Tool[] = [
   {
     name: "add_subscriber",
     description:
-      "Add one subscriber. Status is only applied when creating a new contact; use update_subscriber to change an existing contact's status. Matching sequences enroll by default (REST enrollInSequences), including tag_added when tags are set in this call, without requiring a list; pass enrollInSequences false to skip, and automations:trigger is required for enrollment. For multiple contacts or CRM records, use create_subscriber_import instead of looping this tool. For an email-only batch going into one list, add_subscribers_to_list is also available.",
+      "Add one subscriber. Status is only applied when creating a new contact; use update_subscriber to change an existing contact's status. The subscribers:write scope covers listIds in this call. Matching sequences enroll by default (REST enrollInSequences), including tag_added when tags are set in this call, without requiring a list; pass enrollInSequences false to skip, and automations:trigger is required for enrollment. For multiple contacts or CRM records, use create_subscriber_import instead of looping this tool. For an email-only batch going into one list, add_subscribers_to_list is also available.",
     inputSchema: {
       type: "object",
       properties: {
@@ -106,7 +108,7 @@ export const subscriberToolDefinitions: Tool[] = [
         attributes: {
           type: "object",
           description:
-            "Custom attributes (plan, company, etc.). Same field as REST customAttributes; provide one or the other. Use firstName/lastName for names instead of attributes.",
+            "Custom attributes (plan, company, etc.). Same field as REST customAttributes; provide one or the other. Use firstName/lastName for names instead of attributes. Values keep their JSON types, so send zip codes and IDs with leading zeros as strings; call list_subscriber_attributes to reuse existing names and types.",
           additionalProperties: true,
         },
         customAttributes: {
@@ -124,7 +126,7 @@ export const subscriberToolDefinitions: Tool[] = [
           type: "array",
           items: { type: "string" },
           description:
-            "List IDs to add subscriber to. Omit to let a contact this call creates follow the workspace default lists; an existing contact then keeps the memberships they already have. Pass [] to join no list.",
+            "List IDs to add subscriber to, covered by subscribers:write. Omit to let a contact this call creates follow the workspace default lists; an existing contact then keeps the memberships they already have. Pass [] to join no list.",
         },
         status: {
           type: "string",
@@ -146,7 +148,7 @@ export const subscriberToolDefinitions: Tool[] = [
         createdAt: {
           type: "string",
           description:
-            "Original signup date (ISO 8601) when importing a contact from another platform. Preserves their real history so date-relative segments like 'added in the last 30 days' are correct immediately instead of treating every imported contact as brand new. An existing contact's date only ever moves earlier. Supplying this also stops welcome sequences from firing, since it describes the past rather than a signup happening now.",
+            "Original signup date (ISO 8601) when importing a contact from another platform. Preserves their real history so date-relative segments like 'added in the last 30 days' are correct immediately instead of treating every imported contact as brand new. An existing contact's date only ever moves earlier. Supplying this defaults sequence enrollment to false. New-subscriber account notifications remain eligible when the signup date is at most one hour old; older dates do not notify on creation. Double opt-in confirmation can notify even for imported contacts. Your notification preferences, double opt-in and the daily cap still apply.",
         },
       },
       required: [],
@@ -186,7 +188,7 @@ export const subscriberToolDefinitions: Tool[] = [
           type: "array",
           items: { type: "string" },
           description:
-            "Lists to add every successfully imported active subscriber to.",
+            "Lists to add every successfully imported active subscriber to. A nonempty array requires lists:write.",
         },
         enrollInSequences: {
           type: "boolean",
@@ -207,7 +209,7 @@ export const subscriberToolDefinitions: Tool[] = [
           type: "string",
           enum: ["default", "confirmed", "double_opt_in"],
           description:
-            "Email consent mode. Default follows workspace double opt-in settings. Confirmed creates active contacts immediately and must only be used for verified consent. Double_opt_in may send confirmation email and requires automations:trigger.",
+            "Email consent mode. Default follows workspace settings and requires automations:trigger when any record is active or omits status. Confirmed creates active contacts immediately and must only be used for verified consent. Double_opt_in always requires automations:trigger.",
         },
         idempotencyKey: {
           type: "string",
@@ -295,14 +297,14 @@ export const subscriberToolDefinitions: Tool[] = [
         },
         status: {
           type: "string",
-          enum: ["active", "unsubscribed", "bounced"],
+          enum: ["active", "unsubscribed", "bounced", "complained"],
           description:
-            "New global subscriber status. Use unsubscribed for compliance-grade suppression without deleting the record. Use active only when the contact has valid consent to be resubscribed.",
+            "New global subscriber status. Use unsubscribed for compliance-grade suppression without deleting the record. Use bounced for an undeliverable address. Use complained when the contact reported spam: it records a company spam-complaint suppression, unsubscribes them and cancels their sequence enrollments, and the contact then reads as unsubscribed (the suppression shows in get_recipient_suppression). Use active only when the contact has valid consent to be resubscribed.",
         },
         attributes: {
           type: "object",
           description:
-            "Custom attributes to merge into the existing map. This is the legacy MCP spelling; provide attributes or customAttributes, not both. Use firstName/lastName for names instead of attributes.",
+            "Custom attributes to merge into the existing map. This is the legacy MCP spelling; provide attributes or customAttributes, not both. Use firstName/lastName for names instead of attributes. Values keep their JSON types; call list_subscriber_attributes to match existing names and types.",
           additionalProperties: true,
         },
         customAttributes: {
@@ -350,7 +352,7 @@ export const subscriberToolDefinitions: Tool[] = [
         hardDelete: {
           type: "boolean",
           description:
-            "If true, permanently deletes the subscriber and suppression history. Defaults to false, which globally unsubscribes the contact, deactivates list memberships, and cancels active sequence enrollments.",
+            "If true, permanently deletes the subscriber; usually within an hour their activity history and Sent emails records are erased and their delivery and engagement events anonymized, while bounce and spam-complaint suppressions keep the address. Defaults to false, which globally unsubscribes the contact, deactivates list memberships, and cancels active sequence enrollments.",
         },
       },
       required: [],
@@ -404,6 +406,27 @@ export const subscriberToolDefinitions: Tool[] = [
           type: "string",
           description:
             "Customer-owned subscriber ID. Provide email or externalId to identify the subscriber.",
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "list_subscriber_attributes",
+    description:
+      'List the custom attribute names in use across the account, each with its value type (string, number, or boolean), whether it holds a list (isArray), an example value, and how many of the sampled recent contacts carry it. Call this before add_subscriber or update_subscriber to reuse existing names and match their types, e.g. send a zip code as the string "02134" rather than a number. Names only older contacts carry are included with sampledContacts 0. mixedTypes is true when contacts hold different types for a key; valueType is then string. Always send values with leading zeros as strings, whatever valueType says.',
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        includeNested: {
+          type: "boolean",
+          description:
+            "Also list nested paths such as profile.tier. Defaults to false.",
         },
       },
       required: [],
@@ -484,6 +507,22 @@ export const subscriberToolDefinitions: Tool[] = [
           type: "string",
           description:
             "Event name, such as saas.purchase or invoice.paid. The event definition is created if it does not exist.",
+        },
+        account: {
+          type: ["string", "object"],
+          description:
+            "Organization (account) external ID or a reference object. Organizations are your customers' companies, not the Sequenzy account from get_account. Once the workspace has Organizations on, this creates the organization if missing, attaches this contact before the event, and supplies event.organization.* (and event.account.*) properties. Otherwise it is ignored and the result includes accountIgnored; create an account with upsert_account first. An object must contain externalId; role, name, domain and attributes are optional. Omit role to preserve existing membership roles.",
+          properties: {
+            externalId: {
+              type: "string",
+              description:
+                "Customer-owned organization ID. Required for an object reference.",
+            },
+            role: { type: "string", description: "owner, admin or member." },
+            name: { type: ["string", "null"] },
+            domain: { type: ["string", "null"] },
+            attributes: { type: "object", additionalProperties: true },
+          },
         },
         properties: {
           type: "object",
@@ -583,7 +622,7 @@ export const subscriberToolDefinitions: Tool[] = [
   {
     name: "import_subscriber_events",
     description:
-      "Record a bounded batch of events for many subscribers in one call, built for data pipeline and warehouse syncs. Each event carries its own email or externalId and a required source-owned eventId; externalId-only rows must identify an existing contact because email is required for creation. Contacts whose events are all more than an hour old are imported silently as history (including no double-opt-in email); any recent event makes that contact's whole group live. Retries preserve one receipt and idempotently re-attempt downstream recovery. Accepts at most 25 events.",
+      "Record a bounded batch of events for many subscribers in one call, built for data pipeline and warehouse syncs. Each event carries its own email or externalId and a required source-owned eventId; externalId-only rows must identify an existing contact because email is required for creation. Contacts whose events are all more than an hour old are imported silently as history (including no double-opt-in email); any recent event makes that contact's whole group live. Retries keep one receipt and re-attempt any downstream recovery that has not finished. Accepts at most 25 events.",
     inputSchema: {
       type: "object",
       properties: {

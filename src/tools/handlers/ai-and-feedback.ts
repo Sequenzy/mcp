@@ -83,9 +83,21 @@ export async function handleAiAndFeedbackTools(
           "update_sms_number_label `brandPrefix` must be a string; pass an empty string to clear it."
         );
       }
-      if (args.label === undefined && args.brandPrefix === undefined) {
+      if (
+        args.linkShorteningEnabled !== undefined &&
+        typeof args.linkShorteningEnabled !== "boolean"
+      ) {
         throw new Error(
-          "update_sms_number_label requires `label` and/or `brandPrefix`."
+          "update_sms_number_label `linkShorteningEnabled` must be a boolean."
+        );
+      }
+      if (
+        args.label === undefined &&
+        args.brandPrefix === undefined &&
+        args.linkShorteningEnabled === undefined
+      ) {
+        throw new Error(
+          "update_sms_number_label requires `label`, `brandPrefix`, and/or `linkShorteningEnabled`."
         );
       }
       result = await apiRequest(
@@ -97,6 +109,9 @@ export async function handleAiAndFeedbackTools(
             : {}),
           ...(typeof args.brandPrefix === "string"
             ? { brandPrefix: args.brandPrefix.trim() || null }
+            : {}),
+          ...(typeof args.linkShorteningEnabled === "boolean"
+            ? { linkShorteningEnabled: args.linkShorteningEnabled }
             : {}),
         },
         companyId

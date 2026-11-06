@@ -117,11 +117,62 @@ export function restrictedFieldCategory(
   return undefined;
 }
 
+function passesLuhn(digits: string): boolean {
+  let sum = 0;
+  for (let i = 0; i < digits.length; i++) {
+    let digit = Number(digits[digits.length - 1 - i]);
+    if (i % 2 === 1) {
+      digit *= 2;
+      if (digit > 9) digit -= 9;
+    }
+    sum += digit;
+  }
+  return sum % 10 === 0;
+}
+
+/**
+ * A payment card number written as 15 (Amex) or 16 digits, optionally grouped
+ * by spaces or dashes, with a card-network prefix and a valid Luhn checksum.
+ * Network prefixes (Visa, Mastercard, Amex, Discover, UnionPay) and the
+ * length rules keep phone numbers, loyalty cards and order IDs out.
+ */
+function containsCardNumber(value: string): boolean {
+  for (const match of value.matchAll(
+    /(?<![\d-])\d(?:[ -]?\d){14,15}(?![\d-])/g
+  )) {
+    const digits = match[0].replace(/[ -]/g, "");
+    const isAmex = digits.length === 15 && /^3[47]/.test(digits);
+    const isSixteen =
+      digits.length === 16 &&
+      /^(?:4|5[1-5]|2[2-7]|6011|65|64[4-9]|622)/.test(digits);
+    if ((isAmex || isSixteen) && passesLuhn(digits)) return true;
+  }
+  return false;
+}
+
+/** Only the value-shape rules, for short fields such as names and tags. */
+export function restrictedValueShapeCategory(
+  value: string
+): RestrictedCategory | undefined {
+  const category = RESTRICTED_TEXT_RULES.find(
+    ({ pattern, shape }) => shape && pattern.test(value)
+  )?.category;
+  if (category) return category;
+  return containsCardNumber(value)
+    ? "payment or financial-account data"
+    : undefined;
+}
+
 export function restrictedTextCategory(
   value: string
 ): RestrictedCategory | undefined {
-  return RESTRICTED_TEXT_RULES.find(({ pattern }) => pattern.test(value))
-    ?.category;
+  const category = RESTRICTED_TEXT_RULES.find(({ pattern }) =>
+    pattern.test(value)
+  )?.category;
+  if (category) return category;
+  return containsCardNumber(value)
+    ? "payment or financial-account data"
+    : undefined;
 }
 
 export function restrictedAttributePathCategory(
@@ -329,9 +380,12 @@ export function restrictedRecordIssue(
       if (issue) return issue;
     }
   }
-  const namedField = parentKey
-    ? NAMED_FIELD_RECORD_PARENTS[parentKey]
-    : undefined;
+  // Only list items are field records. Under the same parent key an object
+  // map (`attributes: { key: "pin" }`) holds a custom attribute named `key`.
+  const namedField =
+    parentKey && path.endsWith("]")
+      ? NAMED_FIELD_RECORD_PARENTS[parentKey]
+      : undefined;
   if (namedField) {
     const issue = fieldName(namedField, record[namedField]);
     if (issue) return issue;
