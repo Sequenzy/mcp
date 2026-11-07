@@ -261,8 +261,9 @@ describe("MCP tool profiles", () => {
     // button action and notification permission fields, about 2 KB, and the
     // theme footer typography fields in every emailTheme schema plus
     // update_company footerTheme, about 3 KB, and the seven push import
-    // tools, about 14 KB).
-    expect(JSON.stringify({ tools: standard }).length).toBeLessThan(1_657_000);
+    // tools, about 14 KB, and the block conditionsMatch field plus sequence
+    // test customAttributes, about 3 KB).
+    expect(JSON.stringify({ tools: standard }).length).toBeLessThan(1_660_000);
   });
 
   it("renames only on the OpenAI profile and keeps standard names", () => {
@@ -14962,6 +14963,40 @@ describe("send_sequence_test_email tool", () => {
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain(
       "`recipients` must include at least one email address"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("forwards render-only custom attributes and rejects non-objects", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true, results: [] });
+
+    await handleToolCall("send_sequence_test_email", {
+      sequenceId: "seq_123",
+      nodeId: "node_email_2",
+      recipients: ["one@example.com"],
+      customAttributes: { trader_type: "prop_firm" },
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/sequences/seq_123/nodes/node_email_2/test",
+      {
+        recipients: ["one@example.com"],
+        customAttributes: { trader_type: "prop_firm" },
+      },
+      undefined
+    );
+
+    mockApiRequest.mockClear();
+    const result = await handleToolCall("send_sequence_test_email", {
+      sequenceId: "seq_123",
+      nodeId: "node_email_2",
+      recipients: ["one@example.com"],
+      customAttributes: ["prop_firm"],
+    });
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`customAttributes` must be an object"
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
   });

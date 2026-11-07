@@ -854,9 +854,10 @@ async loader, so identity and event calls made during page bootstrap are queued
 until the SDK is ready. Prefer revoking a key with `update_web_tracking_key`
 before permanently deleting it.
 
-New companies start with no sync rules. The inherited preset remains available
-for SaaS/ecommerce companies by passing `null` to `update_sync_rules`; services
-and consulting companies should normally keep `[]` or define explicit rules.
+New companies start with the preset's payment and ecommerce lifecycle rules
+(without the rules that tag every new contact `lead`). Some companies created
+between July and November 2026 have no rules: pass `null` to
+`update_sync_rules` to inherit the full preset, or define explicit rules.
 
 Use `list_sender_profiles` to find the profile ID, then call
 `update_sender_profile` to change only its display name. Pass `type: "reply"`
@@ -1684,7 +1685,7 @@ propagate.
 | `list_sequences`                         | List sequences with dashboard status, search, label, limit, and offset filters, each with its `emailCount`.                                                                                                                                             |
 | `get_sequence`                           | Get sequence details, A/B variant IDs and block counts with `ab_tests:read`, nodes, edges, linked copy, and the sequence sending window.                                                                                                                |
 | `list_sequence_enrollments`              | List contact enrollments with pagination and accurate list/tag/event/time-based entry attribution. Live sequence tests do not create enrollments.                                                                                                       |
-| `send_sequence_test_email`               | Send one saved action_email step to 1-10 reviewers; A/B steps are inspected per variant.                                                                                                                                                                |
+| `send_sequence_test_email`               | Send one saved action_email step to 1-10 reviewers, optionally rendered with `customAttributes`; A/B steps are inspected per variant.                                                                                                                   |
 | `create_sequence`                        | Create a blank dashboard draft or an AI-generated/explicit-step sequence.                                                                                                                                                                               |
 | `update_sequence`                        | Update identity, settings, enrollment, existing steps, branch logic, or insert linear steps.                                                                                                                                                            |
 | `update_sequence_node`                   | Type-aware patch of one existing sequence node.                                                                                                                                                                                                         |

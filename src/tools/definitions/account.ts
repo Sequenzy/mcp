@@ -531,7 +531,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "get_sync_rules",
     description:
-      "Get the company's sync rules: the automatic tag changes applied when events fire (e.g. order placed -> add a tag). New companies start with no rules. Returns the effective rules plus isDefault, which is true when the company has explicitly opted into the inherited SaaS/ecommerce platform preset.",
+      "Get the company's sync rules: the automatic tag changes applied when events fire (e.g. order placed -> add a tag). New companies start with the payment and ecommerce lifecycle rules; some older ones have none. Returns the effective rules plus isDefault, which is true when the company has explicitly opted into the inherited SaaS/ecommerce platform preset.",
     inputSchema: {
       type: "object",
       properties: {

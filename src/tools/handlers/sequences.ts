@@ -277,10 +277,24 @@ export async function handleSequenceTools(
       const sequenceId = requiredString(name, args, "sequenceId");
       const nodeId = requiredString(name, args, "nodeId");
       const recipients = normalizeSequenceTestRecipients(args);
+      const customAttributes = args.customAttributes;
+      if (
+        customAttributes !== undefined &&
+        (typeof customAttributes !== "object" ||
+          customAttributes === null ||
+          Array.isArray(customAttributes))
+      ) {
+        throw new Error(
+          "`customAttributes` must be an object of attribute names to values when calling `send_sequence_test_email`."
+        );
+      }
       result = await apiRequest(
         "POST",
         `/api/v1/sequences/${encodeURIComponent(sequenceId)}/nodes/${encodeURIComponent(nodeId)}/test`,
-        { recipients },
+        {
+          recipients,
+          ...(customAttributes !== undefined && { customAttributes }),
+        },
         companyId
       );
       break;

@@ -312,6 +312,12 @@ export const sequenceBasicToolDefinitions: Tool[] = [
           description:
             "One to ten internal reviewer email addresses. Duplicate addresses are sent only once.",
         },
+        customAttributes: {
+          type: "object",
+          additionalProperties: true,
+          description:
+            'Optional custom attributes to render the test as, for example {"plan": "pro"}. They override the reviewers\' stored attributes for merge tags and block conditions in this test only; no contact is changed. When a reviewer is a stored contact, email, first name, last name and full name keys (firstName, name and similar) come from that contact and are ignored.',
+        },
       },
       required: ["sequenceId", "nodeId", "recipients"],
       additionalProperties: false,
@@ -403,7 +409,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
             "manual",
           ],
           description:
-            "Trigger type: contact_added, tag_added, segment_entered, segment_exited, event_received, inbound_webhook, inactivity, frequency, or manual. segment_exited enrolls active contacts who stop matching the segment (unsubscribing or bouncing does not count), from activation onward. manual never enrolls anyone automatically: use it with keyDates and waitUntilKeyDate steps for one-time countdown campaigns (Black Friday, launches) and enroll the audience with enroll_sequence_audience once the sequence is enabled. Defaults to contact_added for a blank dashboard-compatible draft.",
+            "Trigger type: contact_added, tag_added, segment_entered, segment_exited, event_received, inbound_webhook, inactivity, frequency, or manual. segment_exited enrolls active contacts who stop matching the segment (unsubscribing or bouncing does not count), from activation onward. manual never enrolls anyone automatically: use it with keyDates and waitUntilKeyDate steps for one-time countdown campaigns (Black Friday, launches) and enroll the audience with enroll_sequence_audience once the sequence is enabled. Defaults to contact_added for a blank dashboard-compatible draft. For customer lifecycle state (customer, trial, past-due, cancelled, churned, refunded, visited-payment-page) prefer tag_added on the tag over the matching saas.* event: the tag is the contact's current state, also covers contacts imported or tagged by hand, and removing it ends the run (the default stop). These tags start sequences only when the company's sync rules add them, so check get_sync_rules first and ask the user before turning the preset on. Keep event_received when an email needs that occurrence's data (e.g. {{event.hostedInvoiceUrl}}) or must run once per occurrence.",
         },
         // contact_added trigger options
         listId: {
