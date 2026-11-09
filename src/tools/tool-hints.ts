@@ -127,6 +127,7 @@ export const READ_ONLY_TOOL_NAMES = new Set([
   "get_email_client_stats",
   "get_link_click_stats",
   "list_poll_responses",
+  "list_campaign_replies",
   "get_sequence_stats",
   "list_campaign_events",
   "list_sequence_events",
@@ -164,10 +165,19 @@ export const READ_ONLY_TOOL_NAMES = new Set([
   "list_in_app_templates",
   "write_in_app_copy",
   "validate_in_app_html",
+  "list_in_app_placements",
+  "get_in_app_placement",
+  "get_in_app_placement_content",
   "list_push_campaigns",
   "get_push_campaign",
+  // Returns AI translations only; nothing is saved.
+  "translate_push_content",
   "get_push_campaign_stats",
   "estimate_push_campaign_recipients",
+  "list_in_app_campaigns",
+  "get_in_app_campaign",
+  "get_in_app_campaign_stats",
+  "estimate_in_app_campaign_recipients",
 ]);
 
 export const MUTATING_TOOL_NAMES = new Set([
@@ -236,6 +246,9 @@ export const MUTATING_TOOL_NAMES = new Set([
   "cancel_push_import",
   "record_in_app_event",
   "delete_in_app_message",
+  "create_in_app_placement",
+  "update_in_app_placement",
+  "delete_in_app_placement",
   "send_test_push",
   "start_live_activity",
   "update_live_activity",
@@ -246,6 +259,13 @@ export const MUTATING_TOOL_NAMES = new Set([
   "unschedule_push_campaign",
   "cancel_push_campaign",
   "duplicate_push_campaign",
+  "translate_push_campaign",
+  "create_in_app_campaign",
+  "update_in_app_campaign",
+  "send_in_app_campaign",
+  "unschedule_in_app_campaign",
+  "stop_in_app_campaign",
+  "duplicate_in_app_campaign",
   "resume_sending",
   "update_sync_rules",
   "update_shopify_automation_settings",
@@ -495,11 +515,15 @@ export const OPEN_WORLD_TOOL_NAMES = new Set([
   // sequences, scheduled campaigns, transactional emails), or remove content
   // from a public share link or preference center that others can open.
   "update_push_campaign",
+  "update_in_app_campaign",
   "update_sender_profile",
   "update_company",
   "set_template_localization",
   "sync_template_localizations",
   "translate_missing_template_localizations",
+  // Push copy goes to an AI model for translation.
+  "translate_push_campaign",
+  "translate_push_content",
   "delete_campaign",
   "delete_transactional_email",
   "delete_sequence",
@@ -630,6 +654,7 @@ export const OPEN_WORLD_TOOL_NAMES = new Set([
   "update_live_activity",
   "end_live_activity",
   "send_push_campaign",
+  "send_in_app_campaign",
   "send_sequence_test_email",
   "start_sequence_test_run",
   "schedule_campaign",
@@ -802,8 +827,13 @@ export const ADDITIVE_TOOL_NAMES = new Set([
   // Both insert a draft push campaign; nothing is sent until it is sent.
   "create_push_campaign",
   "duplicate_push_campaign",
+  // Both insert a draft in-app campaign; nothing is shown until it launches.
+  "create_in_app_campaign",
+  "duplicate_in_app_campaign",
   "create_webhook",
   "create_geofence",
+  // A new placement serves nothing until a step targets it.
+  "create_in_app_placement",
   "create_data_export",
   "create_warehouse_connection",
   "preview_warehouse_query",
@@ -844,11 +874,14 @@ export const DESTRUCTIVE_TOOL_NAMES = new Set([
   "delete_ab_test",
   "cancel_campaign",
   "cancel_push_campaign",
+  "stop_in_app_campaign",
   // Removing credentials stops every push to that platform until re-added.
   "remove_apns_credentials",
   "remove_fcm_credentials",
   "remove_push_device",
   "delete_in_app_message",
+  // Collapses the slot in the customer's app; steps that target it skip.
+  "delete_in_app_placement",
   "delete_campaign",
   "delete_landing_page",
   "remove_landing_page_domain",
@@ -941,6 +974,7 @@ export const DESTRUCTIVE_TOOL_NAMES = new Set([
   "set_template_localization",
   "sync_template_localizations",
   "translate_missing_template_localizations",
+  "translate_push_campaign",
   "set_default_email_component",
   "update_email_component",
   "update_ab_test_variant",
@@ -1016,6 +1050,8 @@ export const IDEMPOTENT_WRITE_TOOL_NAMES = new Set([
   "share_template",
   // PUT replaces the schedule; an unchanged save keeps the pending next run.
   "set_sequence_recurring_enrollment",
+  // PATCH sets the given fields; repeating it changes nothing more.
+  "update_in_app_placement",
 ]);
 
 export function getRequiredToolHints(toolName: string): RequiredToolHints {

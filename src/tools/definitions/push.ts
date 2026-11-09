@@ -44,10 +44,84 @@ const contentProperties = {
   },
 } as const;
 
+export const pushLocalizationsProperty = {
+  type: "array",
+  maxItems: 60,
+  description:
+    "Versions in the workspace's other languages (Settings > Localization). Each contact gets the version for their language attribute, else their device language, else the fallback language; languages without a version get the main title and body. Passing it replaces every version ([] removes them). Use translate_push_campaign or translate_push_content to write them with AI.",
+  items: {
+    type: "object",
+    properties: {
+      locale: {
+        type: "string",
+        description: "Language code, e.g. de, fr or pt-BR.",
+      },
+      title: { type: "string", description: "Title in that language." },
+      body: { type: "string", description: "Message in that language." },
+      url: {
+        type: ["string", "null"],
+        description: "Own link for this language; null uses the main link.",
+      },
+      imageUrl: {
+        type: ["string", "null"],
+        description: "Own image for this language; null uses the main image.",
+      },
+      sourceHash: {
+        type: ["string", "null"],
+        description:
+          "Fingerprint of the main copy it was written from; keep the value you read so outdated versions stay detectable.",
+      },
+      origin: {
+        type: "string",
+        enum: ["ai", "manual"],
+        description:
+          "ai for AI translations, manual for ones a person wrote. Manual versions are kept by translate calls unless overwrite is true.",
+      },
+    },
+    required: ["locale", "title", "body"],
+  },
+} as const;
+
+const translateLocalesProperty = {
+  type: "array",
+  items: { type: "string" },
+  description:
+    "Languages to translate into (codes from the workspace's language list). Omit for every language except the main one.",
+} as const;
+
+const translateOverwriteProperty = {
+  type: "boolean",
+  description:
+    "Retranslate every requested language, replacing versions a person wrote. By default only languages with no version and outdated AI versions are translated.",
+} as const;
+
 const targetLists = {
   type: "object",
   description:
     'Audience, same shape as campaign targetLists: {"type":"all"}, {"type":"lists","listIds":[...]}, {"type":"segment","segmentId":"..."}, or {"type":"rules","include":[...]}. Only contacts with an active push device receive the campaign.',
+} as const;
+
+const timingProperties = {
+  sendInRecipientTimezone: {
+    type: "boolean",
+    description:
+      "Deliver scheduledAt's wall-clock time in each contact's own timezone (the device timezone the SDK reported, else the contact's timezone attribute). Needs scheduledAt and scheduledTimezone when sending. Zones whose time has passed get it right away; contacts with no known timezone get it at scheduledAt. Turns sendTimeOptimization off.",
+  },
+  scheduledTimezone: {
+    type: ["string", "null"],
+    description:
+      'IANA zone the scheduled wall-clock time refers to, e.g. "America/New_York". null clears it.',
+  },
+  sendTimeOptimization: {
+    type: "boolean",
+    description:
+      "Send each contact the push at their most engaged hour: their push click history, else email open history, else the workspace's usual push hour (at least 20 clicks in 90 days), else the start time. Turns sendInRecipientTimezone off. Cannot be true together with sendInRecipientTimezone.",
+  },
+  sendTimeWindowHours: {
+    type: "integer",
+    description:
+      "Hours after the start (now, or scheduledAt) in which optimized sends may land, 1-24. Omit to keep the saved value (12 if never set).",
+  },
 } as const;
 
 const campaignIdProperty = {
@@ -285,6 +359,7 @@ export const pushToolDefinitions: Tool[] = [
         companyId,
         name: { type: "string", description: "Campaign name." },
         ...contentProperties,
+        localizations: pushLocalizationsProperty,
         targetLists,
       },
     },
@@ -292,7 +367,7 @@ export const pushToolDefinitions: Tool[] = [
   {
     name: "update_push_campaign",
     description:
-      "Update a draft or scheduled push campaign. Only the fields you pass change. A scheduled campaign keeps its schedule.",
+      "Update a draft or scheduled push campaign. Only the fields you pass change. A scheduled campaign keeps its schedule; timing fields can only change on drafts (reschedule with send_push_campaign instead).",
     inputSchema: {
       type: "object",
       properties: {
@@ -300,7 +375,9 @@ export const pushToolDefinitions: Tool[] = [
         ...campaignIdProperty,
         name: { type: "string" },
         ...contentProperties,
+        localizations: pushLocalizationsProperty,
         targetLists,
+        ...timingProperties,
       },
       required: ["campaignId"],
     },
@@ -315,6 +392,11 @@ export const pushToolDefinitions: Tool[] = [
         companyId,
         targetLists,
         platforms: contentProperties.platforms,
+        includeTimingCoverage: {
+          type: "boolean",
+          description:
+            "Also return timingCoverage: eligible contacts, how many have a known timezone (local-time delivery), and how many have enough push clicks for their own optimal hour.",
+        },
       },
       required: ["targetLists"],
     },
@@ -322,7 +404,7 @@ export const pushToolDefinitions: Tool[] = [
   {
     name: "send_push_campaign",
     description:
-      "Send a push campaign now, or schedule it with scheduledAt (future ISO 8601). Delivers real notifications to every contact in the audience with an active device on a set-up platform. Confirm with the user before calling.",
+      "Send a push campaign now, or schedule it with scheduledAt (future ISO 8601). Optionally deliver in each contact's local time (sendInRecipientTimezone + scheduledTimezone) or at each contact's optimal hour (sendTimeOptimization); omitted timing fields keep the draft's saved values. Delivers real notifications to every contact in the audience with an active device on a set-up platform. Confirm with the user before calling.",
     inputSchema: {
       type: "object",
       properties: {
@@ -332,6 +414,7 @@ export const pushToolDefinitions: Tool[] = [
           type: "string",
           description: "Future ISO 8601 time. Omit to send immediately.",
         },
+        ...timingProperties,
       },
       required: ["campaignId"],
     },
@@ -377,6 +460,47 @@ export const pushToolDefinitions: Tool[] = [
       type: "object",
       properties: { companyId, ...campaignIdProperty },
       required: ["campaignId"],
+    },
+  },
+  {
+    name: "translate_push_campaign",
+    description:
+      "Translate a draft or scheduled push campaign's title and message with AI into the workspace's languages and save the versions. Contacts then get the version for their language attribute or device language. Versions a person wrote are kept unless overwrite is true. Returns the campaign plus translated, skipped and failed languages.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId,
+        ...campaignIdProperty,
+        locales: translateLocalesProperty,
+        overwrite: translateOverwriteProperty,
+      },
+      required: ["campaignId"],
+    },
+  },
+  {
+    name: "translate_push_content",
+    description:
+      "Translate a push title and message with AI into the workspace's languages without saving anything. Use the returned localizations for a sequence push step (update_sequence_node changes.localizations, or localizations on a push step in create_sequence/insert_sequence_step) or a push campaign.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId,
+        title: {
+          type: "string",
+          description: "Main-language title (merge tags are kept).",
+        },
+        body: {
+          type: "string",
+          description: "Main-language message (merge tags are kept).",
+        },
+        localizations: {
+          ...pushLocalizationsProperty,
+          description:
+            "Existing versions: kept unless outdated or overwritten, and returned merged with the new ones.",
+        },
+        locales: translateLocalesProperty,
+        overwrite: translateOverwriteProperty,
+      },
     },
   },
 ];

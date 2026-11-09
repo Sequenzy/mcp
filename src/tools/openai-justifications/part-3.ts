@@ -23,35 +23,35 @@ export const OPENAI_JUSTIFICATIONS_PART_3: Readonly<
   },
   list_live_activities: {
     readOnly:
-      "Read-only: GET /push/live-activities returns masked ActivityKit tokens and per-type counts; nothing is written.",
+      "Read-only: GET /push/live-activities returns masked ActivityKit and Android Live Update tokens and per-type counts; nothing is written.",
     destructive:
       "Not destructive: it only lists token records and changes no activity or device.",
     openWorld:
-      "Closed world: reads the company's stored tokens in Sequenzy; Apple APNs is not contacted.",
+      "Closed world: reads the company's stored tokens in Sequenzy; Apple APNs and Google FCM are not contacted.",
   },
   start_live_activity: {
     readOnly:
-      "Not read-only: queues an ActivityKit start push to the contact's push-to-start tokens and records each delivery outcome on the token.",
+      "Not read-only: queues an ActivityKit start push (and an Android Live Update start) to the push-to-start tokens of the contact or of every contact in the segment, list or tag, and records each delivery outcome on the token.",
     destructive:
-      "Destructive: a Live Activity appears on a real person's Lock Screen and Dynamic Island and cannot be recalled except by ending it. Scoped to one contact's devices; repeating the call starts another copy.",
+      "Destructive: a Live Activity appears on real people's Lock Screens and Dynamic Islands (or as Android Live Update notifications) and cannot be recalled except by ending it. Scoped to one contact's devices, or to every contact in the named segment, list or tag (up to 100,000 devices); repeating the call starts another copy.",
     openWorld:
-      "Open world: delivery goes through Apple APNs to the person's iPhone.",
+      "Open world: delivery goes through Apple APNs to the recipients' iPhones and Google FCM to their Android devices.",
   },
   update_live_activity: {
     readOnly:
-      "Not read-only: queues an ActivityKit update push to every running copy of the activity and records the outcome on each token.",
+      "Not read-only: queues an ActivityKit or Android Live Update push to every running copy of the activity and records the outcome on each token.",
     destructive:
-      "Destructive: replaces what the activity shows on real devices, and an alert lights the screen. The previous content cannot be restored except by sending it again.",
+      "Destructive: replaces what the activity shows on real devices (one contact's, or with broadcast every signed-in device running it), and an alert lights the screen. The previous content cannot be restored except by sending it again.",
     openWorld:
-      "Open world: delivery goes through Apple APNs to the person's devices.",
+      "Open world: delivery goes through Apple APNs and Google FCM to the person's devices.",
   },
   end_live_activity: {
     readOnly:
-      "Not read-only: queues an ActivityKit end push and marks each token ended once APNs accepts it.",
+      "Not read-only: queues an ActivityKit or Android Live Update end push and marks each token ended once APNs or FCM accepts it.",
     destructive:
-      "Destructive: the activity ends on every device running it and can no longer be updated; starting it again needs a new start.",
+      "Destructive: the activity ends on every device running it (one contact's, or with broadcast every signed-in device) and can no longer be updated; starting it again needs a new start.",
     openWorld:
-      "Open world: delivery goes through Apple APNs to the person's devices.",
+      "Open world: the end push goes through Apple APNs and Google FCM to every device still showing the activity.",
   },
   list_push_campaigns: {
     readOnly:
@@ -121,6 +121,24 @@ export const OPENAI_JUSTIFICATIONS_PART_3: Readonly<
     openWorld:
       "Closed world: it only stops further sends inside Sequenzy and does not contact devices or push providers.",
   },
+  translate_push_campaign: {
+    readOnly:
+      "Not read-only: POST /push/campaigns/:id/translate saves AI-written language versions on the draft or scheduled campaign.",
+    destructive:
+      "Destructive: a scheduled campaign sends the new versions to contacts in those languages, and outdated AI versions are replaced. Versions a person wrote are replaced only with overwrite: true. The save is skipped if the campaign changed meanwhile.",
+    openWorld:
+      "Open world: the title and message are sent to an AI model for translation.",
+    effects:
+      "Contacts in the translated languages get those versions when the campaign sends.",
+  },
+  translate_push_content: {
+    readOnly:
+      "Read-only: POST /push/translate returns translated titles and messages and saves nothing.",
+    destructive:
+      "Not destructive: nothing in the workspace changes until the caller saves the returned versions.",
+    openWorld:
+      "Open world: the title and message are sent to an AI model for translation.",
+  },
   duplicate_push_campaign: {
     readOnly:
       "Not read-only: inserts a new draft push campaign copying the source campaign's content and audience.",
@@ -139,7 +157,7 @@ export const OPENAI_JUSTIFICATIONS_PART_3: Readonly<
   },
   list_in_app_messages: {
     readOnly:
-      "Read-only: GET /in-app/messages returns one contact's open feed or history of in-app messages and cards; reading does not mark anything displayed.",
+      "Read-only: GET /in-app/messages returns one contact's open feed or history of in-app messages and cards; reading does not mark anything displayed, and the tool sends deliver=false so live in-app campaigns are not delivered by looking.",
     destructive:
       "Not destructive: it lists items without changing their status, timestamps or counts.",
     openWorld:
@@ -187,6 +205,57 @@ export const OPENAI_JUSTIFICATIONS_PART_3: Readonly<
       "Not destructive: it only returns a size, warnings and errors.",
     openWorld:
       "Closed world: the document is analyzed in Sequenzy; its scripts are never run and no URL in it is fetched.",
+  },
+  list_in_app_placements: {
+    readOnly:
+      "Read-only: GET /in-app/placements returns the company's placement definitions and their item counts.",
+    destructive:
+      "Not destructive: it lists placements and computes counts without changing anything.",
+    openWorld:
+      "Closed world: reads placement and in-app records stored in Sequenzy.",
+  },
+  get_in_app_placement: {
+    readOnly:
+      "Read-only: GET /in-app/placements/:key returns one placement definition and its item counts.",
+    destructive: "Not destructive: it reads one placement and changes nothing.",
+    openWorld:
+      "Closed world: reads placement and in-app records stored in Sequenzy.",
+  },
+  get_in_app_placement_content: {
+    readOnly:
+      "Read-only: GET /in-app/placement-feed returns which open placement item each requested placement shows one contact; reading does not mark anything displayed.",
+    destructive:
+      "Not destructive: it selects items without changing their status, timestamps or counts.",
+    openWorld:
+      "Closed world: reads the company's in-app rows in Sequenzy for the identified contact.",
+  },
+  create_in_app_placement: {
+    readOnly:
+      "Not read-only: POST /in-app/placements creates a placement definition in the company.",
+    destructive:
+      "Not destructive: it adds a definition and changes no existing data; nothing is shown to contacts until a sequence step targets it.",
+    openWorld:
+      "Closed world: it writes a definition in Sequenzy; no message is created or sent.",
+  },
+  update_in_app_placement: {
+    readOnly:
+      "Not read-only: PATCH /in-app/placements/:key changes a placement's name, description or size hints.",
+    destructive:
+      "Destructive: the previous name, description and size hints are overwritten and cannot be restored by any tool. The key, items and steps are untouched.",
+    openWorld:
+      "Closed world: it edits a definition in Sequenzy; contacts see no change.",
+    effects:
+      "Only dashboard labels and size hints change; what contacts see is unaffected.",
+  },
+  delete_in_app_placement: {
+    readOnly:
+      "Not read-only: DELETE /in-app/placements/:key removes a placement definition.",
+    destructive:
+      "Destructive: the slot stops showing content in the customer's app on its next refresh, and sequence steps that target the key skip contacts until a placement with the same key is created again. Items already created stay in contact history.",
+    openWorld:
+      "Closed world: it deletes a definition in Sequenzy; the customer's app simply receives empty slots for that key.",
+    effects:
+      "The app's slot for this key collapses for every contact until the placement is recreated.",
   },
   get_in_app_step_stats: {
     readOnly:
@@ -430,18 +499,18 @@ export const OPENAI_JUSTIFICATIONS_PART_3: Readonly<
   },
   get_template_localization_coverage: {
     readOnly:
-      "Read-only: GET /templates/localizations/coverage counts, per enabled language, how many sequence and transactional emails are translated.",
+      "Read-only: GET /templates/localizations/coverage counts, per enabled language, how many sequence and transactional emails and sequence push steps are translated.",
     destructive: "Not destructive: it counts translations and changes none.",
     openWorld:
       "Closed world: reads the company's stored emails and translations.",
   },
   translate_missing_template_localizations: {
     readOnly:
-      "Not read-only: POST /templates/localizations/translate-missing queues AI translation jobs that write new localized variants.",
+      "Not read-only: POST /templates/localizations/translate-missing queues AI translation jobs that write new localized variants of emails and sequence push steps.",
     destructive:
       "Destructive: contacts in those locales stop getting the fallback language on live sends once a translation lands. Only missing or failed translations are written; edited, up-to-date and outdated ones are left alone.",
     openWorld:
-      "Open world: email copy is sent to an AI model for translation, and the results become the variants live sends use for contacts in those locales.",
+      "Open world: email and push copy is sent to an AI model for translation, and the results become the variants live sends use for contacts in those locales.",
     effects:
       "New translations become the variants live sends use for contacts in those locales.",
   },

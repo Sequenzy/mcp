@@ -592,6 +592,13 @@ export const OPENAI_JUSTIFICATIONS_PART_5: Readonly<
       "Read-only; it does not alter answers or subscriber attributes.",
     openWorld: "Reads responses stored in the company's workspace.",
   },
+  list_campaign_replies: {
+    readOnly:
+      "Issues GET /metrics/campaigns/:id/replies and returns paginated reply rows without reply text.",
+    destructive:
+      "Read-only; it does not change replies, conversations or read state.",
+    openWorld: "Reads reply events stored in the company's workspace.",
+  },
   get_sequence_stats: {
     readOnly:
       "Issues GET /api/v1/metrics/sequences/:id and returns per-step and aggregate metrics plus a live enrollment snapshot.",

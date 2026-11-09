@@ -676,7 +676,7 @@ export const campaignToolDefinitions: Tool[] = [
         spreadOverHours: {
           type: "number",
           description:
-            "Spread delivery over an integer number of hours from 1 to 72. When set, spread delivery takes precedence over send-time optimization.",
+            "Spread delivery over an integer number of hours from 1 to 72. When set, spread delivery takes precedence over send-time optimization. With an A/B test the spread sets one sending rate for the whole audience: the test sample and the winner are each spread over their share of the window, with the test duration in between. If the account has a minimum spread, a lower or missing value is raised to it and send-time optimization is turned off.",
         },
         maxRecipients: {
           type: ["number", "null"],
@@ -807,7 +807,7 @@ export const campaignToolDefinitions: Tool[] = [
         spreadOverHours: {
           type: "number",
           description:
-            "Spread the remaining delivery over an integer number of hours from 1 to 72.",
+            "Spread the remaining delivery over an integer number of hours from 1 to 72. With an A/B test this sets the sending rate for the remaining recipients of the current phase. If the account has a minimum spread, a lower, missing or null value is raised to it.",
         },
       },
       required: ["campaignId"],
@@ -816,7 +816,7 @@ export const campaignToolDefinitions: Tool[] = [
   {
     name: "delete_campaign",
     description:
-      "Permanently delete a campaign. This cannot be undone. Sending, scheduled, or paused campaigns must be cancelled with cancel_campaign first.",
+      "Permanently delete a campaign. This cannot be undone. Sending, scheduled, or paused campaigns must be cancelled with cancel_campaign first, and live in-app campaigns stopped first; deleting an in-app campaign also deletes the messages it delivered.",
     inputSchema: {
       type: "object",
       properties: {

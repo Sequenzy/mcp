@@ -190,6 +190,27 @@ describe("push MCP tools", () => {
       "/api/v1/push/campaigns/p1/stats",
       undefined,
     ],
+    [
+      "translate_push_campaign",
+      { companyId: "c1", campaignId: "p1", locales: ["de"], overwrite: true },
+      "POST",
+      "/api/v1/push/campaigns/p1/translate",
+      { locales: ["de"], overwrite: true },
+    ],
+    [
+      "translate_push_content",
+      {
+        companyId: "c1",
+        title: "Hi",
+        localizations: [{ locale: "fr", title: "Salut", body: "" }],
+      },
+      "POST",
+      "/api/v1/push/translate",
+      {
+        title: "Hi",
+        localizations: [{ locale: "fr", title: "Salut", body: "" }],
+      },
+    ],
   ];
 
   for (const [tool, args, method, path, body] of cases) {
@@ -208,12 +229,74 @@ describe("push MCP tools", () => {
     }
   });
 
+  it("passes push campaign timing through to update and send", async () => {
+    await handleToolCall("update_push_campaign", {
+      companyId: "c1",
+      campaignId: "p1",
+      sendTimeOptimization: true,
+      sendTimeWindowHours: 6,
+    });
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/push/campaigns/p1",
+      { sendTimeOptimization: true, sendTimeWindowHours: 6 },
+      "c1"
+    );
+    await handleToolCall("send_push_campaign", {
+      companyId: "c1",
+      campaignId: "p1",
+      scheduledAt: "2030-01-01T13:00:00Z",
+      sendInRecipientTimezone: true,
+      scheduledTimezone: "America/New_York",
+    });
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/push/campaigns/p1/send",
+      {
+        scheduledAt: "2030-01-01T13:00:00Z",
+        sendInRecipientTimezone: true,
+        scheduledTimezone: "America/New_York",
+      },
+      "c1"
+    );
+  });
+
+  it("asks the estimate for timing coverage when requested", async () => {
+    await handleToolCall("estimate_push_campaign_recipients", {
+      companyId: "c1",
+      targetLists: { type: "all" },
+      includeTimingCoverage: true,
+    });
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/push/campaigns/estimate",
+      { targetLists: { type: "all" }, includeTimingCoverage: true },
+      "c1"
+    );
+  });
+
+  it("declares timing inputs as plain properties", () => {
+    for (const name of ["update_push_campaign", "send_push_campaign"]) {
+      const tool = pushToolDefinitions.find((entry) => entry.name === name);
+      const properties = tool?.inputSchema.properties as Record<
+        string,
+        { type: unknown }
+      >;
+      expect(properties["sendInRecipientTimezone"]?.type).toBe("boolean");
+      expect(properties["scheduledTimezone"]?.type).toEqual(["string", "null"]);
+      expect(properties["sendTimeOptimization"]?.type).toBe("boolean");
+      expect(properties["sendTimeWindowHours"]?.type).toBe("integer");
+    }
+  });
+
   it("validates required inputs before calling the API", async () => {
     for (const [tool, args] of [
       ["update_web_push_settings", { companyId: "c1" }],
       ["send_test_push", { companyId: "c1", title: "Hi" }],
       ["estimate_push_campaign_recipients", { companyId: "c1" }],
       ["get_push_campaign", { companyId: "c1" }],
+      ["translate_push_content", { companyId: "c1" }],
+      ["translate_push_campaign", { companyId: "c1" }],
     ] as const) {
       const result = await handleToolCall(tool, args);
       expect(result.isError).toBe(true);
@@ -225,6 +308,39 @@ describe("push MCP tools", () => {
     expect(OPENAI_EXCLUDED_TOOL_NAMES.has("set_apns_credentials")).toBe(true);
     expect(OPENAI_EXCLUDED_TOOL_NAMES.has("set_fcm_credentials")).toBe(true);
     expect(OPENAI_EXCLUDED_TOOL_NAMES.has("send_push_campaign")).toBe(false);
+  });
+
+  it("passes language versions on push campaigns and sequence steps", async () => {
+    const localizations = [{ locale: "de", title: "Hallo", body: "" }];
+    await handleToolCall("update_push_campaign", {
+      companyId: "c1",
+      campaignId: "p1",
+      localizations,
+    });
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/push/campaigns/p1",
+      { localizations },
+      "c1"
+    );
+    mockApiRequest.mockResolvedValueOnce({ success: true, sequence: {} });
+    await handleToolCall("insert_sequence_step", {
+      companyId: "c1",
+      sequenceId: "s1",
+      type: "push",
+      title: "Hi",
+      localizations,
+    });
+    expect(mockApiRequest).toHaveBeenLastCalledWith(
+      "PUT",
+      "/api/v1/sequences/s1",
+      {
+        insertSteps: {
+          steps: [{ type: "push", title: "Hi", localizations }],
+        },
+      },
+      "c1"
+    );
   });
 
   it("inserts push sequence steps", async () => {

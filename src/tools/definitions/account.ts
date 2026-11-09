@@ -1408,7 +1408,7 @@ Requires the companies:manage scope and owner or admin access to the company.`,
         unsubscribeTrackingEnabled: {
           type: "boolean",
           description:
-            "Whether to track unsubscribe link clicks. When false, Sequenzy unsubscribe links go directly to https://sequenzy.com, even with a custom tracking domain. Actual unsubscribes and their email attribution are still recorded.",
+            "Whether unsubscribe links that point to other services are routed through your tracking domain. Sequenzy's own unsubscribe and preference links, including the one-click unsubscribe header, always use your tracking domain (or the shared one). Actual unsubscribes and their email attribution are recorded either way.",
         },
         emailContentStorageEnabled: {
           type: "boolean",

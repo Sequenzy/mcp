@@ -492,4 +492,86 @@ export const OPENAI_JUSTIFICATIONS_PART_6: Readonly<
     openWorld:
       "Delivers a real SMS through the carrier to the phone number given in 'to'.",
   },
+  list_in_app_campaigns: {
+    readOnly:
+      "Read-only: GET /in-app/campaigns returns stored in-app campaigns for the company, filtered by status with limit/offset paging; nothing is written.",
+    destructive:
+      "Not destructive: it only lists records and changes no campaign or inbox item.",
+    openWorld:
+      "Closed world: reads the company's own campaign rows in Sequenzy and contacts no app or person.",
+  },
+  get_in_app_campaign: {
+    readOnly:
+      "Read-only: GET /in-app/campaigns/:id loads one campaign's message, audience, schedule and state, plus aggregated reach and engagement once launched.",
+    destructive:
+      "Not destructive: it reads the campaign and counts its inbox items without changing either.",
+    openWorld:
+      "Closed world: data comes from the company's Sequenzy database only.",
+  },
+  create_in_app_campaign: {
+    readOnly:
+      "Not read-only: POST /in-app/campaigns inserts a new in-app campaign row with status draft and any supplied message and audience.",
+    destructive:
+      "Not destructive: purely additive. It creates a new draft and nothing is shown to anyone until send_in_app_campaign is called.",
+    openWorld:
+      "Closed world: the draft lives only in the company's workspace; no app shows it.",
+  },
+  update_in_app_campaign: {
+    readOnly:
+      "Not read-only: PATCH /in-app/campaigns/:id overwrites the campaign's name, message fields, priority, end time or audience.",
+    destructive:
+      "Destructive: passed fields replace the previous values with no version history. Limited to draft or scheduled campaigns; live, ended and stopped ones are refused.",
+    openWorld:
+      "Open world: a scheduled campaign goes live with the saved message and audience, so an edit changes what people see in the app.",
+    effects:
+      "A scheduled campaign goes live with the saved message and audience, so edits change what people see in the customer's app.",
+  },
+  estimate_in_app_campaign_recipients: {
+    readOnly:
+      "Read-only: although sent as POST, it only counts contacts who match the given audience; nothing is stored.",
+    destructive: "Not destructive: it computes one count and modifies nothing.",
+    openWorld:
+      "Closed world: counts come from the company's contacts in Sequenzy; no app is contacted.",
+  },
+  send_in_app_campaign: {
+    readOnly:
+      "Not read-only: makes the campaign live now, or schedules it and queues the job that takes it live.",
+    destructive:
+      "Destructive: once live, every contact in the audience who opens the app gets the message, which cannot be taken back from those who saw it. Requires a message and an audience, and the description asks for user confirmation first.",
+    openWorld:
+      "Open world: the customer's app shows the message to real people in the audience the next time it fetches their feed.",
+  },
+  unschedule_in_app_campaign: {
+    readOnly:
+      "Not read-only: sets the campaign back to draft, clears scheduledAt and removes the queued go-live job.",
+    destructive:
+      "Destructive: the scheduled start is cancelled and its time erased; nothing is shown until someone launches or schedules it again. Only allowed while the campaign is still scheduled.",
+    openWorld:
+      "Closed world: it changes the campaign row and the internal queue only; no app is contacted.",
+    effects:
+      "Clears the scheduled start; the campaign must be launched or scheduled again to be shown.",
+  },
+  stop_in_app_campaign: {
+    readOnly:
+      "Not read-only: sets the campaign to cancelled and ends every inbox item it delivered that is still open.",
+    destructive:
+      "Destructive: stopping is final; the campaign cannot be launched again (only duplicated), nobody new gets it, and messages contacts have not seen leave their feeds. Allowed only for scheduled or live campaigns.",
+    openWorld:
+      "Open world: apps stop showing the message to real contacts on their next feed.",
+  },
+  duplicate_in_app_campaign: {
+    readOnly:
+      "Not read-only: inserts a new draft copying the source campaign's message, priority, audience and a future end time.",
+    destructive:
+      "Not destructive: additive only; the source campaign is untouched and the copy is not launched.",
+    openWorld:
+      "Closed world: the copy lives only in the company's workspace; nothing is shown.",
+  },
+  get_in_app_campaign_stats: {
+    readOnly:
+      "Read-only: GET /in-app/campaigns/:id/stats counts the campaign's inbox items by engagement; nothing is written.",
+    destructive: "Not destructive: it computes counts and modifies nothing.",
+    openWorld:
+      "Closed world: counts come from the company's Sequenzy database.",
+  },
 };

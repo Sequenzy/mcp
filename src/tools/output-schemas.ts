@@ -204,6 +204,12 @@ const LIVE_ACTIVITY_DISPATCH_OUTPUT: OutputSchemaProperties = {
   tokenCount: numberOutputProperty(
     "Devices the push was queued for; 0 means nothing was sent."
   ),
+  contactCount: numberOutputProperty(
+    "Distinct contacts those devices belong to: 0 when nothing was sent, at most 1 for a per-contact call, and the contacts reached for a segment, list, tag or broadcast."
+  ),
+  platforms: objectOutputProperty(
+    "tokenCount per platform: {ios, android}. iOS goes through APNs, Android Live Updates through FCM."
+  ),
   jobIds: arrayOutputProperty("Queued delivery job IDs, one per batch."),
 };
 
@@ -1788,6 +1794,9 @@ export const outputPropertiesByToolName: Record<
         "One entry per enabled non-primary locale with total, upToDate, edited, outdated, translating, failed and missing counts.",
       items: objectOutputProperty("Translation counts for one locale."),
     },
+    push: objectOutputProperty(
+      "Sequence push steps: totalPushes and locales[] with total, upToDate, edited, outdated, translating and missing counts."
+    ),
   },
   translate_missing_template_localizations: {
     locales: {
@@ -1800,6 +1809,12 @@ export const outputPropertiesByToolName: Record<
     ),
     queuedTranslations: numberOutputProperty(
       "Email and locale pairs queued for AI translation."
+    ),
+    queuedPushes: numberOutputProperty(
+      "Sequence push steps with at least one translation queued."
+    ),
+    queuedPushTranslations: numberOutputProperty(
+      "Push step and locale pairs queued for AI translation."
     ),
   },
   delete_template: {
@@ -3238,6 +3253,18 @@ export const outputPropertiesByToolName: Record<
       "Pagination metadata: page, limit, total (response rows across every page; one row per subscriber per poll block), and totalPages. Keep paging while page < totalPages."
     ),
   },
+  list_campaign_replies: {
+    campaignId: stringOutputProperty("Campaign the replies belong to."),
+    replies: {
+      type: "array",
+      description:
+        "Replies, newest first. Each entry has replyId, subscriberId, email, externalId, firstName, lastName, emailSendId, conversationId, hasAttachments, attachmentCount, and receivedAt. Pass conversationId to get_conversation to read the reply. conversationId is null when the reply has no inbox conversation; email is null when the subscriber has since been deleted.",
+      items: objectOutputProperty("One reply to the campaign."),
+    },
+    pagination: objectOutputProperty(
+      "Pagination metadata: page, limit, total (replies across every page, matching the replies count from get_campaign_stats without period, start or end), and totalPages. Keep paging while page < totalPages."
+    ),
+  },
   get_transactional_stats: {
     transactional: resourceOutputProperty("transactional email"),
     stats: objectOutputProperty(
@@ -3839,6 +3866,27 @@ export const outputPropertiesByToolName: Record<
       "Counts: created, displayed, clicked, dismissed, pushPermissionGranted and pushPermissionDenied (push primers)."
     ),
   },
+  list_in_app_placements: {
+    placements: resourceListOutputProperty("in-app placement"),
+  },
+  get_in_app_placement: {
+    placement: resourceOutputProperty("in-app placement"),
+  },
+  create_in_app_placement: {
+    placement: resourceOutputProperty("in-app placement"),
+  },
+  update_in_app_placement: {
+    placement: resourceOutputProperty("in-app placement"),
+  },
+  delete_in_app_placement: {
+    key: stringOutputProperty("Deleted placement key."),
+  },
+  get_in_app_placement_content: {
+    subscriberId: stringOutputProperty("Resolved subscriber ID."),
+    placements: arrayOutputProperty(
+      "One {placement, message} per requested key; message is null when the slot collapses."
+    ),
+  },
   register_push_device: {
     created: booleanOutputProperty("True when the token was new."),
     device: resourceOutputProperty("push device"),
@@ -3857,7 +3905,9 @@ export const outputPropertiesByToolName: Record<
     summary: objectOutputProperty(
       "pushToStartDevices, activeActivities and activityTypes [{activityType, pushToStartDevices, activeActivities}]."
     ),
-    tokens: resourceListOutputProperty("Live Activity token"),
+    tokens: resourceListOutputProperty(
+      "Live Activity token (platform ios: ActivityKit token; android: Live Update token)"
+    ),
     nextCursor: nullableStringOutputProperty(
       "Cursor for the next page, or null on the last page."
     ),
@@ -3896,6 +3946,38 @@ export const outputPropertiesByToolName: Record<
   cancel_push_campaign: {
     campaign: resourceOutputProperty("push campaign"),
   },
+  translate_push_campaign: {
+    campaign: resourceOutputProperty("push campaign"),
+    translated: {
+      type: "array",
+      description: "Languages translated and saved.",
+      items: { type: "string", description: "Language code." },
+    },
+    skipped: arrayOutputProperty(
+      "Languages left as they were: {locale, reason} with reason up_to_date or edited (written by a person)."
+    ),
+    failed: arrayOutputProperty(
+      "Languages that could not be translated: {locale, error}."
+    ),
+    message: stringOutputProperty("Summary of what was translated."),
+  },
+  translate_push_content: {
+    localizations: arrayOutputProperty(
+      "Every language version (existing ones plus the new translations): {locale, title, body, url, imageUrl, sourceHash, origin}."
+    ),
+    translated: {
+      type: "array",
+      description: "Languages translated now.",
+      items: { type: "string", description: "Language code." },
+    },
+    skipped: arrayOutputProperty(
+      "Languages left as they were: {locale, reason} with reason up_to_date or edited."
+    ),
+    failed: arrayOutputProperty(
+      "Languages that could not be translated: {locale, error}."
+    ),
+    message: stringOutputProperty("Summary of what was translated."),
+  },
   duplicate_push_campaign: {
     campaign: resourceOutputProperty("new push campaign draft"),
   },
@@ -3904,6 +3986,51 @@ export const outputPropertiesByToolName: Record<
     status: stringOutputProperty("Campaign status."),
     stats: objectOutputProperty(
       "total, pending, sent, failed, skipped, delivered (device-reported displays), clicked, devicesTargeted, devicesAccepted, skipReasons, failureReasons."
+    ),
+  },
+  list_in_app_campaigns: {
+    campaigns: resourceListOutputProperty("in-app campaign"),
+    total: numberOutputProperty("Total matching in-app campaigns."),
+  },
+  get_in_app_campaign: {
+    campaign: resourceOutputProperty("in-app campaign"),
+    stats: nullableObjectOutputProperty(
+      "Reach and engagement once the campaign has launched, else null."
+    ),
+  },
+  create_in_app_campaign: {
+    campaign: resourceOutputProperty("in-app campaign"),
+  },
+  update_in_app_campaign: {
+    campaign: resourceOutputProperty("in-app campaign"),
+  },
+  estimate_in_app_campaign_recipients: {
+    audienceCount: numberOutputProperty("Contacts who match the audience now."),
+  },
+  send_in_app_campaign: {
+    campaign: resourceOutputProperty("in-app campaign"),
+    message: stringOutputProperty("What happens next, in one sentence."),
+  },
+  unschedule_in_app_campaign: {
+    campaign: resourceOutputProperty("in-app campaign"),
+  },
+  stop_in_app_campaign: {
+    campaign: resourceOutputProperty("in-app campaign"),
+  },
+  duplicate_in_app_campaign: {
+    campaign: resourceOutputProperty("new in-app campaign draft"),
+  },
+  get_in_app_campaign_stats: {
+    campaignId: stringOutputProperty("In-app campaign ID."),
+    status: stringOutputProperty("Stored campaign status."),
+    state: stringOutputProperty(
+      "draft, scheduled, live, ended (past endsAt) or stopped."
+    ),
+    audienceAtLaunch: nullableNumberOutputProperty(
+      "Contacts who matched the audience at launch, or null before launch."
+    ),
+    stats: objectOutputProperty(
+      "delivered, displayed, clicked, totalClicks, dismissed, pushPermissionGranted, pushPermissionDenied, buttons ([{ buttonId, clicked }] for custom HTML first clicks)."
     ),
   },
   get_sms_usage: {

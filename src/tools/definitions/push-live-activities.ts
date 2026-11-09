@@ -15,7 +15,7 @@ const activityId = {
 const contentState = {
   type: "object",
   description:
-    "Your Swift ContentState as a JSON object. Date fields decode as seconds since 2001-01-01 unless your struct decodes them differently.",
+    "Your Swift ContentState as a JSON object; Android apps receive the same object in their Live Update renderer. Date fields decode as seconds since 2001-01-01 on iOS unless your struct decodes them differently.",
   additionalProperties: true,
 } as const;
 
@@ -54,11 +54,16 @@ const contact = {
   email: {
     type: "string",
     description:
-      "Contact whose activity it is. Provide email or subscriberId: activities are always addressed per contact.",
+      "Contact whose activity it is. Provide email or subscriberId, or set broadcast instead.",
   },
   subscriberId: {
     type: "string",
     description: "Subscriber whose activity it is.",
+  },
+  broadcast: {
+    type: "boolean",
+    description:
+      "true: send to every signed-in device running this activityId, of any contact, e.g. an activity started for a segment, list or tag. Use instead of email/subscriberId (ignored when either is set), never for a per-person id like an order. Needs the campaigns:send scope.",
   },
 } as const;
 
@@ -66,7 +71,7 @@ export const pushLiveActivityToolDefinitions: Tool[] = [
   {
     name: "list_live_activities",
     description:
-      "List iOS Live Activity tokens (push-to-start tokens per device and activity type, update tokens per running activity) with a per-type summary of devices that can start activities and running activities. Tokens are masked.",
+      "List iOS Live Activity and Android Live Update tokens (push-to-start tokens per device and activity type, update tokens per running activity) with a per-type summary of devices that can start activities and running activities. Each token has platform ios or android. Tokens are masked.",
     inputSchema: {
       type: "object",
       properties: {
@@ -75,6 +80,12 @@ export const pushLiveActivityToolDefinitions: Tool[] = [
         subscriberId: {
           type: "string",
           description: "Only this subscriber's tokens.",
+        },
+        platform: {
+          type: "string",
+          enum: ["ios", "android"],
+          description:
+            "Only iOS Live Activity tokens or Android Live Update tokens; the summary counts the same platform.",
         },
         activityType: {
           type: "string",
@@ -97,7 +108,7 @@ export const pushLiveActivityToolDefinitions: Tool[] = [
   {
     name: "start_live_activity",
     description:
-      "Start an iOS Live Activity remotely on one contact's devices that registered a push-to-start token for activityType (iOS 17.2+, apps using the Sequenzy SDK's Live Activity setup). Requires an alert. Returns tokenCount 0 without sending when no device can start it. Repeating the call starts another copy.",
+      "Start a Live Activity remotely on the devices that registered a push-to-start token for activityType: iOS 17.2+ through APNs, and Android Live Updates through FCM on apps that observe the same type name with the Sequenzy Android SDK (promoted on Android 16, an ongoing notification before). Target one contact (email or subscriberId), or every contact in a segment, list or tag (exactly one of segmentId, listId, tag; up to 100,000 devices, needs campaigns:send), then update and end it with broadcast: true. Requires an alert. Returns tokenCount 0 without sending when no device can start it; contactCount and platforms count contacts and devices per platform. Repeating the call starts another copy.",
     inputSchema: {
       type: "object",
       properties: {
@@ -105,16 +116,31 @@ export const pushLiveActivityToolDefinitions: Tool[] = [
         email: {
           type: "string",
           description:
-            "Contact whose devices start it. Provide email or subscriberId.",
+            "Contact whose devices start it. Provide email or subscriberId, or one of segmentId, listId, tag.",
         },
         subscriberId: {
           type: "string",
           description: "Subscriber whose devices start it.",
         },
+        segmentId: {
+          type: "string",
+          description:
+            "Start it for every contact in this segment instead of one contact (ignored when email or subscriberId is set).",
+        },
+        listId: {
+          type: "string",
+          description:
+            "Start it for every contact in this list (ignored when email or subscriberId is set).",
+        },
+        tag: {
+          type: "string",
+          description:
+            "Start it for every contact with this tag: one tag name, no commas (ignored when email or subscriberId is set).",
+        },
         activityType: {
           type: "string",
           description:
-            "Swift ActivityAttributes type name exactly, e.g. DeliveryAttributes.",
+            "Swift ActivityAttributes type name exactly, e.g. DeliveryAttributes. Android apps observe the same name.",
         },
         activityId,
         attributes: {
@@ -133,7 +159,7 @@ export const pushLiveActivityToolDefinitions: Tool[] = [
   {
     name: "update_live_activity",
     description:
-      "Update every running copy of a contact's iOS Live Activity (one per device) with new content state. Requires email or subscriberId. Add an alert to light the screen. Returns tokenCount 0 when no running copy has reported an update token.",
+      "Update every running copy of a contact's Live Activity (one per device, iOS and Android Live Updates) with new content state. Requires email or subscriberId, or broadcast: true to update every signed-in device running the activityId (for activities started for a segment, list or tag). Add an alert to light the screen. Returns tokenCount 0 when no running copy has reported an update token.",
     inputSchema: {
       type: "object",
       properties: {
@@ -151,7 +177,7 @@ export const pushLiveActivityToolDefinitions: Tool[] = [
   {
     name: "end_live_activity",
     description:
-      "End a contact's iOS Live Activity on every device running it, with its final content state and optionally a dismissal date. Requires email or subscriberId. Without dismissalDate iOS keeps it on the Lock Screen for up to four hours.",
+      "End a contact's Live Activity on every device running it (iOS and Android Live Updates), with its final content state and optionally a dismissal date. Requires email or subscriberId, or broadcast: true to end it on every signed-in device running the activityId. Without dismissalDate iOS keeps it on the Lock Screen and Android in the shade for up to four hours.",
     inputSchema: {
       type: "object",
       properties: {

@@ -622,8 +622,26 @@ export const sequenceEmailStepIdentityProperties = {
 export const inAppStepProperties = {
   kind: {
     type: "string",
-    enum: ["message", "card"],
-    description: "In-app: message (default, shown once) or card.",
+    enum: ["message", "card", "placement"],
+    description:
+      "In-app: message (default, shown once), card, or placement (shown inline in a placement slot; needs `placement`).",
+  },
+  placement: {
+    type: "string",
+    description:
+      "In-app kind placement: key of the workspace placement to fill (list_in_app_placements).",
+  },
+  priority: {
+    type: "string",
+    enum: ["low", "medium", "high"],
+    description:
+      "In-app kind placement: high, medium (default) or low. The highest-priority open item for a placement shows; ties go to the newest.",
+  },
+  layout: {
+    type: "string",
+    enum: ["card", "banner", "hero"],
+    description:
+      "In-app kind placement: card (default; image over the text, link buttons), banner (compact row with an image thumbnail and a filled button) or hero (text over the image, filled button).",
   },
   format: {
     type: "string",

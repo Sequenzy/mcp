@@ -17,6 +17,8 @@ import {
   sequenceEmailStepIdentityProperties,
 } from "../internal.js";
 
+import { pushLocalizationsProperty } from "./push.js";
+
 export const sequenceBasicToolDefinitions: Tool[] = [
   // ============================================================================
   // Sequences
@@ -840,6 +842,11 @@ export const sequenceBasicToolDefinitions: Tool[] = [
                 items: { type: "string", enum: ["web", "ios", "android"] },
                 description:
                   "Push steps only: limit delivery to these platforms; omit for all.",
+              },
+              localizations: {
+                ...pushLocalizationsProperty,
+                description:
+                  "Push steps only: versions in the workspace's other languages (each contact gets their language attribute's version, else their device language's). translate_push_content writes them with AI.",
               },
               ...inAppStepProperties,
               ineligibleAction: {

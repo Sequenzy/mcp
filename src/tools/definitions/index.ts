@@ -24,6 +24,8 @@ import { galleryExampleToolDefinitions } from "./gallery-examples.js";
 import { galleryWatchlistToolDefinitions } from "./gallery-watchlist.js";
 import { geofenceToolDefinitions } from "./geofences.js";
 import { imageAssetToolDefinitions } from "./image-assets.js";
+import { inAppCampaignToolDefinitions } from "./in-app-campaigns.js";
+import { inAppPlacementToolDefinitions } from "./in-app-placements.js";
 import { inAppToolDefinitions } from "./in-app.js";
 import { inboxToolDefinitions } from "./inbox.js";
 import { integrationToolDefinitions } from "./integrations.js";
@@ -73,6 +75,8 @@ export const toolDefinitions: Tool[] = [
   ...pushImportToolDefinitions,
   ...pushLiveActivityToolDefinitions,
   ...inAppToolDefinitions,
+  ...inAppCampaignToolDefinitions,
+  ...inAppPlacementToolDefinitions,
   ...tagListSegmentToolDefinitions,
   ...audienceSyncToolDefinitions,
   ...templateToolDefinitions,

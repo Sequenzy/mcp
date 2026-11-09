@@ -45,6 +45,13 @@ describe("Live Activity MCP tools", () => {
       undefined,
     ],
     [
+      "list_live_activities",
+      { companyId: "c1", platform: "android" },
+      "GET",
+      "/api/v1/push/live-activities?platform=android",
+      undefined,
+    ],
+    [
       "start_live_activity",
       {
         companyId: "c1",
@@ -106,6 +113,70 @@ describe("Live Activity MCP tools", () => {
         dismissalDate: "2026-10-20T18:00:00Z",
       },
     ],
+    [
+      "start_live_activity",
+      {
+        companyId: "c1",
+        tag: "lakers-fan",
+        activityType: "GameAttributes",
+        activityId: "game-5521",
+        contentState: { home: 0 },
+        alert: { title: "Tip-off" },
+      },
+      "POST",
+      "/api/v1/push/live-activities/start",
+      {
+        tag: "lakers-fan",
+        activityType: "GameAttributes",
+        activityId: "game-5521",
+        contentState: { home: 0 },
+        alert: { title: "Tip-off" },
+      },
+    ],
+    [
+      "start_live_activity",
+      {
+        companyId: "c1",
+        segmentId: "seg_1",
+        activityType: "GameAttributes",
+        activityId: "game-5521",
+        contentState: { home: 0 },
+        alert: { title: "Tip-off" },
+      },
+      "POST",
+      "/api/v1/push/live-activities/start",
+      {
+        segmentId: "seg_1",
+        activityType: "GameAttributes",
+        activityId: "game-5521",
+        contentState: { home: 0 },
+        alert: { title: "Tip-off" },
+      },
+    ],
+    [
+      "update_live_activity",
+      {
+        companyId: "c1",
+        broadcast: true,
+        activityId: "game-5521",
+        contentState: { home: 24 },
+      },
+      "POST",
+      "/api/v1/push/live-activities/update",
+      { broadcast: true, activityId: "game-5521", contentState: { home: 24 } },
+    ],
+    [
+      "end_live_activity",
+      {
+        companyId: "c1",
+        broadcast: true,
+        activityId: "game-5521",
+        contentState: { home: 101 },
+      },
+      "POST",
+      "/api/v1/push/live-activities/end",
+      { broadcast: true, activityId: "game-5521", contentState: { home: 101 } },
+    ],
   ];
 
   for (const [tool, args, method, path, body] of cases) {
@@ -118,7 +189,9 @@ describe("Live Activity MCP tools", () => {
 
   it("covers every Live Activity tool and registers it", () => {
     const names = pushLiveActivityToolDefinitions.map((tool) => tool.name);
-    expect(names.sort()).toEqual(cases.map(([tool]) => tool).sort());
+    expect(names.sort()).toEqual(
+      [...new Set(cases.map(([tool]) => tool))].sort()
+    );
     for (const name of names) {
       expect(tools.some((tool) => tool.name === name)).toBe(true);
       expect(OPENAI_EXCLUDED_TOOL_NAMES.has(name)).toBe(false);
@@ -169,12 +242,15 @@ describe("Live Activity MCP tools", () => {
 
   it("refuses update and end without a contact before calling the API", async () => {
     for (const tool of ["update_live_activity", "end_live_activity"]) {
-      const result = await handleToolCall(tool, {
-        companyId: "c1",
-        activityId: "order-1",
-        contentState: CONTENT_STATE,
-      });
-      expect(result.isError).toBe(true);
+      for (const target of [{}, { broadcast: false }]) {
+        const result = await handleToolCall(tool, {
+          companyId: "c1",
+          activityId: "order-1",
+          contentState: CONTENT_STATE,
+          ...target,
+        });
+        expect(result.isError).toBe(true);
+      }
     }
     expect(mockApiRequest).not.toHaveBeenCalled();
   });

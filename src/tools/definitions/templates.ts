@@ -273,7 +273,7 @@ export const templateToolDefinitions: Tool[] = [
   {
     name: "get_template_localization_coverage",
     description:
-      "Show how many emails that keep sending are translated into each enabled language: every email step and A/B variant in sequences that are not archived, plus enabled transactional emails (left out for marketer keys). Per language it returns total, upToDate, edited, outdated (translated before the original changed; still sends), translating, failed and missing counts. Use it to follow progress after translate_missing_template_localizations or after a language was added in the dashboard.",
+      "Show how many emails that keep sending are translated into each enabled language: every email step and A/B variant in sequences that are not archived, plus enabled transactional emails (left out for marketer keys). Per language it returns total, upToDate, edited, outdated (translated before the original changed; still sends), translating, failed and missing counts. `push` gives the same counts (without failed) for push steps in sequences that are not archived or defined in code. Use it to follow progress after translate_missing_template_localizations or after a language was added in the dashboard.",
     inputSchema: {
       type: "object",
       properties: {
@@ -289,7 +289,7 @@ export const templateToolDefinitions: Tool[] = [
   {
     name: "translate_missing_template_localizations",
     description:
-      "Queue AI translation, in one call, for every sequence email (including sequence A/B variants) and enabled transactional email that has no translation in a language yet or whose last translation failed. Translations someone edited, up-to-date ones and outdated ones are left alone; use sync_template_localizations on one template to retranslate it. Omit `locales` for every enabled non-primary locale. Adding a language in the dashboard already does this for that language. Translations run in the background; follow them with get_template_localization_coverage.",
+      "Queue AI translation, in one call, for every sequence email (including sequence A/B variants) and enabled transactional email that has no translation in a language yet or whose last translation failed. It also translates sequence push steps (not archived, not defined in code) missing a language. Translations someone edited, up-to-date ones and outdated ones are left alone; use sync_template_localizations on one template to retranslate it. Omit `locales` for every enabled non-primary locale. Adding a language in the dashboard already does this for that language. Translations run in the background; follow them with get_template_localization_coverage.",
     inputSchema: {
       type: "object",
       properties: {

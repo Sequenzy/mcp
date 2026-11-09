@@ -262,8 +262,15 @@ describe("MCP tool profiles", () => {
     // theme footer typography fields in every emailTheme schema plus
     // update_company footerTheme, about 3 KB, and the seven push import
     // tools, about 14 KB, and the block conditionsMatch field plus sequence
-    // test customAttributes, about 3 KB).
-    expect(JSON.stringify({ tools: standard }).length).toBeLessThan(1_660_000);
+    // test customAttributes, about 3 KB, push campaign local-time and
+    // send-time optimization fields, about 3 KB, list_campaign_replies,
+    // about 3 KB, and the six in-app placement tools plus the placement,
+    // priority and layout in-app step fields, about 16 KB, and the ten
+    // in-app campaign tools, about 18 KB, and push language versions on
+    // push campaigns and steps plus the two push translation tools, about
+    // 13 KB, and the Android Live Update platform filter and descriptions
+    // plus Live Activity audience starts and broadcasts, about 5 KB).
+    expect(JSON.stringify({ tools: standard }).length).toBeLessThan(1_725_000);
   });
 
   it("renames only on the OpenAI profile and keeps standard names", () => {
@@ -3684,6 +3691,68 @@ describe("A/B test tools", () => {
     const result = await handleToolCall("list_poll_responses", {
       blockId: "poll-1",
     });
+
+    expect(result.isError).toBe(true);
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("lists who replied to a campaign, pointing at the conversation to read", async () => {
+    const tool = tools.find(
+      (candidate) => candidate.name === "list_campaign_replies"
+    );
+    const statsTool = tools.find(
+      (candidate) => candidate.name === "get_campaign_stats"
+    );
+    const replies = [
+      {
+        replyId: "reply_1",
+        subscriberId: "sub_1",
+        email: "rae@example.com",
+        externalId: null,
+        firstName: "Rae",
+        lastName: null,
+        emailSendId: "send_1",
+        conversationId: "conv_1",
+        hasAttachments: false,
+        attachmentCount: 0,
+        receivedAt: "2026-11-08T10:00:00.000Z",
+      },
+    ];
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      campaignId: "camp_123",
+      replies,
+      pagination: { page: 2, limit: 50, total: 51, totalPages: 2 },
+    });
+
+    const result = await handleToolCall("list_campaign_replies", {
+      companyId: "company_123",
+      campaignId: "camp_123",
+      page: 2,
+      limit: 50,
+    });
+
+    expect(statsTool?.description).toContain("list_campaign_replies");
+    expect(tool?.description).toContain("get_conversation");
+    expect(tool?.description).toContain("Reply text is not returned");
+    const paginationOutput = tool?.outputSchema?.properties?.["pagination"] as
+      { description?: string } | undefined;
+    expect(paginationOutput?.description).toContain(
+      "matching the replies count from get_campaign_stats"
+    );
+    expect(tool?.annotations?.readOnlyHint).toBe(true);
+    expect(result.isError).toBeUndefined();
+    expect(result.structuredContent?.["replies"]).toEqual(replies);
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "GET",
+      "/api/v1/metrics/campaigns/camp_123/replies?page=2&limit=50",
+      undefined,
+      "company_123"
+    );
+  });
+
+  it("requires a campaignId for list_campaign_replies", async () => {
+    const result = await handleToolCall("list_campaign_replies", {});
 
     expect(result.isError).toBe(true);
     expect(mockApiRequest).not.toHaveBeenCalled();

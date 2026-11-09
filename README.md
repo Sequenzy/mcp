@@ -1381,6 +1381,22 @@ takes precedence and disables STO, as does recipient-timezone delivery.
 Sequences instead use `sendingWindow`, a shared allowed-hours/days gate rather
 than per-recipient predicted send times.
 
+For A/B campaigns, `spreadOverHours` sets one sending rate for the whole
+audience. The test sample is spread over its share of the window, the winner is
+picked once the test duration has passed after the last test email, and the
+remaining recipients are spread over their share, so delivery takes about the
+spread plus the test duration. A resume spreads the current phase's remaining
+recipients at that rate from the moment it runs; if the test's end time passed
+while paused, the winner is picked from test emails already sent. Ending the
+test early or picking a winner stops test emails still waiting for their send
+slot, and those recipients get the winner at the spread rate. A larger sample
+re-plans the waiting test emails together with the added recipients at the
+spread rate.
+
+If the account has a minimum spread, `schedule_campaign` and `resume_campaign`
+raise a lower, missing or null `spreadOverHours` to that minimum (the result
+shows the value used) and turn send-time optimization off, for every campaign.
+
 For A/B campaigns, `maxRecipients` must allow at least one recipient per variant plus one for the winner. A schedule request with a smaller saved or requested cap fails without changing the campaign. Raise the cap or explicitly clear it with `null` before retrying.
 
 To send to only part of an audience, set `maxRecipients` (1-10,000,000) on a
@@ -2062,6 +2078,7 @@ arguments when retrying; the key remains valid for 14 days.
 | `get_email_client_stats`  | Get mail client and device shares of unique opens for a campaign or the whole company.                         |
 | `get_link_click_stats`    | Get clicks per link destination across every email for a period, with unique clicks and share.                 |
 | `list_poll_responses`     | List each respondent's latest Poll/NPS answer per block, with identity and response time.                      |
+| `list_campaign_replies`   | List who replied to a campaign, newest first, with the inbox conversation holding each reply.                  |
 | `get_sequence_stats`      | Get aggregate and per-step sequence performance plus live active/waiting enrollment counts by current node.    |
 | `list_email_metrics`      | Compare campaign and sequence-step funnels, replies, conversions, and revenue, including cross-sequence steps. |
 | `list_campaign_events`    | List paginated raw email events for a campaign.                                                                |
@@ -2114,6 +2131,14 @@ poll; for a sequence email step, pass its automation node ID as `campaignId`.
 Do not reconstruct this history by scanning subscriber attributes: an
 attribute has no response timestamp and may have been overwritten by a later
 email that reused the same key.
+
+Use `list_campaign_replies` to see who replied to a campaign. It lists every
+reply behind the unfiltered `replies` count of `get_campaign_stats` (no period
+or provider filter), newest first, with
+the subscriber, the send they replied to, the attachment count and the reply
+time. Reply text is not included: pass the row's `conversationId` to
+`get_conversation` to read it. `conversationId` is null when the reply has no
+inbox conversation.
 
 To list the exact historical respondents behind a count, call `create_segment`
 with field `pollResponse`, operator `is`, and a JSON value scoped to the
@@ -2267,17 +2292,19 @@ window.
 | `list_push_campaigns`               | List push campaigns.                                                                          |
 | `get_push_campaign`                 | Read a push campaign with its stats.                                                          |
 | `create_push_campaign`              | Create a push campaign draft.                                                                 |
-| `update_push_campaign`              | Update a draft or scheduled push campaign.                                                    |
+| `update_push_campaign`              | Update a draft or scheduled push campaign, including draft delivery timing.                   |
+| `translate_push_campaign`           | Translate a push campaign into the workspace's languages with AI and save it.                 |
+| `translate_push_content`            | Translate a push title and message with AI without saving (for sequence push steps).         |
 | `estimate_push_campaign_recipients` | Count contacts in an audience with an active device.                                          |
-| `send_push_campaign`                | Send now or schedule a push campaign.                                                         |
+| `send_push_campaign`                | Send now or schedule a push campaign, in local time or at each optimal hour.                  |
 | `unschedule_push_campaign`          | Move a scheduled push campaign back to draft.                                                 |
 | `cancel_push_campaign`              | Stop a scheduled or sending push campaign.                                                    |
 | `duplicate_push_campaign`           | Copy a push campaign into a new draft.                                                        |
 | `get_push_campaign_stats`           | Read sent, displayed, clicked, failed and skipped counts with reasons.                        |
-| `list_live_activities`              | List iOS Live Activity tokens with counts per activity type.                                  |
-| `start_live_activity`               | Start a Live Activity on one contact's iPhones (push-to-start, iOS 17.2+).                    |
-| `update_live_activity`              | Send new content state to every running copy of a contact's activity.                         |
-| `end_live_activity`                 | End a contact's activity with its final content, optionally with a dismissal date.            |
+| `list_live_activities`              | List iOS Live Activity and Android Live Update tokens with counts per activity type.          |
+| `start_live_activity`               | Start a Live Activity on one contact's devices, or for a segment, list or tag.                |
+| `update_live_activity`              | Send new content to a contact's activity, or broadcast to every device running it.            |
+| `end_live_activity`                 | End a contact's activity, or broadcast the end, with its final content.                       |
 
 Push reaches contacts who allowed notifications in a browser (web SDK
 `subscribeToPush()`) or in your app (tokens registered with
@@ -2288,10 +2315,22 @@ an active device on a set-up platform. `send_test_push` is limited to 200 per
 company per rolling 24 hours and excluded from stats.
 
 Live Activities go to ActivityKit tokens that the iOS SDK reports
-(`Sequenzy.observeLiveActivities(of:)`), not to push devices. Start, update and
-end always name the contact (`email` or `subscriberId`) and return
-`tokenCount`; `0` means nothing was sent. Updates carry the request
-time, so repeating one is safe; repeating a start shows a second activity.
+(`Sequenzy.observeLiveActivities(of:)`), not to push devices. The same calls
+reach Android Live Updates: the Android SDK reports tokens for the same type
+name (`SequenzyLiveUpdates.observe`), and Sequenzy sends them as FCM data
+messages that the SDK shows as a promoted Live Update on Android 16 and an
+ongoing notification updated in place on earlier versions. Each platform needs
+its push credentials (APNs key, Firebase service account). Start, update and
+end name the contact (`email` or `subscriberId`), or an audience or broadcast
+as described below, and return `tokenCount`,
+`contactCount` and `platforms` (`{ ios, android }`); `0` means nothing was
+sent. To reach many people with one activity, start it with `segmentId`,
+`listId` or `tag` (up to 100,000 devices) and a shared `activityId`, then
+update and end it with `broadcast: true`, which reaches every signed-in device
+running that id. Both need the `campaigns:send` scope too; never broadcast a
+per-person id like an order.
+`list_live_activities` accepts `platform`. Updates carry the request time, so
+repeating one is safe; repeating a start shows a second activity.
 
 ### In-App Messages
 
@@ -2304,9 +2343,22 @@ time, so repeating one is safe; repeating a start shows a second activity.
 | `list_in_app_templates` | List built-in in-app step templates with their full step configs.                   |
 | `write_in_app_copy`     | Write in-app eyebrow, title, message and button text with AI from a brief.          |
 | `validate_in_app_html`  | Check a custom HTML in-app message: size, Braze Liquid conversions, script hosts.   |
+| `list_in_app_campaigns` | List in-app campaigns with their state (draft, scheduled, live, ended, stopped).     |
+| `get_in_app_campaign`   | Read an in-app campaign with its reach and engagement.                              |
+| `create_in_app_campaign` | Create an in-app campaign draft: message, priority, end time and audience.         |
+| `update_in_app_campaign` | Update a draft or scheduled in-app campaign; message fields merge.                 |
+| `estimate_in_app_campaign_recipients` | Count the contacts who match an audience now.                          |
+| `send_in_app_campaign`  | Launch now or schedule an in-app campaign.                                          |
+| `unschedule_in_app_campaign` | Move a scheduled in-app campaign back to draft.                                |
+| `stop_in_app_campaign`  | Stop a scheduled or live in-app campaign; unseen messages leave feeds.              |
+| `duplicate_in_app_campaign` | Copy an in-app campaign into a new draft.                                       |
+| `get_in_app_campaign_stats` | Read reached, displayed, clicked, dismissed and button results.                 |
 
 In-app items come from `type: "in_app"` sequence steps (modal, banner,
-fullscreen or content card). Nothing is sent: the customer's app fetches each
+fullscreen or content card) and from in-app campaigns, which send one
+message to an audience: launching writes nothing per contact, and each
+contact in the audience gets it the next time their app fetches its feed
+while the campaign is live. Nothing is sent: the customer's app fetches each
 contact's feed, renders it and reports events, so ask the user to set that up
 first (Settings > In-app has a prompt for their coding tool).
 
@@ -2325,6 +2377,26 @@ for backend-rendered feeds). Record the result with `record_in_app_event`
 and declined results, `get_push_settings` reports the app opt-in rate, and
 the contact's `pushPermission` attribute holds the best status across their
 app devices.
+
+#### Placements
+
+| Tool                           | Description                                                                         |
+| ------------------------------ | ----------------------------------------------------------------------------------- |
+| `list_in_app_placements`       | List the workspace's placements with created, live, displayed and clicked counts.   |
+| `get_in_app_placement`         | Read one placement and its counts.                                                  |
+| `create_in_app_placement`      | Create a placement: a slot in the app that shows in-app content inline.             |
+| `update_in_app_placement`      | Rename a placement or change its description or size hints (the key never changes). |
+| `delete_in_app_placement`      | Delete a placement; its slots collapse and steps that target it skip contacts.      |
+| `get_in_app_placement_content` | What each placement shows one contact now, or null when the slot collapses.         |
+
+Fill a placement with an `in_app` step: `kind: "placement"`, `placement`
+(the key), an optional `priority` of `high`, `medium` (default) or `low`, and an
+optional `layout`: `card` (default; image over the text, link buttons), `banner`
+(compact row with a thumbnail and a filled button) or `hero` (text over the
+image, filled button). The app shows each contact's highest-priority open item
+per placement. Placement
+items never appear in `list_in_app_messages` open feeds; use
+`get_in_app_placement_content`, or `status: "all"` for history.
 
 ### Product Feedback
 
@@ -2578,7 +2650,8 @@ Use `ab-tests get <id> --json` / `get_ab_test` to inspect actual variant content
 `pendingSampleUpdate`. The winning metric does not identify which content differs.
 Update via `ab-tests update <id> --test-percentage 30 --duration-minutes 120` /
 `update_ab_test` with `testPercentage` and `testDurationMinutes`. Duration is total
-minutes from the original start, 15–1440; an elapsed deadline requests selection
+minutes from the original start (from when the last test email is due when
+delivery is spread), 15–1440; an elapsed deadline requests selection
 immediately. Percentage is 5–50 of the full original audience. Committed sends
 keep their variants; the worker waits for previous jobs and can reject a shrink.
 The winning metric cannot change during campaign testing. Paused campaigns stay

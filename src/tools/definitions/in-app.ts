@@ -28,8 +28,9 @@ export const inAppToolDefinitions: Tool[] = [
         subscriberId: { type: "string", description: "Subscriber ID." },
         kind: {
           type: "string",
-          enum: ["message", "card"],
-          description: "Only messages or only cards.",
+          enum: ["message", "card", "placement"],
+          description:
+            'Only messages, cards or placement items. Placement items are listed only with status "all"; for what a placement shows now use get_in_app_placement_content.',
         },
         status: {
           type: "string",
@@ -156,8 +157,8 @@ export const inAppToolDefinitions: Tool[] = [
         },
         kind: {
           type: "string",
-          enum: ["message", "card"],
-          description: "message (default) or card.",
+          enum: ["message", "card", "placement"],
+          description: "message (default), card or placement.",
         },
         format: {
           type: "string",

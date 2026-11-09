@@ -31,7 +31,7 @@ describe("in-app MCP tools", () => {
       "list_in_app_messages",
       { companyId: "c1", email: "ava@example.com", kind: "card", limit: 5 },
       "GET",
-      "/api/v1/in-app/messages?email=ava%40example.com&kind=card&limit=5",
+      "/api/v1/in-app/messages?email=ava%40example.com&kind=card&limit=5&deliver=false",
       undefined,
     ],
     [
@@ -166,7 +166,7 @@ describe("in-app MCP tools", () => {
     });
     expect(mockApiRequest).toHaveBeenLastCalledWith(
       "GET",
-      "/api/v1/in-app/messages?email=ava%40example.com&formats=modal%2Chtml",
+      "/api/v1/in-app/messages?email=ava%40example.com&formats=modal%2Chtml&deliver=false",
       undefined,
       "c1"
     );

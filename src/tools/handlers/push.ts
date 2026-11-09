@@ -10,6 +10,13 @@ const CONTENT_KEYS = [
   "platforms",
 ] as const;
 
+const TIMING_KEYS = [
+  "sendInRecipientTimezone",
+  "scheduledTimezone",
+  "sendTimeOptimization",
+  "sendTimeWindowHours",
+] as const;
+
 const LIVE_ACTIVITY_DELIVERY_KEYS = ["staleDate", "relevanceScore"] as const;
 
 function pick(
@@ -190,7 +197,7 @@ export async function handlePushTools(
       result = await apiRequest(
         "POST",
         "/api/v1/push/campaigns",
-        pick(args, ["name", "targetLists", ...CONTENT_KEYS]),
+        pick(args, ["name", "targetLists", "localizations", ...CONTENT_KEYS]),
         companyId
       );
       break;
@@ -198,7 +205,13 @@ export async function handlePushTools(
       result = await apiRequest(
         "PATCH",
         campaignPath(name),
-        pick(args, ["name", "targetLists", ...CONTENT_KEYS]),
+        pick(args, [
+          "name",
+          "targetLists",
+          "localizations",
+          ...CONTENT_KEYS,
+          ...TIMING_KEYS,
+        ]),
         companyId
       );
       break;
@@ -211,7 +224,7 @@ export async function handlePushTools(
       result = await apiRequest(
         "POST",
         "/api/v1/push/campaigns/estimate",
-        pick(args, ["targetLists", "platforms"]),
+        pick(args, ["targetLists", "platforms", "includeTimingCoverage"]),
         companyId
       );
       break;
@@ -219,7 +232,7 @@ export async function handlePushTools(
       result = await apiRequest(
         "POST",
         `${campaignPath(name)}/send`,
-        pick(args, ["scheduledAt"]),
+        pick(args, ["scheduledAt", ...TIMING_KEYS]),
         companyId
       );
       break;
@@ -236,6 +249,27 @@ export async function handlePushTools(
         "POST",
         `${campaignPath(name)}/cancel`,
         undefined,
+        companyId
+      );
+      break;
+    case "translate_push_campaign":
+      result = await apiRequest(
+        "POST",
+        `${campaignPath(name)}/translate`,
+        pick(args, ["locales", "overwrite"]),
+        companyId
+      );
+      break;
+    case "translate_push_content":
+      if (!args.title && !args.body) {
+        throw new Error(
+          "Provide `title` and/or `body` when calling `translate_push_content`."
+        );
+      }
+      result = await apiRequest(
+        "POST",
+        "/api/v1/push/translate",
+        pick(args, ["title", "body", "localizations", "locales", "overwrite"]),
         companyId
       );
       break;
@@ -261,6 +295,7 @@ export async function handlePushTools(
         `/api/v1/push/live-activities${query(args, [
           "email",
           "subscriberId",
+          "platform",
           "activityType",
           "activityId",
           "kind",
@@ -273,9 +308,15 @@ export async function handlePushTools(
       );
       break;
     case "start_live_activity":
-      if (!args.email && !args.subscriberId) {
+      if (
+        !args.email &&
+        !args.subscriberId &&
+        !args.segmentId &&
+        !args.listId &&
+        !args.tag
+      ) {
         throw new Error(
-          "Provide `email` or `subscriberId` when calling `start_live_activity`: an activity starts on one contact's devices."
+          "Provide `email` or `subscriberId` (one contact), or one of `segmentId`, `listId` or `tag` (an audience) when calling `start_live_activity`."
         );
       }
       result = await apiRequest(
@@ -284,6 +325,9 @@ export async function handlePushTools(
         pick(args, [
           "email",
           "subscriberId",
+          "segmentId",
+          "listId",
+          "tag",
           "activityType",
           "activityId",
           "attributes",
@@ -295,9 +339,9 @@ export async function handlePushTools(
       );
       break;
     case "update_live_activity":
-      if (!args.email && !args.subscriberId) {
+      if (!args.email && !args.subscriberId && args.broadcast !== true) {
         throw new Error(
-          "Provide `email` or `subscriberId` when calling `update_live_activity`: activities are addressed per contact."
+          "Provide `email` or `subscriberId` when calling `update_live_activity`, or `broadcast: true` for every signed-in device running the activity."
         );
       }
       result = await apiRequest(
@@ -306,6 +350,7 @@ export async function handlePushTools(
         pick(args, [
           "email",
           "subscriberId",
+          "broadcast",
           "activityId",
           "contentState",
           "alert",
@@ -316,9 +361,9 @@ export async function handlePushTools(
       );
       break;
     case "end_live_activity":
-      if (!args.email && !args.subscriberId) {
+      if (!args.email && !args.subscriberId && args.broadcast !== true) {
         throw new Error(
-          "Provide `email` or `subscriberId` when calling `end_live_activity`: activities are addressed per contact."
+          "Provide `email` or `subscriberId` when calling `end_live_activity`, or `broadcast: true` for every signed-in device running the activity."
         );
       }
       if (!args.contentState || typeof args.contentState !== "object") {
@@ -332,6 +377,7 @@ export async function handlePushTools(
         pick(args, [
           "email",
           "subscriberId",
+          "broadcast",
           "activityId",
           "contentState",
           "alert",

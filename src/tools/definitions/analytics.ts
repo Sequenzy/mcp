@@ -169,7 +169,7 @@ export const analyticsToolDefinitions: Tool[] = [
   {
     name: "get_campaign_stats",
     description:
-      "Get detailed statistics for a campaign, including replies and reply rate, attributed conversions, revenue (revenueCents), attached campaign conversion goals in the top-level goals array (sent → opened → clicked → each named goal), product recommendation funnel metrics, a per-link click breakdown in the top-level clickedLinks array, and any Poll or NPS survey summaries in the top-level polls array.",
+      "Get detailed statistics for a campaign, including replies and reply rate (list who replied with list_campaign_replies), attributed conversions, revenue (revenueCents), attached campaign conversion goals in the top-level goals array (sent → opened → clicked → each named goal), product recommendation funnel metrics, a per-link click breakdown in the top-level clickedLinks array, and any Poll or NPS survey summaries in the top-level polls array.",
     inputSchema: {
       type: "object",
       properties: {
@@ -314,6 +314,35 @@ export const analyticsToolDefinitions: Tool[] = [
           type: "string",
           description:
             "Restrict to one poll block. Block IDs come from the polls array of get_campaign_stats, or steps[].polls of get_sequence_stats for a sequence step. Omit to return every poll block in the email.",
+        },
+        page: {
+          type: "number",
+          description: "1-based page number. Defaults to 1.",
+        },
+        limit: {
+          type: "number",
+          description:
+            "Page size. Defaults to 100 and is capped at 500 by the server.",
+        },
+      },
+      required: ["campaignId"],
+    },
+  },
+  {
+    name: "list_campaign_replies",
+    description:
+      "List who replied to a campaign, newest first: one row per reply with the subscriber's email and name, the send they replied to, the attachment count, the reply time, and conversationId, the inbox conversation holding the reply. get_campaign_stats reports the replies count; this lists the same replies, so pagination.total matches it when get_campaign_stats is called without period, start or end. Reply text is not returned: read a reply with get_conversation using its conversationId. conversationId is null when the reply has no inbox conversation, and email is null when the subscriber has since been deleted. Results are paginated: read the returned pagination object and keep paging with page while page < totalPages.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        campaignId: {
+          type: "string",
+          description: "Campaign ID.",
         },
         page: {
           type: "number",

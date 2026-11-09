@@ -19,6 +19,8 @@ import { handleGalleryExampleTools } from "./gallery-examples.js";
 import { handleGalleryWatchlistTools } from "./gallery-watchlist.js";
 import { handleGeofenceTools } from "./geofences.js";
 import { handleImageAssetTools } from "./image-assets.js";
+import { handleInAppCampaignTools } from "./in-app-campaigns.js";
+import { handleInAppPlacementTools } from "./in-app-placements.js";
 import { handleInAppTools } from "./in-app.js";
 import { handleIntegrationTools } from "./integrations.js";
 import { handleLandingPageTools } from "./landing-pages.js";
@@ -73,5 +75,7 @@ export const toolHandlers = [
   handlePushTools,
   handlePushImportTools,
   handleInAppTools,
+  handleInAppCampaignTools,
+  handleInAppPlacementTools,
   handleAiAndFeedbackTools,
 ];

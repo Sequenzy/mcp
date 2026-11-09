@@ -44,6 +44,9 @@ export async function handleInAppTools(
       if (Array.isArray(args.formats) && args.formats.length > 0) {
         search.set("formats", args.formats.map(String).join(","));
       }
+      // Looking at a feed must not deliver live in-app campaigns to the
+      // contact (that happens when their app fetches it).
+      if (args.status !== "all") search.set("deliver", "false");
       result = await apiRequest(
         "GET",
         `/api/v1/in-app/messages?${search.toString()}`,
