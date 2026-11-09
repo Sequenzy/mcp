@@ -15,7 +15,7 @@ export const sequenceInboundWebhookToolDefinitions: Tool[] = [
   {
     name: "get_sequence_inbound_webhook",
     description:
-      "Read the usable URL, mapping, sample payload, and setup status for a sequence inbound webhook.",
+      "Read the usable URL, mapping, sample payload, and setup status for a sequence inbound webhook. mappingCheck reports whether the mapping finds an email in the last received payload: email_not_found means webhooks are answered but skipped without creating subscribers, and missingFields lists mapped paths absent from that payload.",
     inputSchema: {
       type: "object",
       properties: baseProperties,
@@ -26,7 +26,7 @@ export const sequenceInboundWebhookToolDefinitions: Tool[] = [
   {
     name: "configure_sequence_inbound_webhook",
     description:
-      "Create or update the secret endpoint attached to a sequence inbound_webhook trigger. On first setup, omitted mapping/sample inputs apply the selected catalog or custom integration defaults; on later calls, omitted inputs keep the saved values, so a captured sample survives mapping-only updates. Use clearFieldMapping to return to pending setup and clearSamplePayload to drop the saved sample.",
+      "Create or update the secret endpoint attached to a sequence inbound_webhook trigger. On first setup, omitted mapping/sample inputs apply the selected catalog or custom integration defaults; on later calls, omitted inputs keep the saved values, so a captured sample survives mapping-only updates. Use clearFieldMapping to return to pending setup and clearSamplePayload to drop the saved sample. Map paths from the payload the endpoint actually receives, not the source app's documented format, since relays often wrap or flatten it; check mappingCheck in the response.",
     inputSchema: {
       type: "object",
       properties: {

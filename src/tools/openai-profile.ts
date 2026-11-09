@@ -317,9 +317,9 @@ export function withOpenAiToolProfile(tool: Tool): Tool | null {
     get_account:
       "Get your own Sequenzy account: the companies (workspaces) you can access, which one is selected, and this connection's permission scopes. This is not your customers' B2B accounts; use list_accounts for those. Other tools use the selected company unless a companyId is passed, and select_company changes the selection. Use it when the user asks which companies they can access, or after a missing-permission error to see what this connection can do.",
     get_sequence_inbound_webhook:
-      "Read the non-secret mapping, sample payload, setup status, and dashboard URL for a sequence inbound webhook. The credential-bearing endpoint URL is omitted here.",
+      "Read the non-secret mapping, sample payload, setup status, and dashboard URL for a sequence inbound webhook. mappingCheck reports whether the mapping finds an email in the last received payload: email_not_found means webhooks are answered but skipped without creating subscribers. The credential-bearing endpoint URL is omitted here.",
     configure_sequence_inbound_webhook:
-      "Create or update the mapping and sample attached to a sequence inbound_webhook trigger. The response omits the endpoint secret and credential-bearing URL; a human can copy it from the returned sequence dashboard URL.",
+      "Create or update the mapping and sample attached to a sequence inbound_webhook trigger. Map paths from the payload the endpoint actually receives, and check mappingCheck in the response. The response omits the endpoint secret and credential-bearing URL; a human can copy it from the returned sequence dashboard URL.",
     check_email:
       "Check a saved campaign, sequence email step or template before sending: the email checker rules plus live verification of every link and image (broken pages, dead domains, missing https://, placeholder or staging URLs, broken images). Checking against a stored subscriber ID is unavailable here; omit it or pass a policy-checked inline subscriber. Read-only.",
     render_email:
@@ -528,6 +528,14 @@ function sanitizeOutputValue(
       typeof nestedValue === "object";
     if (restrictedFieldCategory(key) && !metadataApiKey) continue;
 
+    // Inbound webhook `mappingCheck.missingFields` names mapped fields in
+    // values (`{ field: "properties.diagnosis", path: "data.diagnosis" }`),
+    // which the key-based filter above cannot see.
+    const fieldReferences =
+      key === "missingFields" && Array.isArray(nestedValue)
+        ? nestedValue.filter((item) => !isRestrictedFieldReference(item))
+        : nestedValue;
+
     if (ATTRIBUTE_PATH_LIST_FIELDS.has(key) && Array.isArray(nestedValue)) {
       sanitized[key] = nestedValue.filter(
         (item) =>
@@ -544,7 +552,7 @@ function sanitizeOutputValue(
       typeof nestedValue === "object" &&
       !Array.isArray(nestedValue)
         ? pickEmailBrandingFields(nestedValue as Record<string, unknown>)
-        : nestedValue;
+        : fieldReferences;
     const sanitizedValue = sanitizeOutputValue(brandingValue, {
       toolName: ctx.toolName,
       path,
@@ -634,6 +642,16 @@ function projectOpenAiAccountResult(result: unknown): unknown {
     if (typeof record[field] === "string") projected[field] = record[field];
   }
   return projected;
+}
+
+function isRestrictedFieldReference(item: unknown): boolean {
+  if (item === null || typeof item !== "object") return false;
+  const { field, path } = item as { field?: unknown; path?: unknown };
+  return (
+    (typeof field === "string" &&
+      restrictedFieldCategory(field) !== undefined) ||
+    (typeof path === "string" && restrictedFieldCategory(path) !== undefined)
+  );
 }
 
 export function projectOpenAiToolResult(

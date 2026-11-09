@@ -1495,6 +1495,46 @@ describe("OpenAI MCP profile", () => {
     });
   });
 
+  it("removes restricted field names from inbound webhook mapping checks", () => {
+    expect(
+      projectOpenAiToolResult("get_sequence_inbound_webhook", {
+        webhook: {
+          id: "inbound-1",
+          fieldMapping: {
+            email: "data.user_email",
+            properties: { diagnosis: "data.diagnosis", plan: "data.plan" },
+          },
+          mappingCheck: {
+            status: "email_not_found",
+            missingFields: [
+              { field: "email", path: "data.user_email" },
+              { field: "properties.diagnosis", path: "data.diagnosis" },
+              { field: "properties.notes", path: "data.ssn" },
+              { field: "properties.plan", path: "data.plan" },
+              { field: "properties.p0", path: "4111 1111 1111 1111" },
+            ],
+          },
+        },
+      })
+    ).toEqual({
+      webhook: {
+        id: "inbound-1",
+        fieldMapping: {
+          email: "data.user_email",
+          properties: { plan: "data.plan" },
+        },
+        mappingCheck: {
+          status: "email_not_found",
+          missingFields: [
+            { field: "email", path: "data.user_email" },
+            { field: "properties.plan", path: "data.plan" },
+            { field: "properties.p0", path: "[redacted restricted data]" },
+          ],
+        },
+      },
+    });
+  });
+
   it("removes inbound webhook secrets and credential-bearing URLs", () => {
     expect(
       projectOpenAiToolResult("get_sequence_inbound_webhook", {

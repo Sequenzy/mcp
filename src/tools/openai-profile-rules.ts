@@ -619,6 +619,8 @@ export const DATA_BEARING_FIELDS: ReadonlySet<string> = new Set([
   "fieldValues",
   "filters",
   "headers",
+  // Inbound webhook mapping check: repeats fieldMapping paths as values.
+  "mappingCheck",
   "properties",
   "propertyFilters",
   "reason",
