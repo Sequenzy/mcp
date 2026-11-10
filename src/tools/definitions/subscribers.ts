@@ -157,7 +157,7 @@ export const subscriberToolDefinitions: Tool[] = [
   {
     name: "create_subscriber_import",
     description:
-      "Queue one CRM-grade subscriber import with up to 5,000 full contact records. Supports names, external IDs, phones, statuses, tags, lists, and custom attributes. Prefer this over repeated add_subscriber calls. Returns an import ID for get_subscriber_import. Use optInMode='confirmed' only when the contacts already gave verified email consent.",
+      "Queue one CRM-grade subscriber import with up to 5,000 full contact records. Supports names, external IDs, phones, statuses, tags, lists, and custom attributes. Prefer this over repeated add_subscriber calls. Returns an import ID for get_subscriber_import. Use optInMode='confirmed' only when the contacts already gave verified email consent. Rows are imported only after a list check, usually under a minute. When the list has too many addresses that don't exist or look risky (temporary inboxes, or mostly shared addresses like info@), nothing is imported and the finished import has listQuality (status 'needs_cleaning', with issues): relay listQuality.message and suggest cleaning the list (listQuality.cleaningUrl) and importing the cleaned list.",
     inputSchema: {
       type: "object",
       properties: {
@@ -225,7 +225,7 @@ export const subscriberToolDefinitions: Tool[] = [
   {
     name: "get_subscriber_import",
     description:
-      "Get progress, counts, skipped reasons, and failure summaries for a queued subscriber import. Every excluded row is explained: skippedReasons sums to skippedCount and failedReasons sums to failedCount, so a finished import can be reconciled without inspecting individual contacts. If the reason counts fall short of the totals, report it with the import ID rather than guessing what the missing rows were.",
+      "Get progress, counts, skipped reasons, and failure summaries for a queued subscriber import. Every excluded row is explained: skippedReasons sums to skippedCount and failedReasons sums to failedCount, so a finished import can be reconciled without inspecting individual contacts. If the reason counts fall short of the totals, report it with the import ID rather than guessing what the missing rows were. listQuality is null unless the list needs cleaning; then nothing was imported (rows skipped as list_needs_cleaning) and you should relay its message and cleaningUrl. An import stays running until its list check finishes.",
     inputSchema: {
       type: "object",
       properties: {

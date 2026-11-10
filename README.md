@@ -1082,7 +1082,9 @@ not sufficient.
 
 Each segment filter field validates its own operators:
 
-- `status`, `segment`: `is`, `is_not`
+- `status`, `segment`, `smsStatus`: `is`, `is_not`
+- `phone`: `is_empty`, `is_not_empty`, `starts_with`, `not_starts_with`, `contains`, `not_contains`
+- `phoneCountry`: `is`, `is_not`
 - `tag`: `contains`, `not_contains`, `is_empty`, `is_not_empty`
 - `email`: `contains`, `not_contains`
 - `emailProvider`, `list`: `is`, `is_not`, `is_empty`, `is_not_empty`
@@ -1094,6 +1096,17 @@ Each segment filter field validates its own operators:
 - `stripeProduct`: `is`, `is_not`, `at_least`, `less_than_count`
 - `stripeCurrentProduct`, `stripeTrialProduct`: `is`, `is_not`, `gte`, `lte`, `gt`, `lt`
 - `commerceProduct`: `is`, `is_not`, `at_least`, `less_than_count`
+
+Phone filters compare digits against the stored international number, so a
+prefix starts with the country code; spaces, dashes and brackets are ignored.
+`phoneCountry` takes ISO country codes, comma-separated to match any of
+several. Both only match contacts that have a phone:
+
+```json
+{ "field": "phone", "operator": "starts_with", "value": "+1 415" }
+{ "field": "phone", "operator": "not_contains", "value": "555" }
+{ "field": "phoneCountry", "operator": "is", "value": "US,CA" }
+```
 
 Stripe product filter examples:
 

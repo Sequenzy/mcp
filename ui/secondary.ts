@@ -190,7 +190,12 @@ export function showSecondary(
           details.append(element("p", "", `${reason}: ${String(count)}`));
       }
       note.setAttribute("role", "status");
-      note.textContent = `${processed.toLocaleString()} of ${total.toLocaleString()} rows processed. ${status === "running" ? "Updates every 5 seconds." : status === "completed" ? "Import complete." : "Import needs attention."}`;
+      const listQuality = record(entry["listQuality"]);
+      const qualityMessage =
+        typeof listQuality["message"] === "string"
+          ? listQuality["message"]
+          : "";
+      note.textContent = `${processed.toLocaleString()} of ${total.toLocaleString()} rows processed. ${status === "running" ? "Updates every 5 seconds." : status === "completed" ? "Import complete." : "Import needs attention."}${qualityMessage ? ` ${qualityMessage}` : ""}`;
       if (status === "running" && !disposed) {
         if (Date.now() < deadline)
           timer = setTimeout(() => {

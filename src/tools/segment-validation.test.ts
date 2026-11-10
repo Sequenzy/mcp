@@ -144,3 +144,43 @@ describe("push segment filters", () => {
     ).toContain("not supported");
   });
 });
+
+describe("phone segment filter validation", () => {
+  it("accepts phone prefix, substring and country filters", () => {
+    for (const filter of [
+      { field: "phone", operator: "starts_with", value: "+44" },
+      { field: "phone", operator: "not_starts_with", value: "+1 415" },
+      { field: "phone", operator: "contains", value: "555" },
+      { field: "phone", operator: "not_contains", value: "555" },
+      { field: "phone", operator: "is_not_empty", value: "" },
+      { field: "phoneCountry", operator: "is", value: "GB" },
+      { field: "phoneCountry", operator: "is_not", value: "US,CA" },
+    ]) {
+      expect(getSegmentFilterValidationError(filter)).toBeNull();
+    }
+  });
+
+  it("rejects operators the phone fields do not support", () => {
+    expect(
+      getSegmentFilterValidationError({
+        field: "phone",
+        operator: "is",
+        value: "+44",
+      })
+    ).toContain('Operator "is" is not supported for phone filters');
+    expect(
+      getSegmentFilterValidationError({
+        field: "phoneCountry",
+        operator: "starts_with",
+        value: "GB",
+      })
+    ).toContain("Use one of: is, is_not");
+    expect(
+      getSegmentFilterValidationError({
+        field: "phoneCountry",
+        operator: "is",
+        value: " ",
+      })
+    ).not.toBeNull();
+  });
+});

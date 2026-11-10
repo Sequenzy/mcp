@@ -3,7 +3,15 @@ import { pollRespondentFilterHint } from "./descriptions.js";
 
 export const segmentOperatorsByField = {
   status: ["is", "is_not"],
-  phone: ["is_not_empty", "is_empty"],
+  phone: [
+    "is_not_empty",
+    "is_empty",
+    "starts_with",
+    "not_starts_with",
+    "contains",
+    "not_contains",
+  ],
+  phoneCountry: ["is", "is_not"],
   smsStatus: ["is", "is_not"],
   tag: ["contains", "not_contains", "is_empty", "is_not_empty"],
   email: ["contains", "not_contains", "is", "is_not"],
@@ -69,6 +77,7 @@ export const segmentFilterItemSchema = {
       enum: [
         "status",
         "phone",
+        "phoneCountry",
         "smsStatus",
         "tag",
         "email",
@@ -98,7 +107,7 @@ export const segmentFilterItemSchema = {
         "commerceCollection",
         "geofence",
       ],
-      description: `Filter field. Use \`email\` with is/is_not for exact, case-insensitive address matching (allowlists and exclusions) and with contains/not_contains for domain or substring matching. Use \`phone\` with is_not_empty/is_empty to check whether a subscriber has a phone number, and \`smsStatus\` (is/is_not one of \`subscribed\`, \`unsubscribed\`, \`not_subscribed\`) for SMS marketing consent. Use \`event\` for custom subscriber events, \`segment\` for saved segment membership, \`stripeProduct\`/\`stripeCurrentProduct\`/\`stripeTrialProduct\` for Stripe product-based segments, and \`commerceProduct\` for products purchased through commerce orders - the value is \`provider:productId\` (provider one of \`shopify\`, \`woocommerce\`, \`api\`; product ids are provider-scoped), optionally with an order-count threshold (\`provider:productId:count\`) for at_least/less_than_count; a bare product id matches the id on any provider. Use \`commerceCollection\` to segment on anyone who bought ANY product in a store collection - the value is the collection id or handle (e.g. \`skincare\`), optionally provider-prefixed and/or with an order-count threshold (\`shopify:skincare:2\`); collection membership is resolved from the synced catalog as it stands now, and only Shopify collections and WooCommerce categories are synced. Engagement fields (\`emailSent\`, \`emailDelivered\`, \`emailOpened\`, \`emailClicked\`, \`emailBounced\`, \`emailComplained\`) accept a time range as the value, a specific campaign via \`campaign:<campaign_id>\`, an email-type scope via \`marketing:<timeRange>\` (marketing-policy campaign, automation, and Send API traffic) or \`transactional:<timeRange>\` (transactional-policy sends), or \`count:timeRange\` (e.g. \`10:30d\`, \`10:all\`) with at_least/less_than_count to segment by number of opens/clicks. Use \`attribute\` with \`name:value\` for custom attributes; in a workspace with Organizations, names such as \`organization.plan\`, \`organization.role\` (owner, admin, member) or \`organization.externalId\` filter on the contact's organization. Push fields: \`pushDevice\` (is = has, is_not = has no) takes \`any\`, \`web\`, \`ios\`, or \`android\` and matches active push devices; \`pushSent\`, \`pushDelivered\` (displayed on a device), and \`pushClicked\` take is/is_not with a time range (\`30d\`, \`all\`) and ignore test sends. Use \`geofence\` for visits to places your mobile app watches: value \`transition:target:timeRange\` (count operators \`transition:target:count:timeRange\`), where transition is entered, exited or dwelled, target is any, group=<group> or id=<geofenceId>[,<geofenceId>...], and timeRange is <N>d or all, e.g. entered:group=stores:30d or dwelled:id=geo_1:2:90d. ${pollRespondentFilterHint}`,
+      description: `Filter field. Use \`email\` with is/is_not for exact, case-insensitive address matching (allowlists and exclusions) and with contains/not_contains for domain or substring matching. Use \`phone\` with is_not_empty/is_empty to check whether a subscriber has a phone number, or with starts_with/not_starts_with/contains/not_contains and a digit fragment matched against the stored E.164 number (\`+44\` for UK numbers, \`+1415\` for a US area code; spaces and dashes are ignored, and negative operators only match contacts that have a phone). Use \`phoneCountry\` with is/is_not and ISO 3166-1 alpha-2 codes, comma-separated for several (\`GB\`, \`US,CA\`), to match the country derived from the phone number (contacts without a phone never match). Use \`smsStatus\` (is/is_not one of \`subscribed\`, \`unsubscribed\`, \`not_subscribed\`) for SMS marketing consent. Use \`event\` for custom subscriber events, \`segment\` for saved segment membership, \`stripeProduct\`/\`stripeCurrentProduct\`/\`stripeTrialProduct\` for Stripe product-based segments, and \`commerceProduct\` for products purchased through commerce orders - the value is \`provider:productId\` (provider one of \`shopify\`, \`woocommerce\`, \`api\`; product ids are provider-scoped), optionally with an order-count threshold (\`provider:productId:count\`) for at_least/less_than_count; a bare product id matches the id on any provider. Use \`commerceCollection\` to segment on anyone who bought ANY product in a store collection - the value is the collection id or handle (e.g. \`skincare\`), optionally provider-prefixed and/or with an order-count threshold (\`shopify:skincare:2\`); collection membership is resolved from the synced catalog as it stands now, and only Shopify collections and WooCommerce categories are synced. Engagement fields (\`emailSent\`, \`emailDelivered\`, \`emailOpened\`, \`emailClicked\`, \`emailBounced\`, \`emailComplained\`) accept a time range as the value, a specific campaign via \`campaign:<campaign_id>\`, an email-type scope via \`marketing:<timeRange>\` (marketing-policy campaign, automation, and Send API traffic) or \`transactional:<timeRange>\` (transactional-policy sends), or \`count:timeRange\` (e.g. \`10:30d\`, \`10:all\`) with at_least/less_than_count to segment by number of opens/clicks. Use \`attribute\` with \`name:value\` for custom attributes; in a workspace with Organizations, names such as \`organization.plan\`, \`organization.role\` (owner, admin, member) or \`organization.externalId\` filter on the contact's organization. Push fields: \`pushDevice\` (is = has, is_not = has no) takes \`any\`, \`web\`, \`ios\`, or \`android\` and matches active push devices; \`pushSent\`, \`pushDelivered\` (displayed on a device), and \`pushClicked\` take is/is_not with a time range (\`30d\`, \`all\`) and ignore test sends. Use \`geofence\` for visits to places your mobile app watches: value \`transition:target:timeRange\` (count operators \`transition:target:count:timeRange\`), where transition is entered, exited or dwelled, target is any, group=<group> or id=<geofenceId>[,<geofenceId>...], and timeRange is <N>d or all, e.g. entered:group=stores:30d or dwelled:id=geo_1:2:90d. ${pollRespondentFilterHint}`,
     },
     operator: {
       type: "string",
@@ -109,6 +118,8 @@ export const segmentFilterItemSchema = {
         "is_not_empty",
         "contains",
         "not_contains",
+        "starts_with",
+        "not_starts_with",
         "less_than",
         "more_than",
         "is_temporary_bounce",
