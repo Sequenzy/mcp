@@ -606,6 +606,7 @@ export async function handleAnalyticsAndTransactionalTools(
       const params = new URLSearchParams();
       const blockId = optionalString(args, "blockId");
       if (blockId) params.set("blockId", blockId);
+      if (args["hasComment"] === true) params.set("hasComment", "true");
       for (const field of ["page", "limit"] as const) {
         if (args[field] !== undefined) {
           params.set(field, String(args[field]));

@@ -238,6 +238,7 @@ delivery; polling, streaming and replay are not offered, so `cursor` is always
 | `email.bounced`               | An email you sent bounces                  | `campaign_id`, `sequence_id` | `analytics:read`     |
 | `email.complained`            | A recipient marks an email as spam         | `campaign_id`, `sequence_id` | `analytics:read`     |
 | `poll.answered`               | A recipient answers a poll in an email     | `campaign_id`, `sequence_id` | `analytics:read`     |
+| `poll.commented`              | A recipient comments after answering a poll | `campaign_id`, `sequence_id` | `analytics:read`     |
 | `subscriber.created`          | A subscriber is added, from any source     | `list_id`, `tag`             | `subscribers:read`   |
 | `subscriber.unsubscribed`     | A subscriber unsubscribes                  | `tag`                        | `subscribers:read`   |
 | `campaign.sent`               | A campaign finishes sending                | `campaign_id`                | `campaigns:read`     |
@@ -1599,6 +1600,11 @@ such as `nps_score`. The scale is always 0-10; optional `npsLowLabel` and
 `npsHighLabel` customize its captions. Each answer updates the subscriber
 attribute and fires `poll.answered` for automations and outbound webhooks.
 
+Set `"commentEnabled": true` to show a comment box under the answer on the
+hosted thank-you page; `commentPrompt` changes its question. Each comment fires
+`poll.commented` and shows up in `list_poll_responses`. A poll with
+`redirectUrl` never shows the hosted page, so it ignores both fields.
+
 Set `"allowMultiple": true` on a text-only options poll to open a hosted page
 where recipients can check several answers and save the whole selection at
 once. The subscriber attribute stores the selected-value list, so attribute
@@ -1606,6 +1612,14 @@ segments should use `contains`. Multi-select polls cannot use option images or
 configurations whose encoded signed links exceed the delivery-safe size limit.
 Campaign poll summaries set `allowMultiple: true`, use respondent count for
 `totalResponses`, and can report answer percentages that add up past 100%.
+
+Set `"optionLayout": "row"` to put text answers side by side in equal-width
+columns instead of stacking them (`"stacked"`, the default). Image answers and
+NPS scales keep their own layout.
+
+When `redirectUrl` is set, respondents land on that page with the chosen value
+appended as `?answer=<value>`: the score for NPS, and one `answer` per selected
+option for multi-select polls. A URL that already sets `answer` is left as is.
 
 Poll blocks also support brand-specific styling. `accentColor` recolors every
 appearance, including `"brutal"`; `optionRadius` sets answer-button corners in
@@ -2167,6 +2181,9 @@ Use `list_poll_responses` to read who answered what and when. It returns each
 subscriber's latest answer per poll block, newest first, including the email,
 stored value, attribute key, and response time. Pass `blockId` to scope one
 poll; for a sequence email step, pass its automation node ID as `campaignId`.
+Rows carry the respondent's latest `comment`, the `commentAnswer` it was
+written under and `commentedAt` (all null without a comment); pass
+`hasComment: true` to list only respondents who commented.
 Do not reconstruct this history by scanning subscriber attributes: an
 attribute has no response timestamp and may have been overwritten by a later
 email that reused the same key.

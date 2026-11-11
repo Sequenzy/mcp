@@ -296,7 +296,7 @@ export const analyticsToolDefinitions: Tool[] = [
   {
     name: "list_poll_responses",
     description:
-      "List individual Poll and NPS responses for a campaign, newest answer first, with each respondent's email, their answer and stored value, the subscriber attribute the answer was saved to, and the response time. get_campaign_stats reports the totals; this reports who answered what and when. Only each subscriber's latest answer per poll block is returned, so the counts match the campaign stats summary. Do not reconstruct respondents by scanning subscribers for the poll attribute - the attribute carries no response time and reflects the latest answer to any email. Multi-select answers list every selected option in answers/values. Results are paginated: read the returned pagination object and keep paging with page while page < totalPages.",
+      "List individual Poll and NPS responses for a campaign, newest answer first, with each respondent's email, their answer and stored value, the subscriber attribute the answer was saved to, and the response time. get_campaign_stats reports the totals; this reports who answered what and when. Only each subscriber's latest answer per poll block is returned, so the counts match the campaign stats summary. Do not reconstruct respondents by scanning subscribers for the poll attribute - the attribute carries no response time and reflects the latest answer to any email. Multi-select answers list every selected option in answers/values. comment holds the respondent's latest comment from the poll's confirmation page (null if none), commentAnswer the answer it was written under. Results are paginated: read the returned pagination object and keep paging with page while page < totalPages.",
     inputSchema: {
       type: "object",
       properties: {
@@ -314,6 +314,11 @@ export const analyticsToolDefinitions: Tool[] = [
           type: "string",
           description:
             "Restrict to one poll block. Block IDs come from the polls array of get_campaign_stats, or steps[].polls of get_sequence_stats for a sequence step. Omit to return every poll block in the email.",
+        },
+        hasComment: {
+          type: "boolean",
+          description:
+            "true lists only respondents who left a comment, newest comment first.",
         },
         page: {
           type: "number",

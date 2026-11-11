@@ -3308,7 +3308,7 @@ export const outputPropertiesByToolName: Record<
     responses: {
       type: "array",
       description:
-        "Individual responses, newest answer first. Each entry has subscriberId, email, externalId, firstName, lastName, blockId, variant (options or nps), question, attributeKey (the subscriber attribute the answer was stored under), allowMultiple, answers (selected option labels), values (their stored values), and respondedAt. Only each subscriber's latest answer per block appears. email is null when the subscriber has since been deleted.",
+        "Individual responses, newest answer first. Each entry has subscriberId, email, externalId, firstName, lastName, blockId, variant (options or nps), question, attributeKey (the subscriber attribute the answer was stored under), allowMultiple, answers (selected option labels), values (their stored values), respondedAt, and comment, commentAnswer and commentedAt (null without a comment). Only each subscriber's latest answer per block appears. email is null when the subscriber has since been deleted.",
       items: objectOutputProperty("One respondent's latest answer."),
     },
     pagination: objectOutputProperty(
