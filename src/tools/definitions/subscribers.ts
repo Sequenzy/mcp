@@ -56,7 +56,7 @@ export const subscriberToolDefinitions: Tool[] = [
   {
     name: "add_subscriber",
     description:
-      "Add one subscriber. Status is only applied when creating a new contact; use update_subscriber to change an existing contact's status. The subscribers:write scope covers listIds in this call. Matching sequences enroll by default (REST enrollInSequences), including tag_added when tags are set in this call, without requiring a list; pass enrollInSequences false to skip, and automations:trigger is required for enrollment. For multiple contacts or CRM records, use create_subscriber_import instead of looping this tool. For an email-only batch going into one list, add_subscribers_to_list is also available.",
+      "Add one subscriber. Status is only applied when creating a new contact; use update_subscriber to change an existing contact's status. The subscribers:write scope covers listIds in this call. Matching sequences enroll by default (REST enrollInSequences), including tag_added when tags are set in this call, without requiring a list; pass enrollInSequences false to skip, and automations:trigger is required for enrollment. Without automations:trigger the call succeeds but starts no sequence (sequenceTriggersRan false, reason missing_scope). For multiple contacts or CRM records, use create_subscriber_import instead of looping this tool. For an email-only batch going into one list, add_subscribers_to_list is also available.",
     inputSchema: {
       type: "object",
       properties: {
@@ -246,7 +246,7 @@ export const subscriberToolDefinitions: Tool[] = [
   {
     name: "update_subscriber",
     description:
-      "Update an existing subscriber's profile, phone, status, attributes, or tags. Names and phones are native profile fields - set them here rather than as custom attributes. Setting status to unsubscribed suppresses the contact from all marketing, deactivates list memberships, and cancels active sequence enrollments while preserving the record and suppression history.",
+      "Update an existing subscriber's profile, phone, status, attributes, or tags. Names and phones are native profile fields - set them here rather than as custom attributes. Setting status to unsubscribed suppresses the contact from all marketing, deactivates list memberships, and cancels active sequence enrollments while preserving the record and suppression history. Without automations:trigger, added tags start no sequence (sequenceTriggersRan false).",
     inputSchema: {
       type: "object",
       properties: {
@@ -484,7 +484,7 @@ export const subscriberToolDefinitions: Tool[] = [
   {
     name: "trigger_subscriber_event",
     description:
-      "Emit a custom event for one subscriber, exactly as an integration or the public API would. This is the supported way to exercise event triggers, matching-field idempotency, branch conditions, and stop conditions end to end without waiting for real traffic. The event is recorded, sync rules apply, and matching event_received sequences enroll. Creates the subscriber if they do not exist. Use trigger_subscriber_events for several events on the same contact.",
+      "Emit a custom event for one subscriber, exactly as an integration or the public API would. This is the supported way to exercise event triggers, matching-field idempotency, branch conditions, and stop conditions end to end without waiting for real traffic. The event is recorded, sync rules apply, and matching event_received sequences enroll. Without automations:trigger the call succeeds but starts no sequence (sequenceTriggersRan false, reason missing_scope). Creates the subscriber if they do not exist. Use trigger_subscriber_events for several events on the same contact.",
     inputSchema: {
       type: "object",
       properties: {
@@ -560,7 +560,7 @@ export const subscriberToolDefinitions: Tool[] = [
   {
     name: "trigger_subscriber_events",
     description:
-      "Emit several custom events for one subscriber in order. Events are processed independently and sequentially, so a partial failure can still leave earlier events recorded.",
+      "Emit several custom events for one subscriber in order. Events are processed independently and sequentially, so a partial failure can still leave earlier events recorded. Without automations:trigger the call succeeds but starts no sequence (sequenceTriggersRan false, reason missing_scope).",
     inputSchema: {
       type: "object",
       properties: {
@@ -622,7 +622,7 @@ export const subscriberToolDefinitions: Tool[] = [
   {
     name: "import_subscriber_events",
     description:
-      "Record a bounded batch of events for many subscribers in one call, built for data pipeline and warehouse syncs. Each event carries its own email or externalId and a required source-owned eventId; externalId-only rows must identify an existing contact because email is required for creation. Contacts whose events are all more than an hour old are imported silently as history (including no double-opt-in email); any recent event makes that contact's whole group live. Retries keep one receipt and re-attempt any downstream recovery that has not finished. Accepts at most 25 events.",
+      "Record a bounded batch of events for many subscribers in one call, built for data pipeline and warehouse syncs. Each event carries its own email or externalId and a required source-owned eventId; externalId-only rows must identify an existing contact because email is required for creation. Contacts whose events are all more than an hour old are imported silently as history (including no double-opt-in email); any recent event makes that contact's whole group live. Retries keep one receipt and re-attempt any downstream recovery that has not finished. Accepts at most 25 events. Without automations:trigger the call succeeds but starts no sequence for live rows (sequenceTriggersRan false, reason missing_scope).",
     inputSchema: {
       type: "object",
       properties: {
@@ -679,7 +679,7 @@ export const subscriberToolDefinitions: Tool[] = [
   {
     name: "bulk_add_subscriber_tags",
     description:
-      "Add tags to up to 500 existing subscribers in one call, identified by emails, externalIds, or subscriberIds. Built for reconciling historical or derived tags: subscribers that do not exist are reported in notFound instead of being created, and tag automations do NOT run unless triggerAutomations is true. Needs the subscribers:tag scope; a tag name that does not exist yet also needs tags:write. The agent_safe key preset includes both. Use add_subscriber or update_subscriber for single-contact changes.",
+      "Many contacts, one or more tags: add tags to up to 500 existing subscribers in one call, identified by emails, externalIds, or subscriberIds. Never creates contacts. Built for reconciling historical or derived tags: subscribers that do not exist are reported in notFound instead of being created, and tag automations do NOT run unless triggerAutomations is true. Needs the subscribers:tag scope; a tag name that does not exist yet also needs tags:write. The agent_safe key preset includes both. Use add_subscriber or update_subscriber for single-contact changes.",
     inputSchema: {
       type: "object",
       properties: {
@@ -722,7 +722,7 @@ export const subscriberToolDefinitions: Tool[] = [
   {
     name: "bulk_remove_subscriber_tags",
     description:
-      "Remove tags from up to 500 existing subscribers in one call, identified by emails, externalIds, or subscriberIds. Subscribers that do not exist are reported in notFound. Needs the subscribers:tag scope; the broader subscribers:write scope also satisfies it. Use this to roll back or reconcile a derived-tag backfill.",
+      "Many contacts, one or more tags: remove tags from up to 500 existing subscribers in one call, identified by emails, externalIds, or subscriberIds. Never creates contacts: subscribers that do not exist are reported in notFound. Needs the subscribers:tag scope; the broader subscribers:write scope also satisfies it. Use this to roll back or reconcile a derived-tag backfill.",
     inputSchema: {
       type: "object",
       properties: {

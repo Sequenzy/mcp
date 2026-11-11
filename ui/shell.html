@@ -19,20 +19,29 @@
           <img src="/* APP_LOGO */" width="25" height="25" alt="" /><span
             >Sequenzy</span
           ><span class="brand-divider"></span
-          ><span class="preview-label">Preview</span>
+          ><span id="preview-label" class="preview-label">Preview</span>
         </div>
-        <button
-          id="refresh"
-          class="icon-button"
-          aria-label="Refresh preview"
-          title="Refresh preview"
-          hidden
-        ></button>
+        <div class="header-actions">
+          <button
+            id="refresh"
+            class="icon-button"
+            aria-label="Refresh preview"
+            title="Refresh preview"
+            hidden
+          ></button
+          ><button
+            id="expand"
+            class="icon-button"
+            aria-label="Open in a larger view"
+            title="Open in a larger view"
+            hidden
+          ></button>
+        </div>
       </header>
       <section class="heading-row">
         <div class="heading-copy">
           <button id="back" class="back-button" hidden>
-            Sequence overview
+            <span id="back-label">Sequence overview</span>
           </button>
           <h1 id="heading">Your preview</h1>
           <p id="subtitle">See how your emails and sequences come together.</p>
@@ -47,6 +56,7 @@
         <button id="flow-tab" aria-selected="true">Sequence flow</button
         ><button id="emails-tab" aria-selected="false">Emails</button>
       </nav>
+      <section id="home-view" class="home-view" hidden></section>
       <section id="sequence-view" hidden>
         <div id="flow-panel" class="flow-panel">
           <div id="flow-viewport" class="flow-viewport">
@@ -89,6 +99,7 @@
             ></button>
           </div>
           <div id="variants" class="variants" aria-label="Email variants"></div>
+          <button id="ask" class="ask-button" hidden>Ask for changes</button>
           <div class="device-switch" aria-label="Preview width">
             <button
               id="desktop"

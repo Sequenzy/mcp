@@ -285,6 +285,23 @@ export const genericOutputProperties: OutputSchemaProperties = {
   ),
 };
 
+/**
+ * Whether a subscriber write could start sequences. A key without
+ * automations:trigger still succeeds, so these are the only signal that its
+ * sequences did not start.
+ */
+const sequenceTriggerOutputProperties: OutputSchemaProperties = {
+  sequenceTriggersRan: booleanOutputProperty(
+    "False when no sequence could start from this call (see sequenceTriggersSkippedReason)."
+  ),
+  sequenceTriggersSkippedReason: {
+    type: "string",
+    enum: ["missing_scope", "not_requested", "historical"],
+    description:
+      "missing_scope: key lacks automations:trigger (write still applied). not_requested: enrollInSequences false. historical: recorded as history.",
+  },
+};
+
 const subscriberOperationOutputProperty: OutputSchemaProperty = {
   type: "object",
   properties: {
@@ -1276,6 +1293,7 @@ export const outputPropertiesByToolName: Record<
   },
   add_subscriber: {
     subscriber: resourceOutputProperty("subscriber"),
+    ...sequenceTriggerOutputProperties,
   },
   create_subscriber_import: {
     import: objectOutputProperty(SUBSCRIBER_IMPORT_HINT),
@@ -1288,6 +1306,8 @@ export const outputPropertiesByToolName: Record<
   },
   update_subscriber: {
     subscriber: resourceOutputProperty("subscriber"),
+    // Only present when the call changed tags (addTags/removeTags).
+    ...sequenceTriggerOutputProperties,
   },
   remove_subscriber: {
     subscriber: resourceOutputProperty("subscriber"),
@@ -1348,12 +1368,15 @@ export const outputPropertiesByToolName: Record<
         "Sync-rule or automation side effects that failed. The event itself is still recorded.",
       items: stringOutputProperty("One failed side effect."),
     },
+    ...sequenceTriggerOutputProperties,
   },
   trigger_subscriber_events: {
     subscriber: resourceOutputProperty("subscriber"),
     events: resourceListOutputProperty("recorded event"),
+    ...sequenceTriggerOutputProperties,
   },
   import_subscriber_events: {
+    ...sequenceTriggerOutputProperties,
     total: numberOutputProperty("Events submitted in this request."),
     recorded: numberOutputProperty("Events recorded by this request."),
     duplicates: numberOutputProperty(
@@ -1473,6 +1496,20 @@ export const outputPropertiesByToolName: Record<
   remove_product_file: {
     product: resourceOutputProperty("product"),
   },
+  open_sequenzy: {
+    mode: stringOutputProperty("Widget mode: home."),
+    companyId: nullableStringOutputProperty(
+      "Company shown; null when the connection has no company."
+    ),
+    companyName: nullableStringOutputProperty("Its name."),
+    companies: arrayOutputProperty("Companies to switch between (id, name)."),
+    sequences: objectOutputProperty(
+      "`items` (id, name, status, effectiveStatus, emailCount, updatedAt; up to 50), `total`, and `error` when unreadable."
+    ),
+    campaigns: objectOutputProperty(
+      "`items` (id, name, subject, status, updatedAt; up to 25), `total`, and `error` when unreadable."
+    ),
+  },
   open_image_upload: {
     mode: stringOutputProperty("Widget mode: upload."),
     companyId: stringOutputProperty("Pinned target company ID."),
@@ -1489,6 +1526,15 @@ export const outputPropertiesByToolName: Record<
     sequenceId: stringOutputProperty("Pinned sequence ID."),
     sequence: objectOutputProperty(
       "Saved sequence topology and email steps, as returned by get_sequence."
+    ),
+  },
+  crop_image_asset: {
+    asset: resourceOutputProperty("hosted cropped image asset"),
+    crop: objectOutputProperty(
+      "Crop record (sourceSrc, croppedSrc, x, y, width, height) stored on the image block so the editor can re-open or undo the crop."
+    ),
+    imageBlock: objectOutputProperty(
+      "Ready-to-insert Sequenzy image block using the cropped asset URL."
     ),
   },
   upload_image_asset: {
@@ -1643,6 +1689,19 @@ export const outputPropertiesByToolName: Record<
   },
   delete_segment: {
     segmentId: stringOutputProperty("Deleted segment ID."),
+    success: booleanOutputProperty("Whether the segment was deleted."),
+    affectedSequences: arrayOutputProperty(
+      "Sequences (not archived) that read the deleted segment: id, name, status and usages (trigger, condition, filter, stop_condition, audience). They now treat every contact as not in the segment."
+    ),
+    affectedCampaigns: arrayOutputProperty(
+      "Unsent campaigns (scheduled, waiting approval, sending or paused) and live in-app campaigns that targeted or excluded the segment: id, name, status, type. The affected* fields are omitted when the usage check failed."
+    ),
+    affectedSegments: arrayOutputProperty(
+      "Other segments whose rules referenced the deleted segment: id, name."
+    ),
+    affectedAudienceSyncs: arrayOutputProperty(
+      "Ad audience syncs that pushed the segment's members: id, audienceName."
+    ),
   },
   get_segment_count: {
     count: numberOutputProperty("Number of subscribers matching the segment."),
@@ -3013,6 +3072,9 @@ export const outputPropertiesByToolName: Record<
   },
   delete_sequence: {
     sequenceId: stringOutputProperty("Deleted sequence ID."),
+    contactsInSequence: numberOutputProperty(
+      "Contacts who were still in the sequence (running, waiting or paused). They were removed and get none of its remaining steps."
+    ),
   },
   list_transactional_emails: {
     transactional: resourceListOutputProperty(
@@ -4006,6 +4068,9 @@ export const outputPropertiesByToolName: Record<
   },
   estimate_in_app_campaign_recipients: {
     audienceCount: numberOutputProperty("Contacts who match the audience now."),
+    appUserCount: numberOutputProperty(
+      "Of those, contacts known to have your app connected (an active iOS or Android device, or an in-app message their app displayed). A lower bound."
+    ),
   },
   send_in_app_campaign: {
     campaign: resourceOutputProperty("in-app campaign"),

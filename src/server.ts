@@ -26,6 +26,25 @@ const LIST_CACHE_HINT = {
   cacheScope: "public" as const,
 };
 
+/**
+ * Handshake identity that clients and MCP directories show for the server.
+ * Directories match store listings to a server by `websiteUrl` and name.
+ */
+export const SERVER_INFO = {
+  name: "sequenzy",
+  title: "Sequenzy",
+  description:
+    "Email marketing for SaaS and apps: manage subscribers, lists, segments, campaigns, automated sequences, templates, transactional email and delivery stats.",
+  websiteUrl: "https://www.sequenzy.com",
+  icons: [
+    {
+      src: "https://www.sequenzy.com/logo.png",
+      mimeType: "image/png",
+      sizes: ["256x256"],
+    },
+  ],
+};
+
 interface CreateSequenzyMcpServerOptions {
   /** The stdio server started without an API key; tell the agent how to fix it. */
   apiKeyMissing?: boolean;
@@ -66,10 +85,7 @@ export function createSequenzyMcpServer(
   const profileTools = getToolsForProfile(tools, profile);
 
   const server = new McpServer(
-    {
-      name: "sequenzy",
-      version: packageJson.version,
-    },
+    { ...SERVER_INFO, version: packageJson.version },
     {
       capabilities: {
         tools: { listChanged: false },

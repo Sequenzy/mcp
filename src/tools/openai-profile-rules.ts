@@ -32,6 +32,8 @@ export type RestrictedCategory =
  * OpenAI-reviewed surface even though they stay on standard MCP.
  */
 export const OPENAI_EXCLUDED_TOOL_NAMES: ReadonlySet<string> = new Set([
+  // Not yet submitted for OpenAI app review.
+  "open_sequenzy",
   "connect_integration",
   "create_api_key",
   // Accept storage or warehouse credentials.

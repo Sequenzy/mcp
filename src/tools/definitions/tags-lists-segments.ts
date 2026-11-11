@@ -361,7 +361,7 @@ export const tagListSegmentToolDefinitions: Tool[] = [
   {
     name: "delete_segment",
     description:
-      "Permanently delete a segment. This cannot be undone. Subscribers are not affected. Requires the segments:delete scope; segments:write is not enough.",
+      "Permanently delete a segment. This cannot be undone. Subscribers are not affected. Deleting is never blocked when the segment is in use: the result lists `affectedSequences` (with how each uses it), `affectedCampaigns`, `affectedSegments` and `affectedAudienceSyncs`, which from then on treat every contact as not in the segment. Requires the segments:delete scope; segments:write is not enough.",
     inputSchema: {
       type: "object",
       properties: {

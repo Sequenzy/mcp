@@ -57,6 +57,7 @@ export const MUSE_TOOL_NAMES = [
   "get_campaign_stats",
   "get_email_block_schema",
   "upload_image_asset",
+  "crop_image_asset",
   // AI writing
   "generate_email",
   "generate_subject_lines",

@@ -33,6 +33,14 @@ export const OPENAI_JUSTIFICATIONS_PART_5: Readonly<
     effects:
       "Releases the hostname from the hosting provider (Vercel), so the page stops loading at that custom domain and existing links to it break.",
   },
+  crop_image_asset: {
+    readOnly:
+      "Creates a new cropped image object in the company's media library via POST /api/v1/media/crop; it writes storage and a media row.",
+    destructive:
+      "Purely additive: the original image is kept, and retrying the same crop returns the existing cropped asset instead of overwriting or deleting anything.",
+    openWorld:
+      "Reads the source from the company's media library or the Pexels/Unsplash CDNs, and stores the cropped image in public object storage where anyone with the URL, including email recipients, can view it.",
+  },
   upload_image_asset: {
     readOnly:
       "Stores a new image object in the company's media library via POST /api/v1/media/upload-url and the upload endpoint; it writes storage.",

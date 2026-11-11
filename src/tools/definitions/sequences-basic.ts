@@ -590,7 +590,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
           type: "string",
           enum: ["unlimited", "one_time", "matching_field"],
           description:
-            "Sequence re-entry mode. Defaults to 'unlimited', which re-enrolls a subscriber every time the trigger fires again - for a tag_added drip that means re-applying the tag sends the whole series a second time, so set 'one_time' unless repeat runs are wanted. Exception: ecommerce.back_in_stock and ecommerce.replenishment_due triggers default to 'matching_field' so each product is notified separately; leave those alone unless the user asks otherwise. Use 'matching_field' only for event_received triggers when duplicate active runs should be blocked per event field value. Changeable later with update_sequence.",
+            "Sequence re-entry mode. Defaults to 'unlimited', which re-enrolls a subscriber each time the trigger fires once their earlier run has ended (triggers while they are still in it are ignored; frequency triggers enroll each contact once) - for a tag_added drip that means re-applying the tag sends the whole series a second time, so set 'one_time' (enters once ever, even if that run ended early) unless repeat runs are wanted. Exception: ecommerce.back_in_stock and ecommerce.replenishment_due triggers default to 'matching_field' so each product is notified separately; leave those alone unless the user asks otherwise. Use 'matching_field' only for event_received triggers when duplicate active runs should be blocked per event field value. Changeable later with update_sequence.",
         },
         enrollmentFieldPath: {
           type: "string",
@@ -622,7 +622,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
                 "event_received",
               ],
               description:
-                "Stop condition type. has_tag, added_to_list, entered_segment, field_changed, and event_received stop the run once the thing happens. event_received only counts events received after enrollment - the enrolling event and earlier history never satisfy the stop. does_not_have_tag and removed_from_list stop the run whenever the subscriber lacks that tag or list membership, so they act as a required-tag or required-list allowlist for everyone the trigger enrolls.",
+                "Stop condition type. has_tag, added_to_list and entered_segment read the subscriber's current state before every step: the run stops at the next step whenever they have the tag, are in the list or match the segment, including when that was already true at entry. field_changed stops once the field differs from its value at entry. event_received only counts events received after enrollment - the enrolling event and earlier history never satisfy the stop. does_not_have_tag and removed_from_list stop the run whenever the subscriber lacks that tag or list membership, so they act as a required-tag or required-list allowlist for everyone the trigger enrolls.",
             },
             value: {
               type: ["string", "null"],

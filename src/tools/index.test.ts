@@ -1,5 +1,6 @@
 import { AjvJsonSchemaValidator } from "@modelcontextprotocol/server/validators/ajv";
 import {
+  afterAll,
   afterEach,
   beforeEach,
   describe,
@@ -31,7 +32,15 @@ const mockApiUploadRequest = mock(
   ) => undefined
 );
 
+// Bun keeps module mocks for the rest of a single-process run, so the mock
+// spreads the real runtime and is replaced by it again after this file.
+const actualRuntime = { ...(await import("../runtime.js")) };
+afterAll(async () => {
+  await mock.module("../runtime.js", () => actualRuntime);
+});
+
 await mock.module("../runtime.js", () => ({
+  ...actualRuntime,
   areLocalFileUploadsEnabled: () => false,
   apiRequest: mockApiRequest,
   apiUploadRequest: mockApiUploadRequest,
@@ -269,8 +278,13 @@ describe("MCP tool profiles", () => {
     // in-app campaign tools, about 18 KB, and push language versions on
     // push campaigns and steps plus the two push translation tools, about
     // 13 KB, and the Android Live Update platform filter and descriptions
-    // plus Live Activity audience starts and broadcasts, about 5 KB).
-    expect(JSON.stringify({ tools: standard }).length).toBeLessThan(1_725_000);
+    // plus Live Activity audience starts and broadcasts, about 5 KB, and the
+    // sequence trigger report on five subscriber write tools, about 3 KB,
+    // and the phone segment filters plus the import list check in the
+    // segment and subscriber import descriptions, about 1 KB, and the
+    // open_sequenzy workspace entry point, about 3 KB, and the nested list
+    // item indent field, about 1 KB, and crop_image_asset, about 4 KB).
+    expect(JSON.stringify({ tools: standard }).length).toBeLessThan(1_740_000);
   });
 
   it("renames only on the OpenAI profile and keeps standard names", () => {
@@ -13260,6 +13274,159 @@ describe("image asset tools", () => {
       align: "center",
     });
   });
+
+  describe("crop_image_asset", () => {
+    const original =
+      "https://images.sequenzy.com/email-images/company_123/u1/team.jpg";
+    const asset = {
+      id: "media_crop",
+      filename: "team-cropped.jpg",
+      url: "https://images.sequenzy.com/email-images/company_123/u2/team-cropped.jpg",
+      mimeType: "image/jpeg",
+      size: "1000",
+      width: "800",
+      height: "450",
+      altText: "Team at the offsite",
+      companyId: "company_123",
+      createdAt: "2026-11-10T12:00:00.000Z",
+    };
+    const crop = {
+      sourceSrc: original,
+      croppedSrc: asset.url,
+      x: 0,
+      y: 0.125,
+      width: 1,
+      height: 0.75,
+    };
+
+    it("publishes a plain object schema with crop and aspect options", () => {
+      const tool = tools.find(
+        (candidate) => candidate.name === "crop_image_asset"
+      );
+      expect(tool?.inputSchema.type).toBe("object");
+      expect(tool?.inputSchema.required).toEqual(["sourceUrl"]);
+      expect(JSON.stringify(tool?.inputSchema)).not.toContain("anyOf");
+      const properties = tool?.inputSchema.properties as Record<
+        string,
+        unknown
+      >;
+      expect(Object.keys(properties)).toEqual(
+        expect.arrayContaining([
+          "sourceUrl",
+          "crop",
+          "aspectRatio",
+          "focusX",
+          "focusY",
+        ])
+      );
+    });
+
+    it("crops through the public API and returns a block with its crop record", async () => {
+      mockApiRequest.mockResolvedValueOnce({
+        success: true,
+        asset,
+        crop,
+        sourceWidth: 1600,
+        sourceHeight: 1200,
+      });
+
+      const result = await handleToolCall("crop_image_asset", {
+        companyId: "company_123",
+        sourceUrl: ` ${original} `,
+        aspectRatio: "16:9",
+        focusY: 0.4,
+        altText: " Team at the offsite ",
+        displayWidthPercent: 80,
+        align: "left",
+      });
+
+      expect(result.isError).toBeUndefined();
+      expect(mockApiRequest).toHaveBeenCalledWith(
+        "POST",
+        "/api/v1/media/crop",
+        {
+          sourceUrl: original,
+          aspectRatio: "16:9",
+          focusY: 0.4,
+          altText: "Team at the offsite",
+        },
+        "company_123"
+      );
+      expect(result.structuredContent?.["crop"]).toEqual(crop);
+      expect(result.structuredContent?.["imageBlock"]).toEqual({
+        type: "image",
+        src: asset.url,
+        alt: "Team at the offsite",
+        width: 80,
+        widthType: "percent",
+        align: "left",
+        crop,
+      });
+    });
+
+    it("sends an explicit crop rectangle", async () => {
+      mockApiRequest.mockResolvedValueOnce({
+        success: true,
+        asset,
+        crop,
+        sourceWidth: 1600,
+        sourceHeight: 1200,
+      });
+      const result = await handleToolCall("crop_image_asset", {
+        sourceUrl: original,
+        crop: { x: 0, y: 0.125, width: 1, height: 0.75 },
+      });
+      expect(result.isError).toBeUndefined();
+      expect(mockApiRequest.mock.calls[0]?.[2]).toEqual({
+        sourceUrl: original,
+        crop: { x: 0, y: 0.125, width: 1, height: 0.75 },
+      });
+    });
+
+    it.each([
+      [{}, "`sourceUrl` is required"],
+      [{ sourceUrl: original }, "Provide either `crop` or `aspectRatio`"],
+      [
+        {
+          sourceUrl: original,
+          aspectRatio: "1:1",
+          crop: { x: 0, y: 0, width: 1, height: 1 },
+        },
+        "Provide either `crop` or `aspectRatio`",
+      ],
+      [
+        { sourceUrl: original, crop: { x: 0, y: 0, width: 2, height: 1 } },
+        "`crop` must have numeric",
+      ],
+      [{ sourceUrl: original, crop: "0,0,1,1" }, "`crop` must have numeric"],
+      [
+        {
+          sourceUrl: original,
+          crop: { x: 0, y: 0, width: 1, height: 1 },
+          focusX: 0.5,
+        },
+        "only apply with `aspectRatio`",
+      ],
+      [{ sourceUrl: original, aspectRatio: { w: 1 } }, "`aspectRatio` must be"],
+      [
+        { sourceUrl: original, aspectRatio: "1:1", focusX: 3 },
+        "`focusX` must be",
+      ],
+      [
+        { sourceUrl: original, aspectRatio: "1:1", align: "middle" },
+        "`align` must be",
+      ],
+      [
+        { sourceUrl: original, aspectRatio: "1:1", altText: "a".repeat(501) },
+        "500 characters",
+      ],
+    ])("rejects invalid input %#", async (args, message) => {
+      const result = await handleToolCall("crop_image_asset", args);
+      expect(result.isError).toBe(true);
+      expect(result.content[0]?.text).toContain(message);
+      expect(mockApiRequest).not.toHaveBeenCalled();
+    });
+  });
 });
 
 describe("campaign lifecycle tools", () => {
@@ -14175,6 +14342,61 @@ describe("update_segment tool", () => {
       undefined,
       "comp_123"
     );
+  });
+
+  it("returns how many contacts a deleted sequence dropped", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      message: "Sequence deleted",
+      sequenceId: "seq_1",
+      contactsInSequence: 12,
+    });
+
+    const result = await handleToolCall("delete_sequence", {
+      sequenceId: "seq_1",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "DELETE",
+      "/api/v1/sequences/seq_1",
+      undefined,
+      undefined
+    );
+    expect(result.structuredContent).toMatchObject({ contactsInSequence: 12 });
+    const tool = tools.find(
+      (candidate) => candidate.name === "delete_sequence"
+    );
+    expect(tool?.description).toContain("contactsInSequence");
+    expect(
+      tool?.outputSchema?.properties?.["contactsInSequence"]
+    ).toBeDefined();
+  });
+
+  it("returns the sequences and campaigns that used a deleted segment", async () => {
+    const affectedSequences = [
+      { id: "seq_1", name: "Win-back", status: "active", usages: ["trigger"] },
+    ];
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      affectedSequences,
+      affectedCampaigns: [],
+      affectedSegments: [],
+      affectedAudienceSyncs: [],
+    });
+
+    const result = await handleToolCall("delete_segment", {
+      segmentId: "seg_123",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.structuredContent).toMatchObject({
+      success: true,
+      affectedSequences,
+    });
+    const tool = tools.find((candidate) => candidate.name === "delete_segment");
+    expect(tool?.description).toContain("affectedSequences");
+    expect(tool?.outputSchema?.properties?.["affectedSequences"]).toBeDefined();
   });
 });
 

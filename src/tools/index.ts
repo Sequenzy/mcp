@@ -1,3 +1,7 @@
+import {
+  formatDefaultedCompanyNote,
+  withCompanyDefaultCollector,
+} from "../company-default-notice.js";
 import { buildMcpErrorResult, formatMcpError } from "../error-output.js";
 import type { Tool } from "../mcp-types.js";
 
@@ -80,14 +84,18 @@ export async function handleToolCall(
     let result: unknown;
     let handled = false;
 
-    for (const handler of toolHandlers) {
-      const response = await handler(handlerName, handlerArgs);
-      if (response.handled) {
-        result = response.result;
-        handled = true;
-        break;
+    const { defaultedCompanyId } = await withCompanyDefaultCollector(
+      async () => {
+        for (const handler of toolHandlers) {
+          const response = await handler(handlerName, handlerArgs);
+          if (response.handled) {
+            result = response.result;
+            handled = true;
+            break;
+          }
+        }
       }
-    }
+    );
 
     if (!handled) {
       throw new Error(`Unknown tool: ${name}`);
@@ -117,6 +125,16 @@ export async function handleToolCall(
           type: "text",
           text: JSON.stringify(result, null, 2),
         },
+        // A separate text block, so structuredContent and the JSON above
+        // keep exactly the fields they always had.
+        ...(defaultedCompanyId
+          ? [
+              {
+                type: "text" as const,
+                text: formatDefaultedCompanyNote(defaultedCompanyId),
+              },
+            ]
+          : []),
       ],
     };
   } catch (error) {

@@ -100,7 +100,7 @@ export const inAppCampaignToolDefinitions: Tool[] = [
   {
     name: "estimate_in_app_campaign_recipients",
     description:
-      "Count the contacts who match an audience now (audienceCount). Contacts who join it while the campaign is live get it too.",
+      "Count contacts who match an audience now (audienceCount) and how many are known to have your app connected (appUserCount, a lower bound). Everyone in the audience gets the campaign the next time their app fetches the feed, including contacts who join while it is live. If appUserCount is 0, say Sequenzy hasn't seen their app connect yet; if in-app isn't set up, point to Settings > In-app.",
     inputSchema: {
       type: "object",
       properties: { companyId, targetLists },

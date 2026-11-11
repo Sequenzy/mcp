@@ -2,8 +2,9 @@
  * Minimal MCP Apps client for the preview widget. It speaks the same
  * JSON-RPC-over-postMessage protocol as `App` from
  * `@modelcontextprotocol/ext-apps` (ui/initialize handshake, host
- * notifications, size reporting, ping and teardown) without bundling the MCP
- * client and zod, which made up most of the widget's size.
+ * notifications, size reporting, display modes, view tools, messages, ping
+ * and teardown) without bundling the MCP client and zod, which made up most
+ * of the widget's size.
  */
 
 export const APP_PROTOCOL_VERSION = "2026-01-26";
@@ -15,9 +16,38 @@ export interface ToolResult {
   content?: Array<{ type: string; text?: string }>;
 }
 
+export type DisplayMode = "inline" | "fullscreen" | "pip";
+
 export interface HostContext {
   theme?: "light" | "dark";
+  displayMode?: DisplayMode;
+  availableDisplayModes?: DisplayMode[];
   [key: string]: unknown;
+}
+
+export interface HostCapabilities {
+  message?: object;
+  [key: string]: unknown;
+}
+
+/** What the view tells the host it supports, sent once in ui/initialize. */
+export interface AppCapabilities {
+  availableDisplayModes?: DisplayMode[];
+  tools?: { listChanged?: boolean };
+}
+
+/** A tool the view itself offers to the host's model (an "app tool"). */
+export interface ViewToolDefinition {
+  name: string;
+  title: string;
+  description: string;
+  inputSchema: {
+    type: "object";
+    properties: Record<string, unknown>;
+    required?: string[];
+    additionalProperties?: boolean;
+  };
+  annotations?: Record<string, boolean>;
 }
 
 interface JsonRpcMessage {
@@ -44,8 +74,15 @@ export class AppBridge {
   ontoolresult?: (result: ToolResult) => void;
   onhostcontextchanged?: (context: HostContext) => void;
   onteardown?: () => Promise<unknown> | unknown;
+  /** Lists the view's tools when the host asks; omit to offer none. */
+  onlisttools?: () => ViewToolDefinition[];
+  oncalltool?: (
+    name: string,
+    args: Record<string, unknown>
+  ) => Promise<ToolResult>;
 
   private hostContext: HostContext | undefined;
+  private hostCapabilities: HostCapabilities | undefined;
   private nextId = 1;
   private readonly pending = new Map<string | number, Pending>();
   private readonly listener = (event: MessageEvent) => {
@@ -57,23 +94,60 @@ export class AppBridge {
 
   constructor(
     private readonly appInfo: { name: string; version: string },
-    private readonly host: HostWindow = window.parent
+    private readonly host: HostWindow = window.parent,
+    private readonly appCapabilities: AppCapabilities = {}
   ) {}
 
   async connect(): Promise<void> {
     window.addEventListener("message", this.listener);
     const result = (await this.request("ui/initialize", {
-      appCapabilities: {},
+      appCapabilities: this.appCapabilities,
       appInfo: this.appInfo,
       protocolVersion: APP_PROTOCOL_VERSION,
-    })) as { hostContext?: HostContext } | undefined;
+    })) as
+      | { hostContext?: HostContext; hostCapabilities?: HostCapabilities }
+      | undefined;
     this.hostContext = result?.hostContext;
+    this.hostCapabilities = result?.hostCapabilities;
     this.notify("ui/notifications/initialized");
     this.reportSize();
   }
 
   getHostContext(): HostContext | undefined {
     return this.hostContext;
+  }
+
+  getHostCapabilities(): HostCapabilities | undefined {
+    return this.hostCapabilities;
+  }
+
+  /**
+   * Hosts grant fullscreen only from a recent click or key press in the view,
+   * so call this directly inside the event handler. Resolves with the mode the
+   * host actually set, which is the current one when it refuses.
+   */
+  async requestDisplayMode(mode: DisplayMode): Promise<DisplayMode> {
+    const result = (await this.request("ui/request-display-mode", {
+      mode,
+    })) as { mode?: DisplayMode } | undefined;
+    if (result?.mode)
+      this.hostContext = { ...this.hostContext, displayMode: result.mode };
+    return this.hostContext?.displayMode ?? "inline";
+  }
+
+  /** Sends a user message to the conversation, as if the user typed it. */
+  async sendMessage(text: string): Promise<{ isError?: boolean }> {
+    const result = (await this.request("ui/message", {
+      role: "user",
+      content: [{ type: "text", text }],
+    })) as { isError?: boolean } | undefined;
+    return result ?? {};
+  }
+
+  /** Tells the host to list the view's tools again. */
+  sendToolListChanged(): void {
+    if (this.appCapabilities.tools?.listChanged)
+      this.notify("notifications/tools/list_changed");
   }
 
   async callServerTool(params: {
@@ -139,6 +213,10 @@ export class AppBridge {
     }
 
     if (message.method === "ping") return this.respond(message.id, {});
+    if (message.method === "tools/list" && this.appCapabilities.tools)
+      return this.respond(message.id, { tools: this.onlisttools?.() ?? [] });
+    if (message.method === "tools/call" && this.appCapabilities.tools)
+      return this.respond(message.id, await this.callViewTool(params));
     if (message.method === "ui/resource-teardown") {
       await this.onteardown?.();
       window.removeEventListener("message", this.listener);
@@ -152,6 +230,34 @@ export class AppBridge {
       },
       "*"
     );
+  }
+
+  private async callViewTool(
+    params: Record<string, unknown>
+  ): Promise<ToolResult> {
+    const name = typeof params["name"] === "string" ? params["name"] : "";
+    const args = params["arguments"];
+    const failure = (text: string): ToolResult => ({
+      isError: true,
+      content: [{ type: "text", text }],
+    });
+    // The handler answers names it no longer lists too: a host can call a
+    // tool from a list it has not refreshed yet, and a normal result keeps
+    // the guidance that an error result might lose.
+    const call = this.oncalltool;
+    if (!call) return failure("This view offers no tools.");
+    try {
+      return await call(
+        name,
+        args !== null && typeof args === "object" && !Array.isArray(args)
+          ? (args as Record<string, unknown>)
+          : {}
+      );
+    } catch (error) {
+      return failure(
+        error instanceof Error ? error.message : "The view could not do that."
+      );
+    }
   }
 
   /** Mirrors ext-apps autoResize: report the content size whenever it changes. */

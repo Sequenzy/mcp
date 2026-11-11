@@ -379,7 +379,7 @@ export const OPENAI_JUSTIFICATIONS_PART_3: Readonly<
     readOnly:
       "Not read-only: DELETE /segments/:id deletes the segment row and removes its trigger index and cached audience membership.",
     destructive:
-      "Destructive: the segment definition is permanently deleted and cannot be restored; contacts are unaffected. There is no in-use check, and it requires the separate segments:delete permission.",
+      "Destructive: the segment definition is permanently deleted and cannot be restored; contacts are unaffected. Deleting is not blocked when the segment is in use (the result lists the sequences, unsent campaigns, segments and ad audience syncs that read it), and it requires the separate segments:delete permission.",
     openWorld:
       "Open world: segments that reference the deleted one change who they match (an exclusion of it then matches everyone), so their running sequences can enroll and email contacts.",
     effects:

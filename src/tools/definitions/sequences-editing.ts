@@ -281,7 +281,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
           type: "string",
           enum: ["unlimited", "one_time", "matching_field"],
           description:
-            "Updated sequence re-entry mode. Use this to move an existing sequence off the default 'unlimited', which re-enrolls a subscriber every time the trigger fires again. 'matching_field' is only valid for event-based sequence triggers.",
+            "Updated sequence re-entry mode. Use this to move an existing sequence off the default 'unlimited', which re-enrolls a subscriber each time the trigger fires once their earlier run has ended (frequency triggers enroll each contact once). 'one_time' enters a subscriber once ever, even if that run ended early. 'matching_field' allows one run at a time per event field value and is only valid for event-based sequence triggers. Changes apply to future enrollments only.",
         },
         enrollmentFieldPath: {
           type: "string",
@@ -360,7 +360,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
                 "event_received",
               ],
               description:
-                "Stop condition type. has_tag, added_to_list, entered_segment, field_changed, and event_received stop the run once the thing happens. event_received only counts events received after enrollment - the enrolling event and earlier history never satisfy the stop. does_not_have_tag and removed_from_list stop the run whenever the subscriber lacks that tag or list membership, so they act as a required-tag or required-list allowlist for everyone the trigger enrolls.",
+                "Stop condition type. has_tag, added_to_list and entered_segment read the subscriber's current state before every step: the run stops at the next step whenever they have the tag, are in the list or match the segment, including when that was already true at entry. field_changed stops once the field differs from its value at entry. event_received only counts events received after enrollment - the enrolling event and earlier history never satisfy the stop. does_not_have_tag and removed_from_list stop the run whenever the subscriber lacks that tag or list membership, so they act as a required-tag or required-list allowlist for everyone the trigger enrolls.",
             },
             value: {
               type: ["string", "null"],
@@ -1961,7 +1961,8 @@ export const sequenceEditingToolDefinitions: Tool[] = [
   },
   {
     name: "delete_sequence",
-    description: "Delete a sequence",
+    description:
+      "Permanently delete a sequence. Contacts still in it are removed and get none of its remaining steps; the result's `contactsInSequence` says how many. To stop new entries but let current contacts finish, use `pause_sequence_enrollments` instead, or `disable_sequence` to hold everyone where they are.",
     inputSchema: {
       type: "object",
       properties: {

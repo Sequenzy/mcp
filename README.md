@@ -12,6 +12,12 @@ In clients that support MCP Apps, including compatible ChatGPT and Claude connec
 - `preview_sequence({ companyId, sequenceId })` opens the saved sequence as a connected diagram with triggers, delays, branches and actions. Select an email to render it, switch between available A/B variants, or use the **Emails** tab to browse the sequence's emails. Random splits show their configured allocation. **Refresh** reloads saved content, and failed requests offer an explicit retry.
 - `list_sequence_email_variations`, `generate_sequence_email_variations`, `list_campaign_variations` and `generate_campaign_variations` open the design variations side by side, each rendered as it would send. While some are still generating, the view updates every few seconds for up to five minutes; after a generate call it follows only the new ones. **Use for Email 1** and **Use for every email** (campaigns: **Use this design**) ask for confirmation, then save through `use_sequence_email_variation` or `use_campaign_variation` with your existing permissions and tell your assistant what changed. Nothing changes until you confirm.
 
+In Claude, previews can also open in the side panel or full screen with the expand button in the view's header, and `open_sequenzy` is listed on Claude's Artifacts page so you can open (and pin) your workspace without asking. These parts of Claude are rolling out gradually; where they are unavailable the previews work as before.
+
+- `open_sequenzy({ companyId? })` opens your workspace: the company's sequences (up to 50) and recent campaigns (up to 25), with a company switcher when your connection reaches more than one. Select a sequence to open its flow or a campaign to render its email; the back link returns to the list. Every input is optional. A list your key cannot read shows as unavailable while the other still loads.
+- While a preview is open, your assistant can change what it shows through tools the view itself offers: `get_view_state` (what you have open), `open_sequence_step`, `open_sequence`, `open_campaign_email`, `show_sequence_overview`, `set_preview_width` and `reload_view`. After it edits the sequence or email you are looking at, `reload_view` shows the saved change in place. These tools only change the view; edits go through the usual write tools and permissions. Your client may ask you to approve them.
+- **Ask for changes**, on an open email, sends your assistant a message naming that email so it can suggest improvements. Nothing changes until you agree to an edit.
+
 Supporting workflows use compact cards in the same Sequenzy style:
 
 - `open_image_upload({ companyId })` opens an image picker. Choose a PNG, JPEG, GIF or WebP up to 10 MB, optionally describe it, then select **Upload image**. Opening the widget does not write anything. Submission uses `upload_image_asset` with your existing permissions and returns the saved asset to your assistant. After an uncertain failure, check your image library before retrying; uploads are never automatically retried.
@@ -85,6 +91,18 @@ not help; reduce the nesting or the number of references with
 Successful results keep their existing shapes. Recoverable partial subscriber
 event imports retain their counts and row failures without `isError`; inspect
 those rows before retrying failed records.
+
+Subscriber writes (`add_subscriber`, `update_subscriber` with tag changes,
+`trigger_subscriber_event`, `trigger_subscriber_events`,
+`import_subscriber_events`) report `sequenceTriggersRan`. When it is `false`
+with `sequenceTriggersSkippedReason: "missing_scope"`, the key lacks
+`automations:trigger`: the write was saved but no sequence started, and
+`warnings` says so.
+
+When an account key runs a tool with no selected company and no `companyId`,
+the API uses a default company. The result then gets a second text block that
+names that company; `structuredContent` is unchanged. Call `select_company`
+when the key reaches more than one company.
 
 ## Quick Setup
 
@@ -894,8 +912,8 @@ abandonment or price-drop settings. Timing values must be positive;
 | `trigger_subscriber_event`    | Emit one custom event exactly as an integration would, applying sync rules and matching sequence triggers.                                         |
 | `trigger_subscriber_events`   | Emit several ordered custom events for one subscriber.                                                                                             |
 | `import_subscriber_events`    | Import up to 25 source-identified events across contacts; silent history requires every row for a contact to be over an hour old.                  |
-| `bulk_add_subscriber_tags`    | Add tags to up to 500 existing subscribers; requires `subscribers:tag` and may also require `tags:write`.                                          |
-| `bulk_remove_subscriber_tags` | Remove tags from up to 500 existing subscribers; requires `subscribers:tag` or `subscribers:write`.                                                |
+| `bulk_add_subscriber_tags`    | Many contacts, one or more tags: add tags to up to 500 existing subscribers, never creating contacts; requires `subscribers:tag` and may also require `tags:write`. |
+| `bulk_remove_subscriber_tags` | Many contacts, one or more tags: remove tags from up to 500 existing subscribers, never creating contacts; requires `subscribers:tag` or `subscribers:write`. |
 
 Use `create_subscriber_import` for CRM onboarding instead of looping over
 `add_subscriber`. One call accepts 5,000 full records and returns an asynchronous
@@ -969,7 +987,7 @@ organization.
 | `list_accounts`                                 | List accounts with search, sort and pagination. `withoutEventRecipients: true` finds accounts with no owner or admin.                                                                                                                                                 |
 | `get_account_by_external_id`                    | Get one account with up to 100 members and their roles.                                                                                                                                                                                                               |
 | `upsert_account`                                | Create or update an account by external ID, with optional members.                                                                                                                                                                                                    |
-| `delete_account`                                | Delete an account and its memberships; contacts are kept.                                                                                                                                                                                                             |
+| `delete_account`                                | Delete one customer organization (Subscribers > Organizations) and its memberships; contacts are kept. Never deletes your Sequenzy account, workspace or login.                                                                                                       |
 | `list_account_members`                          | List members, owners first.                                                                                                                                                                                                                                           |
 | `add_account_member` / `remove_account_member`  | Change membership by email or contact external ID.                                                                                                                                                                                                                    |
 | `trigger_account_event` / `list_account_events` | Record an account event for owners, admins, all or none, and read the timeline.                                                                                                                                                                                       |
@@ -999,9 +1017,10 @@ For Stripe products, `list_products` returns every active price as a variant, wi
 
 ### Image Assets
 
-| Tool                 | Description                                                                                  |
-| -------------------- | -------------------------------------------------------------------------------------------- |
-| `upload_image_asset` | Upload an email image and return its hosted media record plus a ready-to-insert image block. |
+| Tool                 | Description                                                                                                    |
+| -------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `upload_image_asset` | Upload an email image and return its hosted media record plus a ready-to-insert image block.                   |
+| `crop_image_asset`   | Crop a library or Pexels/Unsplash image into a new hosted image and return it with a block carrying its crop. |
 
 The tool accepts PNG, JPEG, GIF, and WebP images up to 10MB. Local stdio clients
 can pass `filePath`. Hosted/remote clients that can access attachment bytes can
@@ -1010,6 +1029,13 @@ use `displayWidthPercent`, `cropHeight`, `objectFit` (`cover` or `contain`), and
 `align` to standardize screenshot presentation. The returned `imageBlock` can
 be copied directly into the block array accepted by campaign, sequence,
 template, and transactional-email tools.
+
+`crop_image_asset` takes the original's `sourceUrl` plus either `crop` (`x`,
+`y`, `width`, `height` as fractions of the image) or `aspectRatio` (such as
+`"16:9"`, with optional `focusX`/`focusY`). The crop is baked into a new file,
+so every email client shows the same area, and the returned
+`imageBlock.crop` lets the editor re-open or undo it. Retrying the same crop
+returns the same asset.
 
 Authenticated image bytes are always uploaded to the origin configured by
 `SEQUENZY_API_URL`, even if a reverse proxy returns an equivalent upload URL
@@ -1044,7 +1070,7 @@ origin.
 | `list_segments`                | List saved segments and counts.                             |
 | `create_segment`               | Create nested or same-element array-filtered segments.      |
 | `update_segment`               | Update segment name, filters, root group, or join operator. |
-| `delete_segment`               | Delete a segment (requires `segments:delete`).              |
+| `delete_segment`               | Delete a segment (requires `segments:delete`); returns the sequences, unsent and live in-app campaigns, segments and ad audience syncs that used it. |
 | `get_segment_count`            | Preview the active subscriber count for a segment.          |
 
 For subscriber exports, `search_subscribers` accepts `listId`, exact `listName`,
@@ -1759,7 +1785,7 @@ propagate.
 | `resume_sequence_subscribers`            | Continue paused contacts from the step they were paused on; waits keep their original time.                                                                                                                                                             |
 | `realign_sequence_enrollments`           | Preview or queue moving live waits earlier to their sending-window opening.                                                                                                                                                                             |
 | `get_sequence_enrollment_realignment`    | Poll an applied realignment job and read its completed result or continuation cursor.                                                                                                                                                                   |
-| `delete_sequence`                        | Delete a sequence.                                                                                                                                                                                                                                      |
+| `delete_sequence`                        | Delete a sequence. Contacts still in it get none of its remaining steps; `contactsInSequence` in the result says how many. Use `pause_sequence_enrollments` to let current contacts finish instead.                                                   |
 
 Sequence creation supports:
 
@@ -2360,7 +2386,7 @@ repeating one is safe; repeating a start shows a second activity.
 | `get_in_app_campaign`   | Read an in-app campaign with its reach and engagement.                              |
 | `create_in_app_campaign` | Create an in-app campaign draft: message, priority, end time and audience.         |
 | `update_in_app_campaign` | Update a draft or scheduled in-app campaign; message fields merge.                 |
-| `estimate_in_app_campaign_recipients` | Count the contacts who match an audience now.                          |
+| `estimate_in_app_campaign_recipients` | Count the contacts who match an audience now and how many have the app. |
 | `send_in_app_campaign`  | Launch now or schedule an in-app campaign.                                          |
 | `unschedule_in_app_campaign` | Move a scheduled in-app campaign back to draft.                                |
 | `stop_in_app_campaign`  | Stop a scheduled or live in-app campaign; unseen messages leave feeds.              |
@@ -2644,7 +2670,7 @@ Test delivery history: `list_email_sends` includes pending, successful and faile
 
 `preview_cart_items` calls `POST /api/v1/email-blocks/line-items/assist` with optional `items` (up to 50 objects), `itemFields`, `priceUnit` (`minor` or `major`) and `scenario` (`real`, `one`, `many`, `empty`, `missing-images`, `long-names`). It returns mapping suggestions, ambiguous numeric price candidates, cloned preview items and three design presets. It never saves or sends; retries have no persistent effects. Existing restricted keys remain supported. Invalid input returns the API validation error.
 
-Apply mappings explicitly and choose numeric price units. Read and update saved email/template blocks with existing tools, preserving unrelated fields. Design settings are `imageSize`, `imageFit`, `rowSpacing`, `fontSize`, `showPrices` and `showCompareAtPrice` (default false; strikes through each item's `compareAtPriceCents`, filled from the synced catalog, when higher than its price); remove optional fields in the replacement block to reset defaults, rather than passing null. Use existing render tools with scenario items under the configured source in `variables` for HTML at desktop or mobile widths. Totals remain in cents; row counts respect `maxItems`.
+Apply mappings explicitly and choose numeric price units. Read and update saved email/template blocks with existing tools, preserving unrelated fields. Design settings are `imageSize`, `imageFit`, `rowSpacing`, `fontSize`, `showPrices` and `showCompareAtPrice` (default false; strikes through each item's `compareAtPriceCents`, filled from the synced catalog, when higher than its price); `priceLocale` is a BCP 47 locale such as `de-DE` or `es-ES` for prices, compare-at prices and the total (`49,95 €` instead of `€49.95`); without it, prices follow the email's language (company language, or the translation's locale); remove optional fields in the replacement block to reset defaults, rather than passing null. Use existing render tools with scenario items under the configured source in `variables` for HTML at desktop or mobile widths. Totals remain in cents; row counts respect `maxItems`.
 
 ## Review a whole sequence
 

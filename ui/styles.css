@@ -917,3 +917,110 @@ h1 {
 .variation-confirm .primary-button {
   padding: 7px 14px;
 }
+
+/* Header actions, the assistant hand-off and the workspace start screen. */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.ask-button {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  background: var(--card);
+}
+.ask-button svg {
+  width: 14px;
+  height: 14px;
+}
+.ask-button:hover {
+  background: var(--muted);
+}
+.ask-button:not([hidden]) + .device-switch {
+  margin-left: 0;
+}
+.home-view {
+  padding: 0 26px 26px;
+  display: grid;
+  gap: 26px;
+}
+.home-company {
+  display: grid;
+  gap: 8px;
+  max-width: 320px;
+}
+.home-section-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 10px;
+}
+.home-section-heading h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+.home-section-heading span {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+.home-status {
+  font-size: 10px;
+  text-transform: capitalize;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+}
+.home-status[data-status="live"],
+.home-status[data-status="sent"] {
+  color: #22a466;
+}
+.home-error {
+  font-size: 12px;
+  color: var(--primary);
+  padding: 16px 0;
+}
+@media (max-width: 480px) {
+  .home-view {
+    padding: 0 16px 20px;
+  }
+  .ask-button {
+    padding: 6px 8px;
+  }
+}
+
+/* Side panel and full screen: the host reports both as "fullscreen". */
+/* The host gives the view a fixed height there: fill it, let the flow
+   diagram take the free space and scroll inside, and scroll taller views. */
+:root[data-display="fullscreen"] .preview-app {
+  max-width: none;
+}
+:root[data-display="fullscreen"][data-fixed-height] .preview-app {
+  height: 100vh;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+:root[data-display="fullscreen"][data-fixed-height]
+  #sequence-view:not([hidden]),
+:root[data-display="fullscreen"][data-fixed-height] .flow-panel:not([hidden]) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+:root[data-display="fullscreen"][data-fixed-height] .flow-viewport {
+  flex: 1;
+  height: auto;
+  min-height: 320px;
+}
+:root[data-display="fullscreen"][data-fixed-height] .app-footer {
+  margin-top: auto;
+}

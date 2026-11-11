@@ -12,6 +12,7 @@ export const READ_ONLY_TOOL_NAMES = new Set([
   "list_gallery_brand_requests",
   "list_watched_brands",
   "list_watched_brand_emails",
+  "open_sequenzy",
   "preview_sequence",
   "open_image_upload",
   "monitor_subscriber_import",
@@ -318,6 +319,7 @@ export const MUTATING_TOOL_NAMES = new Set([
   "attach_product_file",
   "remove_product_file",
   "upload_image_asset",
+  "crop_image_asset",
   "sync_products",
   "create_tag",
   "update_tag",
@@ -588,6 +590,7 @@ export const OPEN_WORLD_TOOL_NAMES = new Set([
   "share_campaign",
   "share_template",
   "upload_image_asset",
+  "crop_image_asset",
   "attach_product_file",
   // Accepts posts from external systems at an unauthenticated secret URL.
   "configure_sequence_inbound_webhook",

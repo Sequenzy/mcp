@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 
 import packageJson from "../package.json";
 
+import { recordDefaultedCompany } from "./company-default-notice.js";
 import { parseRetryAfter } from "./error-metadata.js";
 import {
   formatMcpError,
@@ -270,6 +271,8 @@ export async function apiRequest<T>(
       "NETWORK_ERROR"
     );
   }
+
+  recordDefaultedCompany(response);
 
   if (!response.ok) {
     const rawError = await response.text();

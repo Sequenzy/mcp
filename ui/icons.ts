@@ -14,6 +14,8 @@ const paths: Record<string, string> = {
   minus: "M5 12h14",
   plus: "M5 12h14 M12 5v14",
   fit: "M8 3H3v5 M16 3h5v5 M3 16v5h5 M21 16v5h-5",
+  expand: "M14 4h6v6 M20 4l-7 7 M10 20H4v-6 M4 20l7-7",
+  message: "M4 5h16v11H9l-5 4z M8 9h8 M8 12h5",
 };
 export function icon(name: string): SVGSVGElement {
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");

@@ -26,8 +26,9 @@ const memberIdentityProperties = {
 export const accountToolDefinitions: Tool[] = [
   {
     name: "list_accounts",
+    annotations: { title: "List Organizations" },
     description:
-      "List your customers' organizations (B2B accounts such as companies, workspaces or teams) in the workspace. The dashboard calls them Organizations; these tools keep the account names. Not your Sequenzy account: use get_account for that. Search matches name, external ID and domain. Organizations group contacts; their attributes reach every member as `organization.<name>` for segment attribute filters and sequence conditions, and as `{{organization.<name>}}` merge tags (`account.*` is an older alias).",
+      "List your customers' organizations (B2B accounts such as companies, workspaces or teams) in the workspace. The dashboard shows them under Subscribers > Organizations; these tools keep the account names. Not your Sequenzy account, workspace or login: use get_account for that. Search matches name, external ID and domain. Organizations group contacts; their attributes reach every member as `organization.<name>` for segment attribute filters and sequence conditions, and as `{{organization.<name>}}` merge tags (`account.*` is an older alias).",
     inputSchema: {
       type: "object",
       properties: {
@@ -64,8 +65,9 @@ export const accountToolDefinitions: Tool[] = [
   },
   {
     name: "get_account_by_external_id",
+    annotations: { title: "Get Organization" },
     description:
-      "Get one account by its external ID, including up to 100 members with their roles (owner, admin, member).",
+      "Get one customer organization (Subscribers > Organizations in the dashboard) by its external ID, including up to 100 member contacts with their roles (owner, admin, member). Not your Sequenzy account: use get_account for that.",
     inputSchema: {
       type: "object",
       properties: {
@@ -77,8 +79,9 @@ export const accountToolDefinitions: Tool[] = [
   },
   {
     name: "upsert_account",
+    annotations: { title: "Create or Update Organization" },
     description:
-      "Create or update an account by external ID. Attributes merge into the stored attributes (a null value deletes a key; set replaceAttributes to replace them all). Optional members are added in the same call. Use this to model companies, workspaces or teams so segments can filter on `organization.plan` and emails can use `{{organization.name}}` (`account.*` still works). The first organization turns Organizations on for the workspace; it fails with a 409 error when contacts already use a custom attribute named `account` or `account.*`, which must be renamed first.",
+      "Create or update a customer organization (Subscribers > Organizations in the dashboard) by external ID. Attributes merge into the stored attributes (a null value deletes a key; set replaceAttributes to replace them all). Optional members are added in the same call. Use this to model companies, workspaces or teams so segments can filter on `organization.plan` and emails can use `{{organization.name}}` (`account.*` still works). The first organization turns Organizations on for the workspace; it fails with a 409 error when contacts already use a custom attribute named `account` or `account.*`, which must be renamed first.",
     inputSchema: {
       type: "object",
       properties: {
@@ -123,8 +126,9 @@ export const accountToolDefinitions: Tool[] = [
   },
   {
     name: "delete_account",
+    annotations: { title: "Delete Organization" },
     description:
-      "Delete an organization (account) and its memberships. Contacts are kept; their `organization.*` attributes are cleared.",
+      "Delete one customer organization (a B2B account your contacts belong to, shown under Subscribers > Organizations) and its memberships. Contacts are kept; their `organization.*` attributes are cleared. It never deletes the user's Sequenzy account, workspace (company), login or API keys. If the user asks to delete their own Sequenzy account or workspace, do not call this tool: that is only possible in the Sequenzy dashboard. Permanent; confirm the organization's externalId with the user first.",
     inputSchema: {
       type: "object",
       properties: {
@@ -136,8 +140,9 @@ export const accountToolDefinitions: Tool[] = [
   },
   {
     name: "list_account_members",
+    annotations: { title: "List Organization Members" },
     description:
-      "List the contacts that belong to an account with their roles. Owners first, then admins, then members.",
+      "List the contacts that belong to a customer organization with their roles. Owners first, then admins, then members.",
     inputSchema: {
       type: "object",
       properties: {
@@ -153,8 +158,9 @@ export const accountToolDefinitions: Tool[] = [
   },
   {
     name: "add_account_member",
+    annotations: { title: "Add Organization Member" },
     description:
-      "Add a contact to an account (creating the contact when the email is new). Re-adding an existing member with a role updates the role; without a role keeps the current one.",
+      "Add a contact to a customer organization (creating the contact when the email is new). Re-adding an existing member with a role updates the role; without a role keeps the current one.",
     inputSchema: {
       type: "object",
       properties: {
@@ -174,8 +180,9 @@ export const accountToolDefinitions: Tool[] = [
   },
   {
     name: "remove_account_member",
+    annotations: { title: "Remove Organization Member" },
     description:
-      "Remove a contact from an account. The contact is kept; its `organization.*` attributes are cleared or replaced by another organization it belongs to.",
+      "Remove a contact from a customer organization. The contact is kept; its `organization.*` attributes are cleared or replaced by another organization it belongs to.",
     inputSchema: {
       type: "object",
       properties: {
@@ -188,8 +195,9 @@ export const accountToolDefinitions: Tool[] = [
   },
   {
     name: "trigger_account_event",
+    annotations: { title: "Trigger Organization Event" },
     description:
-      "Record an event on an account (for example trial_ending, plan_changed, seat_limit_reached) and deliver it as a contact event to the chosen recipients: owners (default; falls back to admins when there is no owner), admins (includes owners), all members, or none (timeline only). Each delivery runs sync rules and sequence triggers with `event.organization.*` properties (also available as `event.account.*`). To start a sequence once per organization rather than once per recipient, create it with enrollmentMode matching_field and enrollmentFieldPath organization.externalId. Pass eventId to make retries idempotent.",
+      "Record an event on a customer organization (for example trial_ending, plan_changed, seat_limit_reached) and deliver it as a contact event to the chosen recipients: owners (default; falls back to admins when there is no owner), admins (includes owners), all members, or none (timeline only). Each delivery runs sync rules and sequence triggers with `event.organization.*` properties (also available as `event.account.*`). To start a sequence once per organization rather than once per recipient, create it with enrollmentMode matching_field and enrollmentFieldPath organization.externalId. Pass eventId to make retries idempotent.",
     inputSchema: {
       type: "object",
       properties: {
@@ -226,7 +234,9 @@ export const accountToolDefinitions: Tool[] = [
   },
   {
     name: "list_account_events",
-    description: "List recent events on an account's timeline, newest first.",
+    annotations: { title: "List Organization Events" },
+    description:
+      "List recent events on a customer organization's timeline, newest first.",
     inputSchema: {
       type: "object",
       properties: {

@@ -528,8 +528,8 @@ export const OPENAI_JUSTIFICATIONS_PART_6: Readonly<
   },
   estimate_in_app_campaign_recipients: {
     readOnly:
-      "Read-only: although sent as POST, it only counts contacts who match the given audience; nothing is stored.",
-    destructive: "Not destructive: it computes one count and modifies nothing.",
+      "Read-only: although sent as POST, it only counts contacts who match the given audience and those of them known to use the app; nothing is stored.",
+    destructive: "Not destructive: it computes counts and modifies nothing.",
     openWorld:
       "Closed world: counts come from the company's contacts in Sequenzy; no app is contacted.",
   },

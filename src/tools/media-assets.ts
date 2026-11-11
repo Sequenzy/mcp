@@ -255,3 +255,55 @@ export async function uploadImageAsset(
 
   return completed.asset;
 }
+
+export interface ImageCropRecord {
+  sourceSrc: string;
+  croppedSrc: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface CropImageAssetInput {
+  companyId?: string | undefined;
+  sourceUrl: string;
+  crop?: { x: number; y: number; width: number; height: number } | undefined;
+  aspectRatio?: string | undefined;
+  focusX?: number | undefined;
+  focusY?: number | undefined;
+  altText?: string | undefined;
+}
+
+export interface CroppedImageAsset {
+  asset: UploadedImageAsset;
+  crop: ImageCropRecord;
+  sourceWidth: number;
+  sourceHeight: number;
+}
+
+export async function cropImageAsset(
+  input: CropImageAssetInput
+): Promise<CroppedImageAsset> {
+  const result = await apiRequest<CroppedImageAsset>(
+    "POST",
+    "/api/v1/media/crop",
+    {
+      sourceUrl: input.sourceUrl,
+      ...(input.crop !== undefined && { crop: input.crop }),
+      ...(input.aspectRatio !== undefined && {
+        aspectRatio: input.aspectRatio,
+      }),
+      ...(input.focusX !== undefined && { focusX: input.focusX }),
+      ...(input.focusY !== undefined && { focusY: input.focusY }),
+      ...(input.altText !== undefined && { altText: input.altText }),
+    },
+    input.companyId
+  );
+  return {
+    asset: result.asset,
+    crop: result.crop,
+    sourceWidth: result.sourceWidth,
+    sourceHeight: result.sourceHeight,
+  };
+}
