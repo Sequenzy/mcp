@@ -30,8 +30,18 @@ export const OPENAI_APP_RESOURCE_DOMAINS = [
  */
 export const OPENAI_APP_WIDGET_DOMAIN = "https://sequenzy.com";
 
+/**
+ * Muse's directory review checks the same view facts ChatGPT does: one HTTPS
+ * origin for the view and a description on the resource contents. Claude uses
+ * the standard surface, which keeps leaving the origin to the host.
+ */
+const MUSE_APP_WIDGET_DESCRIPTION =
+  "Shows rendered previews of Sequenzy emails and campaigns, and lets you explore a saved sequence's flow of steps.";
+
 export function readAppResource(profile: SequenzyMcpProfile = "standard") {
   const isOpenAi = profile === "openai";
+  const isMuse = profile === "muse";
+  const hasWidgetDomain = isOpenAi || isMuse;
   const resourceDomains = isOpenAi ? OPENAI_APP_RESOURCE_DOMAINS : ["https:"];
   return {
     contents: [
@@ -40,11 +50,14 @@ export function readAppResource(profile: SequenzyMcpProfile = "standard") {
         text: appHtml,
         _meta: {
           ui: {
-            ...(isOpenAi ? { domain: OPENAI_APP_WIDGET_DOMAIN } : {}),
+            ...(hasWidgetDomain ? { domain: OPENAI_APP_WIDGET_DOMAIN } : {}),
             csp: { connectDomains: [], resourceDomains },
           },
-          ...(isOpenAi
+          ...(hasWidgetDomain
             ? { "openai/widgetDomain": OPENAI_APP_WIDGET_DOMAIN }
+            : {}),
+          ...(isMuse
+            ? { "openai/widgetDescription": MUSE_APP_WIDGET_DESCRIPTION }
             : {}),
         },
       },

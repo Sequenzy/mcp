@@ -17,7 +17,8 @@ export const transactionalToolDefinitions: Tool[] = [
         labels: {
           type: "array",
           items: { type: "string" },
-          description: "Filter by label names; matches any supplied name.",
+          description:
+            "Only transactional emails carrying at least one of these dashboard label names.",
         },
         companyId: {
           type: "string",
@@ -224,7 +225,7 @@ export const transactionalToolDefinitions: Tool[] = [
   {
     name: "send_email",
     description:
-      "Queue one email using either a saved transactional email API slug (`templateId`) or direct `subject` and `html` content. Add `trackAs` to a direct send to track it under one code-managed transactional email for per-email stats. Always provide a stable `idempotencyKey` when an agent or workflow may retry, and reuse it for the same logical email; Sequenzy returns the original send for 14 days and rejects different content under the same key. The default delivery policy is transactional. A transactional send delivers one email to several people at once: `to` takes up to 50 addresses and `cc`/`bcc` take up to 50 each, so everyone sees the same shared recipient list instead of receiving separate copies. Addresses repeated across the fields are dropped from the lower-priority one (to beats cc beats bcc). When the recipient matches a subscriber, saved first and last names fill omitted name variables; explicit variables take precedence. Set `emailType` to `marketing` to add subscriber suppression, a marketing footer, and RFC 8058 one-click unsubscribe; marketing sends take exactly one `to` recipient and no `cc` or `bcc`. When no identity override is provided, a template send keeps its saved From and Reply-To identities, while a direct send uses the company defaults. To send as a non-default verified brand, pass `fromEmail` (and `fromName` if that address has several identities) plus optional `replyTo`/`replyToName`; you do not need profile IDs. `senderProfileId`/`replyProfileId` from `list_sender_profiles` remain available when you already have them. These fields look up existing identities and do not create profiles. `{{viewInBrowserUrl}}` is replaced with a hosted copy URL. Attach up to 10 files with Base64 `content` or a public `path`; `contentId` embeds a CID image referenced by the HTML. When `trackingSettings` is omitted, the company's Transactional API defaults apply. Set `clickTracking` or `openTracking` to `false` to opt out for this send only; these fields cannot enable tracking disabled by account settings. Use `headers` for extra email headers, such as your own one-click `List-Unsubscribe` on a transactional send. Returns a durable emailSendId, the accepted emailType, the deduplicated recipient lists, and `ignoredHeaders` when some headers were not applied; pass the ID to get_email_send for delivery status and failure details.",
+      "Queue one email using either a saved transactional email API slug (`templateId`) or direct `subject` and `html` content. Always provide a stable `idempotencyKey` when an agent or workflow may retry, and reuse it for the same logical email; Sequenzy returns the original send for 14 days and rejects different content under the same key. Add `trackAs` to a direct send to track it under one code-managed transactional email for per-email stats. The default delivery policy is transactional: one shared email to up to 50 `to` addresses plus `cc`/`bcc`, so everyone sees the same recipient list instead of a separate copy (an address repeated across fields is kept only in the higher one: to, then cc, then bcc). Set `emailType` to `marketing` to add subscriber suppression, a marketing footer, and RFC 8058 one-click unsubscribe; marketing sends take exactly one `to` recipient and no `cc` or `bcc`. When the recipient matches a subscriber, saved first and last names fill omitted name variables; explicit variables take precedence. Without identity overrides, a template send keeps its saved From and Reply-To and a direct send uses the company defaults. To send as another verified brand, pass `fromEmail` (plus `fromName` if the address has several identities) and optional `replyTo`/`replyToName`, or `senderProfileId`/`replyProfileId` from `list_sender_profiles`; these look up existing identities and never create profiles. `{{viewInBrowserUrl}}` becomes a hosted copy URL. `trackingSettings` can turn click or open tracking off for this send only, and `headers` adds extra email headers such as your own one-click `List-Unsubscribe` on a transactional send. Returns a durable emailSendId, the accepted emailType, the deduplicated recipient lists, and `ignoredHeaders` when some headers were not applied; pass the ID to get_email_send for delivery status and failure details.",
     inputSchema: {
       type: "object",
       properties: {
@@ -239,26 +240,26 @@ export const transactionalToolDefinitions: Tool[] = [
           minItems: 1,
           maxItems: 50,
           description:
-            "Primary recipient email address, or an array of up to 50 addresses that share one email and see each other in the To header. Marketing sends accept exactly one address.",
+            "Primary recipient email address, or an array of addresses that share one email and see each other in the To header. Marketing sends accept exactly one address.",
         },
         cc: {
           type: ["string", "array"],
           items: { type: "string" },
           maxItems: 50,
           description:
-            "Carbon-copy email address, or an array of up to 50, visible to every recipient. Transactional sends only. Addresses already in `to` are dropped.",
+            "Carbon-copy address or addresses, visible to every recipient. Transactional sends only. Addresses already in `to` are dropped.",
         },
         bcc: {
           type: ["string", "array"],
           items: { type: "string" },
           maxItems: 50,
           description:
-            "Blind-carbon-copy email address, or an array of up to 50, hidden from the other recipients. Transactional sends only. Addresses already in `to` or `cc` are dropped.",
+            "Blind-carbon-copy address or addresses, hidden from the other recipients. Transactional sends only. Addresses already in `to` or `cc` are dropped.",
         },
         idempotencyKey: {
           type: "string",
           description:
-            "Caller-owned retry key for this logical email (maximum 255 characters). Reuse the same key with the same arguments to get the original emailSendId for 14 days. Never reuse a key for different content.",
+            "Your own retry key for this logical email, such as order-1234-receipt (at most 255 characters). Reuse the same key with the same arguments to get the original emailSendId for 14 days. Never reuse a key for different content.",
         },
         subject: {
           type: "string",
@@ -279,7 +280,7 @@ export const transactionalToolDefinitions: Tool[] = [
           type: "string",
           maxLength: 255,
           description:
-            "Direct `subject`/`html` sends only. Names the email type, for example `weekly-report` (up to 255 ASCII letters, digits, spaces and `. _ - : /`), so every send with the same value is tracked under one code-managed transactional email with its own stats. The first send creates it (`managedBy: code` in list_transactional_emails); later sends link to it. Use a stable name, never per-recipient values: a workspace can have at most 100. Fails if the value matches a dashboard template's slug or the code-managed email is disabled. Code-managed emails cannot be sent with `templateId`.",
+            "Direct `subject`/`html` sends only. Names the email type, for example `weekly-report` (ASCII letters, digits, spaces and `. _ - : /`), so every send with the same value is tracked under one code-managed transactional email with its own stats. The first send creates it (`managedBy: code` in list_transactional_emails); later sends link to it. Use a stable name, never per-recipient values: a workspace can have at most 100. Fails if the value matches a dashboard template's slug or the code-managed email is disabled. Code-managed emails cannot be sent with `templateId`.",
         },
         variables: {
           type: "object",
@@ -289,7 +290,7 @@ export const transactionalToolDefinitions: Tool[] = [
         subscriberExternalId: {
           type: "string",
           description:
-            "Customer-owned subscriber ID for attaching analytics, localization, and saved-name personalization on single-recipient sends. Maximum length: 255 characters.",
+            "Your own ID for the recipient contact (the externalId set on add_subscriber or by an integration), up to 255 characters. On single-recipient sends it links the email to that subscriber for analytics, localization, and saved-name personalization.",
         },
         emailType: {
           type: "string",
@@ -334,11 +335,31 @@ export const transactionalToolDefinitions: Tool[] = [
           items: {
             type: "object",
             properties: {
-              filename: { type: "string" },
-              content: { type: "string" },
-              path: { type: "string" },
-              contentId: { type: "string" },
-              contentType: { type: "string" },
+              filename: {
+                type: "string",
+                description:
+                  "File name recipients see, such as invoice.pdf. Its extension sets the file type when contentType is omitted.",
+              },
+              content: {
+                type: "string",
+                description:
+                  "Base64-encoded file bytes. Provide content or path, not both.",
+              },
+              path: {
+                type: "string",
+                description:
+                  "Public HTTP(S) URL Sequenzy downloads the file from. Provide content or path, not both.",
+              },
+              contentId: {
+                type: "string",
+                description:
+                  'Content-ID for an inline image, such as logo; reference it in the HTML as <img src="cid:logo">. Omit for a regular attachment.',
+              },
+              contentType: {
+                type: "string",
+                description:
+                  "MIME type such as application/pdf, overriding detection from the filename.",
+              },
             },
             required: ["filename"],
             additionalProperties: false,

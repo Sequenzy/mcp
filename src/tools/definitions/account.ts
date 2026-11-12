@@ -44,31 +44,37 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
         companyId: {
           type: "string",
           description:
-            "Company ID. If omitted, uses the selected/current company when available.",
+            "Workspace the URLs point into, from get_account's companies list. Omit to use the selected company.",
         },
         campaignId: {
           type: "string",
-          description: "Campaign ID for the campaign editor URL.",
+          description:
+            "Campaign ID from list_campaigns or create_campaign. Adds campaign (editor) and campaignPreview (review step) URLs.",
         },
         landingPageId: {
           type: "string",
-          description: "Landing page ID for the landing page editor URL.",
+          description:
+            "Landing page ID from the landing page tools. Adds the landingPage editor URL.",
         },
         sequenceId: {
           type: "string",
-          description: "Sequence ID for the sequence editor URL.",
+          description:
+            "Sequence ID from list_sequences or a sequence create tool. Adds the sequence editor URL.",
         },
         templateId: {
           type: "string",
-          description: "Template/email ID for the email editor URL.",
+          description:
+            "Template ID from list_templates. Same as emailId (templates are saved emails); adds the email and template editor URLs. emailId wins when both are sent.",
         },
         emailId: {
           type: "string",
-          description: "Email ID for the email editor URL.",
+          description:
+            "Saved email ID, such as a template ID or a sequence step's emailId from get_sequence. Adds the email and template editor URLs.",
         },
         transactionalId: {
           type: "string",
-          description: "Transactional email ID.",
+          description:
+            "Transactional email ID from list_transactional_emails. Adds the transactionalEmail page URL, where its content, stats and sends are managed.",
         },
         emailSendId: {
           type: "string",
@@ -76,11 +82,13 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
         },
         domainId: {
           type: "string",
-          description: "Sending domain ID.",
+          description:
+            "Sending domain ID from list_sending_domains. Adds domain (settings) and domainVerify (DNS check) URLs.",
         },
         status: {
           type: "string",
-          description: "Status for campaign/sequence list URLs.",
+          description:
+            "Dashboard list status, such as draft, scheduled or sent for campaigns and draft, active, paused or archived for sequences. Adds campaignList and sequenceList URLs that open those lists filtered to it.",
         },
         settingsTab: {
           type: "string",
@@ -140,7 +148,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   },
   {
     name: "get_company",
-    description: `Get company details, processing status, product info, brand colors, AI writing context, the default AI email style (emailStylePreference: visual, plain, or null when not chosen), the company category (websiteType: saas, content, ecommerce, offline, mobile_app, other or null) with websiteTypeSource (user when chosen, detected when set from the website), header and footer (emailPreset) and the footer style for new AI-designed emails (footerStyle: auto, classic, mono, band or editorial), the auto-added footer's resolved colors and copy (footerTheme; change it with update_company footerTheme), reply-tracking settings, effective email localization settings, and the read-only emailBranding entitlement. emailBranding says whether "Sent with Sequenzy" is visible, whether the owner subscription removes it, why, the current tier/status, the required upgrade or renewal action, and the canonical subscriptionUrl. Branding is injected at render/send time rather than stored in footer blocks, so a paid entitlement removes it from future sends by existing live sequences without editing their emails. Also returns darkModeLogoStatus (pending, outlined, not_needed or custom) and darkModeLogoUrl, the logo emails use so dark transparent logos stay visible in dark-mode inboxes; set your own with update_company darkModeLogoUrl. Also returns defaultSubscriberListIds - the workspace default lists new contacts join when nothing targets them explicitly. A JSON null means every current and future list, not an empty selection; [] means no list at all; an array means exactly those lists. Change it with update_company. Read it before connecting an integration whose provider has no per-integration list targeting (Dodo Payments, PostHog, Polar, Paddle, and similar), because its live contacts and payment-provider backfills land there. PostHog history imports are different: contacts created by that import have no list memberships. ${
+    description: `Read one company's settings and status: processing status, product info, brand colors, AI writing context, emailStylePreference (visual, plain, or null when not chosen), websiteType (saas, content, ecommerce, offline, mobile_app, other or null) with websiteTypeSource (user when chosen, detected from the website), header and footer (emailPreset), footerStyle for new AI-designed emails (auto, classic, mono, band or editorial), footerTheme (the auto-added footer's resolved colors and copy; change it with update_company footerTheme), reply-tracking settings, effective email localization settings, and darkModeLogoStatus (pending, outlined, not_needed or custom) with darkModeLogoUrl, the logo dark-mode inboxes show (set your own with update_company darkModeLogoUrl). The read-only emailBranding says whether "Sent with Sequenzy" is visible, whether the owner subscription removes it, why, the tier/status, the upgrade or renewal action, and subscriptionUrl. Branding is added at send time, so a paid entitlement removes it from existing live sequences without editing their emails. defaultSubscriberListIds are the lists new contacts join when nothing targets them: JSON null means every current and future list, not an empty selection; [] means no list; an array means exactly those lists. Change it with update_company. Read it before connecting an integration without per-integration list targeting (Dodo Payments, PostHog, Polar, Paddle, and similar): its live contacts and payment-provider backfills land there. PostHog history imports are different: their contacts get no list memberships. ${
       campaignStoNotCompanyOrSequenceHint
     }`,
     inputSchema: {
@@ -148,7 +156,8 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
       properties: {
         companyId: {
           type: "string",
-          description: "The company ID to check",
+          description:
+            "Company to read, from get_account's companies list or select_company.",
         },
       },
       required: ["companyId"],
@@ -1143,7 +1152,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
         name: {
           type: "string",
           description:
-            "New display name, e.g. 'SnapCount'. Trimmed; must be non-empty and 255 characters or fewer.",
+            "Display name recipients see beside the address, e.g. 'SnapCount'. Surrounding spaces are removed; up to 255 characters.",
         },
         type: {
           type: "string",

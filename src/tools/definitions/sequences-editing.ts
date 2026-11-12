@@ -793,7 +793,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
   {
     name: "edit_sequence_emails",
     description:
-      'Change a sequence\'s emails with AI in one request, like the Emails view in the sequence editor: the prompt says what to change, in any language ("make the background cream", "remove the header", "new structure for email 2"). Without emailIds the prompt decides which emails: every email, unless it names some. A look change (background, colors, fonts) is made identical across the emails it touches, down to each kind of block\'s style. "Make them all look like email 1" copies that email\'s style exactly without AI, keeping each email\'s words. For design variations of an email use generate_sequence_email_variations: such a prompt returns 400 here. An email written in HTML is edited as HTML and keeps its theme. A/B test steps, steps without an email and steps that send the same email as an earlier step are skipped and listed in skipped. Each email succeeds or fails on its own: emails[].status is changed, unchanged (summary says why) or failed; changed emails are saved (saved:true) unless dryRun is true. Saved changes apply to the next sends of an active sequence. Runs synchronously and can take up to a minute; one request edits up to 12 emails, so pass emailIds in batches for longer sequences. A 503 means the AI could not tell which emails the prompt means and nothing changed: retry or pass emailIds. An email saved elsewhere meanwhile comes back with saved:false and an error instead of being overwritten. If the call times out, read get_sequence before retrying: changes may already be saved. To set exact values instead of asking the AI, use update_sequence_nodes.',
+      'Change a sequence\'s emails with AI in one request, like the Emails view in the sequence editor: the prompt says what to change, in any language ("make the background cream", "remove the header", "new structure for email 2"). Without emailIds the prompt decides which emails: every email, unless it names some. A look change (background, colors, fonts) is made identical across the emails it touches, down to each kind of block\'s style. "Make them all look like email 1" copies that email\'s style exactly without AI, keeping each email\'s words. For design variations of an email use generate_sequence_email_variations: such a prompt returns 400 here. An email written in HTML is edited as HTML and keeps its theme. A/B test steps, steps without an email and steps that send the same email as an earlier step are skipped and listed in skipped. Each email succeeds or fails on its own: emails[].status is changed, unchanged (summary says why) or failed; changed emails are saved (saved:true) unless dryRun is true. Saved changes apply to the next sends of an active sequence. Runs synchronously and can take up to a minute; one request edits up to 12 emails, so pass emailIds in batches for longer sequences. A 503 means the AI could not tell which emails the prompt means and nothing changed: retry or pass emailIds. An email saved elsewhere meanwhile comes back with saved:false and an error instead of being overwritten. If the call times out, read get_sequence before retrying: changes may already be saved. To set exact values instead of asking the AI, use update_sequence_nodes. Returns dryRun, emails[] (each with status, summary and, when changed, the new content) and skipped[] steps with reasons.',
     inputSchema: {
       type: "object",
       properties: {
@@ -804,12 +804,13 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         },
         sequenceId: {
           type: "string",
-          description: "Sequence ID.",
+          description:
+            "Sequence whose emails to change, from list_sequences or get_sequence.",
         },
         prompt: {
           type: "string",
           description:
-            "What should change, any language, up to 2000 characters.",
+            'Plain-language instruction for what should change, in any language, such as "make the background cream" or "shorten email 2".',
         },
         emailIds: {
           type: "array",
@@ -817,14 +818,14 @@ export const sequenceEditingToolDefinitions: Tool[] = [
           minItems: 1,
           maxItems: 12,
           description:
-            "Only change these emails (emailId from get_sequence.sequence.emails). Omit to let the prompt decide.",
+            "Limit the edit to these emails, using emailId values from get_sequence.sequence.emails. Omit to let the prompt decide which emails it means.",
         },
         sectionIds: {
           type: "array",
           items: { type: "string" },
           maxItems: 50,
           description:
-            "Only change these top-level block ids. Needs exactly one emailId.",
+            "Limit the edit to these top-level blocks (block id values from that email's blocks in get_sequence). Needs exactly one emailId.",
         },
         dryRun: {
           type: "boolean",
@@ -1327,7 +1328,8 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         },
         sequenceId: {
           type: "string",
-          description: "Sequence ID",
+          description:
+            "Sequence to activate, from list_sequences or get_sequence.",
         },
       },
       required: ["sequenceId"],
@@ -1336,7 +1338,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
   {
     name: "disable_sequence",
     description:
-      "Disable/freeze a sequence. This blocks new enrollments and holds current recipients until the sequence is enabled again. To only stop new enrollments while current recipients continue, use pause_sequence_enrollments.",
+      "Disable/freeze a sequence. This blocks new enrollments and holds current recipients (no further emails go out to them) until the sequence is enabled again with enable_sequence. Use it when a live sequence must stop sending right away. To only stop new enrollments while current recipients continue, use pause_sequence_enrollments.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1347,7 +1349,8 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         },
         sequenceId: {
           type: "string",
-          description: "Sequence ID",
+          description:
+            "Live sequence to freeze, from list_sequences or get_sequence.",
         },
       },
       required: ["sequenceId"],
@@ -1455,7 +1458,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
   {
     name: "enroll_subscribers_in_sequence",
     description:
-      "Manually enroll subscribers in a sequence by email address or subscriber ID. Maximum 500 total targets per call across emails and subscriberIds. Only active subscribers are enrolled: unknown emails are returned in `notFound`, while inactive, unavailable, and already actively enrolled subscribers are counted in `skipped`. By default enrollment starts at the first step after the trigger; pass targetNodeId to start at a specific step.",
+      "Manually enroll subscribers in a sequence by email address or subscriber ID. Maximum 500 total targets per call across emails and subscriberIds. Only active subscribers are enrolled: unknown emails are returned in `notFound`, while inactive, unavailable, and already actively enrolled subscribers are counted in `skipped`. By default enrollment starts at the first step after the trigger; pass targetNodeId to start at a specific step. Returns the sequence, the new enrollments, and enrolled and skipped counts.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1466,7 +1469,8 @@ export const sequenceEditingToolDefinitions: Tool[] = [
         },
         sequenceId: {
           type: "string",
-          description: "Sequence ID to enroll subscribers in.",
+          description:
+            "Sequence to enroll contacts in, from list_sequences or get_sequence.",
         },
         emails: {
           type: "array",
@@ -1478,7 +1482,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
           type: "array",
           items: { type: "string" },
           description:
-            "Subscriber IDs to enroll. Combined with emails, maximum 500 total targets per call.",
+            "Sequenzy subscriber IDs (the id field from search_subscribers or get_subscriber) to enroll. Combined with emails, maximum 500 total targets per call.",
         },
         targetNodeId: {
           type: "string",

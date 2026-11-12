@@ -11,7 +11,8 @@ export const tagListSegmentToolDefinitions: Tool[] = [
   // ============================================================================
   {
     name: "list_tags",
-    description: "List all tags in the account.",
+    description:
+      "List every tag defined in the company, with each tag's ID, normalized name and color. Use it to reuse existing tag names before tagging contacts, or to find a tagId.",
     inputSchema: {
       type: "object",
       properties: {
@@ -26,23 +27,25 @@ export const tagListSegmentToolDefinitions: Tool[] = [
   {
     name: "create_tag",
     description:
-      "Create a new tag definition. The name is normalized to lowercase with hyphens (e.g. 'VIP Customer' becomes 'vip-customer'). Color defaults to gray.",
+      "Create a new tag definition. The name is normalized to lowercase with hyphens (e.g. 'VIP Customer' becomes 'vip-customer'). Color defaults to gray. Returns the created tag with its ID, normalized name and color. Creating a tag does not apply it to any contact.",
     inputSchema: {
       type: "object",
       properties: {
         companyId: {
           type: "string",
           description:
-            "Company ID. If not provided, uses the currently selected company.",
+            "Company to create the tag in, from get_account's companies list. Omit to use the selected company.",
         },
         name: {
           type: "string",
-          description: "Tag name. Normalized to lowercase with hyphens.",
+          description:
+            "Tag name as you would label contacts, such as VIP Customer. Stored lowercase with hyphens.",
         },
         color: {
           type: "string",
           enum: [...AVAILABLE_TAG_COLORS],
-          description: "Tag color. Defaults to gray.",
+          description:
+            "Badge color shown for the tag in the dashboard. Defaults to gray.",
         },
       },
       required: ["name"],
@@ -126,11 +129,13 @@ export const tagListSegmentToolDefinitions: Tool[] = [
         },
         name: {
           type: "string",
-          description: "List name",
+          description:
+            "List name shown in the dashboard and, for public lists, to subscribers in the email preference center.",
         },
         description: {
           type: "string",
-          description: "List description",
+          description:
+            "Short explanation of what the list is for. Public lists show it to subscribers in the preference center.",
         },
         isPrivate: {
           type: "boolean",
@@ -200,7 +205,7 @@ export const tagListSegmentToolDefinitions: Tool[] = [
   {
     name: "add_subscribers_to_list",
     description:
-      "Bulk add existing or new subscribers to a subscriber list from an email array. Existing subscribers are added to the list without requiring a per-subscriber update call.",
+      "Bulk add subscribers to a subscriber list from an email array. Existing subscribers are added to the list without a per-subscriber update call; addresses not yet in the account are created as new subscribers, using optInMode for their consent. Returns the list plus added and skipped counts. Get listId from list_lists or create_list.",
     inputSchema: {
       type: "object",
       properties: {
@@ -258,7 +263,7 @@ export const tagListSegmentToolDefinitions: Tool[] = [
           type: "array",
           items: { type: "string" },
           description:
-            "Email addresses to remove from the list. Maximum 500 per call.",
+            "Email addresses of the contacts to take off the list. Addresses with no matching subscriber are returned in notFound.",
         },
       },
       required: ["listId", "emails"],
@@ -266,7 +271,8 @@ export const tagListSegmentToolDefinitions: Tool[] = [
   },
   {
     name: "list_segments",
-    description: "List all segments.",
+    description:
+      "List every saved segment in the company with its ID and name. Use the IDs with get_segment_count, search_subscribers segmentId, or campaign targeting.",
     inputSchema: {
       type: "object",
       properties: {
@@ -380,7 +386,8 @@ export const tagListSegmentToolDefinitions: Tool[] = [
   },
   {
     name: "get_segment_count",
-    description: "Get the number of subscribers in a segment.",
+    description:
+      "Count the subscribers who currently match a saved segment's rules. Returns count and the segmentId that was counted; it does not list the subscribers (use search_subscribers with segmentId for that).",
     inputSchema: {
       type: "object",
       properties: {
@@ -391,7 +398,7 @@ export const tagListSegmentToolDefinitions: Tool[] = [
         },
         segmentId: {
           type: "string",
-          description: "Segment ID",
+          description: "Saved segment to count, from list_segments.",
         },
       },
       required: ["segmentId"],

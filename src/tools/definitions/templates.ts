@@ -32,7 +32,8 @@ export const templateToolDefinitions: Tool[] = [
         },
         limit: {
           type: "number",
-          description: "Templates per page, 1-100. Defaults to 50.",
+          description:
+            "How many templates to return in this page (at most 100). Defaults to 50.",
         },
         offset: {
           type: "number",
@@ -56,7 +57,8 @@ export const templateToolDefinitions: Tool[] = [
         },
         templateId: {
           type: "string",
-          description: "Template ID",
+          description:
+            "Template (saved email) ID from list_templates or create_template.",
         },
       },
       required: ["templateId"],
@@ -131,7 +133,7 @@ export const templateToolDefinitions: Tool[] = [
   {
     name: "update_template",
     description:
-      "Update an existing template. At least one of `name`, `subject`, `previewText`, `html`, `blocks`, `labels`, or `isTemplate` is required, and only those update fields are accepted. For the double opt-in email (`consent.doubleOptInEmailId` from `get_tracking_settings`), new `html` or `blocks` must keep `{{DOUBLE_OPT_IN_URL}}` or nothing is saved.",
+      "Update an existing template in place: the supplied fields replace the saved ones (labels replace the whole label set). Campaigns and sequence steps that started from this design keep their own copies; automatically translated variants are refreshed from the new original unless marked keepEdits (see set_template_localization). At least one of `name`, `subject`, `previewText`, `html`, `blocks`, `labels`, or `isTemplate` is required, and only those update fields are accepted. For the double opt-in email (`consent.doubleOptInEmailId` from `get_tracking_settings`), new `html` or `blocks` must keep `{{DOUBLE_OPT_IN_URL}}` or nothing is saved.",
     inputSchema: {
       type: "object",
       properties: {
@@ -142,11 +144,13 @@ export const templateToolDefinitions: Tool[] = [
         },
         templateId: {
           type: "string",
-          description: "Template ID",
+          description:
+            "Template (saved email) ID to change, from list_templates or get_template.",
         },
         name: {
           type: "string",
-          description: "Template name",
+          description:
+            "New internal name shown in the dashboard template list; recipients never see it.",
         },
         subject: {
           type: "string",

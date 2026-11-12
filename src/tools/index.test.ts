@@ -283,8 +283,9 @@ describe("MCP tool profiles", () => {
     // and the phone segment filters plus the import list check in the
     // segment and subscriber import descriptions, about 1 KB, and the
     // open_sequenzy workspace entry point, about 3 KB, and the nested list
-    // item indent field, about 1 KB, and crop_image_asset, about 4 KB).
-    expect(JSON.stringify({ tools: standard }).length).toBeLessThan(1_740_000);
+    // item indent field, about 1 KB, and crop_image_asset, about 4 KB, and
+    // fuller input and result descriptions on the Muse tools, about 10 KB).
+    expect(JSON.stringify({ tools: standard }).length).toBeLessThan(1_755_000);
   });
 
   it("renames only on the OpenAI profile and keeps standard names", () => {

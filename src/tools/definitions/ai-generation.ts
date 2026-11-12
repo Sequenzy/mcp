@@ -7,7 +7,7 @@ export const aiGenerationToolDefinitions: Tool[] = [
   {
     name: "generate_email",
     description:
-      "Generate email blocks from a prompt. Returns a draft and does not create or send an email; the first generation for a company also saves its inferred email design direction, which later generations reuse. Generated blocks include the company's branding chrome (logo, footer with company name/address/unsubscribe) by default, matching emails created in the dashboard.",
+      "Generate email blocks from a prompt. Returns a draft and does not create or send an email; the first generation for a company also saves its inferred email design direction, which later generations reuse. Generated blocks include the company's branding chrome (logo, footer with company name/address/unsubscribe) by default, matching emails created in the dashboard. Returns the generated subject, previewText, blocks and HTML body, ready to pass to create_campaign or update_template.",
     inputSchema: {
       type: "object",
       properties: {
@@ -27,7 +27,8 @@ export const aiGenerationToolDefinitions: Tool[] = [
         },
         tone: {
           type: "string",
-          description: "Tone: professional, casual, friendly",
+          description:
+            "Voice for the copy, such as professional, casual or friendly. Omit to give no tone instruction; the writer then follows the prompt and the company's writing context.",
         },
         applyBranding: {
           type: "boolean",
@@ -67,11 +68,13 @@ export const aiGenerationToolDefinitions: Tool[] = [
         },
         emailCount: {
           type: "number",
-          description: "Number of emails in the sequence (default: 5, max: 10)",
+          description:
+            "How many emails the sequence should contain (at most 10). Defaults to 5.",
         },
         durationDays: {
           type: "number",
-          description: "Total duration in days (default: 14)",
+          description:
+            "Total length of the sequence in days, which the AI spreads the emails across. Defaults to 14.",
         },
         listId: {
           type: "string",
@@ -85,14 +88,14 @@ export const aiGenerationToolDefinitions: Tool[] = [
   {
     name: "generate_subject_lines",
     description:
-      "Generate subject line variants for an A/B test from a prompt. Returns suggestions only and does not create or change a test; the first generation for a company also saves its inferred email design direction, which later generations reuse.",
+      "Generate subject line variants for an A/B test from a prompt. Returns suggestions only (subjectLines, a list of strings) and does not create or change a test; the first generation for a company also saves its inferred email design direction, which later generations reuse.",
     inputSchema: {
       type: "object",
       properties: {
         companyId: {
           type: "string",
           description:
-            "Company ID. If not provided, uses the currently selected company.",
+            "Company whose brand voice to write in, from get_account's companies list. Omit to use the selected company.",
         },
         topic: {
           type: "string",

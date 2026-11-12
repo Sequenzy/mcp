@@ -1,12 +1,13 @@
 import { describe, expect, it } from "bun:test";
 
-import { MUSE_TOOL_NAMES } from "./muse-profile.js";
+import { MUSE_TOOL_NAMES, outlineOutputSchema } from "./muse-profile.js";
 import { getToolsForProfile } from "./profiles.js";
 
 import { handleToolCall, tools } from "./index.js";
 
-// Muse rejected the ~1.6 MB standard listing as too large.
-const MUSE_LIST_BYTE_BUDGET = 200_000;
+// Muse rejected the ~1.6 MB standard listing as too large and publishes no
+// limit; ~171 KB was accepted before output schema outlines were added.
+const MUSE_LIST_BYTE_BUDGET = 250_000;
 
 describe("Muse MCP profile", () => {
   const museTools = getToolsForProfile(tools, "muse");
@@ -28,9 +29,10 @@ describe("Muse MCP profile", () => {
     );
   });
 
-  it("drops output schemas but keeps input schemas and annotations", () => {
+  it("outlines output schemas and keeps input schemas and annotations", () => {
     for (const tool of museTools) {
-      expect(tool.outputSchema).toBeUndefined();
+      expect(tool.outputSchema?.type).toBe("object");
+      expect(JSON.stringify(tool.outputSchema)).not.toContain('"description"');
       expect(tool.inputSchema.type).toBe("object");
       expect(tool.annotations).toBeDefined();
     }
@@ -41,6 +43,47 @@ describe("Muse MCP profile", () => {
       (tool) => tool.name === "create_campaign"
     );
     expect(museCampaign?.description).toBe(standardCampaign?.description);
+    expect(Object.keys(museCampaign?.outputSchema?.properties ?? {})).toEqual(
+      Object.keys(standardCampaign?.outputSchema?.properties ?? {})
+    );
+  });
+
+  it("only loosens output schemas, so standard results still validate", () => {
+    const schema = {
+      type: "object",
+      description: "Result.",
+      required: ["campaign"],
+      additionalProperties: false,
+      properties: {
+        campaign: {
+          type: "object",
+          required: ["id"],
+          properties: {
+            id: { type: "string" },
+            stats: {
+              type: "object",
+              properties: { sent: { type: "number", minimum: 0 } },
+            },
+          },
+        },
+        tags: { type: "array", items: { type: "string", enum: ["a"] } },
+      },
+    };
+    expect(outlineOutputSchema(schema)).toEqual({
+      type: "object",
+      required: ["campaign"],
+      properties: {
+        campaign: {
+          type: "object",
+          required: ["id"],
+          properties: {
+            id: { type: "string" },
+            stats: { type: "object", properties: { sent: {} } },
+          },
+        },
+        tags: { type: "array", items: { type: "string", enum: ["a"] } },
+      },
+    });
   });
 
   it("leaves the standard surface unchanged", () => {

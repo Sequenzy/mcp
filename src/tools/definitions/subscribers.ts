@@ -14,8 +14,14 @@ const subscriberImportRecordSchema = {
       type: "string" as const,
       description: "Customer-owned subscriber ID",
     },
-    firstName: { type: "string" as const },
-    lastName: { type: "string" as const },
+    firstName: {
+      type: "string" as const,
+      description: "First name, stored as a native profile field.",
+    },
+    lastName: {
+      type: "string" as const,
+      description: "Last name, stored as a native profile field.",
+    },
     timezone: {
       type: "string" as const,
       description:
@@ -32,7 +38,12 @@ const subscriberImportRecordSchema = {
       description:
         "Email status from the source platform; defaults to active. Unsubscribed and bounced records never enroll in sequences or receive a double opt-in email. An active record never resubscribes an unsubscribed or bounced contact. With merge or overwrite, unsubscribed or bounced applies to an existing active contact. Send active for records the source marks not confirmed or pending (as the dashboard and CLI do), and bounced for cleaned addresses.",
     },
-    tags: { type: "array" as const, items: { type: "string" as const } },
+    tags: {
+      type: "array" as const,
+      items: { type: "string" as const },
+      description:
+        "Tag names to apply to this contact. See list_tags for existing names.",
+    },
     customAttributes: {
       type: "object" as const,
       description:
@@ -209,14 +220,14 @@ export const subscriberToolDefinitions: Tool[] = [
           type: "string",
           enum: ["default", "confirmed", "double_opt_in"],
           description:
-            "Email consent mode. Default follows workspace settings and requires automations:trigger when any record is active or omits status. Confirmed creates active contacts immediately and must only be used for verified consent. Double_opt_in always requires automations:trigger.",
+            "How new active contacts confirm email consent. default follows the workspace settings and needs automations:trigger when any record is active or omits status. confirmed makes them active immediately; use it only for verified consent. double_opt_in asks them to confirm by email first and always needs automations:trigger.",
         },
         idempotencyKey: {
           type: "string",
           minLength: 1,
           maxLength: 255,
           description:
-            "Caller-owned key (1-255 characters, not blank) that makes retrying this request safe. The key is scoped to the request content: resending the same request returns the already-queued import (deduplicated: true), while different content under the same key queues a new import. Use it whenever a timeout or retry loop could resend the same import. If two identical requests overlap, a transient 503 means to retry the same call shortly.",
+            "Your own key, not blank, that makes retrying this request safe. The key is scoped to the request content: resending the same request returns the already-queued import (deduplicated: true), while different content under the same key queues a new import. Use it whenever a timeout or retry loop could resend the same import. If two identical requests overlap, a transient 503 means to retry the same call shortly.",
         },
       },
       required: ["subscribers"],
@@ -316,12 +327,14 @@ export const subscriberToolDefinitions: Tool[] = [
         addTags: {
           type: "array",
           items: { type: "string" },
-          description: "Tags to add",
+          description:
+            "Tag names to add to this contact, normalized like create_tag and merged with its current tags. Added tags can start tag_added sequences (needs automations:trigger).",
         },
         removeTags: {
           type: "array",
           items: { type: "string" },
-          description: "Tags to remove",
+          description:
+            "Tag names to take off this contact, normalized like create_tag. Tags the contact does not carry are ignored.",
         },
       },
       required: [],
@@ -330,7 +343,7 @@ export const subscriberToolDefinitions: Tool[] = [
   {
     name: "remove_subscriber",
     description:
-      "Unsubscribe a subscriber while preserving the record and suppression history. Only permanently deletes when hardDelete is true.",
+      "Unsubscribe a subscriber while preserving the record and suppression history: the contact is suppressed from all marketing, list memberships are deactivated and active sequence enrollments are cancelled. With hardDelete true the contact is permanently deleted and its history erased, which cannot be undone. Identify the contact by email or externalId.",
     inputSchema: {
       type: "object",
       properties: {
@@ -518,10 +531,25 @@ export const subscriberToolDefinitions: Tool[] = [
               description:
                 "Customer-owned organization ID. Required for an object reference.",
             },
-            role: { type: "string", description: "owner, admin or member." },
-            name: { type: ["string", "null"] },
-            domain: { type: ["string", "null"] },
-            attributes: { type: "object", additionalProperties: true },
+            role: {
+              type: "string",
+              description:
+                "This contact's role in the organization: owner, admin or member. Omit to keep any existing role.",
+            },
+            name: {
+              type: ["string", "null"],
+              description: "Organization display name, such as Acme Inc.",
+            },
+            domain: {
+              type: ["string", "null"],
+              description: "Organization website domain, such as acme.com.",
+            },
+            attributes: {
+              type: "object",
+              description:
+                "Custom attributes saved on the organization, such as plan or seats.",
+              additionalProperties: true,
+            },
           },
         },
         properties: {
@@ -560,7 +588,7 @@ export const subscriberToolDefinitions: Tool[] = [
   {
     name: "trigger_subscriber_events",
     description:
-      "Emit several custom events for one subscriber in order. Events are processed independently and sequentially, so a partial failure can still leave earlier events recorded. Without automations:trigger the call succeeds but starts no sequence (sequenceTriggersRan false, reason missing_scope).",
+      "Emit several custom events for one subscriber in order, exactly as an integration would: each event is recorded, sync rules apply, and matching event_received sequences enroll. Creates the subscriber if they do not exist. Events are processed independently and sequentially, so a partial failure can still leave earlier events recorded; retry with the same eventIds. Returns the subscriber and the recorded events. Without automations:trigger the call succeeds but starts no sequence (sequenceTriggersRan false, reason missing_scope).",
     inputSchema: {
       type: "object",
       properties: {
@@ -586,10 +614,15 @@ export const subscriberToolDefinitions: Tool[] = [
           items: {
             type: "object",
             properties: {
-              name: { type: "string", description: "Event name" },
+              name: {
+                type: "string",
+                description:
+                  "Event name, such as saas.purchase or invoice.paid; it is what event_received sequence triggers match. A new name creates the event definition.",
+              },
               properties: {
                 type: "object",
-                description: "Event properties",
+                description:
+                  "Data about this occurrence, such as order.id or plan, that sequence branch and stop conditions can read. Include a sequence's matching field to test idempotency.",
                 additionalProperties: true,
               },
               occurredAt: {
@@ -608,11 +641,18 @@ export const subscriberToolDefinitions: Tool[] = [
           },
           description: "Events to trigger, in order, for this subscriber.",
         },
-        firstName: { type: "string" },
-        lastName: { type: "string" },
+        firstName: {
+          type: "string",
+          description: "First name applied to the subscriber profile.",
+        },
+        lastName: {
+          type: "string",
+          description: "Last name applied to the subscriber profile.",
+        },
         attributes: {
           type: "object",
-          description: "Custom attributes to set on the subscriber.",
+          description:
+            "Custom attributes merged into the subscriber's profile before the events run, such as plan or company. Use list_subscriber_attributes to match existing names and types.",
           additionalProperties: true,
         },
       },
@@ -679,7 +719,7 @@ export const subscriberToolDefinitions: Tool[] = [
   {
     name: "bulk_add_subscriber_tags",
     description:
-      "Many contacts, one or more tags: add tags to up to 500 existing subscribers in one call, identified by emails, externalIds, or subscriberIds. Never creates contacts. Built for reconciling historical or derived tags: subscribers that do not exist are reported in notFound instead of being created, and tag automations do NOT run unless triggerAutomations is true. Needs the subscribers:tag scope; a tag name that does not exist yet also needs tags:write. The agent_safe key preset includes both. Use add_subscriber or update_subscriber for single-contact changes.",
+      "Many contacts, one or more tags: add tags to up to 500 existing subscribers in one call, identified by emails, externalIds, or subscriberIds. Never creates contacts. Built for reconciling historical or derived tags: subscribers that do not exist are reported in notFound instead of being created, and tag automations do NOT run unless triggerAutomations is true. Returns the normalized tags and counts of requested, matched, updated, unchanged and failed subscribers, with notFound identifiers and up to 50 failures. Needs the subscribers:tag scope; a tag name that does not exist yet also needs tags:write. The agent_safe key preset includes both. Use add_subscriber or update_subscriber for single-contact changes.",
     inputSchema: {
       type: "object",
       properties: {
@@ -692,7 +732,8 @@ export const subscriberToolDefinitions: Tool[] = [
           type: "array",
           minItems: 1,
           items: { type: "string" },
-          description: "Tag names to add to every matched subscriber.",
+          description:
+            "Tag names to add to every matched subscriber. Names are normalized like create_tag; a name that does not exist yet is created (needs tags:write).",
         },
         emails: {
           type: "array",
@@ -703,12 +744,14 @@ export const subscriberToolDefinitions: Tool[] = [
         externalIds: {
           type: "array",
           items: { type: "string" },
-          description: "Customer-owned subscriber IDs to tag.",
+          description:
+            "Your own IDs for contacts (the externalId set on add_subscriber or by an integration) to tag.",
         },
         subscriberIds: {
           type: "array",
           items: { type: "string" },
-          description: "Sequenzy subscriber IDs to tag.",
+          description:
+            "Sequenzy subscriber IDs (the id field from search_subscribers or get_subscriber) to tag.",
         },
         triggerAutomations: {
           type: "boolean",
@@ -722,7 +765,7 @@ export const subscriberToolDefinitions: Tool[] = [
   {
     name: "bulk_remove_subscriber_tags",
     description:
-      "Many contacts, one or more tags: remove tags from up to 500 existing subscribers in one call, identified by emails, externalIds, or subscriberIds. Never creates contacts: subscribers that do not exist are reported in notFound. Needs the subscribers:tag scope; the broader subscribers:write scope also satisfies it. Use this to roll back or reconcile a derived-tag backfill.",
+      "Many contacts, one or more tags: remove tags from up to 500 existing subscribers in one call, identified by emails, externalIds, or subscriberIds. Never creates contacts: subscribers that do not exist are reported in notFound. Needs the subscribers:tag scope; the broader subscribers:write scope also satisfies it. Use this to roll back or reconcile a derived-tag backfill. Returns the normalized tags and counts of requested, matched, updated, unchanged and failed subscribers, with notFound identifiers and up to 50 failures.",
     inputSchema: {
       type: "object",
       properties: {
@@ -735,7 +778,8 @@ export const subscriberToolDefinitions: Tool[] = [
           type: "array",
           minItems: 1,
           items: { type: "string" },
-          description: "Tag names to remove from every matched subscriber.",
+          description:
+            "Tag names to remove from every matched subscriber, as listed by list_tags. Subscribers without them count as unchanged.",
         },
         emails: {
           type: "array",
@@ -745,12 +789,14 @@ export const subscriberToolDefinitions: Tool[] = [
         externalIds: {
           type: "array",
           items: { type: "string" },
-          description: "Customer-owned subscriber IDs to untag.",
+          description:
+            "Your own IDs for contacts (the externalId set on add_subscriber or by an integration) to untag.",
         },
         subscriberIds: {
           type: "array",
           items: { type: "string" },
-          description: "Sequenzy subscriber IDs to untag.",
+          description:
+            "Sequenzy subscriber IDs (the id field from search_subscribers or get_subscriber) to untag.",
         },
       },
       required: ["tags"],
@@ -759,7 +805,7 @@ export const subscriberToolDefinitions: Tool[] = [
   {
     name: "search_subscribers",
     description:
-      "Search subscribers by free-text query, tags, list, segment, custom attribute, or opt-out date. Each subscriber carries unsubscribedAt, the date the contact opted out - use it rather than updatedAt, which any later tag or attribute write overwrites. If you omit limit, the tool fetches all pages and returns every match in one call - that is the fastest way to enumerate an audience. To walk a large audience in chunks instead, pass limit and then follow pagination.nextCursor (or pagination.nextOffset) until pagination.hasMore is false. Default searches are newest first; searches with attribute use stable subscriber-ID ascending order.",
+      "Search subscribers by free-text query, tags, list, segment, custom attribute, or opt-out date. Each subscriber carries unsubscribedAt, the date the contact opted out - use it rather than updatedAt, which any later tag or attribute write overwrites. If you omit limit, the tool fetches all pages and returns every match in one call - that is the fastest way to enumerate an audience. To walk a large audience in chunks instead, pass limit and then follow pagination.nextCursor (or pagination.nextOffset) until pagination.hasMore is false. Default searches are newest first; searches with attribute use stable subscriber-ID ascending order. Returns the matching subscriber records, the count returned, and pagination with total, hasMore, nextCursor and nextOffset.",
     inputSchema: {
       type: "object",
       properties: {
@@ -776,7 +822,8 @@ export const subscriberToolDefinitions: Tool[] = [
         tags: {
           type: "array",
           items: { type: "string" },
-          description: "Filter by tags",
+          description:
+            "Only contacts carrying these tag names (see list_tags).",
         },
         list: {
           type: "string",
@@ -794,7 +841,8 @@ export const subscriberToolDefinitions: Tool[] = [
         },
         segmentId: {
           type: "string",
-          description: "Filter by segment ID",
+          description:
+            "Only contacts currently in this saved segment; IDs come from list_segments.",
         },
         status: {
           type: "string",
@@ -838,7 +886,7 @@ export const subscriberToolDefinitions: Tool[] = [
           minimum: 0,
           maximum: 999_999,
           description:
-            "Number of matches to skip before returning results, up to 999999. Use with limit to page through a large audience; follow pagination.nextOffset from the previous response, then switch to nextCursor for deeper pagination.",
+            "Number of matches to skip before returning results. Use with limit to page through a large audience; follow pagination.nextOffset from the previous response, then switch to nextCursor for deeper pagination.",
         },
         page: {
           type: "number",

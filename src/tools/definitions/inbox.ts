@@ -64,7 +64,8 @@ export const inboxToolDefinitions: Tool[] = [
         status: {
           type: "string",
           enum: ["open", "closed", "all"],
-          description: "Filter by conversation status. Defaults to all.",
+          description:
+            "open lists conversations still awaiting handling, closed lists resolved ones, all lists both. Defaults to all.",
         },
         search: {
           type: "string",
@@ -86,11 +87,13 @@ export const inboxToolDefinitions: Tool[] = [
         },
         page: {
           type: "number",
-          description: "Page number. Defaults to 1.",
+          description:
+            "Which page of conversations to return, counting from 1. Defaults to 1.",
         },
         limit: {
           type: "number",
-          description: "Results per page, from 1 to 100. Defaults to 20.",
+          description:
+            "How many conversations to return per page (at most 100). Defaults to 20.",
         },
       },
     },
@@ -109,7 +112,8 @@ export const inboxToolDefinitions: Tool[] = [
         },
         conversationId: {
           type: "string",
-          description: "Conversation ID.",
+          description:
+            "Conversation to open, from list_conversations (each item's id).",
         },
       },
       required: ["conversationId"],
@@ -118,7 +122,7 @@ export const inboxToolDefinitions: Tool[] = [
   {
     name: "reply_to_conversation",
     description:
-      "Send a reply in a conversation, or add an internal note. type 'outbound' (default) emails the subscriber and requires bodyText or bodyHtml; type 'note' adds a private team-only note. When the conversation has a recipientAddress (the inbox address it was sent to), list the sender profiles first and, if one's email equals that address, reply from it with senderProfileId. Replying to a closed conversation reopens it. Each successful outbound call sends another email, so after a timeout check the conversation with get_conversation before retrying.",
+      "Send a reply in a conversation, or add an internal note. type 'outbound' (default) emails the subscriber and requires bodyText or bodyHtml; type 'note' adds a private team-only note. When the conversation has a recipientAddress (the inbox address it was sent to), list the sender profiles first and, if one's email equals that address, reply from it with senderProfileId. Replying to a closed conversation reopens it. Each successful outbound call sends another email, so after a timeout check the conversation with get_conversation before retrying. Returns the updated conversation and the message that was added.",
     inputSchema: {
       type: "object",
       properties: {
@@ -129,13 +133,14 @@ export const inboxToolDefinitions: Tool[] = [
         },
         conversationId: {
           type: "string",
-          description: "Conversation ID to reply in.",
+          description:
+            "Conversation to reply in, from list_conversations (each item's id).",
         },
         type: {
           type: "string",
           enum: ["outbound", "note"],
           description:
-            "Message type: outbound emails the subscriber, note is internal-only. Defaults to outbound.",
+            "outbound emails your reply to the subscriber; note saves a private comment only your team sees. Defaults to outbound.",
         },
         subject: {
           type: "string",
@@ -144,7 +149,8 @@ export const inboxToolDefinitions: Tool[] = [
         },
         bodyText: {
           type: "string",
-          description: "Plain-text message body.",
+          description:
+            "Plain-text message body. An outbound reply needs bodyText, bodyHtml or both; omit it when you send only bodyHtml.",
         },
         bodyHtml: {
           type: "string",
@@ -163,11 +169,15 @@ export const inboxToolDefinitions: Tool[] = [
           items: {
             type: "object",
             properties: {
-              filename: { type: "string", description: "File name." },
+              filename: {
+                type: "string",
+                description:
+                  "File name the subscriber sees, such as quote.pdf; its extension sets the type when contentType is omitted.",
+              },
               content: {
                 type: "string",
                 maxLength: 20971520,
-                description: "Base64-encoded file content.",
+                description: "The file's bytes, Base64-encoded.",
               },
               contentType: {
                 type: "string",

@@ -145,11 +145,13 @@ export const campaignToolDefinitions: Tool[] = [
         },
         limit: {
           type: "number",
-          description: "Page size from 1 to 100. Defaults to 50.",
+          description:
+            "How many campaigns to return in this page (at most 100). Defaults to 50.",
         },
         offset: {
           type: "number",
-          description: "Zero-based result offset. Defaults to 0.",
+          description:
+            "How many campaigns to skip, counting from 0. For the next page, add pagination.count to the current offset. Defaults to 0.",
         },
       },
     },
@@ -169,7 +171,8 @@ export const campaignToolDefinitions: Tool[] = [
         },
         campaignId: {
           type: "string",
-          description: "Campaign ID",
+          description:
+            "Campaign to read, from list_campaigns or create_campaign.",
         },
       },
       required: ["campaignId"],
@@ -189,7 +192,8 @@ export const campaignToolDefinitions: Tool[] = [
         },
         campaignId: {
           type: "string",
-          description: "Campaign ID",
+          description:
+            "Campaign whose audience to resolve, from list_campaigns or create_campaign.",
         },
       },
       required: ["campaignId"],
@@ -278,7 +282,8 @@ export const campaignToolDefinitions: Tool[] = [
         },
         campaignId: {
           type: "string",
-          description: "Filter deliveries from one campaign.",
+          description:
+            "Only deliveries from this campaign; IDs come from list_campaigns or get_campaign.",
         },
         transactionalEmailId: {
           type: "string",
@@ -305,24 +310,28 @@ export const campaignToolDefinitions: Tool[] = [
         },
         days: {
           type: "number",
-          description: "History window in days, from 1 to 14. Defaults to 14.",
+          description:
+            "How many days back from now to include (rows are kept 14 days). Defaults to 14.",
         },
         page: {
           type: "number",
-          description: "Page number starting at 1. Defaults to 1.",
+          description:
+            "Which page of results to return, counting from 1. Defaults to 1.",
         },
         limit: {
           type: "number",
-          description: "Results per page, from 1 to 100. Defaults to 20.",
+          description:
+            "How many deliveries to return per page (at most 100). Defaults to 20.",
         },
         sortField: {
           type: "string",
           description:
-            "Sort field: recipientEmail, subject, status, eventAt, sentAt, or createdAt. Defaults to createdAt.",
+            "Column to order rows by: recipientEmail, subject, status, eventAt, sentAt, or createdAt (when the send was queued). Defaults to createdAt.",
         },
         sortOrder: {
           type: "string",
-          description: "Sort order: asc or desc. Defaults to desc.",
+          description:
+            "asc for oldest or A-Z first, desc for newest or Z-A first. Defaults to desc.",
         },
       },
     },
@@ -494,7 +503,7 @@ export const campaignToolDefinitions: Tool[] = [
   },
   {
     name: "update_campaign",
-    description: `Update a draft campaign's content, audience, sending identity, labels, Style > Format, delivery pacing, or recipient limit. Pass emailPreset to change Style > Format on native blocks without rewriting copy. sendTimeOptimization, sendTimeWindowHours and maxRecipients persist on the draft and are used when the campaign is later scheduled unless schedule_campaign overrides them. ${
+    description: `Update a draft email campaign's content, audience, sending identity, labels, Style > Format, delivery pacing, or recipient limit. Only drafts can be edited: unschedule a scheduled campaign first (unschedule_campaign). Supplied fields overwrite the saved draft immediately; nothing is sent until schedule_campaign. Returns the updated campaign. Pass emailPreset to change Style > Format on native blocks without rewriting copy. sendTimeOptimization, sendTimeWindowHours and maxRecipients persist on the draft and are used when the campaign is later scheduled unless schedule_campaign overrides them. ${
       campaignStoNotCompanyOrSequenceHint
     }`,
     inputSchema: {
@@ -507,7 +516,8 @@ export const campaignToolDefinitions: Tool[] = [
         },
         campaignId: {
           type: "string",
-          description: "Campaign ID",
+          description:
+            "Draft campaign to edit, from list_campaigns or create_campaign.",
         },
         name: {
           type: "string",
@@ -607,7 +617,7 @@ export const campaignToolDefinitions: Tool[] = [
         labels: {
           type: "array",
           description:
-            "Replacement label names. Send an empty array to clear labels. Missing labels are created automatically.",
+            "Labels that group campaigns in the dashboard and filter list_campaigns. Replaces the current set; send an empty array to clear labels. Missing labels are created automatically.",
           items: {
             type: "string",
           },
@@ -649,7 +659,8 @@ export const campaignToolDefinitions: Tool[] = [
         },
         campaignId: {
           type: "string",
-          description: "Campaign ID",
+          description:
+            "Draft or scheduled campaign to schedule, from list_campaigns or create_campaign.",
         },
         scheduledAt: {
           type: "string",
@@ -676,7 +687,7 @@ export const campaignToolDefinitions: Tool[] = [
         spreadOverHours: {
           type: "number",
           description:
-            "Spread delivery over an integer number of hours from 1 to 72. When set, spread delivery takes precedence over send-time optimization. With an A/B test the spread sets one sending rate for the whole audience: the test sample and the winner are each spread over their share of the window, with the test duration in between. If the account has a minimum spread, a lower or missing value is raised to it and send-time optimization is turned off.",
+            "Whole number of hours to pace delivery over, from scheduledAt, instead of sending as fast as possible. When set, spread delivery takes precedence over send-time optimization. With an A/B test the spread sets one sending rate for the whole audience: the test sample and the winner are each spread over their share of the window, with the test duration in between. If the account has a minimum spread, a lower or missing value is raised to it and send-time optimization is turned off.",
         },
         maxRecipients: {
           type: ["number", "null"],
@@ -706,7 +717,7 @@ export const campaignToolDefinitions: Tool[] = [
   {
     name: "send_test_email",
     description:
-      "Queue a campaign test email to a single address. Returns a durable emailSendId; pass it to get_email_send for delivery status and failure details. Each successful call queues another test email.",
+      "Queue a campaign test email to a single address. Only that address receives it; the campaign is not scheduled or sent. Returns a durable emailSendId; pass it to get_email_send for delivery status and failure details. Each successful call queues another test email.",
     inputSchema: {
       type: "object",
       properties: {
@@ -717,7 +728,8 @@ export const campaignToolDefinitions: Tool[] = [
         },
         campaignId: {
           type: "string",
-          description: "Campaign ID to test",
+          description:
+            "Campaign whose current saved content to send, from list_campaigns or create_campaign.",
         },
         to: {
           type: "string",
@@ -730,7 +742,7 @@ export const campaignToolDefinitions: Tool[] = [
   {
     name: "unschedule_campaign",
     description:
-      "Return a scheduled campaign to an editable draft. Removes its pending send and recurrence without permanently cancelling it, so it can be edited and scheduled again.",
+      "Return a scheduled campaign to an editable draft. Removes its pending send and recurrence without permanently cancelling it, so it can be edited and scheduled again. Returns the campaign, now in draft status.",
     inputSchema: {
       type: "object",
       properties: {
@@ -762,7 +774,8 @@ export const campaignToolDefinitions: Tool[] = [
         },
         campaignId: {
           type: "string",
-          description: "Campaign ID to cancel.",
+          description:
+            "Campaign to cancel, from list_campaigns or get_campaign (status scheduled, sending, paused or waiting_approval).",
         },
       },
       required: ["campaignId"],
@@ -782,7 +795,8 @@ export const campaignToolDefinitions: Tool[] = [
         },
         campaignId: {
           type: "string",
-          description: "Campaign ID to pause.",
+          description:
+            "Campaign that is sending right now (status sending), from list_campaigns or get_campaign.",
         },
       },
       required: ["campaignId"],
@@ -791,7 +805,7 @@ export const campaignToolDefinitions: Tool[] = [
   {
     name: "resume_campaign",
     description:
-      "Resume a paused campaign. Only campaigns in paused status can be resumed. Optionally spread the remaining delivery over a number of hours.",
+      "Resume a paused campaign: delivery starts again right away for recipients who have not been sent it yet; recipients already reached are not sent it again. Only campaigns in paused status can be resumed. Optionally spread the remaining delivery over a number of hours. Returns the campaign.",
     inputSchema: {
       type: "object",
       properties: {
@@ -807,7 +821,7 @@ export const campaignToolDefinitions: Tool[] = [
         spreadOverHours: {
           type: "number",
           description:
-            "Spread the remaining delivery over an integer number of hours from 1 to 72. With an A/B test this sets the sending rate for the remaining recipients of the current phase. If the account has a minimum spread, a lower, missing or null value is raised to it.",
+            "Whole number of hours to pace the remaining delivery over, from now. With an A/B test this sets the sending rate for the remaining recipients of the current phase. If the account has a minimum spread, a lower, missing or null value is raised to it.",
         },
       },
       required: ["campaignId"],
@@ -836,7 +850,7 @@ export const campaignToolDefinitions: Tool[] = [
   {
     name: "duplicate_campaign",
     description:
-      "Duplicate a campaign as a new draft. mode 'campaign' (default) copies the campaign and its email, 'ab_test' also duplicates the campaign's A/B test with all variants, and 'variant' copies a single variant's content as the new campaign email (requires variantId).",
+      "Duplicate a campaign as a new draft. mode 'campaign' (default) copies the campaign and its email, 'ab_test' also duplicates the campaign's A/B test with all variants, and 'variant' copies a single variant's content as the new campaign email (requires variantId). The original is unchanged. Returns the new draft campaign with its ID; schedule it separately.",
     inputSchema: {
       type: "object",
       properties: {
@@ -847,12 +861,13 @@ export const campaignToolDefinitions: Tool[] = [
         },
         campaignId: {
           type: "string",
-          description: "Campaign ID to duplicate.",
+          description: "Campaign to copy, from list_campaigns or get_campaign.",
         },
         mode: {
           type: "string",
           enum: ["campaign", "ab_test", "variant"],
-          description: "Duplication mode. Defaults to campaign.",
+          description:
+            "What to copy: campaign copies the campaign and its email, ab_test also copies its A/B test and variants, variant turns one variant into the new email. Defaults to campaign.",
         },
         variantId: {
           type: "string",

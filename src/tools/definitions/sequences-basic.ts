@@ -26,7 +26,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
   {
     name: "list_sequences",
     description:
-      "List all email sequences (automations). Read effectiveStatus (draft, live, enrollment_paused, paused, archived) to know whether a sequence is running: status alone reads `active` even when new enrollments are paused, and the legacy triggerConfig.active flag is not used by the runtime.",
+      "List email sequences (automations) with each one's ID, name, status, effectiveStatus and emailCount, plus a pagination window. Read effectiveStatus (draft, live, enrollment_paused, paused, archived) to know whether a sequence is running: status alone reads `active` even when new enrollments are paused, and the legacy triggerConfig.active flag is not used by the runtime.",
     inputSchema: {
       type: "object",
       properties: {
@@ -38,7 +38,8 @@ export const sequenceBasicToolDefinitions: Tool[] = [
         status: {
           type: "string",
           enum: ["draft", "active", "paused", "archived"],
-          description: "Optional dashboard status filter.",
+          description:
+            "Filter on the stored dashboard status, not effectiveStatus: active also matches sequences whose new enrollments are paused (effectiveStatus enrollment_paused).",
         },
         search: {
           type: "string",
@@ -54,7 +55,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
         limit: {
           type: "number",
           description:
-            "Page size from 1 to 100. When limit and offset are both omitted, every sequence is returned.",
+            "How many sequences to return in this page (at most 100). When limit and offset are both omitted, every sequence is returned.",
         },
         offset: {
           type: "number",
@@ -65,7 +66,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
   },
   {
     name: "get_sequence",
-    description: `Get sequence details, editable step content, and graph topology. Read effectiveStatus (draft, live, enrollment_paused, paused, archived) to know whether a sequence is running: status alone reads \`active\` even when new enrollments are paused, and the legacy triggerConfig.active flag is not used by the runtime. Each sequence.nodes item includes id, nodeType, current config, updatedAt, and updateHints with its editable/managed fields and ready-to-return expectedUpdatedAt token for update_sequence_node/update_sequence_nodes. The response also includes sequence.edges and graphRevision for safe edit_sequence_graph calls, plus sequence.emails with each email step's nodeId, nodeType, linked emailId, subject, previewText, emailPreset (the per-email Style > Format for native blocks, including emails with supported custom HTML blocks; null when the entire email is standalone raw HTML), and blocks. sequence.emails includes action_ab_test steps, whose copy lives on the A/B test variants rather than on the node: their subject/previewText/blocks are control variant A only. With ab_tests:read, each carries abTest with the test id, status, and one entry per variant including that variant's full blocks, so a sequence read is enough to audit CTA/promo/review copy; without that scope, test-record fields are redacted and variants is empty while the configured id and editing guidance remain available. To change the copy of an A/B step, edit each variant with update_ab_test_variant - if that tool is not in the tool list, enable it on the Sequenzy connector rather than writing through update_template or update_sequence_node. Rebuilding the step as a plain email node to reach the copy destroys the test. get_ab_test remains the dedicated A/B read for settings, localization, and stats. ${
+    description: `Get sequence details, editable step content, and graph topology. Read effectiveStatus (draft, live, enrollment_paused, paused, archived) to know whether a sequence is running: status alone reads \`active\` even when new enrollments are paused (the legacy triggerConfig.active flag is unused). Each sequence.nodes item has id, nodeType, config, updatedAt and updateHints (editable fields plus the expectedUpdatedAt token for update_sequence_node/update_sequence_nodes). The response also includes sequence.edges and graphRevision for safe edit_sequence_graph calls, plus sequence.emails with each email step's nodeId, nodeType, linked emailId, subject, previewText, emailPreset (the per-email Style > Format for native blocks, including emails with supported custom HTML blocks; null when the entire email is standalone raw HTML), and blocks. sequence.emails includes action_ab_test steps, whose copy lives on the A/B test variants rather than on the node: their subject/previewText/blocks are control variant A only. With ab_tests:read, each carries abTest with the test id, status, and one entry per variant including that variant's full blocks, so a sequence read is enough to audit copy; without that scope, test fields are redacted and variants is empty. To change the copy of an A/B step, edit each variant with update_ab_test_variant - if that tool is not in the tool list, enable it on the Sequenzy connector rather than writing through update_template or update_sequence_node. Rebuilding the step as a plain email node to reach the copy destroys the test. get_ab_test reads A/B settings, localization, and stats. ${
       campaignStoNotCompanyOrSequenceHint
     }`,
     inputSchema: {
@@ -78,7 +79,8 @@ export const sequenceBasicToolDefinitions: Tool[] = [
         },
         sequenceId: {
           type: "string",
-          description: "Sequence ID",
+          description:
+            "Sequence to read, from list_sequences or a sequence create tool.",
         },
       },
       required: ["sequenceId"],
@@ -261,7 +263,8 @@ export const sequenceBasicToolDefinitions: Tool[] = [
         },
         sequenceId: {
           type: "string",
-          description: "Sequence ID to simulate.",
+          description:
+            "Sequence to dry-run, from list_sequences or get_sequence. It can be a draft.",
         },
         subscriberId: {
           type: "string",
@@ -278,7 +281,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
           minimum: 1,
           maximum: 25,
           description:
-            "Maximum currently matching contacts to include in the sample. Defaults to 10.",
+            "How many currently matching contacts to show as examples in the sample. Defaults to 10.",
         },
       },
       required: ["sequenceId"],

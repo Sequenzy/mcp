@@ -1,4 +1,4 @@
-import type { Tool } from "../mcp-types.js";
+import type { JsonSchemaObject, Tool } from "../mcp-types.js";
 
 import { collapseRepeatedSchemas } from "./schema-collapse.js";
 
@@ -97,18 +97,58 @@ export const MUSE_TOOL_NAMES = [
 
 const MUSE_TOOL_NAME_SET: ReadonlySet<string> = new Set(MUSE_TOOL_NAMES);
 
+/** Output schema levels kept on the Muse surface; deeper values accept anything. */
+const MUSE_OUTPUT_SCHEMA_DEPTH = 3;
+
+function isSchemaObject(value: unknown): value is JsonSchemaObject {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+/**
+ * The full output schemas would nearly double the listing, so Muse gets their
+ * outline: field names, types, enums and required keys, without descriptions
+ * and cut off below MUSE_OUTPUT_SCHEMA_DEPTH. Every cut only loosens the
+ * schema, so any result that matches the standard schema still matches.
+ */
+export function outlineOutputSchema(
+  schema: JsonSchemaObject,
+  depth = MUSE_OUTPUT_SCHEMA_DEPTH
+): JsonSchemaObject {
+  if (depth <= 0) return {};
+  const outline: JsonSchemaObject = {};
+  if (schema.type !== undefined) outline.type = schema.type;
+  if (Array.isArray(schema.enum)) outline.enum = schema.enum;
+  if (isSchemaObject(schema.properties)) {
+    outline.properties = Object.fromEntries(
+      Object.entries(schema.properties).map(([key, value]) => [
+        key,
+        isSchemaObject(value) ? outlineOutputSchema(value, depth - 1) : {},
+      ])
+    );
+    if (schema.required) outline.required = schema.required;
+  }
+  if (isSchemaObject(schema.items)) {
+    outline.items = outlineOutputSchema(schema.items, depth - 1);
+  }
+  return outline;
+}
+
 /**
  * Same definitions and handlers as the standard surface, filtered to the Muse
- * list. Output schemas are dropped to save space: tool results still carry
- * structuredContent, which MCP allows without a declared schema.
+ * list. Output schemas are reduced to their outline (see outlineOutputSchema)
+ * to keep the listing small; tool results still carry the full
+ * structuredContent.
  */
 export function getMuseTools(tools: readonly Tool[]): Tool[] {
   return tools
     .filter((tool) => MUSE_TOOL_NAME_SET.has(tool.name))
-    .map(({ outputSchema: _outputSchema, ...tool }) => ({
+    .map(({ outputSchema, ...tool }) => ({
       ...tool,
       inputSchema: collapseRepeatedSchemas(
         tool.inputSchema
       ) as Tool["inputSchema"],
+      ...(outputSchema
+        ? { outputSchema: outlineOutputSchema(outputSchema) }
+        : {}),
     }));
 }

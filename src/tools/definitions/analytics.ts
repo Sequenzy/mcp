@@ -20,7 +20,8 @@ export const analyticsToolDefinitions: Tool[] = [
         },
         period: {
           type: "string",
-          description: "Time period: 7d, 30d, or 90d (default: 7d)",
+          description:
+            "Rolling window ending now that the stats cover: 7d, 30d, or 90d. Defaults to 7d.",
         },
         emailType: {
           type: "string",
@@ -57,7 +58,7 @@ export const analyticsToolDefinitions: Tool[] = [
             "complaint",
           ],
           description:
-            "Only sends that bounced this way or drew a spam complaint. With get_stats_breakdown by=email it shows which emails the bounces or complaints came from. Filtered stats report replies as 0.",
+            "Restrict the numbers to sends that hard-bounced (permanent_bounce), soft-bounced (temporary_bounce), were refused by the receiving server (blocked), or drew a spam complaint (complaint). With get_stats_breakdown by=email it shows which emails the bounces or complaints came from. Filtered stats report replies as 0.",
         },
         includeMachineEngagement: includeMachineEngagementToolProperty,
       },
@@ -66,7 +67,7 @@ export const analyticsToolDefinitions: Tool[] = [
   {
     name: "get_stats_breakdown",
     description:
-      "Funnel per email, sequence, email_type, mailbox_provider or recipient_domain, most sends first, with rates and attributed revenue. Drill in by passing a row's filter values to get_stats or another breakdown. Defaults: 30d, 25 rows.",
+      "Funnel per email, sequence, email_type, mailbox_provider or recipient_domain, most sends first, with rates and attributed revenue. Drill in by passing a row's filter values to get_stats or another breakdown. Defaults: 30d, 25 rows. Returns the applied dimension, window (start, end) and filters, and one row per group with its source filter values, funnel counts, rates and attributed revenue.",
     inputSchema: {
       type: "object",
       properties: {
@@ -83,7 +84,7 @@ export const analyticsToolDefinitions: Tool[] = [
         period: {
           type: "string",
           description:
-            "Time period: 1h, 24h, 7d, 30d, or 90d. Defaults to 30d.",
+            "Rolling window ending now that the rows cover: 1h, 24h, 7d, 30d, or 90d. Defaults to 30d.",
         },
         emailType: {
           type: "string",
@@ -92,7 +93,8 @@ export const analyticsToolDefinitions: Tool[] = [
         },
         start: {
           type: "string",
-          description: "ISO 8601 range start; needs end. Max 90 days.",
+          description:
+            "Start of a custom window as an ISO 8601 timestamp, used instead of period; send end too. The window can span up to 90 days.",
         },
         end: {
           type: "string",
@@ -109,7 +111,7 @@ export const analyticsToolDefinitions: Tool[] = [
         source: {
           type: "string",
           description:
-            "Source filter <type>:<id> with type campaign, sequence, sequence_step or transactional.",
+            "Only sends from one source, written <type>:<id>: campaign:<campaignId> (list_campaigns), sequence:<sequenceId> (list_sequences), sequence_step:<nodeId> (get_sequence_stats steps[]), or transactional:<transactional email ID> (list_transactional_emails).",
         },
         outcome: {
           type: "string",
@@ -120,11 +122,12 @@ export const analyticsToolDefinitions: Tool[] = [
             "complaint",
           ],
           description:
-            "Only sends that bounced this way or drew a spam complaint. With get_stats_breakdown by=email it shows which emails the bounces or complaints came from. Filtered stats report replies as 0.",
+            "Restrict the numbers to sends that hard-bounced (permanent_bounce), soft-bounced (temporary_bounce), were refused by the receiving server (blocked), or drew a spam complaint (complaint). With get_stats_breakdown by=email it shows which emails the bounces or complaints came from. Filtered stats report replies as 0.",
         },
         limit: {
           type: "number",
-          description: "Rows to return, 1 to 100. Defaults to 25.",
+          description:
+            "How many groups to return, largest by sends first (at most 100). Defaults to 25.",
         },
         includeMachineEngagement: includeMachineEngagementToolProperty,
       },
@@ -180,11 +183,13 @@ export const analyticsToolDefinitions: Tool[] = [
         },
         campaignId: {
           type: "string",
-          description: "Campaign ID",
+          description:
+            "Campaign to report on, from list_campaigns or get_campaign.",
         },
         period: {
           type: "string",
-          description: "Time period: 1h, 24h, 7d, 30d, or 90d",
+          description:
+            "Optional rolling window ending now to limit the stats to: 1h, 24h, 7d, 30d, or 90d. Use start and end for an exact range instead.",
         },
         start: {
           type: "string",
@@ -376,22 +381,23 @@ export const analyticsToolDefinitions: Tool[] = [
         },
         sequenceId: {
           type: "string",
-          description: "Sequence ID",
+          description:
+            "Sequence to report on, from list_sequences or get_sequence.",
         },
         period: {
           type: "string",
           description:
-            "Optional sliding window: 1h, 24h, 7d, 30d, or 90d. Ignored when start and end are provided.",
+            "Rolling window ending now for every historical metric: 1h, 24h, 7d, 30d, or 90d. Omit for all-time counts. Ignored when start and end are provided.",
         },
         start: {
           type: "string",
           description:
-            "Optional ISO 8601 custom range start. Must be provided with end.",
+            "Start of a custom window as an ISO 8601 timestamp; send end too.",
         },
         end: {
           type: "string",
           description:
-            "Optional ISO 8601 custom range end. Must be provided with start; maximum range is 90 days.",
+            "End of a custom window as an ISO 8601 timestamp; send start too. The window can span up to 90 days.",
         },
         includeMachineEngagement: includeMachineEngagementToolProperty,
       },
@@ -582,7 +588,7 @@ export const analyticsToolDefinitions: Tool[] = [
   {
     name: "get_subscriber_activity",
     description:
-      "Get recent activity, email stats, and current sequence enrollments for a subscriber.",
+      "Get one subscriber's recent activity events, their email stats, and their current sequence enrollments, with pagination for the activity list. Use it to answer what a contact received or did recently.",
     inputSchema: {
       type: "object",
       properties: {

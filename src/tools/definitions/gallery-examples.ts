@@ -19,11 +19,12 @@ const exampleProperties = {
   brief: {
     type: "string",
     description:
-      "Optional direction, up to 1000 characters, such as an offer or feature to highlight. Takes priority over the example.",
+      "Your direction for the remix, such as an offer or feature to highlight; where it conflicts with the example, the brief wins. Up to 1000 characters.",
   },
   name: {
     type: "string",
-    description: "Optional name, up to 200 characters, for what is created.",
+    description:
+      "Name for the template or sequence this creates, as shown in the dashboard. Up to 200 characters.",
   },
 } as const;
 
@@ -114,7 +115,7 @@ export const galleryExampleToolDefinitions: Tool[] = [
           type: "array",
           items: { type: "integer", minimum: 1 },
           description:
-            "Optional: which of the example's emails to clone, as 1-based positions in the gallery sequence (Email 1, Email 2, ...), 1 to 12 distinct positions. Defaults to the first 12. These are positions in the example, not the stepNumber of the created sequence's steps.",
+            "Which of the example's emails to clone, by their position in the gallery sequence (Email 1 is 1, Email 2 is 2, ...); up to 12 distinct positions. Defaults to the first 12. These are positions in the example, not the stepNumber of the created sequence's steps.",
         },
         emailStyle: {
           type: "string",

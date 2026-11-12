@@ -847,7 +847,7 @@ export const OPENAI_TEXT_REWRITES: ReadonlyArray<
     "does not require reconnecting or entering the Attio access token again",
   ],
   [
-    /emailBranding says whether "Sent with Sequenzy" is visible, whether the owner subscription removes it, why, the current tier\/status, the required upgrade or renewal action, and the canonical subscriptionUrl\. Branding is injected at render\/send time rather than stored in footer blocks, so a paid entitlement removes it from future sends by existing live sequences without editing their emails\./g,
+    /emailBranding says whether "Sent with Sequenzy" is visible, whether the owner subscription removes it, why, the tier\/status, the upgrade or renewal action, and subscriptionUrl\. Branding is added at send time, so a paid entitlement removes it from existing live sequences without editing their emails\./g,
     'emailBranding says whether the "Sent with Sequenzy" footer is visible on this company\'s emails and why. Branding is injected at render/send time rather than stored in footer blocks.',
   ],
   [/, company settings, or subscription\./g, ", or company settings."],

@@ -54,3 +54,19 @@ it("gives the OpenAI widget a dedicated domain and a narrow image allowlist", ()
   expect(standard._meta.ui).not.toHaveProperty("domain");
   expect(standard._meta).not.toHaveProperty("openai/widgetDomain");
 });
+
+it("gives the Muse view the shared origin and a description for directory review", () => {
+  const [muse] = readAppResource("muse").contents;
+  expect(muse._meta.ui.domain).toBe(OPENAI_APP_WIDGET_DOMAIN);
+  expect(muse._meta["openai/widgetDomain"]).toBe(OPENAI_APP_WIDGET_DOMAIN);
+  expect(muse._meta["openai/widgetDescription"]).toContain("previews");
+  expect(muse.uri).toBe("ui://sequenzy/previews-v1.html");
+  expect(muse.mimeType).toBe("text/html;profile=mcp-app");
+  // Muse loads the same email images as the standard surface.
+  expect(muse._meta.ui.csp.resourceDomains).toEqual(["https:"]);
+
+  const [openAi] = readAppResource("openai").contents;
+  expect(openAi._meta).not.toHaveProperty("openai/widgetDescription");
+  const [standard] = readAppResource("standard").contents;
+  expect(standard._meta).not.toHaveProperty("openai/widgetDescription");
+});
