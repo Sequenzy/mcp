@@ -250,6 +250,9 @@ export function withOpenAiToolProfile(tool: Tool): Tool | null {
       description: "Public https URL of the file, such as a hosted PDF guide.",
     };
   }
+  if (tool.name === "update_company") {
+    delete properties.founderPhotoFilePath;
+  }
   if (tool.name === "upload_image_asset") {
     delete properties.filePath;
     properties.imageBase64 = {

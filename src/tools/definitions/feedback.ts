@@ -1,9 +1,6 @@
 import type { Tool } from "../../mcp-types.js";
 
 export const feedbackToolDefinitions: Tool[] = [
-  // ============================================================================
-  // Feedback
-  // ============================================================================
   {
     name: "submit_feedback",
     description:

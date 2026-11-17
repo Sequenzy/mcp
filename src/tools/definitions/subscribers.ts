@@ -34,9 +34,9 @@ const subscriberImportRecordSchema = {
     },
     status: {
       type: "string" as const,
-      enum: ["active", "unsubscribed", "bounced"],
+      enum: ["active", "not_subscribed", "unsubscribed", "bounced"],
       description:
-        "Email status from the source platform; defaults to active. Unsubscribed and bounced records never enroll in sequences or receive a double opt-in email. An active record never resubscribes an unsubscribed or bounced contact. With merge or overwrite, unsubscribed or bounced applies to an existing active contact. Send active for records the source marks not confirmed or pending (as the dashboard and CLI do), and bounced for cleaned addresses.",
+        "Email status from the source platform; defaults to active. Unsubscribed and bounced records never enroll in sequences or receive a double opt-in email. An active record never resubscribes an unsubscribed or bounced contact. With merge or overwrite, unsubscribed or bounced applies to an existing active contact. Send active for records the source marks not confirmed or pending (as the dashboard and CLI do), and bounced for cleaned addresses. not_subscribed marks a new contact who never opted in to marketing email; it never changes an existing contact and never enrolls in sequences.",
     },
     tags: {
       type: "array" as const,
@@ -61,9 +61,6 @@ const subscriberImportRecordSchema = {
 };
 
 export const subscriberToolDefinitions: Tool[] = [
-  // ============================================================================
-  // Subscribers
-  // ============================================================================
   {
     name: "add_subscriber",
     description:
@@ -141,9 +138,9 @@ export const subscriberToolDefinitions: Tool[] = [
         },
         status: {
           type: "string",
-          enum: ["active", "unsubscribed", "bounced"],
+          enum: ["active", "not_subscribed", "unsubscribed", "bounced"],
           description:
-            "Initial subscriber status: active, unsubscribed, or bounced. Defaults to active and does not change an existing contact; use update_subscriber for existing contacts.",
+            "Initial subscriber status: active, not_subscribed, unsubscribed, or bounced. not_subscribed is a contact who never opted in to marketing email: campaigns skip them and a sequence emails them only when its sendToNotSubscribed setting is on. Defaults to active and does not change an existing contact; use update_subscriber for existing contacts.",
         },
         optInMode: {
           type: "string",
@@ -308,9 +305,15 @@ export const subscriberToolDefinitions: Tool[] = [
         },
         status: {
           type: "string",
-          enum: ["active", "unsubscribed", "bounced", "complained"],
+          enum: [
+            "active",
+            "not_subscribed",
+            "unsubscribed",
+            "bounced",
+            "complained",
+          ],
           description:
-            "New global subscriber status. Use unsubscribed for compliance-grade suppression without deleting the record. Use bounced for an undeliverable address. Use complained when the contact reported spam: it records a company spam-complaint suppression, unsubscribes them and cancels their sequence enrollments, and the contact then reads as unsubscribed (the suppression shows in get_recipient_suppression). Use active only when the contact has valid consent to be resubscribed.",
+            "New global subscriber status. Use unsubscribed for compliance-grade suppression without deleting the record. Use not_subscribed for a contact who never opted in to marketing email: campaigns skip them and a sequence emails them only when its sendToNotSubscribed setting is on. not_subscribed is rejected for a contact who is unsubscribed or bounced. Use bounced for an undeliverable address. Use complained when the contact reported spam: it records a company spam-complaint suppression, unsubscribes them and cancels their sequence enrollments, and the contact then reads as unsubscribed (the suppression shows in get_recipient_suppression). Use active only when the contact has valid consent to be resubscribed.",
         },
         attributes: {
           type: "object",
@@ -847,7 +850,7 @@ export const subscriberToolDefinitions: Tool[] = [
         status: {
           type: "string",
           description:
-            "Filter by subscriber status: active, unsubscribed, or bounced.",
+            "Filter by subscriber status: active, not_subscribed, unsubscribed, or bounced.",
         },
         unsubscribedAfter: {
           type: "string",

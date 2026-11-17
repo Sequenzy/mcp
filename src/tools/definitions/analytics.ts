@@ -3,9 +3,6 @@ import { emailEventTypesList } from "../descriptions.js";
 import { includeMachineEngagementToolProperty } from "../internal.js";
 
 export const analyticsToolDefinitions: Tool[] = [
-  // ============================================================================
-  // Analytics
-  // ============================================================================
   {
     name: "get_stats",
     description:

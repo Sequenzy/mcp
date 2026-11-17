@@ -20,9 +20,6 @@ import {
 import { pushLocalizationsProperty } from "./push.js";
 
 export const sequenceBasicToolDefinitions: Tool[] = [
-  // ============================================================================
-  // Sequences
-  // ============================================================================
   {
     name: "list_sequences",
     description:
@@ -388,6 +385,11 @@ export const sequenceBasicToolDefinitions: Tool[] = [
           description:
             "Only enroll contacts whose status is active. Defaults to false, where unsubscribed and bounced contacts still enter on tag, event, list or contact triggers so non-marketing steps (tags, webhooks, transactional emails) run for them, and their marketing emails are skipped at send time. Set true to keep them out entirely. Pending double opt-in contacts still wait for confirmation.",
         },
+        sendToNotSubscribed: {
+          type: "boolean",
+          description:
+            "Whether marketing emails in this sequence also go to contacts with status not_subscribed (known to you, never opted in to marketing, never unsubscribed; typically shoppers who started a checkout). Omit to use the default for the trigger: true for sequences triggered by ecommerce.checkout_started, false for every other trigger. Unsubscribed and bounced contacts never get marketing emails either way.",
+        },
         bccEmails: {
           type: "array",
           items: { type: "string" },
@@ -568,7 +570,6 @@ export const sequenceBasicToolDefinitions: Tool[] = [
           description:
             "Time window in days for frequency trigger (required for frequency trigger, must be >= 1)",
         },
-        // General options
         emailCount: {
           type: "number",
           description: "Number of emails in the sequence (default: 5, max: 10)",

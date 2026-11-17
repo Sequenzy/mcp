@@ -5,9 +5,6 @@ import {
 } from "../internal.js";
 
 export const accountToolDefinitions: Tool[] = [
-  // ============================================================================
-  // Account & Setup
-  // ============================================================================
   {
     name: "get_account",
     description: `Get your own Sequenzy account information (not your customers' B2B accounts; use list_accounts for those) including available companies, the current API key's permission scopes, and the API Keys management URL. Useful after a missing-scope error to inspect access and find the replacement-key settings. When the key has access to multiple companies, other tools need a target company: either one selected with select_company or a companyId passed in each call.
@@ -148,7 +145,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   },
   {
     name: "get_company",
-    description: `Read one company's settings and status: processing status, product info, brand colors, AI writing context, emailStylePreference (visual, plain, or null when not chosen), websiteType (saas, content, ecommerce, offline, mobile_app, other or null) with websiteTypeSource (user when chosen, detected from the website), header and footer (emailPreset), footerStyle for new AI-designed emails (auto, classic, mono, band or editorial), footerTheme (the auto-added footer's resolved colors and copy; change it with update_company footerTheme), reply-tracking settings, effective email localization settings, and darkModeLogoStatus (pending, outlined, not_needed or custom) with darkModeLogoUrl, the logo dark-mode inboxes show (set your own with update_company darkModeLogoUrl). The read-only emailBranding says whether "Sent with Sequenzy" is visible, whether the owner subscription removes it, why, the tier/status, the upgrade or renewal action, and subscriptionUrl. Branding is added at send time, so a paid entitlement removes it from existing live sequences without editing their emails. defaultSubscriberListIds are the lists new contacts join when nothing targets them: JSON null means every current and future list, not an empty selection; [] means no list; an array means exactly those lists. Change it with update_company. Read it before connecting an integration without per-integration list targeting (Dodo Payments, PostHog, Polar, Paddle, and similar): its live contacts and payment-provider backfills land there. PostHog history imports are different: their contacts get no list memberships. ${
+    description: `Read one company's settings and status: processing status, product info, brand colors, AI writing context, emailStylePreference (visual, plain, or null when not chosen), websiteType (saas, content, ecommerce, offline, mobile_app, other or null) with websiteTypeSource (user when chosen, detected from the website), header and footer (emailPreset), footerStyle for new AI-designed emails (auto, classic, mono, band or editorial), footerMode (branded or personal: whether those footers open with the founder's sign-off), founderPhotoUrl (the photo a personal footer signs off with), footerTheme (the auto-added footer's resolved colors and copy; change it with update_company footerTheme), reply-tracking settings, effective email localization settings, and darkModeLogoStatus (pending, outlined, not_needed or custom) with darkModeLogoUrl, the logo dark-mode inboxes show (set your own with update_company darkModeLogoUrl). The read-only emailBranding says whether "Sent with Sequenzy" is visible, whether the owner subscription removes it, why, the tier/status, the upgrade or renewal action, and subscriptionUrl. Branding is added at send time, so a paid entitlement removes it from existing live sequences without editing their emails. defaultSubscriberListIds are the lists new contacts join when nothing targets them: JSON null means every current and future list, not an empty selection; [] means no list; an array means exactly those lists. Change it with update_company. Read it before connecting an integration without per-integration list targeting (Dodo Payments, PostHog, Polar, Paddle, and similar): its live contacts and payment-provider backfills land there. PostHog history imports are different: their contacts get no list memberships. ${
       campaignStoNotCompanyOrSequenceHint
     }`,
     inputSchema: {
@@ -206,6 +203,21 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
         founderName: {
           type: "string",
           description: "Founder or sender name for personal email signatures.",
+        },
+        founderPhotoUrl: {
+          type: ["string", "null"],
+          description:
+            "Square founder photo (public http(s) image URL) personal footers sign off with. Found on the company website during onboarding when the site shows one. New personal footers copy it; existing footers keep their own photo. Pass null to remove it. To upload a photo instead, use founderPhotoFilePath or founderPhotoBase64.",
+        },
+        founderPhotoFilePath: {
+          type: "string",
+          description:
+            "Local path of a founder photo to upload (PNG, JPEG, GIF or WebP, up to 10MB, at least 96px on each side). It is cropped to a square around the face, hosted by Sequenzy and saved as founderPhotoUrl. Only available when the MCP server runs locally on this machine; otherwise use founderPhotoBase64.",
+        },
+        founderPhotoBase64: {
+          type: "string",
+          description:
+            "Founder photo to upload as raw base64 bytes or a base64 data URL (PNG, JPEG, GIF or WebP, up to 10MB, at least 96px on each side). It is cropped to a square around the face, hosted by Sequenzy and saved as founderPhotoUrl.",
         },
         primaryColor: {
           type: "string",
@@ -287,6 +299,12 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
           description:
             "Footer style for new AI-designed emails: classic (brand-colored social icons, centered), mono (monochrome icons, company name as a small wordmark), band (mono on a dark full-width band) or editorial (mono, left-aligned). auto (the default) picks one that fits the brand. Existing emails keep their footers; a footer block's own style field sets one email.",
         },
+        footerMode: {
+          type: "string",
+          enum: ["branded", "personal"],
+          description:
+            "Footer type for new AI-designed emails, combined with footerStyle: branded (the default; the company signs) or personal (the footer opens with the founder's sign-off: photo, name and title, from founderName and founderPhotoUrl). Without a founderName footers stay branded. Existing emails keep their footers; a footer block's own mode field sets one email.",
+        },
         footerTheme: {
           type: ["object", "null"],
           description:
@@ -321,6 +339,12 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
               enum: ["auto", "classic", "mono", "band", "editorial", "", null],
               description:
                 "Same as footerStyle; both with different values is an error.",
+            },
+            mode: {
+              type: ["string", "null"],
+              enum: ["branded", "personal", "", null],
+              description:
+                "Same as footerMode; both with different values is an error.",
             },
           },
           additionalProperties: false,
@@ -1054,7 +1078,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "upgrade_sending_domain_dns",
     description:
-      "Recommended, optional one-time upgrade of a verified sending domain to the current per-domain CNAME DNS records, for better deliverability and security, without removing it; it keeps sending on current records and sending is normally not interrupted at the switch. Once started it runs to the switch. Needs website.dnsUpgrade.status available; an older SES-only domain also needs a DMARC record (400 otherwise). Publish the returned dnsUpgrade.records CNAMEs next to the current records, removing nothing; the domain switches by itself about an hour after the required ones are public (verify_sending_domain checks now, no skip). Removing dnsUpgrade.oldRecords (listed beforehand as replacedRecords) after deleteOldRecordsAfter (8 days) is optional; each is marked removed once gone from public DNS.",
+      "Recommended, optional one-time upgrade of a verified sending domain to the current per-domain CNAME DNS records, for better deliverability and security, without removing it; it keeps sending on current records and sending is normally not interrupted at the switch. Once started it runs to the switch. Needs website.dnsUpgrade.status available; an older SES-only domain also needs a DMARC record (400 otherwise). Publish the returned dnsUpgrade.records CNAMEs next to the current records, removing nothing, plus dnsUpgrade.trackingRecord when present (a workspace without a tracking domain gets links.<domain>, as a new domain does; optional, never holds up the switch); the domain switches by itself about an hour after the required ones are public (verify_sending_domain checks now, no skip). Removing dnsUpgrade.oldRecords (listed beforehand as replacedRecords) after deleteOldRecordsAfter (8 days) is optional; each is marked removed once gone from public DNS.",
     inputSchema: {
       type: "object",
       properties: {

@@ -131,6 +131,7 @@ export async function handleSubscriberTools(
         : requireSubscriberIdentifier("add_subscriber", args);
       const status = optionalAllowedString("add_subscriber", args, "status", [
         "active",
+        "not_subscribed",
         "unsubscribed",
         "bounced",
       ] as const);
@@ -290,7 +291,13 @@ export async function handleSubscriberTools(
         "update_subscriber",
         args,
         "status",
-        ["active", "unsubscribed", "bounced", "complained"] as const
+        [
+          "active",
+          "not_subscribed",
+          "unsubscribed",
+          "bounced",
+          "complained",
+        ] as const
       );
       const resolvedCustomAttributes = resolveSubscriberCustomAttributes(
         "update_subscriber",

@@ -6,7 +6,6 @@ import {
 } from "../../runtime.js";
 import {
   buildCreateCompanyBody,
-  buildUpdateCompanyBody,
   buildUpdateTrackingSettingsBody,
   isRecord,
   optionalString,
@@ -14,6 +13,7 @@ import {
   resolveCompanyIdForAppUrls,
   resolveRequiredCompanyId,
 } from "../internal.js";
+import { sendUpdateCompany } from "../company-update.js";
 
 /**
  * Company IDs from an account payload, or `null` when the payload does not
@@ -85,7 +85,6 @@ export async function handleAccountTools(
         undefined,
         null
       );
-      // Include the locally selected company ID in the response
       const locallySelectedCompanyId = getSelectedCompanyId();
       // A company can be deleted, or access to it revoked, while a selection
       // still points at it. Left in place, every later parameterless call
@@ -168,7 +167,6 @@ export async function handleAccountTools(
     }
 
     case "create_company": {
-      // Create the company
       const createResult = await apiRequest<{
         success: boolean;
         company: { id: string; name: string; status: string };
@@ -207,10 +205,8 @@ export async function handleAccountTools(
         }
       }
 
-      // Auto-select the new company
       setSelectedCompanyId(newCompanyId);
 
-      // Get final company details
       const finalResult = await apiRequest<{
         success: boolean;
         company: {
@@ -244,12 +240,7 @@ export async function handleAccountTools(
 
     case "update_company": {
       const companyId = await resolveRequiredCompanyId("update_company", args);
-      const body = buildUpdateCompanyBody(args);
-      result = await apiRequest(
-        "PATCH",
-        `/api/v1/companies/${companyId}`,
-        body
-      );
+      result = await sendUpdateCompany(companyId, args);
       break;
     }
 

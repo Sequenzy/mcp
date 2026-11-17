@@ -5,9 +5,6 @@ import {
 } from "../internal.js";
 
 export const templateToolDefinitions: Tool[] = [
-  // ============================================================================
-  // Templates
-  // ============================================================================
   {
     name: "list_templates",
     description:

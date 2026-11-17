@@ -408,7 +408,6 @@ export async function handleSequenceTools(
         }
       }
 
-      // Return final status
       const finalResult = await apiRequest<{
         success: boolean;
         sequence: {

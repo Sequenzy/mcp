@@ -6,7 +6,6 @@ import { apiRequest, getSelectedCompanyId } from "../runtime.js";
 import { projectOpenAiToolResult } from "../tools/openai-profile.js";
 import type { SequenzyMcpProfile } from "../tools/profiles.js";
 
-// Resource definitions
 export const resources: Resource[] = [
   {
     uri: "sequenzy://dashboard",
@@ -92,7 +91,6 @@ export const resources: Resource[] = [
   },
 ];
 
-// Resource read handler
 export async function handleResourceRead(
   uri: string,
   options: { profile?: SequenzyMcpProfile } = {}

@@ -2,9 +2,6 @@ import type { Tool } from "../../mcp-types.js";
 import { OUTBOUND_WEBHOOK_EVENT_TYPES } from "../internal.js";
 
 export const webhookToolDefinitions: Tool[] = [
-  // ============================================================================
-  // Outbound Webhooks
-  // ============================================================================
   {
     name: "list_webhooks",
     description:

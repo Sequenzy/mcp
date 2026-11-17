@@ -215,7 +215,7 @@ const LIVE_ACTIVITY_DISPATCH_OUTPUT: OutputSchemaProperties = {
 
 export const sequenceOutputProperty: OutputSchemaProperty =
   objectOutputProperty(
-    `The sequence record returned by Sequenzy. ${SEQUENCE_RUN_STATE_HINT} ${SEQUENCE_STEP_NUMBER_HINT} Sequences use sendingWindow for allowed local hours/days; they do not have Send Time Optimization. frequencyCapEnabled is true when email steps respect the company frequency cap (get_frequency_cap): contacts already at the cap skip the step. activeSubscribersOnly is true when only active contacts enter; when false, unsubscribed and bounced contacts still enter and only their marketing emails are skipped. STO is per-campaign (list_campaigns / get_campaign sendTimeOptimization).`
+    `The sequence record returned by Sequenzy. ${SEQUENCE_RUN_STATE_HINT} ${SEQUENCE_STEP_NUMBER_HINT} Sequences use sendingWindow for allowed local hours/days; they do not have Send Time Optimization. frequencyCapEnabled is true when email steps respect the company frequency cap (get_frequency_cap): contacts already at the cap skip the step. activeSubscribersOnly is true when only active contacts enter; when false, unsubscribed and bounced contacts still enter and only their marketing emails are skipped. sendToNotSubscribed is true when marketing emails also go to contacts with status not_subscribed (the sequence's own setting, or the default for its trigger). STO is per-campaign (list_campaigns / get_campaign sendTimeOptimization).`
   );
 
 export const sequenceListOutputProperty: OutputSchemaProperty =
@@ -1279,7 +1279,7 @@ export const outputPropertiesByToolName: Record<
   },
   upgrade_sending_domain_dns: {
     website: resourceOutputProperty(
-      "Sending domain; dnsUpgrade.records lists the CNAMEs to publish, each {purpose, type, name, value, required, status, diagnostic?}; dnsUpgrade.replacedRecords lists the current records to remove after the switch, each {type, name, removed}"
+      "Sending domain; dnsUpgrade.records lists the CNAMEs to publish, each {purpose, type, name, value, required, status, diagnostic?}; dnsUpgrade.replacedRecords lists the current records to remove after the switch, each {type, name, removed}; dnsUpgrade.trackingRecord {type, name, value, status, required: false} is the company tracking CNAME to publish with them, or null"
     ),
   },
   get_integration_guide: {
@@ -2340,7 +2340,7 @@ export const outputPropertiesByToolName: Record<
             "Subscriber last name, or null when unset."
           ),
           subscriberStatus: nullableStringOutputProperty(
-            "Subscriber status (active, unsubscribed, bounced), or null when the subscriber record no longer exists."
+            "Subscriber status (active, not_subscribed, unsubscribed, bounced), or null when the subscriber record no longer exists."
           ),
           status: stringOutputProperty(
             "Enrollment status: active, waiting, paused, completed, failed, or cancelled."

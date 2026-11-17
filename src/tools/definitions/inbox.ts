@@ -1,9 +1,6 @@
 import type { Tool } from "../../mcp-types.js";
 
 export const inboxToolDefinitions: Tool[] = [
-  // ============================================================================
-  // Inbox (Conversations)
-  // ============================================================================
   {
     name: "get_inbox_address",
     description:

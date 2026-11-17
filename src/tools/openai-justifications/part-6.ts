@@ -45,13 +45,13 @@ export const OPENAI_JUSTIFICATIONS_PART_6: Readonly<
   },
   invite_team_member: {
     readOnly:
-      "Writes team access: it inserts a member row for an existing Sequenzy user, or creates or reissues an invitation row and emails the invitee.",
+      "Writes team access: it inserts a member row for an existing Sequenzy user whose email is confirmed, or creates or reissues an invitation row and emails the invitee.",
     destructive:
-      "The invitation email cannot be recalled once sent, and an existing Sequenzy user gets workspace access immediately without accepting. Reissuing an expired or cancelled invitation rotates its token, so the old link stops working. Only owners or admins may invite; only the owner grants billing.",
+      "The invitation email cannot be recalled once sent, and an existing Sequenzy user with a confirmed email gets workspace access immediately without accepting. Reissuing an expired or cancelled invitation rotates its token, so the old link stops working. Only owners or admins may invite; only the owner grants billing.",
     openWorld:
       "Sends an invitation email to the address supplied, which can be anyone outside the company.",
     effects:
-      "Existing Sequenzy users gain access at once with no acceptance step; reissuing an expired or cancelled invitation replaces its link.",
+      "Existing Sequenzy users with a confirmed email gain access at once with no acceptance step; reissuing an expired or cancelled invitation replaces its link.",
   },
   cancel_team_invitation: {
     readOnly:

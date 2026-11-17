@@ -13,12 +13,10 @@ import { collapseRepeatedSchemas } from "./schema-collapse.js";
  * byte budget pinned in muse-profile.test.ts.
  */
 export const MUSE_TOOL_NAMES = [
-  // Account and company
   "get_account",
   "select_company",
   "get_company",
   "get_app_urls",
-  // Subscribers
   "add_subscriber",
   "get_subscriber",
   "update_subscriber",
@@ -32,7 +30,6 @@ export const MUSE_TOOL_NAMES = [
   "trigger_subscriber_events",
   "create_subscriber_import",
   "get_subscriber_import",
-  // Lists, tags and segments
   "list_lists",
   "create_list",
   "add_subscribers_to_list",
@@ -41,7 +38,6 @@ export const MUSE_TOOL_NAMES = [
   "create_tag",
   "list_segments",
   "get_segment_count",
-  // Campaigns
   "list_campaigns",
   "get_campaign",
   "get_campaign_audience",
@@ -58,10 +54,8 @@ export const MUSE_TOOL_NAMES = [
   "get_email_block_schema",
   "upload_image_asset",
   "crop_image_asset",
-  // AI writing
   "generate_email",
   "generate_subject_lines",
-  // Sequences
   "list_sequences",
   "get_sequence",
   "generate_sequence",
@@ -72,7 +66,6 @@ export const MUSE_TOOL_NAMES = [
   "disable_sequence",
   "enroll_subscribers_in_sequence",
   "get_sequence_stats",
-  // Templates and transactional email
   "list_templates",
   "get_template",
   "create_template_from_example",
@@ -80,7 +73,6 @@ export const MUSE_TOOL_NAMES = [
   "list_transactional_emails",
   "get_transactional_email",
   "send_email",
-  // Sending setup and stats
   "list_sender_profiles",
   "update_sender_profile",
   "get_sending_status",
@@ -88,7 +80,6 @@ export const MUSE_TOOL_NAMES = [
   "get_stats_breakdown",
   "list_email_sends",
   "get_email_send",
-  // Inbox
   "list_conversations",
   "get_conversation",
   "reply_to_conversation",

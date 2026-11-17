@@ -226,12 +226,22 @@ export function validateUpdateSegmentArgs(args: Record<string, unknown>): void {
   }
 }
 
+/**
+ * `update_company` fields that upload the founder photo through
+ * PUT /companies/:id/founder-photo instead of the PATCH body.
+ */
+export const COMPANY_PHOTO_UPLOAD_FIELDS = [
+  "founderPhotoFilePath",
+  "founderPhotoBase64",
+] as const;
+
 export const COMPANY_UPDATE_FIELDS = [
   "name",
   "description",
   "logoUrl",
   "darkModeLogoUrl",
   "founderName",
+  "founderPhotoUrl",
   "primaryColor",
   "brandColors",
   "valueProps",
@@ -244,6 +254,7 @@ export const COMPANY_UPDATE_FIELDS = [
   "websiteType",
   "emailPreset",
   "footerStyle",
+  "footerMode",
   "footerTheme",
   "socialLinks",
   "privacyPolicyUrl",
@@ -353,7 +364,11 @@ export function buildUpdateCompanyBody(
     throw new Error(
       "Renaming matching footers requires name and previousCompanyName."
     );
-  const allowedKeys = new Set(["companyId", ...COMPANY_UPDATE_FIELDS]);
+  const allowedKeys = new Set([
+    "companyId",
+    ...COMPANY_UPDATE_FIELDS,
+    ...COMPANY_PHOTO_UPLOAD_FIELDS,
+  ]);
   const unsupportedKeys = Object.keys(args).filter(
     (key) => !allowedKeys.has(key)
   );
@@ -371,9 +386,31 @@ export function buildUpdateCompanyBody(
     }
   }
 
-  if (Object.keys(body).length === 0) {
+  const photoUploadFields = COMPANY_PHOTO_UPLOAD_FIELDS.filter(
+    (key) => args[key] !== undefined
+  );
+  for (const key of photoUploadFields) {
+    if (typeof args[key] !== "string" || !args[key].trim()) {
+      throw new Error(
+        `\`${key}\` must be a non-empty string when calling \`update_company\`.`
+      );
+    }
+  }
+  if (photoUploadFields.length > 1) {
     throw new Error(
-      `Provide at least one of ${COMPANY_UPDATE_FIELDS.map((key) => `\`${key}\``).join(", ")} when calling \`update_company\`.`
+      "Provide either `founderPhotoFilePath` or `founderPhotoBase64`, not both, when calling `update_company`."
+    );
+  }
+  if (photoUploadFields.length > 0 && args["founderPhotoUrl"] !== undefined) {
+    throw new Error(
+      "Provide either `founderPhotoUrl` or an uploaded founder photo, not both, when calling `update_company`."
+    );
+  }
+
+  // An uploaded photo goes to its own endpoint, so it may be the only field.
+  if (Object.keys(body).length === 0 && photoUploadFields.length === 0) {
+    throw new Error(
+      `Provide at least one of ${[...COMPANY_UPDATE_FIELDS, ...COMPANY_PHOTO_UPLOAD_FIELDS].map((key) => `\`${key}\``).join(", ")} when calling \`update_company\`.`
     );
   }
 
@@ -384,6 +421,16 @@ export function buildUpdateCompanyBody(
   ) {
     throw new Error(
       "`darkModeLogoUrl` must be a URL string, or null to use the automatic dark-mode logo, when calling `update_company`."
+    );
+  }
+
+  if (
+    args["founderPhotoUrl"] !== undefined &&
+    args["founderPhotoUrl"] !== null &&
+    typeof args["founderPhotoUrl"] !== "string"
+  ) {
+    throw new Error(
+      "`founderPhotoUrl` must be a URL string, or null to remove the photo, when calling `update_company`."
     );
   }
 
@@ -399,6 +446,7 @@ export function buildUpdateCompanyBody(
     "emailLengthPreference",
     "emailPreset",
     "footerStyle",
+    "footerMode",
     "privacyPolicyUrl",
     "termsUrl",
     "address",

@@ -5,9 +5,6 @@ import {
 } from "../internal.js";
 
 export const landingPageToolDefinitions: Tool[] = [
-  // ============================================================================
-  // Landing Pages
-  // ============================================================================
   {
     name: "list_landing_pages",
     description: "List all landing pages for a company.",

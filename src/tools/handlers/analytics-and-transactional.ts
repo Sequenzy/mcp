@@ -468,7 +468,6 @@ export async function handleAnalyticsAndTransactionalTools(
       break;
     }
 
-    // Analytics
     case "get_stats": {
       const companyId = args.companyId as string | undefined;
       const period = args.period ?? "7d";

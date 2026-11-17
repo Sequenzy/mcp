@@ -1,9 +1,6 @@
 import type { Tool } from "../../mcp-types.js";
 
 export const productToolDefinitions: Tool[] = [
-  // ============================================================================
-  // Products & Digital Delivery
-  // ============================================================================
   {
     name: "list_products",
     description:

@@ -1,9 +1,6 @@
 import type { Tool } from "../../mcp-types.js";
 
 export const teamToolDefinitions: Tool[] = [
-  // ============================================================================
-  // Team
-  // ============================================================================
   {
     name: "list_team_members",
     description:
@@ -22,7 +19,7 @@ export const teamToolDefinitions: Tool[] = [
   {
     name: "invite_team_member",
     description:
-      "Invite a team member by email with role admin, marketer, viewer, or restricted. Existing Sequenzy users are added to the team immediately; others receive an email invitation. Billing access (canManageBilling) can only be granted by the company owner and is not available for marketer or restricted members. Calling it again for an address whose invitation expired or was cancelled reissues it with a new link and emails it again; a still-valid pending invitation returns 409.",
+      "Invite a team member by email with role admin, marketer, viewer, or restricted. Existing Sequenzy users with a confirmed email are added to the team immediately; others receive an email invitation. Billing access (canManageBilling) can only be granted by the company owner and is not available for marketer or restricted members. Calling it again for an address whose invitation expired or was cancelled reissues it with a new link and emails it again; a still-valid pending invitation returns 409.",
     inputSchema: {
       type: "object",
       properties: {

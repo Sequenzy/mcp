@@ -6,7 +6,6 @@ import {
 } from "../internal.js";
 
 export const transactionalToolDefinitions: Tool[] = [
-  // ============================================================================
   {
     name: "list_transactional_emails",
     description:

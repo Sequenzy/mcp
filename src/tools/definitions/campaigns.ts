@@ -117,9 +117,6 @@ function buildTargetListsInputSchema(
 
 export const campaignToolDefinitions: Tool[] = [
   createCampaignForAudienceTool,
-  // ============================================================================
-  // Campaigns
-  // ============================================================================
   {
     name: "list_campaigns",
     description: `List campaigns. Each item carries \`emailPreset\`, the linked email's Style > Format (branded or minimal; null for SMS campaigns and standalone raw HTML emails), so chrome can be compared across campaigns without one get_campaign call each. ${

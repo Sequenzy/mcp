@@ -836,7 +836,10 @@ DMARC is `unavailable` and the start returns 400 ("Add a DMARC record for this
 domain before upgrading its DNS records."). Call `upgrade_sending_domain_dns`
 for a recommended, optional one-time upgrade to the current per-domain CNAMEs
 (better deliverability and security) without removing it: publish the
-`dnsUpgrade.records` CNAMEs next to the current records and remove nothing.
+`dnsUpgrade.records` CNAMEs next to the current records and remove nothing,
+plus `dnsUpgrade.trackingRecord` while the tracking domain is not verified (a
+workspace without one gets `links.<domain>`, as a new domain does; it never
+holds up the switch).
 About an hour after the required ones are visible on public DNS, the domain
 switches by itself (`verify_sending_domain` checks now but does not skip the
 wait). Sending is normally not interrupted at the switch; if that isn't
@@ -935,7 +938,11 @@ The dashboard and CLI import contacts the source marks `Not Confirmed`,
 `pending` or `unconfirmed` as `active`. Unsubscribed and bounced records never enroll in sequences or
 receive a double opt-in email, and an `active` record never resubscribes an
 unsubscribed or bounced contact. With `merge` or `overwrite`, an unsubscribed
-or bounced record applies that status to an existing active contact.
+or bounced record applies that status to an existing active contact. Use
+`not_subscribed` for a contact who never opted in to marketing email and never
+unsubscribed: it applies to new contacts only and never changes an existing
+one. Campaigns skip these contacts, and a sequence emails them only when its
+`sendToNotSubscribed` setting is on.
 
 For `import_subscriber_events`, email is required when a row may create a new
 contact; `externalId` can stand alone only for an existing contact. Supply a
@@ -1552,7 +1559,14 @@ asks again) and `emailPreset` (`branded` for the logo and full footer,
 `footerStyle` sets the footer AI-designed emails get: `classic` (brand-colored
 social icons), `mono` (monochrome icons, company name as a small wordmark),
 `band` (mono on a dark full-width band), `editorial` (mono, left-aligned) or
-`auto` (the default, fits the brand). Existing emails keep their footers.
+`auto` (the default, fits the brand). `footerMode` picks the footer type in
+any of those styles: `branded` (the default) or `personal`, which opens the
+footer with the founder's sign-off (photo, name and title). Existing emails
+keep their footers. `founderPhotoUrl` sets the photo personal footers sign off
+with (`null` removes it); onboarding looks for it on the company
+website. To upload a photo instead, pass `founderPhotoFilePath` (local server
+only) or `founderPhotoBase64`; Sequenzy crops it to a square and saves it as
+`founderPhotoUrl`.
 `footerTheme` sets the auto-added footer's colors and copy (`linkColor`,
 `reasonText`, `showCompanyLine` and the rest) as a merge patch: omitted fields
 keep their value and `null` resets one, or all with `footerTheme: null`.
@@ -1806,6 +1820,7 @@ Sequence creation supports:
 - Name-only creation for a blank, disabled trigger-to-completion draft matching the dashboard.
 - Dashboard metadata and delivery settings: `description`, `labels`, `userCancellable`, sequence BCC, and From/Reply-To identity.
 - `activeSubscribersOnly: true` keeps unsubscribed and bounced contacts out of the sequence. By default they still enter so non-marketing steps run, and only their marketing emails are skipped. `update_sequence` accepts the same field.
+- `sendToNotSubscribed` controls whether marketing emails also go to contacts with status `not_subscribed`: people you know about who never opted in to marketing and never unsubscribed, such as shoppers who started a checkout. Omit it to use the default for the trigger: `true` for sequences triggered by `ecommerce.checkout_started`, `false` for everything else. On `update_sequence`, `null` goes back to that default. Sequence results return the value in effect.
 - `trigger: "contact_added"` with `listId`, several `listIds`, or `listScope`:
   `any_contact` (the default) enrolls every added contact, including contacts
   that join no list, while `any_list` waits for an actual list membership.

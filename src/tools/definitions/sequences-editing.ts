@@ -32,7 +32,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
   {
     name: "update_sequence",
     description:
-      "Update an existing sequence: both its settings and its steps. Sequence-level settings live directly on this tool - name, description, labels, trigger (with its trigger-specific field), enrollmentMode plus enrollmentFieldPath, enrollmentPaused, userCancellable, activeSubscribersOnly, stopCondition, sendingWindow, frequencyCapEnabled, bccEmails, and the sender/reply identity. This is the only way to change enrollmentMode after create_sequence, so use it to move a tag- or event-triggered sequence off the default 'unlimited' re-entry to 'one_time' or 'matching_field'. To target a specific existing step, use IDs returned by get_sequence. The emails/steps arrays edit email steps, smsSteps edits SMS steps, and subscriberUpdateSteps replaces the config of action_update_attributes steps. The emails/steps arrays reach action_email steps only: an action_ab_test step keeps its copy on the A/B test variants, so read variant blocks from get_sequence.sequence.emails[].abTest.variants and change each variant with update_ab_test_variant. If update_ab_test_variant is not in the tool list, enable it on the Sequenzy connector rather than writing through update_template. To insert new linear steps, use insertSteps with an afterNodeId from get_sequence; omit afterNodeId only to append to an unambiguous linear tail. Deleting a step immediately moves parked recipients to its unique surviving successor, or completes them when no successor remains; inspect migratedRecipientCount and completedRecipientCount in the returned sequence. For active sequences, structural changes such as insertSteps or branch require confirmStructuralChange:true after the user confirms the live-flow impact.",
+      "Update an existing sequence: both its settings and its steps. Sequence-level settings live directly on this tool - name, description, labels, trigger (with its trigger-specific field), enrollmentMode plus enrollmentFieldPath, enrollmentPaused, userCancellable, activeSubscribersOnly, sendToNotSubscribed, stopCondition, sendingWindow, frequencyCapEnabled, bccEmails, and the sender/reply identity. This is the only way to change enrollmentMode after create_sequence, so use it to move a tag- or event-triggered sequence off the default 'unlimited' re-entry to 'one_time' or 'matching_field'. To target a specific existing step, use IDs returned by get_sequence. The emails/steps arrays edit email steps, smsSteps edits SMS steps, and subscriberUpdateSteps replaces the config of action_update_attributes steps. The emails/steps arrays reach action_email steps only: an action_ab_test step keeps its copy on the A/B test variants, so read variant blocks from get_sequence.sequence.emails[].abTest.variants and change each variant with update_ab_test_variant. If update_ab_test_variant is not in the tool list, enable it on the Sequenzy connector rather than writing through update_template. To insert new linear steps, use insertSteps with an afterNodeId from get_sequence; omit afterNodeId only to append to an unambiguous linear tail. Deleting a step immediately moves parked recipients to its unique surviving successor, or completes them when no successor remains; inspect migratedRecipientCount and completedRecipientCount in the returned sequence. For active sequences, structural changes such as insertSteps or branch require confirmStructuralChange:true after the user confirms the live-flow impact.",
     inputSchema: {
       type: "object",
       properties: {
@@ -62,6 +62,11 @@ export const sequenceEditingToolDefinitions: Tool[] = [
           type: "boolean",
           description:
             "Only enroll contacts whose status is active. Defaults to false, where unsubscribed and bounced contacts still enter on tag, event, list or contact triggers so non-marketing steps (tags, webhooks, transactional emails) run for them, and their marketing emails are skipped at send time. Set true to keep them out entirely. Pending double opt-in contacts still wait for confirmation.",
+        },
+        sendToNotSubscribed: {
+          type: ["boolean", "null"],
+          description:
+            "Whether marketing emails in this sequence also go to contacts with status not_subscribed (known to you, never opted in to marketing, never unsubscribed; typically shoppers who started a checkout). Pass null to go back to the default for the trigger: true for sequences triggered by ecommerce.checkout_started, false for every other trigger. Unsubscribed and bounced contacts never get marketing emails either way.",
         },
         labels: {
           type: "array",
@@ -1983,7 +1988,4 @@ export const sequenceEditingToolDefinitions: Tool[] = [
       required: ["sequenceId"],
     },
   },
-
-  // ============================================================================
-  // Transactional Email
 ];

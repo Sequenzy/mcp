@@ -1,9 +1,6 @@
 import type { Tool } from "../../mcp-types.js";
 
 export const aiGenerationToolDefinitions: Tool[] = [
-  // ============================================================================
-  // AI Generation
-  // ============================================================================
   {
     name: "generate_email",
     description:

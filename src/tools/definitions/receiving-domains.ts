@@ -14,9 +14,6 @@ const domainProperty = () => ({
 });
 
 export const receivingDomainToolDefinitions: Tool[] = [
-  // ============================================================================
-  // Receiving domains (inbox mail and replies)
-  // ============================================================================
   {
     name: "list_receiving_domains",
     description:

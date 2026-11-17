@@ -207,6 +207,31 @@ function prepareImageUpload(input: UploadImageAssetInput): PreparedImageUpload {
   };
 }
 
+/**
+ * The founder photo for `update_company`, as base64 for
+ * PUT /companies/:id/founder-photo. The API crops it to a square.
+ */
+export function readFounderPhotoUpload(input: {
+  filePath?: string | undefined;
+  imageBase64?: string | undefined;
+}): string {
+  if (input.filePath !== undefined) {
+    if (!areLocalFileUploadsEnabled()) {
+      throw new Error(
+        "`founderPhotoFilePath` is only supported when the MCP server runs locally on your machine. For a remote MCP connection, pass `founderPhotoBase64` instead."
+      );
+    }
+    if (!contentTypeFromFilename(input.filePath)) {
+      throw new Error("Unsupported image type. Use PNG, JPEG, GIF, or WebP.");
+    }
+    assertUploadSize(statSync(input.filePath).size);
+    return readFileSync(input.filePath).toString("base64");
+  }
+  const { bytes } = decodeBase64Image(input.imageBase64 ?? "");
+  assertUploadSize(bytes.byteLength);
+  return bytes.toString("base64");
+}
+
 export async function uploadImageAsset(
   input: UploadImageAssetInput
 ): Promise<UploadedImageAsset> {

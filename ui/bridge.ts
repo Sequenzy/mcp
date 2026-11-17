@@ -144,7 +144,6 @@ export class AppBridge {
     return result ?? {};
   }
 
-  /** Tells the host to list the view's tools again. */
   sendToolListChanged(): void {
     if (this.appCapabilities.tools?.listChanged)
       this.notify("notifications/tools/list_changed");

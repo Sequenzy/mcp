@@ -75,7 +75,6 @@ export async function handleTeamInboxWebhookTools(
       break;
     }
 
-    // Inbox (Conversations)
     case "get_inbox_address": {
       const companyId = args.companyId as string | undefined;
       result = await apiRequest(
@@ -426,7 +425,6 @@ export async function handleTeamInboxWebhookTools(
       break;
     }
 
-    // Outbound Webhooks
     case "list_webhooks": {
       const companyId = args.companyId as string | undefined;
       result = await apiRequest(

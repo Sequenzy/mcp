@@ -7,9 +7,6 @@ import {
 } from "../internal.js";
 
 export const abTestToolDefinitions: Tool[] = [
-  // ============================================================================
-  // A/B Tests
-  // ============================================================================
   {
     name: "list_ab_tests",
     description: "List A/B tests and their variants.",

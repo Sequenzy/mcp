@@ -302,7 +302,6 @@ export async function handleAudienceTools(
       break;
     }
 
-    // Audience Syncs
     case "list_audience_syncs": {
       const companyId = args.companyId as string | undefined;
       result = await apiRequest(

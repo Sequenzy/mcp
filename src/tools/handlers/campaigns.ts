@@ -338,7 +338,6 @@ export async function handleCampaignTools(
       break;
     }
 
-    // A/B Tests
     case "list_ab_tests": {
       const companyId = args.companyId as string | undefined;
       const abTestParams = new URLSearchParams();
@@ -908,7 +907,6 @@ export async function handleCampaignTools(
       break;
     }
 
-    // Campaigns
     case "list_campaigns": {
       const companyId = args.companyId as string | undefined;
       const campaignParams = new URLSearchParams();

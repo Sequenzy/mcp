@@ -1,9 +1,6 @@
 import type { Tool } from "../../mcp-types.js";
 
 export const audienceSyncToolDefinitions: Tool[] = [
-  // ============================================================================
-  // Audience Syncs (segment -> Meta custom audience)
-  // ============================================================================
   {
     name: "list_audience_syncs",
     description:

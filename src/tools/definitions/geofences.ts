@@ -47,9 +47,6 @@ const GEOFENCE_ID = {
 } as const;
 
 export const geofenceToolDefinitions: Tool[] = [
-  // ============================================================================
-  // Geofences
-  // ============================================================================
   {
     name: "list_geofences",
     description:

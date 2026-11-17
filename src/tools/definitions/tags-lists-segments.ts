@@ -6,9 +6,6 @@ import {
 } from "../internal.js";
 
 export const tagListSegmentToolDefinitions: Tool[] = [
-  // ============================================================================
-  // Tags, Lists, Segments
-  // ============================================================================
   {
     name: "list_tags",
     description:
