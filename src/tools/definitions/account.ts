@@ -1463,7 +1463,7 @@ Requires the companies:manage scope and owner or admin access to the company.`,
         doubleOptInRedirectUrl: {
           type: ["string", "null"],
           description:
-            "Where the hosted confirmation page sends subscribers after they confirm - typically a branded thank-you or welcome page on the company's own site. Must be an http(s) URL; a bare domain is normalized to https. Pass null to clear it, which keeps subscribers on the hosted confirmation page (branded with the company's name, logo, and colors).",
+            "Where the hosted confirmation page sends subscribers after they confirm - typically a branded thank-you or welcome page on the company's own site. Must be an http(s) URL; a bare domain is normalized to https. To show the subscriber's details on that page, put merge tags in the query string: {{EMAIL}}, {{FIRST_NAME}}, {{LAST_NAME}}, {{SUBSCRIBER_ID}}, {{LISTS}} and {{TAGS}} ({{LISTS}} is the names of the public lists the signup joins and {{TAGS}} the tags it applied, both comma-separated), for example https://example.com/welcome?name={{FIRST_NAME}}&list={{LISTS}}. They are replaced with the confirming subscriber's URL-encoded values at redirect time and are empty when unknown; merge tags outside the query string and any other placeholders (such as {{NAME}} or {{subscriber.PLAN}}) are left as written, so use only the six listed. Pass null to clear it, which keeps subscribers on the hosted confirmation page (branded with the company's name, logo, and colors).",
         },
         autoUtmEnabled: {
           type: "boolean",

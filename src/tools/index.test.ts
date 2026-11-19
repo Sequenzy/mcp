@@ -287,8 +287,10 @@ describe("MCP tool profiles", () => {
     // fuller input and result descriptions on the Muse tools, about 10 KB, and
     // the brand-default and templateId guidance on the create tools plus the
     // no-HTML-lists rule in every blocks field, about 2 KB, and merge_tags
-    // plus the tag rename on update_tag, about 4 KB).
-    expect(JSON.stringify({ tools: standard }).length).toBeLessThan(1_761_000);
+    // plus the tag rename on update_tag, about 4 KB, and the cart item
+    // itemLinks setting, double opt-in redirect merge tags and the email
+    // sendFormat field in the shared schemas, under 1 KB).
+    expect(JSON.stringify({ tools: standard }).length).toBeLessThan(1_770_000);
   });
 
   it("renames only on the OpenAI profile and keeps standard names", () => {

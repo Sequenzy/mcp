@@ -1184,7 +1184,7 @@ export const outputPropertiesByToolName: Record<
       "Account-wide open/click flags, transactionalOpenTrackingEnabled and transactionalClickTrackingEnabled defaults for Transactional API sends, unsubscribe tracking, the opt-in strictBotFilteringEnabled bot-detection flag, emailContentStorageEnabled (false: no stored email content or subjects, and no IP address, user agent or country on opens and clicks), plus the default attribution window in hours."
     ),
     consent: objectOutputProperty(
-      "Signup consent settings: doubleOptInEnabled, doubleOptInEmailId for the confirmation email sent to pending contacts (null when double opt-in has never been enabled), and doubleOptInRedirectUrl for where the hosted confirmation page sends subscribers after confirming (null keeps them on the branded confirmation page)."
+      "Signup consent settings: doubleOptInEnabled, doubleOptInEmailId for the confirmation email sent to pending contacts (null when double opt-in has never been enabled), and doubleOptInRedirectUrl for where the hosted confirmation page sends subscribers after confirming (null keeps them on the branded confirmation page; merge tags such as {{EMAIL}} in its query string are returned as stored and filled in per subscriber at redirect time)."
     ),
     autoUtm: objectOutputProperty(
       "Automatic UTM tagging state and its configured parameters."
@@ -1202,7 +1202,7 @@ export const outputPropertiesByToolName: Record<
       "Account-wide open/click flags, transactionalOpenTrackingEnabled and transactionalClickTrackingEnabled defaults for Transactional API sends, unsubscribe tracking, the opt-in strictBotFilteringEnabled bot-detection flag, emailContentStorageEnabled (false: no stored email content or subjects, and no IP address, user agent or country on opens and clicks), plus the default attribution window in hours, after the update."
     ),
     consent: objectOutputProperty(
-      "Signup consent settings after the update: doubleOptInEnabled, doubleOptInEmailId for the confirmation email (provisioned automatically the first time double opt-in is enabled), and doubleOptInRedirectUrl for the post-confirmation redirect (null keeps subscribers on the branded confirmation page)."
+      "Signup consent settings after the update: doubleOptInEnabled, doubleOptInEmailId for the confirmation email (provisioned automatically the first time double opt-in is enabled), and doubleOptInRedirectUrl for the post-confirmation redirect (null keeps subscribers on the branded confirmation page; merge tags such as {{EMAIL}} in its query string are returned as stored and filled in per subscriber at redirect time)."
     ),
     autoUtm: objectOutputProperty(
       "Automatic UTM tagging state and its configured parameters, after the update."
