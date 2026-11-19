@@ -1642,12 +1642,30 @@ export const outputPropertiesByToolName: Record<
   },
   list_tags: {
     tags: resourceListOutputProperty("tag"),
+    changeInProgress: objectOutputProperty(
+      "Present only while a large rename or merge is still moving contacts: kind (rename or merge), fromName, toName, tagId and, for a merge, sourceTagId. Other renames, merges and deletes are refused until it is gone. stopped is true when it failed before finishing and needs support to finish it."
+    ),
   },
   create_tag: {
     tag: resourceOutputProperty("tag"),
   },
   update_tag: {
     tag: resourceOutputProperty("tag"),
+    status: stringOutputProperty(
+      "completed, or processing when the tag is on more than 20,000 contacts and they are still being moved. Present only when name was given."
+    ),
+    contactsUpdated: numberOutputProperty(
+      "Contacts whose tag was renamed. Present only when name was given and status is completed."
+    ),
+  },
+  merge_tags: {
+    tag: resourceOutputProperty("tag"),
+    status: stringOutputProperty(
+      "completed, or processing when the merged tag is on more than 20,000 contacts and they are still being moved."
+    ),
+    contactsUpdated: numberOutputProperty(
+      "Contacts moved from the merged tag to the kept tag. Present only when status is completed."
+    ),
   },
   delete_tag: {
     tagId: stringOutputProperty("Deleted tag ID."),

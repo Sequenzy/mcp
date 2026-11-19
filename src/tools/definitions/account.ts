@@ -580,7 +580,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
   {
     name: "update_sync_rules",
     description:
-      "Replace the company's sync rules. Pass the FULL rule set (fetch with get_sync_rules first and edit it - this is not a partial update), [] to disable rules, or null to opt into the inherited SaaS/ecommerce platform preset. Each rule: { triggerEvent, actions: { addTags, removeTags }, conditions? }. Conditions support requiresTags, requiresNotTags, and purchasedProduct ({ tags?, collectionIds?, productTypes?, vendors? }) which matches products on commerce events - e.g. tag buyers of products carrying a given product tag.",
+      "Replace the company's sync rules. Pass the FULL rule set (fetch with get_sync_rules first and edit it - this is not a partial update), [] to disable rules, or null to opt into the inherited SaaS/ecommerce platform preset. Each rule: { triggerEvent, actions: { addTags, removeTags }, conditions? }. Conditions support requiresTags, requiresNotTags, and purchasedProduct ({ names?, productIds?, tags?, collectionIds?, productTypes?, vendors? }) which matches products on the event: names/productIds for payment events such as a Polar purchase (e.g. tag buyers of one product), the rest for commerce catalog products.",
     inputSchema: {
       type: "object",
       properties: {
@@ -628,8 +628,10 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
                   purchasedProduct: {
                     type: "object",
                     description:
-                      "For commerce events with product context: rule only applies when a product on the event matches every specified selector.",
+                      "Rule only applies when a product on the event matches every specified selector. names (case-insensitive) and productIds match the product a payment or commerce event carries; the other selectors match commerce catalog products.",
                     properties: {
+                      names: { type: "array", items: { type: "string" } },
+                      productIds: { type: "array", items: { type: "string" } },
                       tags: { type: "array", items: { type: "string" } },
                       collectionIds: {
                         type: "array",

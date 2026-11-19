@@ -64,7 +64,7 @@ export const templateToolDefinitions: Tool[] = [
   {
     name: "create_template",
     description:
-      "Create a new email template. `prompt` generates net-new email content from natural language. `blocks` is for finished caller-supplied Sequenzy content and `html` for supplied or explicitly requested preserved HTML. Creating a standalone copy of a saved design and AI rewriting within its layout are currently dashboard-only workflows; this tool has no source-design operation, and `prompt` does not preserve an existing layout. For a campaign copy, use create_campaign with templateId.",
+      "Create a new email template. `prompt` generates net-new email content from natural language. `blocks` is for finished caller-supplied Sequenzy content and `html` for supplied or explicitly requested preserved HTML. A template from `blocks` takes the saved AI style's theme and font and the logo when the format is branded, but no footer, since templates may be sent as transactional email; call get_design_md first for the brand's colors, fonts and voice. Creating a standalone copy of a saved design and AI rewriting within its layout are currently dashboard-only workflows; this tool has no source-design operation, and `prompt` does not preserve an existing layout. For a campaign copy, use create_campaign with templateId.",
     inputSchema: {
       type: "object",
       properties: {

@@ -284,8 +284,11 @@ describe("MCP tool profiles", () => {
     // segment and subscriber import descriptions, about 1 KB, and the
     // open_sequenzy workspace entry point, about 3 KB, and the nested list
     // item indent field, about 1 KB, and crop_image_asset, about 4 KB, and
-    // fuller input and result descriptions on the Muse tools, about 10 KB).
-    expect(JSON.stringify({ tools: standard }).length).toBeLessThan(1_755_000);
+    // fuller input and result descriptions on the Muse tools, about 10 KB, and
+    // the brand-default and templateId guidance on the create tools plus the
+    // no-HTML-lists rule in every blocks field, about 2 KB, and merge_tags
+    // plus the tag rename on update_tag, about 4 KB).
+    expect(JSON.stringify({ tools: standard }).length).toBeLessThan(1_761_000);
   });
 
   it("renames only on the OpenAI profile and keeps standard names", () => {
@@ -14479,14 +14482,84 @@ describe("tag management tools", () => {
     );
   });
 
-  it("requires color when updating a tag", async () => {
+  it("renames a tag", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      tag: { id: "tag_123", name: "vip-customers", color: "blue" },
+      contactsUpdated: 42,
+    });
+
+    const result = await handleToolCall("update_tag", {
+      tagId: "tag_123",
+      name: "VIP Customers",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/tags/tag_123",
+      { name: "VIP Customers" },
+      undefined
+    );
+  });
+
+  it("renames and recolors a tag in one call", async () => {
+    mockApiRequest.mockResolvedValueOnce({ success: true });
+
+    await handleToolCall("update_tag", {
+      tagId: "tag_123",
+      name: "vip",
+      color: "blue",
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/tags/tag_123",
+      { name: "vip", color: "blue" },
+      undefined
+    );
+  });
+
+  it("requires a name or a color when updating a tag", async () => {
     const result = await handleToolCall("update_tag", {
       tagId: "tag_123",
     });
 
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain(
-      "`color` is required when calling `update_tag`."
+      "update_tag requires name, color or both"
+    );
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("merges one tag into another", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      tag: { id: "tag_456", name: "motionlens", color: "gray" },
+      contactsUpdated: 7,
+    });
+
+    const result = await handleToolCall("merge_tags", {
+      companyId: "comp_123",
+      tagId: "tag_123",
+      targetTagId: "tag_456",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/tags/tag_123/merge",
+      { targetTagId: "tag_456" },
+      "comp_123"
+    );
+  });
+
+  it("requires both tags when merging", async () => {
+    const result = await handleToolCall("merge_tags", { tagId: "tag_123" });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toContain(
+      "`targetTagId` is required when calling `merge_tags`."
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
   });

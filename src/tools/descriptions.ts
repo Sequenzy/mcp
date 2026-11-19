@@ -75,8 +75,8 @@ export const emailBlocksDescription = `Sequenzy email blocks. Use this for edito
  * Sequence email steps are the only blocks route that re-applies managed chrome
  * on update, so an agent authoring a targeted content edit has to be able to
  * read that contract before it sends one. Append this only to sequence step
- * blocks fields - campaign, template, and transactional routes store blocks as
- * sent.
+ * blocks fields - campaign, template, and transactional routes store updated
+ * blocks as sent.
  */
 export const sequenceStepBlocksFormatHint =
   " Replacing a step's blocks keeps that step's existing Style > Format rather than the company default: a step that already had a logo or footer gets them back even if you omit them, and every block added that way is listed in the response `warnings`. Pass `emailPreset` to change the format. A step whose stored content is a single raw HTML block has no format, so replacing it with another single raw HTML block is stored exactly as sent; replacing it with native blocks converts the step and does add a footer.";

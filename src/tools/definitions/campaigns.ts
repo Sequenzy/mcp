@@ -356,7 +356,7 @@ export const campaignToolDefinitions: Tool[] = [
   {
     name: "create_campaign",
     description:
-      "Create a new campaign. Omit all content fields to create an empty draft. `prompt` generates net-new content from natural language. `blocks` are finished caller-supplied Sequenzy content and `html` is preserved/imported markup. Pass `emailPreset` with native blocks to set Style > Format (minimal or branded); `style` is a prompt-generation hint only. Defaults to draft; status 'sent' only archives an already-sent campaign.",
+      "Create a new campaign. Omit all content fields to create an empty draft. `prompt` generates net-new content from natural language. `blocks` are finished caller-supplied Sequenzy content and `html` is preserved/imported markup. A draft from `blocks` (or an empty one) starts on the company brand like a prompt draft: the saved AI style's theme and font, the logo when the format is branded, and the default footer when the blocks have none; your blocks are never removed or restyled, so do not add your own logo or footer unless you want a specific one. Before writing blocks, call get_design_md for the brand's colors, fonts, voice and saved style. To match one specific past email, pass its `emailId` (from get_campaign or list_templates) as `templateId` instead, then edit with update_campaign. Pass `emailPreset` with native blocks to set Style > Format (minimal or branded); `style` is a prompt-generation hint only. Defaults to draft; status 'sent' only archives an already-sent campaign.",
     inputSchema: {
       type: "object",
       properties: {
@@ -423,7 +423,8 @@ export const campaignToolDefinitions: Tool[] = [
         emailPreset: campaignEmailPresetSchema,
         templateId: {
           type: "string",
-          description: "Use a template instead of html",
+          description:
+            "Copy an existing email's blocks and theme into the campaign: a template ID or any campaign's `emailId` from get_campaign. Use it to make a new campaign look exactly like a past one, then replace the copy with update_campaign. Mutually exclusive with `prompt`, `html`, and `blocks`.",
         },
         segmentId: {
           type: "string",

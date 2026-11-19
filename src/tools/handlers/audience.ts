@@ -8,7 +8,6 @@ import {
   optionalString,
   requiredString,
   optionalAllowedString,
-  requiredAllowedString,
   requireEmailArray,
 } from "../internal.js";
 
@@ -49,16 +48,36 @@ export async function handleAudienceTools(
     case "update_tag": {
       const companyId = args.companyId as string | undefined;
       const tagId = requiredString("update_tag", args, "tagId");
-      const color = requiredAllowedString(
+      const tagName = optionalString(args, "name");
+      const color = optionalAllowedString(
         "update_tag",
         args,
         "color",
         AVAILABLE_TAG_COLORS
       );
+      if (tagName === undefined && color === undefined) {
+        throw new Error("update_tag requires name, color or both");
+      }
       result = await apiRequest(
         "PATCH",
         `/api/v1/tags/${encodeURIComponent(tagId)}`,
-        { color },
+        {
+          ...(tagName !== undefined && { name: tagName }),
+          ...(color !== undefined && { color }),
+        },
+        companyId
+      );
+      break;
+    }
+
+    case "merge_tags": {
+      const companyId = args.companyId as string | undefined;
+      const tagId = requiredString("merge_tags", args, "tagId");
+      const targetTagId = requiredString("merge_tags", args, "targetTagId");
+      result = await apiRequest(
+        "POST",
+        `/api/v1/tags/${encodeURIComponent(tagId)}/merge`,
+        { targetTagId },
         companyId
       );
       break;

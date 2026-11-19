@@ -50,7 +50,8 @@ export const tagListSegmentToolDefinitions: Tool[] = [
   },
   {
     name: "update_tag",
-    description: "Update a tag's color. System tags cannot be updated.",
+    description:
+      "Rename a tag, change its color, or both. Pass name, color or both. A rename changes the tag on every contact that carries it, starts no sequences, and returns contactsUpdated. A tag on more than 20,000 contacts returns status processing instead: the name is saved and the contacts follow within minutes, during which other renames, merges and deletes are refused (409 tag_in_progress; list_tags shows changeInProgress). It is refused (409, with a usage list) while a sequence, segment, campaign, email, sync rule, goal or integration still uses the tag, and when another tag already has the name: use merge_tags for that. System tags cannot be updated.",
     inputSchema: {
       type: "object",
       properties: {
@@ -63,13 +64,43 @@ export const tagListSegmentToolDefinitions: Tool[] = [
           type: "string",
           description: "Tag ID. Use list_tags to find tag IDs.",
         },
+        name: {
+          type: "string",
+          description:
+            "New tag name. Stored lowercase with hyphens. Required unless color is given.",
+        },
         color: {
           type: "string",
           enum: [...AVAILABLE_TAG_COLORS],
-          description: "New tag color.",
+          description: "New tag color. Required unless name is given.",
         },
       },
-      required: ["tagId", "color"],
+      required: ["tagId"],
+    },
+  },
+  {
+    name: "merge_tags",
+    description:
+      "Merge one tag into another: every contact carrying tagId gets targetTagId instead, then tagId is deleted. This cannot be undone. No sequences start. Returns the kept tag and contactsUpdated. A merged tag on more than 20,000 contacts returns status processing instead: the contacts move within minutes and the merged tag is deleted last, during which other renames, merges and deletes are refused (409 tag_in_progress; list_tags shows changeInProgress). Refused (409, with a usage list) while a sequence, segment, campaign, email, sync rule, goal, integration, form, popup or landing page still uses the merged tag. System tags cannot be merged. The API key needs tags:write and tags:delete.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        tagId: {
+          type: "string",
+          description:
+            "ID of the tag to merge away and delete. Use list_tags to find tag IDs.",
+        },
+        targetTagId: {
+          type: "string",
+          description: "ID of the tag to keep.",
+        },
+      },
+      required: ["tagId", "targetTagId"],
     },
   },
   {

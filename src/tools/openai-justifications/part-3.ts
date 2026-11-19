@@ -282,11 +282,23 @@ export const OPENAI_JUSTIFICATIONS_PART_3: Readonly<
   },
   update_tag: {
     readOnly:
-      "Not read-only: PATCH /tags/:id overwrites the tag definition's color.",
+      "Not read-only: PATCH /tags/:id overwrites the tag definition's color and, when a name is given, renames the tag on every contact that carries it.",
     destructive:
-      "Destructive in the narrow sense that the previous color is replaced with no history; the name and contact assignments are unchanged, and system tags are refused.",
+      "Destructive in the narrow sense that the previous name and color are replaced with no history; which contacts carry the tag is unchanged. Safeguards: system tags are refused (403), a name another tag has is refused (409), and a rename is refused (409) while a sequence, segment, campaign, email, sync rule, goal or integration still uses the tag.",
     openWorld:
-      "Closed world: tag colors are a dashboard label inside Sequenzy and are never shown to contacts.",
+      "Open world: a renamed tag makes its contacts match segments that filter on the new name, so running segment-entered sequences can enroll and email those contacts. A color-only change reaches nobody.",
+    effects:
+      "After a rename, segment membership is re-evaluated, so running segment-entered or -exited sequences can email affected contacts. No tag-added sequences start.",
+  },
+  merge_tags: {
+    readOnly:
+      "Not read-only: replaces the merged tag with the kept tag on every contact that carries it and deletes the merged tag's definition.",
+    destructive:
+      "Destructive: which contacts carried the merged tag, as distinct from the kept tag, is lost permanently. Safeguards: system tags are refused (403), and the merge is refused (409) while a sequence, segment, campaign, email, sync rule, goal, integration, form, popup or landing page still uses the merged tag.",
+    openWorld:
+      "Open world: contacts that gain the kept tag start matching segments that filter on it, so running segment-entered or -exited sequences can enroll and email those contacts.",
+    effects:
+      "Segment membership is re-evaluated, so running segment-entered or -exited sequences can email affected contacts. No tag-added sequences start for the kept tag.",
   },
   delete_tag: {
     readOnly:

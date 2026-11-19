@@ -1067,7 +1067,8 @@ origin.
 | ------------------------------ | ----------------------------------------------------------- |
 | `list_tags`                    | List all tags.                                              |
 | `create_tag`                   | Create a tag definition with an optional color.             |
-| `update_tag`                   | Update a tag color.                                         |
+| `update_tag`                   | Rename a tag or change its color.                           |
+| `merge_tags`                   | Merge one tag into another and delete it.                   |
 | `delete_tag`                   | Delete a tag and remove it from subscribers.                |
 | `list_lists`                   | List subscriber lists.                                      |
 | `create_list`                  | Create a subscriber list.                                   |
