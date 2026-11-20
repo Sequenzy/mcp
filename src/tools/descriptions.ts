@@ -753,6 +753,33 @@ export const emailThemePatchProperties = {
     },
     additionalProperties: false,
   },
+  chromePack: {
+    type: ["string", "null"],
+    enum: ["product", "editorial", "poster", "storefront", null],
+    description:
+      "Brand-derived. Send back the value a theme read returned so a copied theme renders the same; null removes it.",
+  },
+  radiiFromBrand: {
+    type: ["object", "null"],
+    description:
+      "Brand-derived. Send back the value a theme read returned so a copied theme renders the same; null removes it.",
+    properties: {
+      base: { type: "boolean" },
+      button: { type: "boolean" },
+    },
+    required: ["base", "button"],
+    additionalProperties: false,
+  },
+  headingFontFromBrand: {
+    type: ["boolean", "null"],
+    description:
+      "Brand-derived. Send back the value a theme read returned so a copied theme renders the same; null removes it.",
+  },
+  signature: {
+    type: ["object", "null"],
+    description:
+      "Brand-derived component styles. Send back the object a theme read returned, unchanged; null removes it.",
+  },
 } as const;
 
 export const companyEmailThemeSchema = {

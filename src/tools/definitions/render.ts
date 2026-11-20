@@ -73,7 +73,7 @@ export const renderToolDefinitions: Tool[] = [
         variantId: {
           type: "string",
           description:
-            "Render a specific A/B test variant of the campaign or sequence step. Required for sequence steps whose nodeType is action_ab_test: those steps have no emailId of their own, and copy lives on get_sequence.sequence.emails[].abTest.variants. Rendering a sequence variant also needs the ab_tests:read scope, the same scope get_sequence uses to return competing variant copy.",
+            "Render a specific A/B test variant of the campaign or sequence step. On a sequence step whose nodeType is action_ab_test, omit it to render control variant A (needs ab_tests:read, otherwise pass it); copy lives on get_sequence.sequence.emails[].abTest.variants. Passing a sequence variant also needs the ab_tests:read scope, the same scope get_sequence uses to return competing variant copy.",
         },
         variationId: {
           type: "string",

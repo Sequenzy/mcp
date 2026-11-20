@@ -486,7 +486,7 @@ export const abTestToolDefinitions: Tool[] = [
   {
     name: "delete_ab_test",
     description:
-      "Permanently delete a campaign A/B test and all of its variants. This cannot be undone. Running tests (testing or winner_selected) cannot be deleted, and the linked campaign must be in draft or rejected status.",
+      "Permanently delete a campaign A/B test and all of its variants. This cannot be undone. Running tests (testing or winner_selected) cannot be deleted, and the linked campaign must be in draft or rejected status. A sequence A/B test is a step: remove it with edit_sequence_graph (action delete_node), which deletes the step and its test, then add a plain email with insert_sequence_step if you want one there.",
     inputSchema: {
       type: "object",
       properties: {
