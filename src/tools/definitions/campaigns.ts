@@ -501,7 +501,7 @@ export const campaignToolDefinitions: Tool[] = [
   },
   {
     name: "update_campaign",
-    description: `Update a draft email campaign's content, audience, sending identity, labels, Style > Format, delivery pacing, or recipient limit. Only drafts can be edited: unschedule a scheduled campaign first (unschedule_campaign). Supplied fields overwrite the saved draft immediately; nothing is sent until schedule_campaign. Returns the updated campaign. Pass emailPreset to change Style > Format on native blocks without rewriting copy. sendTimeOptimization, sendTimeWindowHours and maxRecipients persist on the draft and are used when the campaign is later scheduled unless schedule_campaign overrides them. ${
+    description: `Update a draft email campaign's content, audience, sending identity, labels, Style > Format, delivery pacing, or recipient limit, or fix the content of a paused campaign. Drafts accept every field: unschedule a scheduled campaign first (unschedule_campaign). To fix a mistake in a campaign that is already sending (a wrong link, a typo), call pause_campaign, then update_campaign with only content fields (subject, previewText, html, blocks, emailPreset), then resume_campaign: recipients not yet sent the campaign get the updated email, emails already sent do not change, and nobody is sent it twice. A paused campaign rejects every other field, cannot be edited when it has an A/B test, and returns a conflict if it is resumed while the update is saving. Translations are sent as saved: when the email has translations the response warns you to update them before resuming. Supplied fields overwrite the saved content immediately; nothing is sent until schedule_campaign for a draft, or resume_campaign for a paused campaign. Returns the updated campaign. Pass emailPreset to change Style > Format on native blocks without rewriting copy. sendTimeOptimization, sendTimeWindowHours and maxRecipients persist on the draft and are used when the campaign is later scheduled unless schedule_campaign overrides them. ${
       campaignStoNotCompanyOrSequenceHint
     }`,
     inputSchema: {
@@ -515,7 +515,7 @@ export const campaignToolDefinitions: Tool[] = [
         campaignId: {
           type: "string",
           description:
-            "Draft campaign to edit, from list_campaigns or create_campaign.",
+            "Draft or paused campaign to edit, from list_campaigns or create_campaign.",
         },
         name: {
           type: "string",
@@ -524,6 +524,10 @@ export const campaignToolDefinitions: Tool[] = [
         subject: {
           type: "string",
           description: "Email subject line",
+        },
+        previewText: {
+          type: ["string", "null"],
+          description: "Inbox preview text. Send null to clear it.",
         },
         trackingCode: {
           type: "string",

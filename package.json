@@ -1,6 +1,6 @@
 {
   "name": "@sequenzy/mcp",
-  "version": "0.0.258",
+  "version": "0.0.259",
   "mcpName": "io.github.Sequenzy/mcp",
   "description": "Sequenzy MCP server for AI-powered email marketing automation",
   "type": "module",

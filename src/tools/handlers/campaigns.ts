@@ -1107,6 +1107,7 @@ export async function handleCampaignTools(
         "campaignId",
         "name",
         "subject",
+        "previewText",
         "trackingCode",
         "html",
         "blocks",
@@ -1161,6 +1162,7 @@ export async function handleCampaignTools(
       if (
         args.name === undefined &&
         args.subject === undefined &&
+        args.previewText === undefined &&
         args.trackingCode === undefined &&
         args.html === undefined &&
         args.blocks === undefined &&

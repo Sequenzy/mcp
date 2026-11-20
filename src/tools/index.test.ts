@@ -289,8 +289,9 @@ describe("MCP tool profiles", () => {
     // no-HTML-lists rule in every blocks field, about 2 KB, and merge_tags
     // plus the tag rename on update_tag, about 4 KB, and the cart item
     // itemLinks setting, double opt-in redirect merge tags and the email
-    // sendFormat field in the shared schemas, under 1 KB).
-    expect(JSON.stringify({ tools: standard }).length).toBeLessThan(1_770_000);
+    // sendFormat field in the shared schemas, under 1 KB, and the repeat
+    // productSource rule in every blocks field, about 5 KB).
+    expect(JSON.stringify({ tools: standard }).length).toBeLessThan(1_775_000);
   });
 
   it("renames only on the OpenAI profile and keeps standard names", () => {
@@ -5927,6 +5928,33 @@ describe("update_campaign tool validation", () => {
     expect(inputSchema?.properties).toHaveProperty("sendTimeOptimization");
     expect(inputSchema?.properties).toHaveProperty("sendTimeWindowHours");
     expect(updateCampaignTool?.description).toContain("campaign-only");
+  });
+
+  it("forwards a content-only update_campaign, the shape a paused campaign accepts", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      campaign: { id: "camp_123", status: "paused" },
+    });
+
+    const result = await handleToolCall("update_campaign", {
+      companyId: "comp_123",
+      campaignId: "camp_123",
+      subject: "Fixed link",
+      previewText: "The right link this time",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/campaigns/camp_123",
+      {
+        companyId: "comp_123",
+        campaignId: "camp_123",
+        subject: "Fixed link",
+        previewText: "The right link this time",
+      },
+      "comp_123"
+    );
   });
 
   it("forwards an update_campaign audience change to the API", async () => {
