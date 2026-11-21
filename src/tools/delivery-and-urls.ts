@@ -1,3 +1,4 @@
+// test-cache: no-repo-reads
 import { readFileSync, statSync } from "node:fs";
 import { basename } from "node:path";
 
