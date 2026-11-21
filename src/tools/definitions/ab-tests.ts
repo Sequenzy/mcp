@@ -276,7 +276,7 @@ export const abTestToolDefinitions: Tool[] = [
             "event_rate",
           ],
           description:
-            'Winner selection criteria. Applies to both campaign and sequence tests and is locked once a campaign test starts. goal_conversion_rate picks the variant whose recipients convert on winnerGoalId most often, goal_value the one with the most goal value per delivered email (use winnerGoalId "default-revenue" for purchase revenue), and event_rate the one whose recipients most often fire winnerEventName after receiving it. Conversions count when attributed to the email (an open or click within the goal\'s window; for campaigns, revenue and campaign goals also credit a recipient who received the email in that window). When no variant converts, campaign tests fall back to click rate and sequence tests keep splitting.',
+            'Winner selection criteria. Applies to both campaign and sequence tests and is locked once a campaign test starts. goal_conversion_rate picks the variant whose recipients convert on winnerGoalId most often, goal_value the one with the most goal value per delivered email (use winnerGoalId "default-revenue" for purchase revenue), and event_rate the one whose recipients most often fire winnerEventName after receiving it. Conversions count when attributed to the email (an open or click within the goal\'s window; for campaigns, goals of that campaign also credit a recipient who received the email in that window). When no variant converts, campaign tests fall back to click rate and sequence tests keep splitting.',
         },
         winnerGoalId: {
           type: "string",
@@ -365,7 +365,7 @@ export const abTestToolDefinitions: Tool[] = [
             "event_rate",
           ],
           description:
-            'Winner selection criteria. Campaign tests default to open_rate. For sequence tests, an explicit value overrides the testType default. goal_conversion_rate picks the variant whose recipients convert on winnerGoalId most often, goal_value the one with the most goal value per delivered email (use winnerGoalId "default-revenue" for purchase revenue), and event_rate the one whose recipients most often fire winnerEventName after receiving it. Conversions count when attributed to the email (an open or click within the goal\'s window; for campaigns, revenue and campaign goals also credit a recipient who received the email in that window). When no variant converts, campaign tests fall back to click rate and sequence tests keep splitting.',
+            'Winner selection criteria. Campaign tests default to open_rate. For sequence tests, an explicit value overrides the testType default. goal_conversion_rate picks the variant whose recipients convert on winnerGoalId most often, goal_value the one with the most goal value per delivered email (use winnerGoalId "default-revenue" for purchase revenue), and event_rate the one whose recipients most often fire winnerEventName after receiving it. Conversions count when attributed to the email (an open or click within the goal\'s window; for campaigns, goals of that campaign also credit a recipient who received the email in that window). When no variant converts, campaign tests fall back to click rate and sequence tests keep splitting.',
         },
         winnerGoalId: {
           type: "string",
