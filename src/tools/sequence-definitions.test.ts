@@ -24,7 +24,7 @@ describe("sequence definition tools", () => {
     mockApiRequest.mockClear();
   });
 
-  it("keeps plain object input schemas", () => {
+  it("keeps plain object input schemas and documents managedBy opt-in GitOps guidance", () => {
     for (const name of [
       "get_sequence_definition",
       "push_sequence_definition",
@@ -33,6 +33,56 @@ describe("sequence definition tools", () => {
       expect(tool?.inputSchema.type).toBe("object");
       expect(JSON.stringify(tool?.inputSchema)).not.toContain("anyOf");
     }
+
+    const getTool = tools.find(
+      (candidate) => candidate.name === "get_sequence_definition"
+    );
+    expect(getTool?.description).toContain("sequences-as-code / GitOps");
+    expect(getTool?.description).toContain("get_sequence");
+
+    const pushTool = tools.find(
+      (candidate) => candidate.name === "push_sequence_definition"
+    );
+    expect(pushTool?.description).toContain("sequences-as-code / GitOps");
+    expect(pushTool?.description).toContain("create_sequence");
+    expect(pushTool?.description).toContain("update_sequence_node");
+    expect(pushTool?.description).toContain("update_sequence_nodes");
+    expect(pushTool?.description).toContain("edit_sequence_graph");
+    expect(pushTool?.description).toContain("managedBy");
+    expect(pushTool?.description).toContain("dashboard");
+
+    const definitionSchema = pushTool?.inputSchema.properties?.[
+      "definition"
+    ] as {
+      additionalProperties?: boolean;
+      properties?: Record<string, { enum?: string[]; description?: string }>;
+    };
+    expect(definitionSchema?.additionalProperties).toBe(true);
+    expect(definitionSchema?.properties?.["managedBy"]?.enum).toEqual([
+      "code",
+      "dashboard",
+    ]);
+    expect(definitionSchema?.properties?.["managedBy"]?.description).toContain(
+      "read-only in the dashboard"
+    );
+  });
+
+  it("preserves backwards-compatible definition pushes with or without managedBy", async () => {
+    const withDashboardOwner = {
+      name: "Onboarding",
+      managedBy: "dashboard",
+      steps: [],
+      connections: [],
+    };
+    await handleToolCall("push_sequence_definition", {
+      key: "onboarding",
+      definition: withDashboardOwner,
+    });
+    expect(mockApiRequest.mock.calls[0]?.slice(0, 3)).toEqual([
+      "PUT",
+      "/api/v1/sequences/definitions/onboarding",
+      withDashboardOwner,
+    ]);
   });
 
   it("reads by key or by sequence id", async () => {

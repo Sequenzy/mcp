@@ -849,6 +849,8 @@ export const DESTRUCTIVE_TOOL_NAMES = new Set([
   // Writes devices and contacts in bulk; canceling deletes staged rows.
   "start_push_import",
   "cancel_push_import",
+  // Sequences-as-code / GitOps push: replaces steps in place, removes omitted
+  // steps, and defaults new sequences to managedBy: "code" (dashboard read-only).
   "push_sequence_definition",
   "disconnect_integration",
   // Links and images in emails already sent through the removed domain stop working.

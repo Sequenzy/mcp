@@ -2617,7 +2617,7 @@ export const outputPropertiesByToolName: Record<
       "readable or raw: which form definition is in."
     ),
     definition: objectOutputProperty(
-      "The sequence definition: key, id, name, description, managedBy, status, settings, steps and connections."
+      "The sequences-as-code definition: key, id, name, description, status, settings, trigger and steps (plus connections in raw format). managedBy is omitted so pushing a pulled document back never re-locks a sequence."
     ),
   },
   push_sequence_definition: {
@@ -2629,7 +2629,7 @@ export const outputPropertiesByToolName: Record<
       "Whether the document differs from what is stored."
     ),
     sequence: objectOutputProperty(
-      "The sequence: id, key, name, status and managedBy."
+      "The sequence: id, key, name, status and managedBy (code for code-managed/dashboard-locked sequences, or dashboard for dashboard-editable sequences)."
     ),
     changes: objectOutputProperty(
       "Changed sequence fields, added/changed/removed steps (with waiting contact counts) and added/removed connections."

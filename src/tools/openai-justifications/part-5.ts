@@ -459,17 +459,17 @@ export const OPENAI_JUSTIFICATIONS_PART_5: Readonly<
   },
   get_sequence_definition: {
     readOnly:
-      "Issues GET /sequences/definitions/:key or /sequences/:id/definition and returns the definition document.",
+      "Issues GET /sequences/definitions/:key or /sequences/:id/definition and returns the sequences-as-code / GitOps definition document without modifying anything.",
     destructive:
-      "Read-only; it does not change the sequence, its steps or its enrollments.",
+      "Read-only; it does not change the sequence, its steps, its ownership, or its enrollments.",
     openWorld:
-      "Reads the company's own sequence configuration inside Sequenzy; webhook header values stay redacted.",
+      "Reads the company's own sequence configuration inside Sequenzy; webhook header values stay redacted and managedBy is omitted.",
   },
   push_sequence_definition: {
     readOnly:
-      "PUTs /sequences/definitions/:key, which creates the sequence or replaces its steps, connections and given settings.",
+      "PUTs /sequences/definitions/:key for opt-in sequences-as-code / GitOps sync, creating the sequence or replacing its steps, connections and given settings.",
     destructive:
-      "Removes steps that are missing from the document, moving waiting contacts to the following step, and replaces email content in place. dryRun true previews without writing, and it never turns a sequence on or off.",
+      "Removes steps missing from the document, moving waiting contacts to the following step, replaces email content in place, and defaults new sequences to managedBy 'code' (locking steps, emails and settings as read-only in the dashboard unless managedBy 'dashboard' is passed). dryRun true previews without writing, and it never turns a sequence on or off.",
     openWorld:
       "Changes what the sequence will send to the company's own contacts once it is active; nothing is sent by the push itself.",
   },
