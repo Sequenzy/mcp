@@ -280,6 +280,17 @@ describe("sequence step emailTheme schema", () => {
     expect(layout.properties.contentWidth).toEqual({ type: "number" });
   });
 
+  it("offers a fixed or fluid content width in the layout", () => {
+    const layout = companyEmailThemeSchema.properties.layout;
+    expect(layout.properties.contentWidthMode).toMatchObject({
+      type: "string",
+      enum: ["fixed", "fluid"],
+    });
+    expect(layout.properties.contentWidthMode.description).toContain(
+      "full width of the reader's window"
+    );
+  });
+
   it("states that the patch is per-email and that null clears it", () => {
     const description = sequenceStepEmailThemeSchema.description;
     expect(description).toContain("company-wide default is left untouched");

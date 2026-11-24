@@ -1672,7 +1672,7 @@ export const outputPropertiesByToolName: Record<
   },
   list_lists: {
     lists: arrayOutputProperty(
-      "Subscriber lists. Each entry includes id, name, description, isPrivate, allowMemberUnsubscribe, createdAt, subscriberCount (current members of any status), and activeSubscriberCount (current members with status=active). Memberships with unsubscribedAt set are excluded."
+      "Subscriber lists. Each entry includes id, name, description, isPrivate, allowMemberUnsubscribe, unsubscribeListOnly, createdAt, subscriberCount (current members of any status), and activeSubscriberCount (current members with status=active). Memberships with unsubscribedAt set are excluded."
     ),
   },
   create_list: {
@@ -3401,6 +3401,11 @@ export const outputPropertiesByToolName: Record<
         additionalProperties: true,
       },
     },
+    branches: {
+      type: ["array", "null"],
+      description:
+        "Per-branch and per-condition decision breakdown in graph order, or null if branch analytics timed out or were temporarily unavailable: each entry has nodeId, nodeType, label, splitMode, decisions, lopsidedElse, paths[{ pathId, index, kind, label, decisions, people, share, targetShare, neverMatched }], unmapped, and unrecorded.",
+    },
     enrollmentCounts: {
       type: "object",
       description:
@@ -3476,6 +3481,132 @@ export const outputPropertiesByToolName: Record<
     ),
     recommendations: objectOutputProperty(
       "Product recommendation funnel aggregated across the sequence's email nodes: impressions, recipients, clicks, clickers, orders, legacy revenueCents, currency-safe revenueByCurrency totals, and topProducts. Present only when the sequence rendered product recommendation blocks."
+    ),
+  },
+  get_sequence_path_stats: {
+    sequenceId: stringOutputProperty("Sequence ID."),
+    outcome: nullableObjectOutputProperty(
+      "Selected goal or event outcome, or null when omitted and the sequence does not have a single active automation-scoped goal."
+    ),
+    availableGoals: arrayOutputProperty(
+      "Active company and sequence-scoped goals plus default-revenue that can be passed as goalId."
+    ),
+    conversionWindowDays: numberOutputProperty(
+      "Conversion window in days after reaching the step."
+    ),
+    timedOut: booleanOutputProperty(
+      "True when the ClickHouse cohort query exceeded its bound; retry with a shorter period."
+    ),
+    baseline: nullableObjectOutputProperty(
+      "Baseline cohort conversion metrics across all enrollments of this sequence."
+    ),
+    branches: arrayOutputProperty(
+      "Branch and condition nodes with per-path entrants, share, converted, conversionRate, trackedValue, matureEntrants, matureConverted, matureConversionRate, causal flag, per-goal attributed rollup (can differ from all-goals canvas badges), and random-split significance."
+    ),
+    steps: arrayOutputProperty(
+      "Non-logic sequence steps with entrants, post-step cohort conversion metrics, and per-goal attributed rollup on email steps."
+    ),
+  },
+  list_sequence_path_subscribers: {
+    sequenceId: stringOutputProperty("Sequence ID."),
+    nodeId: stringOutputProperty("Node ID of the branch, condition, or step."),
+    pathId: nullableStringOutputProperty(
+      "Filtered configured path ID, or null when listing all enrollments or a synthetic bucket."
+    ),
+    bucket: nullableStringOutputProperty(
+      "Filtered synthetic bucket ('unmapped' or 'unrecorded'), or null."
+    ),
+    outcome: nullableObjectOutputProperty(
+      "Optional outcome used to compute each row's conversion flag and trackedValue, or null."
+    ),
+    conversionWindowDays: numberOutputProperty("Conversion window in days."),
+    timedOut: booleanOutputProperty(
+      "True when the ClickHouse lookup timed out."
+    ),
+    subscribers: arrayOutputProperty(
+      "Paginated enrollment rows: subscriberId, email, name, tokenId, decidedAt, pathId, redacted reason, converted, convertedAt, trackedValue."
+    ),
+    pagination: objectOutputProperty(
+      "Pagination metadata (page, limit, total, totalPages)."
+    ),
+  },
+  get_conditional_block_stats: {
+    sourceType: stringOutputProperty(
+      "Email source type ('campaign', 'sequence_step', or 'transactional')."
+    ),
+    sourceId: stringOutputProperty("Source ID."),
+    sourceName: stringOutputProperty("Campaign, step, or transactional name."),
+    abTestVariantId: nullableStringOutputProperty(
+      "Filtered A/B test variant ID, or null."
+    ),
+    goalId: nullableStringOutputProperty("Filtered goal ID, or null."),
+    timedOut: booleanOutputProperty(
+      "True when the ClickHouse query timed out; retry with a shorter period."
+    ),
+    totalSends: numberOutputProperty("Total non-test sends in the window."),
+    recordedSends: numberOutputProperty(
+      "Sends that recorded conditional block branch decisions."
+    ),
+    untrackedSends: numberOutputProperty(
+      "Sends in the window that predate conditional block tracking."
+    ),
+    failClosedSends: numberOutputProperty(
+      "Sends where subscriber rules could not be checked and fell back to Otherwise."
+    ),
+    truncatedSends: numberOutputProperty(
+      "Sends that exceeded the 50 conditional block recording limit."
+    ),
+    trackingSince: nullableStringOutputProperty(
+      "ISO 8601 timestamp of the earliest recorded send in the window, or null."
+    ),
+    baseline: nullableObjectOutputProperty(
+      "Recorded-send email baseline averages (sends, deliveries, openRate, clickRate, conversionRate, unsubscribeRate, bounceRate), or null."
+    ),
+    alerts: arrayOutputProperty(
+      "Automatic rule-health alerts (never_matched, empty_state_spike, lopsided_else, fail_closed_spike)."
+    ),
+    conditionGroups: arrayOutputProperty(
+      "Collapsed rule groups merging sibling blocks with identical conditions, including blockCount, representativeBlockId, ctaLabel, snippetLines, previewVersionIndex, alerts, and branches[] with rate deltas vs baseline and topClickedLink."
+    ),
+    blocks: arrayOutputProperty(
+      "Per-block conditional metrics: blockId, kind, label, conditionSummary, inEmail, tracked, insideRepeat, evaluatedSends, skippedSends, notInVersionSends, and branches[] with sends, share, deliveries, opens, openRate, openRateDeltaPts, clicks, clickRate, clickRateDeltaPts, unsubscribes, bounces, complaints, conversions, conversionRate, conversionRateDeltaPts, trackedValue, topClickedLink."
+    ),
+    automationId: stringOutputProperty(
+      "Sequence ID (present when sourceType is 'sequence')."
+    ),
+    automationName: stringOutputProperty(
+      "Sequence name (present when sourceType is 'sequence')."
+    ),
+    stepsWithConditions: numberOutputProperty(
+      "Number of email steps in the sequence with conditional blocks (when sourceType is 'sequence')."
+    ),
+    totalRuleGroups: numberOutputProperty(
+      "Total collapsed conditional rule groups across the sequence (when sourceType is 'sequence')."
+    ),
+    alertCount: numberOutputProperty(
+      "Total conditional rule alerts across the sequence (when sourceType is 'sequence')."
+    ),
+    steps: arrayOutputProperty(
+      "Per-step conditional summaries and alerts (when sourceType is 'sequence')."
+    ),
+  },
+  list_conditional_block_subscribers: {
+    sourceType: stringOutputProperty("Email source type."),
+    sourceId: stringOutputProperty("Source ID."),
+    blockId: stringOutputProperty("Conditional block ID."),
+    branch: stringOutputProperty("Filtered branch key."),
+    branchLabel: stringOutputProperty("Human-readable branch label."),
+    timedOut: booleanOutputProperty(
+      "True when the ClickHouse lookup timed out."
+    ),
+    total: numberOutputProperty("Total matching recipients."),
+    limit: numberOutputProperty("Page size."),
+    offset: numberOutputProperty("Offset into matching recipients."),
+    items: arrayOutputProperty(
+      "Paginated recipient rows: emailSendId, subscriberId, email, name, sentAt, delivered, opened, clicked, bounced, unsubscribed, complained, converted, trackedValue."
+    ),
+    pagination: objectOutputProperty(
+      "Pagination metadata (page, limit, total, totalPages, hasMore)."
     ),
   },
   list_campaign_events: {

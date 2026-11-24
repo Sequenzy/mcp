@@ -80,6 +80,38 @@ export const OPENAI_JUSTIFICATIONS_PART_5: Readonly<
     openWorld:
       "Reads the company's own Postgres and ClickHouse enrollment history only.",
   },
+  get_sequence_path_stats: {
+    readOnly:
+      "Issues GET /api/v1/metrics/sequences/:id/outcomes and returns aggregated branch split counts and cohort conversion metrics; nothing is written.",
+    destructive:
+      "Read-only analytics aggregation; it never modifies sequences, goals, or enrollments.",
+    openWorld:
+      "Reads only the company's own sequence graph, ClickHouse node events, goals, and conversion history.",
+  },
+  list_sequence_path_subscribers: {
+    readOnly:
+      "Issues GET /api/v1/metrics/sequences/:id/paths/:nodeId/subscribers and returns paginated enrollments with redacted branch reasons and conversion status; nothing is stored.",
+    destructive:
+      "Read-only paginated list; it cannot move, cancel, or email any subscriber.",
+    openWorld:
+      "Reads only the company's own subscriber and ClickHouse enrollment data without contacting external services.",
+  },
+  get_conditional_block_stats: {
+    readOnly:
+      "Issues GET on the conditional-blocks analytics endpoint for a campaign, sequence email step, or transactional email and returns aggregated branch performance; nothing is written.",
+    destructive:
+      "Read-only analytics aggregation; it never edits emails, campaigns, sequences, or subscribers.",
+    openWorld:
+      "Reads only the company's own email templates, ClickHouse send events, and goal conversions.",
+  },
+  list_conditional_block_subscribers: {
+    readOnly:
+      "Issues GET on the conditional-blocks subscribers endpoint and returns paginated recipients who saw a chosen branch; nothing is stored.",
+    destructive:
+      "Read-only paginated list; it cannot modify or message any subscriber.",
+    openWorld:
+      "Reads only the company's own ClickHouse send events and Postgres subscriber records.",
+  },
   start_sequence_test_run: {
     readOnly:
       "POSTs /sequences/:id/test-runs, which creates a test run and queues a worker that executes the sequence's real actions for one subscriber.",

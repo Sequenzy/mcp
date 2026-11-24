@@ -367,7 +367,7 @@ export const analyticsToolDefinitions: Tool[] = [
   {
     name: "get_sequence_stats",
     description:
-      "Get statistics for a sequence. The steps array is the per-step breakdown: one entry per email step in graph order with its step number, automation nodeId, subject, and its own sent, delivered, bounced, opened, clicked, replies, and unsubscribed counts plus rates - so this is where you read how many of Email 4 went out, without reconstructing anything from list_sequence_events. Step counts come from the retained event stream, not the 14-day delivery history behind list_email_sends, so they stay answerable for old sends. Also returns the aggregate funnel across every step, attributed conversions and revenue (revenueCents), product recommendation funnel metrics, per-step failed subscribers and failure reasons, per-step Poll and NPS summaries in steps[].polls (lifetime, same shape as get_campaign_stats polls), and enrollmentSkipped counts for trigger matches where the contact could not be enrolled (unsubscribed/bounced). Pass period or start/end to use one explicit window for every historical metric; without them, step and aggregate counts are all-time and enrollmentSkipped defaults to the last 30 days. The enrollmentCounts field is a live snapshot of active and waiting enrollments grouped by current node, so it is not limited by period or start/end; contacts held by pause_sequence_subscribers are counted separately in pausedEnrollments. To compare the same step across many sequences in one call, use list_email_metrics instead.",
+      "Get statistics for a sequence. The steps array is the per-step breakdown: one entry per email step in graph order with its step number, automation nodeId, subject, and its own sent, delivered, bounced, opened, clicked, replies, and unsubscribed counts plus rates - so this is where you read how many of Email 4 went out, without reconstructing anything from list_sequence_events. The branches array reports per-path decision counts, shares, neverMatched flags (rule paths with 0 matches over 50+ decisions since the node was last edited), and lopsidedElse warnings for every branch and condition step. Step counts come from the retained event stream, not the 14-day delivery history behind list_email_sends, so they stay answerable for old sends. Also returns the aggregate funnel across every step, attributed conversions and revenue (revenueCents), product recommendation funnel metrics, per-step failed subscribers and failure reasons, per-step Poll and NPS summaries in steps[].polls (lifetime, same shape as get_campaign_stats polls), and enrollmentSkipped counts for trigger matches where the contact could not be enrolled (unsubscribed/bounced). Pass period or start/end to use one explicit window for every historical metric; without them, step, branch, and aggregate counts are all-time and enrollmentSkipped defaults to the last 30 days. The enrollmentCounts field is a live snapshot of active and waiting enrollments grouped by current node, so it is not limited by period or start/end; contacts held by pause_sequence_subscribers are counted separately in pausedEnrollments. For post-step and per-path conversion rates against a goal or event, use get_sequence_path_stats. To compare the same step across many sequences in one call, use list_email_metrics instead.",
     inputSchema: {
       type: "object",
       properties: {
@@ -399,6 +399,269 @@ export const analyticsToolDefinitions: Tool[] = [
         includeMachineEngagement: includeMachineEngagementToolProperty,
       },
       required: ["sequenceId"],
+    },
+  },
+  {
+    name: "get_sequence_path_stats",
+    description:
+      "Get branch split counts and post-step cohort conversion rates for every branch, condition, and action step in a sequence, plus a baseline across all enrollments. Answers 'how many people took each path' and 'what % of people who took path X or reached step Y converted within N days' (works for non-email and holdout branches too). Pass goalId (a goal ID or 'default-revenue') or eventName (mutually exclusive); omitting both auto-selects when the sequence has exactly one active automation-scoped goal and otherwise returns counts only plus availableGoals. Important interpretation rules: (1) rule-based if/else splits are observational (causal: false) because the rule selects different audiences; (2) when comparing paths, use matureConverted / matureEntrants so recent enrollments still inside the conversion window do not bias rates; (3) random splits report causal: true and significance on the mature cohort, noting that re-enrolled contacts are re-randomized; (4) for goal outcomes, attributed conversions are scoped to the selected goalId and can differ from the all-goals canvas email badges.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        sequenceId: {
+          type: "string",
+          description: "Sequence ID from list_sequences or get_sequence.",
+        },
+        goalId: {
+          type: "string",
+          description:
+            "Goal ID to measure conversions against, or 'default-revenue'. Mutually exclusive with eventName.",
+        },
+        eventName: {
+          type: "string",
+          description:
+            "Custom event name to measure post-step conversion against (e.g. 'saas.upgraded'). Mutually exclusive with goalId.",
+        },
+        conversionWindowDays: {
+          type: "number",
+          description:
+            "Conversion window in whole days after reaching the step (1 to 90, default 7). Truncated early if the contact re-enrolls at the same step.",
+        },
+        period: {
+          type: "string",
+          description:
+            "Rolling window ending now selecting cohorts by arrival time: 1h, 24h, 7d, 30d, or 90d. Omit for all-time cohorts.",
+        },
+        start: {
+          type: "string",
+          description:
+            "ISO 8601 start of cohort arrival window; send end too (max 90 days).",
+        },
+        end: {
+          type: "string",
+          description: "ISO 8601 end of cohort arrival window; send start too.",
+        },
+        nodeIds: {
+          type: "array",
+          items: { type: "string" },
+          description: "Optional list of node IDs to scope the response to.",
+        },
+      },
+      required: ["sequenceId"],
+    },
+  },
+  {
+    name: "list_sequence_path_subscribers",
+    description:
+      "List paginated enrollments that took a specific branch path (or reached a step) in a sequence, with redacted evaluation reasons (never raw subscriber values) and optional post-step conversion status for a goal or event. Use pathId from get_sequence_path_stats or get_sequence_stats branches[].paths[].pathId (or 'continued'/'exited' for condition steps), or bucket ('unmapped' or 'unrecorded') for synthetic decision buckets.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        sequenceId: {
+          type: "string",
+          description: "Sequence ID from list_sequences or get_sequence.",
+        },
+        nodeId: {
+          type: "string",
+          description: "Node ID of the branch, condition, or step.",
+        },
+        pathId: {
+          type: "string",
+          description:
+            "Optional configured path ID for branch or condition nodes (from branches[].paths[].pathId). Mutually exclusive with bucket.",
+        },
+        bucket: {
+          type: "string",
+          enum: ["unmapped", "unrecorded"],
+          description:
+            "Optional synthetic bucket filter for branch or condition nodes: 'unmapped' (earlier versions) or 'unrecorded' (legacy rows). Mutually exclusive with pathId.",
+        },
+        goalId: {
+          type: "string",
+          description:
+            "Optional goal ID (or 'default-revenue') to annotate each row with conversion status and trackedValue. Mutually exclusive with eventName.",
+        },
+        eventName: {
+          type: "string",
+          description:
+            "Optional event name to annotate each row with conversion status. Mutually exclusive with goalId.",
+        },
+        conversionWindowDays: {
+          type: "number",
+          description: "Conversion window in days (1 to 90, default 7).",
+        },
+        period: {
+          type: "string",
+          description:
+            "Rolling window ending now for arrival time: 1h, 24h, 7d, 30d, or 90d.",
+        },
+        start: {
+          type: "string",
+          description: "ISO 8601 start of arrival window; send end too.",
+        },
+        end: {
+          type: "string",
+          description: "ISO 8601 end of arrival window; send start too.",
+        },
+        page: {
+          type: "number",
+          description: "Page number starting at 1 (default 1).",
+        },
+        limit: {
+          type: "number",
+          description: "Rows per page (1 to 100, default 50).",
+        },
+      },
+      required: ["sequenceId", "nodeId"],
+    },
+  },
+  {
+    name: "get_conditional_block_stats",
+    description:
+      "Get per-condition if/else and show/hide performance stats for conditional blocks inside an email (campaign, sequence email or A/B step, or transactional email), or a sequence-wide conditional health overview when sourceType is 'sequence'. Returns collapsed conditionGroups (grouping sibling blocks with identical rules), email baseline averages, percentage-point deltas vs email average, topClickedLink per branch, dead-rule/fallback alerts, raw blocks[], and coverage metadata. For sequence_step, pass both sequenceId and sourceId (the step nodeId); for sequence, pass sourceId as the sequenceId.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        sourceType: {
+          type: "string",
+          enum: ["campaign", "sequence", "sequence_step", "transactional"],
+          description:
+            "Email source type: 'campaign', 'sequence' (sequence-wide overview across all email steps), 'sequence_step', or 'transactional'.",
+        },
+        sourceId: {
+          type: "string",
+          description:
+            "Campaign ID, sequence ID (when sourceType is 'sequence'), sequence email step nodeId (when sourceType is 'sequence_step'), or transactional email ID or slug.",
+        },
+        sequenceId: {
+          type: "string",
+          description:
+            "Sequence ID. Required when sourceType is 'sequence_step'.",
+        },
+        abTestVariantId: {
+          type: "string",
+          description:
+            "Optional A/B test variant ID to filter campaign or sequence A/B step sends.",
+        },
+        goalId: {
+          type: "string",
+          description:
+            "Optional goal ID (or 'default-revenue') to filter attributed conversions and trackedValue. Omit for deduplicated conversions across all goals.",
+        },
+        period: {
+          type: "string",
+          enum: ["1h", "24h", "7d", "30d", "90d", "all"],
+          description:
+            "Time period: 1h, 24h, 7d, 30d, 90d, or all. Defaults to all for campaigns and 30d for sequence steps and transactional emails.",
+        },
+        start: {
+          type: "string",
+          description: "ISO 8601 start of send window; send end too.",
+        },
+        end: {
+          type: "string",
+          description: "ISO 8601 end of send window; send start too.",
+        },
+        includeMachineEngagement: {
+          type: "boolean",
+          description:
+            "Include machine/privacy-proxy opens and clicks (default false).",
+        },
+      },
+      required: ["sourceType", "sourceId"],
+    },
+  },
+  {
+    name: "list_conditional_block_subscribers",
+    description:
+      "List paginated recipients who received a specific branch ('if', 'else', 'shown', 'hidden', or 'skipped') of a conditional block inside a campaign, sequence email step, or transactional email, including delivery, open, click, and conversion status.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        companyId: {
+          type: "string",
+          description:
+            "Company ID. If not provided, uses the currently selected company.",
+        },
+        sourceType: {
+          type: "string",
+          enum: ["campaign", "sequence_step", "transactional"],
+          description:
+            "Email source type: 'campaign', 'sequence_step', or 'transactional'.",
+        },
+        sourceId: {
+          type: "string",
+          description:
+            "Campaign ID, sequence email step nodeId, or transactional email ID.",
+        },
+        sequenceId: {
+          type: "string",
+          description:
+            "Sequence ID. Required when sourceType is 'sequence_step'.",
+        },
+        blockId: {
+          type: "string",
+          description: "Conditional block ID from get_conditional_block_stats.",
+        },
+        branch: {
+          type: "string",
+          enum: ["if", "else", "shown", "hidden", "skipped"],
+          description:
+            "Branch to inspect: 'if' or 'else' for conditional groups, 'shown' or 'hidden' for conditional blocks, or 'skipped' for nested blocks whose outer rule did not match.",
+        },
+        abTestVariantId: {
+          type: "string",
+          description:
+            "Optional A/B test variant ID for campaign or sequence A/B step sends.",
+        },
+        goalId: {
+          type: "string",
+          description:
+            "Optional goal ID to annotate each row's conversion flag and trackedValue.",
+        },
+        period: {
+          type: "string",
+          enum: ["1h", "24h", "7d", "30d", "90d", "all"],
+          description: "Time period: 1h, 24h, 7d, 30d, 90d, or all.",
+        },
+        start: {
+          type: "string",
+          description: "ISO 8601 start of send window; send end too.",
+        },
+        end: {
+          type: "string",
+          description: "ISO 8601 end of send window; send start too.",
+        },
+        includeMachineEngagement: {
+          type: "boolean",
+          description:
+            "Include machine/privacy-proxy opens and clicks (default false).",
+        },
+        page: {
+          type: "number",
+          description: "Page number starting at 1 (default 1).",
+        },
+        limit: {
+          type: "number",
+          description: "Rows per page (1 to 100, default 50).",
+        },
+      },
+      required: ["sourceType", "sourceId", "blockId", "branch"],
     },
   },
   {

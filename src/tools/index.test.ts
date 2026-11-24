@@ -290,8 +290,12 @@ describe("MCP tool profiles", () => {
     // plus the tag rename on update_tag, about 4 KB, and the cart item
     // itemLinks setting, double opt-in redirect merge tags and the email
     // sendFormat field in the shared schemas, under 1 KB, and the repeat
-    // productSource rule in every blocks field, about 5 KB).
-    expect(JSON.stringify({ tools: standard }).length).toBeLessThan(1_775_000);
+    // productSource rule in every blocks field, about 5 KB, and the
+    // get_sequence_path_stats + list_sequence_path_subscribers tools plus
+    // branches on get_sequence_stats, about 4 KB, and the
+    // get_conditional_block_stats + list_conditional_block_subscribers tools,
+    // about 5 KB).
+    expect(JSON.stringify({ tools: standard }).length).toBeLessThan(1_795_000);
   });
 
   it("renames only on the OpenAI profile and keeps standard names", () => {
@@ -14192,9 +14196,57 @@ describe("list management tools", () => {
 
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain(
-      "Provide at least one of `name`, `description`, `isPrivate`, or `allowMemberUnsubscribe` when calling `update_list`."
+      "Provide at least one of `name`, `description`, `isPrivate`, `allowMemberUnsubscribe`, or `unsubscribeListOnly` when calling `update_list`."
     );
     expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it("creates, updates, and validates unsubscribeListOnly through MCP list tools", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      list: {
+        id: "brand_1",
+        name: "PodChapters",
+        isPrivate: false,
+        allowMemberUnsubscribe: false,
+        unsubscribeListOnly: true,
+      },
+    });
+    const created = await handleToolCall("create_list", {
+      name: "PodChapters",
+      unsubscribeListOnly: true,
+    });
+    expect(created.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/lists",
+      { name: "PodChapters", unsubscribeListOnly: true },
+      undefined
+    );
+
+    for (const unsubscribeListOnly of [true, false]) {
+      mockApiRequest.mockResolvedValueOnce({
+        success: true,
+        list: { id: "brand_1", unsubscribeListOnly },
+      });
+      const updated = await handleToolCall("update_list", {
+        listId: "brand_1",
+        unsubscribeListOnly,
+      });
+      expect(updated.isError).toBeUndefined();
+      expect(mockApiRequest).toHaveBeenLastCalledWith(
+        "PATCH",
+        "/api/v1/lists/brand_1",
+        { unsubscribeListOnly },
+        undefined
+      );
+    }
+
+    const invalid = await handleToolCall("update_list", {
+      listId: "brand_1",
+      unsubscribeListOnly: null,
+    });
+    expect(invalid.isError).toBe(true);
   });
 
   it("deletes a list", async () => {

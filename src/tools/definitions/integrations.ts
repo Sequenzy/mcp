@@ -31,18 +31,19 @@ export const integrationToolDefinitions: Tool[] = [
   {
     name: "connect_integration",
     description:
-      "Connect an API-key / webhook-secret integration: polar, paddle, dodo, lemon_squeezy, whop, revenuecat, superwall, adapty, creem, chargebee, clerk, posthog, segment, mixpanel, amplitude, affonso, attio, or sparkloop. Check list_integration_capabilities first - each connectable provider lists its exact connectFields there. Credentials are validated, stored encrypted, and never returned; payment providers queue their initial revenue backfill automatically. Lemon Squeezy creates a managed signed webhook when webhookSecret is omitted, or uses the supplied secret for manual setup. RevenueCat is webhook-only (no backfill): webhookSecret is the authorization header value configured on the RevenueCat webhook, or its HMAC signing secret. Superwall is webhook-only too and needs only webhookSecret: the whsec_ signing secret of the Superwall webhook pointed at the returned webhookUrl. Mixpanel and Amplitude need only webhookSecret, a strong random value you choose: Mixpanel sends it as the Basic auth password of its webhook destination (any username, the dashboard suggests sequenzy) and syncs cohorts as mixpanel-<cohort> tags; Amplitude sends it in an X-Webhook-Secret header and streams events (product.*), user properties, and cohorts (amplitude-<cohort> tags). Sequenzy cannot show the secret again, so give it to the user once. Attio is outbound-only and has no webhookUrl. SparkLoop needs only apiKey; Sequenzy registers the SparkLoop webhook itself with a secret in its URL (webhookSecret, the account's SparkLoop-Token, is optional), and an account with several publications needs providerAccountId (the 400 error lists them in publications). Reconnecting replaces stored credentials. OAuth and app-install providers (Stripe, Shopify, Supabase, GitHub, WooCommerce, Meta) are rejected with guidance: their flows need a human in the dashboard. SECURITY: only pass credentials the user explicitly provided for this purpose; suggest the CLI (`sequenzy integrations connect`) or dashboard when the user prefers keeping secrets out of the conversation.",
+      "Connect an API-key / webhook-secret integration: polar, paddle, dodo, agentaos, lemon_squeezy, whop, revenuecat, superwall, adapty, creem, chargebee, clerk, posthog, segment, mixpanel, amplitude, affonso, attio, or sparkloop. Check list_integration_capabilities first - each connectable provider lists its exact connectFields there. Credentials are validated, stored encrypted, and never returned; payment providers queue their initial revenue backfill automatically. Lemon Squeezy creates a managed signed webhook when webhookSecret is omitted, or uses the supplied secret for manual setup. RevenueCat is webhook-only (no backfill): webhookSecret is the authorization header value configured on the RevenueCat webhook, or its HMAC signing secret. Superwall is webhook-only too and needs only webhookSecret: the whsec_ signing secret of the Superwall webhook pointed at the returned webhookUrl. Mixpanel and Amplitude need only webhookSecret, a strong random value you choose: Mixpanel sends it as the Basic auth password of its webhook destination (any username, the dashboard suggests sequenzy) and syncs cohorts as mixpanel-<cohort> tags; Amplitude sends it in an X-Webhook-Secret header and streams events (product.*), user properties, and cohorts (amplitude-<cohort> tags). Sequenzy cannot show the secret again, so give it to the user once. Attio is outbound-only and has no webhookUrl. SparkLoop needs only apiKey; Sequenzy registers the SparkLoop webhook itself with a secret in its URL (webhookSecret, the account's SparkLoop-Token, is optional), and an account with several publications needs providerAccountId (the 400 error lists them in publications). Reconnecting replaces stored credentials. OAuth and app-install providers (Stripe, Shopify, Supabase, GitHub, WooCommerce, Meta) are rejected with guidance: their flows need a human in the dashboard. SECURITY: only pass credentials the user explicitly provided for this purpose; suggest the CLI (`sequenzy integrations connect`) or dashboard when the user prefers keeping secrets out of the conversation.",
     inputSchema: {
       type: "object",
       properties: {
         provider: {
           type: "string",
           description:
-            "Provider to connect: polar, paddle, dodo, lemon_squeezy, whop, revenuecat, superwall, adapty, creem, chargebee, clerk, posthog, segment, mixpanel, amplitude, affonso, attio, or sparkloop.",
+            "Provider to connect: polar, paddle, dodo, agentaos, lemon_squeezy, whop, revenuecat, superwall, adapty, creem, chargebee, clerk, posthog, segment, mixpanel, amplitude, affonso, attio, or sparkloop.",
           enum: [
             "polar",
             "paddle",
             "dodo",
+            "agentaos",
             "lemon_squeezy",
             "whop",
             "revenuecat",
@@ -63,7 +64,7 @@ export const integrationToolDefinitions: Tool[] = [
         apiKey: {
           type: "string",
           description:
-            "Provider API key. Required for polar, paddle, dodo, lemon_squeezy, whop, revenuecat (secret API v2 key), creem, chargebee, affonso, attio, and sparkloop. Attio uses the workspace access token from Settings → Developers; SparkLoop the API key from Settings → Integrations.",
+            "Provider API key. Required for polar, paddle, dodo, agentaos, lemon_squeezy, whop, revenuecat (secret API v2 key), creem, chargebee, affonso, attio, and sparkloop. AgentaOS accepts test (sk_test_...) or live (sk_live_...) keys and derives the mode from the prefix. Attio uses the workspace access token from Settings → Developers; SparkLoop the API key from Settings → Integrations.",
         },
         webhookSecret: {
           type: "string",
@@ -73,7 +74,7 @@ export const integrationToolDefinitions: Tool[] = [
         providerAccountId: {
           type: "string",
           description:
-            "Provider account id, required for paddle (seller ID), dodo (business ID), lemon_squeezy (numeric store ID), whop (company ID, biz_...), creem (store ID), and chargebee (site name). Polar resolves it from the API key, and revenuecat does too unless the key can access several projects (then pass the RevenueCat project ID, proj...); clerk, superwall, adapty, posthog, segment, mixpanel, amplitude, and affonso do not use one. For sparkloop it is the SparkLoop publication ID (pub_...), required only when the account has more than one publication.",
+            "Provider account id, required for paddle (seller ID), dodo (business ID), lemon_squeezy (numeric store ID), whop (company ID, biz_...), creem (store ID), and chargebee (site name). Polar and agentaos resolve it from the API key, and revenuecat does too unless the key can access several projects (then pass the RevenueCat project ID, proj...); clerk, superwall, adapty, posthog, segment, mixpanel, amplitude, and affonso do not use one. For sparkloop it is the SparkLoop publication ID (pub_...), required only when the account has more than one publication.",
         },
         settings: {
           type: "object",

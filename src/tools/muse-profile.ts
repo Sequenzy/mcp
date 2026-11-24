@@ -66,6 +66,8 @@ export const MUSE_TOOL_NAMES = [
   "disable_sequence",
   "enroll_subscribers_in_sequence",
   "get_sequence_stats",
+  "get_sequence_path_stats",
+  "get_conditional_block_stats",
   "list_templates",
   "get_template",
   "create_template_from_example",

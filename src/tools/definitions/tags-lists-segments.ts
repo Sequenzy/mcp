@@ -155,6 +155,11 @@ export const tagListSegmentToolDefinitions: Tool[] = [
           description:
             "Allow existing private-list members to unsubscribe in email preferences. Defaults false on creation; omission preserves on update, false disables. No effect on public lists. Does not allow joining or rejoining private lists.",
         },
+        unsubscribeListOnly: {
+          type: "boolean",
+          description:
+            "When true, unsubscribe links and one-click headers in emails sent solely to this list (or lists that all enable this flag) remove contacts only from those lists instead of unsubscribing globally. Defaults false on creation; omission preserves on update, false disables. Subscribers see the list name on the unsubscribe page.",
+        },
         name: {
           type: "string",
           description:
@@ -193,6 +198,11 @@ export const tagListSegmentToolDefinitions: Tool[] = [
           type: "boolean",
           description:
             "Allow existing private-list members to unsubscribe in email preferences. Defaults false on creation; omission preserves on update, false disables. No effect on public lists. Does not allow joining or rejoining private lists.",
+        },
+        unsubscribeListOnly: {
+          type: "boolean",
+          description:
+            "When true, unsubscribe links and one-click headers in emails sent solely to this list (or lists that all enable this flag) remove contacts only from those lists instead of unsubscribing globally. Defaults false on creation; omission preserves on update, false disables. Subscribers see the list name on the unsubscribe page.",
         },
         name: {
           type: "string",

@@ -115,10 +115,11 @@ export async function handleAudienceTools(
         args.name === undefined &&
         args.description === undefined &&
         args.isPrivate === undefined &&
-        args.allowMemberUnsubscribe === undefined
+        args.allowMemberUnsubscribe === undefined &&
+        args.unsubscribeListOnly === undefined
       ) {
         throw new Error(
-          "Provide at least one of `name`, `description`, `isPrivate`, or `allowMemberUnsubscribe` when calling `update_list`."
+          "Provide at least one of `name`, `description`, `isPrivate`, `allowMemberUnsubscribe`, or `unsubscribeListOnly` when calling `update_list`."
         );
       }
 
@@ -148,6 +149,15 @@ export async function handleAudienceTools(
         );
       }
 
+      if (
+        args.unsubscribeListOnly !== undefined &&
+        typeof args.unsubscribeListOnly !== "boolean"
+      ) {
+        throw new Error(
+          "`unsubscribeListOnly` must be a boolean when calling `update_list`."
+        );
+      }
+
       if (args.isPrivate !== undefined && typeof args.isPrivate !== "boolean") {
         throw new Error(
           "`isPrivate` must be a boolean when calling `update_list`."
@@ -167,6 +177,9 @@ export async function handleAudienceTools(
           ...(args.isPrivate !== undefined && { isPrivate: args.isPrivate }),
           ...(args.allowMemberUnsubscribe !== undefined && {
             allowMemberUnsubscribe: args.allowMemberUnsubscribe,
+          }),
+          ...(args.unsubscribeListOnly !== undefined && {
+            unsubscribeListOnly: args.unsubscribeListOnly,
           }),
         },
         companyId

@@ -327,11 +327,11 @@ export const OPENAI_JUSTIFICATIONS_PART_3: Readonly<
   },
   update_list: {
     readOnly:
-      "Not read-only: PATCH /lists/:id overwrites the list's name, description, isPrivate or allowMemberUnsubscribe.",
+      "Not read-only: PATCH /lists/:id overwrites the list's name, description, isPrivate, allowMemberUnsubscribe or unsubscribeListOnly.",
     destructive:
-      "Destructive: the previous values are replaced with no history; making a list public or private, or disabling member unsubscribe, immediately changes what recipients can do.",
+      "Destructive: the previous values are replaced with no history; changing visibility or unsubscribe settings immediately changes what recipients can do.",
     openWorld:
-      "Open world: a public list's name appears in the email preference center, and switching it to public lets any recipient join it there.",
+      "Open world: a public list's name appears in the email preference center, and enabling unsubscribeListOnly shows the list's name on the unsubscribe page for emails sent to it.",
   },
   delete_list: {
     readOnly:

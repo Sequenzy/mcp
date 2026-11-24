@@ -1547,7 +1547,11 @@ reset the company to the platform default theme. Layout settings can control
 the shared `baseRadius` and a separate `buttonRadius`, and `contentAlign`
 (`center` by default, or `left`) moves the content column flush left in wide
 email clients, along with buttons, the logo and footers unless they are set
-to right or kept centered with the block's `styles.keepAlign: true`. Within `colors`,
+to right or kept centered with the block's `styles.keepAlign: true`.
+`contentWidthMode` (`fixed` by default, or `fluid`) runs the content the full
+width of the reader's window, like an email written in Gmail, on the left and
+without a fixed-width Outlook table; image blocks keep the size `contentWidth`
+gives them. Within `colors`,
 `background` paints the outer canvas, `content` paints the inner content card,
 and `surface` paints nested cards or tinted tiles. Omitting `content` preserves
 its current value; when no content color is stored, the card follows
@@ -2148,7 +2152,11 @@ arguments when retrying; the key remains valid for 14 days.
 | `get_link_click_stats`    | Get clicks per link destination across every email for a period, with unique clicks and share.                 |
 | `list_poll_responses`     | List each respondent's latest Poll/NPS answer per block, with identity and response time.                      |
 | `list_campaign_replies`   | List who replied to a campaign, newest first, with the inbox conversation holding each reply.                  |
-| `get_sequence_stats`      | Get aggregate and per-step sequence performance plus live active/waiting enrollment counts by current node.    |
+| `get_sequence_stats`      | Get aggregate, per-step, and per-branch sequence performance plus live active/waiting enrollment counts by current node. |
+| `get_sequence_path_stats` | Get branch split counts and post-step cohort conversion rates (goal or event) for branches, conditions, and steps. |
+| `list_sequence_path_subscribers` | List paginated enrollments for a branch path or step with redacted evaluation reasons and conversion status. |
+| `get_conditional_block_stats` | Get per-block if/else and show/hide branch splits, engagement rates, and conversions for conditional blocks inside an email. |
+| `list_conditional_block_subscribers` | List paginated recipients who saw a specific branch of a conditional block inside an email. |
 | `list_email_metrics`      | Compare campaign and sequence-step funnels, replies, conversions, and revenue, including cross-sequence steps. |
 | `list_campaign_events`    | List paginated raw email events for a campaign.                                                                |
 | `list_sequence_events`    | List paginated raw events for a sequence, optionally scoped to one email step.                                 |
@@ -2773,6 +2781,10 @@ back the template after an uncertain update before retrying its replacement.
 ### Private list member unsubscribe
 
 `create_list` and `update_list` accept `allowMemberUnsubscribe` (boolean). Creation defaults to false; updates preserve omitted values and accept false to disable; null is rejected. `list_lists` and mutation results include the setting. When enabled on a private list, current members can see its name and opt out through preferences, but cannot join or rejoin. It is stored without effect on public lists. Repeating an update is safe; inspect lists before retrying an uncertain creation.
+
+### List-only unsubscribe
+
+`create_list` and `update_list` also accept `unsubscribeListOnly` (boolean, default false). When enabled on every list targeted by a list-scoped campaign or list-triggered sequence, unsubscribe links and one-click headers remove contacts only from those lists instead of unsubscribing them from the entire workspace. Subscribers still have an option to unsubscribe from all emails on the hosted page. Repeating an update is safe.
 
 ### Building the interactive widgets
 

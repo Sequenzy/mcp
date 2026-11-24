@@ -732,7 +732,7 @@ export const emailThemePatchProperties = {
   layout: {
     type: "object",
     description:
-      "Layout settings. Every field is a number except contentAlign.",
+      "Layout settings. Every field is a number except contentAlign and contentWidthMode.",
     properties: {
       contentWidth: { type: "number" },
       contentAlign: {
@@ -740,6 +740,12 @@ export const emailThemePatchProperties = {
         enum: ["center", "left"],
         description:
           'Where the content column sits in a wide email client: "center" (default) or "left" (flush left, like a plain personal email; buttons, the logo and footers move left too unless set to right, or kept centered with block `styles.keepAlign: true`). Phones show the column full width either way.',
+      },
+      contentWidthMode: {
+        type: "string",
+        enum: ["fixed", "fluid"],
+        description:
+          '"fixed" (default) keeps the content in a column of contentWidth; "fluid" runs it the full width of the reader\'s window, like an email written in Gmail or Apple Mail, with no fixed-width Outlook table. A fluid email sits on the left (buttons, the logo and footers too), and image blocks keep the size contentWidth gives them instead of stretching (an image with no align of its own sits on the left). Phones show the email full width either way.',
       },
       containerPaddingX: { type: "number" },
       containerPaddingY: { type: "number" },

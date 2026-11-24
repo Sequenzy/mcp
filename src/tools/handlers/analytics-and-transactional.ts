@@ -695,6 +695,309 @@ export async function handleAnalyticsAndTransactionalTools(
       break;
     }
 
+    case "get_sequence_path_stats": {
+      const companyId = args.companyId as string | undefined;
+      const sequenceId = requiredString(
+        "get_sequence_path_stats",
+        args,
+        "sequenceId"
+      );
+      const goalId = optionalString(args, "goalId");
+      const eventName = optionalString(args, "eventName");
+      if (goalId && eventName) {
+        throw new Error(
+          "Provide either `goalId` or `eventName` when calling `get_sequence_path_stats`, not both."
+        );
+      }
+      const params = new URLSearchParams();
+      if (goalId) params.set("goalId", goalId);
+      if (eventName) params.set("eventName", eventName);
+      const conversionWindowDays = optionalIntegerInRange(
+        "get_sequence_path_stats",
+        args,
+        "conversionWindowDays",
+        1,
+        90
+      );
+      if (conversionWindowDays !== undefined) {
+        params.set("conversionWindowDays", String(conversionWindowDays));
+      }
+      const period = optionalAllowedString(
+        "get_sequence_path_stats",
+        args,
+        "period",
+        ["1h", "24h", "7d", "30d", "90d"]
+      );
+      if (period) params.set("period", period);
+      for (const key of ["start", "end"] as const) {
+        const value = optionalString(args, key);
+        if (value) params.set(key, value);
+      }
+      const nodeIds = optionalStringArray(
+        "get_sequence_path_stats",
+        args,
+        "nodeIds"
+      );
+      if (nodeIds.length > 0) {
+        params.set("nodeId", nodeIds.join(","));
+      }
+      const query = params.toString();
+      result = await apiRequest(
+        "GET",
+        `/api/v1/metrics/sequences/${encodeURIComponent(sequenceId)}/outcomes${query ? `?${query}` : ""}`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "list_sequence_path_subscribers": {
+      const companyId = args.companyId as string | undefined;
+      const sequenceId = requiredString(
+        "list_sequence_path_subscribers",
+        args,
+        "sequenceId"
+      );
+      const nodeId = requiredString(
+        "list_sequence_path_subscribers",
+        args,
+        "nodeId"
+      );
+      const goalId = optionalString(args, "goalId");
+      const eventName = optionalString(args, "eventName");
+      if (goalId && eventName) {
+        throw new Error(
+          "Provide either `goalId` or `eventName` when calling `list_sequence_path_subscribers`, not both."
+        );
+      }
+      const params = new URLSearchParams();
+      const pathId = optionalString(args, "pathId");
+      const bucket = optionalAllowedString(
+        "list_sequence_path_subscribers",
+        args,
+        "bucket",
+        ["unmapped", "unrecorded"]
+      );
+      if (pathId && bucket) {
+        throw new Error(
+          "Provide either `pathId` or `bucket` when calling `list_sequence_path_subscribers`, not both."
+        );
+      }
+      if (pathId) params.set("pathId", pathId);
+      if (bucket) params.set("bucket", bucket);
+      if (goalId) params.set("goalId", goalId);
+      if (eventName) params.set("eventName", eventName);
+      const conversionWindowDays = optionalIntegerInRange(
+        "list_sequence_path_subscribers",
+        args,
+        "conversionWindowDays",
+        1,
+        90
+      );
+      if (conversionWindowDays !== undefined) {
+        params.set("conversionWindowDays", String(conversionWindowDays));
+      }
+      const period = optionalAllowedString(
+        "list_sequence_path_subscribers",
+        args,
+        "period",
+        ["1h", "24h", "7d", "30d", "90d"]
+      );
+      if (period) params.set("period", period);
+      for (const key of ["start", "end"] as const) {
+        const value = optionalString(args, key);
+        if (value) params.set(key, value);
+      }
+      const page = optionalIntegerInRange(
+        "list_sequence_path_subscribers",
+        args,
+        "page",
+        1,
+        10_000
+      );
+      if (page !== undefined) params.set("page", String(page));
+      const limit = optionalIntegerInRange(
+        "list_sequence_path_subscribers",
+        args,
+        "limit",
+        1,
+        100
+      );
+      if (limit !== undefined) params.set("limit", String(limit));
+      const query = params.toString();
+      result = await apiRequest(
+        "GET",
+        `/api/v1/metrics/sequences/${encodeURIComponent(sequenceId)}/paths/${encodeURIComponent(nodeId)}/subscribers${query ? `?${query}` : ""}`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "get_conditional_block_stats": {
+      const companyId = args.companyId as string | undefined;
+      const sourceType = optionalAllowedString(
+        "get_conditional_block_stats",
+        args,
+        "sourceType",
+        ["campaign", "sequence", "sequence_step", "transactional"]
+      );
+      if (!sourceType) {
+        throw new Error(
+          "`sourceType` is required for `get_conditional_block_stats` ('campaign', 'sequence', 'sequence_step', or 'transactional')."
+        );
+      }
+      const sourceId = requiredString(
+        "get_conditional_block_stats",
+        args,
+        "sourceId"
+      );
+      const sequenceId = optionalString(args, "sequenceId");
+      if (sourceType === "sequence_step" && !sequenceId) {
+        throw new Error(
+          "`sequenceId` is required when `sourceType` is 'sequence_step' for `get_conditional_block_stats`."
+        );
+      }
+      const params = new URLSearchParams();
+      if (sourceType !== "sequence") {
+        const abTestVariantId = optionalString(args, "abTestVariantId");
+        if (abTestVariantId) params.set("abTestVariantId", abTestVariantId);
+        const goalId = optionalString(args, "goalId");
+        if (goalId) params.set("goalId", goalId);
+      }
+      const period = optionalAllowedString(
+        "get_conditional_block_stats",
+        args,
+        "period",
+        ["1h", "24h", "7d", "30d", "90d", "all"]
+      );
+      if (period) params.set("period", period);
+      for (const key of ["start", "end"] as const) {
+        const value = optionalString(args, key);
+        if (value) params.set(key, value);
+      }
+      if (
+        sourceType !== "sequence" &&
+        typeof args.includeMachineEngagement === "boolean"
+      ) {
+        params.set(
+          "includeMachineEngagement",
+          String(args.includeMachineEngagement)
+        );
+      }
+      const basePath =
+        sourceType === "campaign"
+          ? `/api/v1/metrics/campaigns/${encodeURIComponent(sourceId)}/conditional-blocks`
+          : sourceType === "sequence"
+            ? `/api/v1/metrics/sequences/${encodeURIComponent(sourceId)}/conditional-blocks`
+            : sourceType === "sequence_step"
+              ? `/api/v1/metrics/sequences/${encodeURIComponent(sequenceId ?? "")}/steps/${encodeURIComponent(sourceId)}/conditional-blocks`
+              : `/api/v1/metrics/transactional/${encodeURIComponent(sourceId)}/conditional-blocks`;
+      const query = params.toString();
+      result = await apiRequest(
+        "GET",
+        `${basePath}${query ? `?${query}` : ""}`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
+    case "list_conditional_block_subscribers": {
+      const companyId = args.companyId as string | undefined;
+      const sourceType = optionalAllowedString(
+        "list_conditional_block_subscribers",
+        args,
+        "sourceType",
+        ["campaign", "sequence_step", "transactional"]
+      );
+      if (!sourceType) {
+        throw new Error(
+          "`sourceType` is required for `list_conditional_block_subscribers` ('campaign', 'sequence_step', or 'transactional')."
+        );
+      }
+      const sourceId = requiredString(
+        "list_conditional_block_subscribers",
+        args,
+        "sourceId"
+      );
+      const sequenceId = optionalString(args, "sequenceId");
+      if (sourceType === "sequence_step" && !sequenceId) {
+        throw new Error(
+          "`sequenceId` is required when `sourceType` is 'sequence_step' for `list_conditional_block_subscribers`."
+        );
+      }
+      const blockId = requiredString(
+        "list_conditional_block_subscribers",
+        args,
+        "blockId"
+      );
+      const branch = optionalAllowedString(
+        "list_conditional_block_subscribers",
+        args,
+        "branch",
+        ["if", "else", "shown", "hidden", "skipped"]
+      );
+      if (!branch) {
+        throw new Error(
+          "`branch` is required for `list_conditional_block_subscribers` ('if', 'else', 'shown', 'hidden', or 'skipped')."
+        );
+      }
+      const params = new URLSearchParams();
+      params.set("branch", branch);
+      const abTestVariantId = optionalString(args, "abTestVariantId");
+      if (abTestVariantId) params.set("abTestVariantId", abTestVariantId);
+      const goalId = optionalString(args, "goalId");
+      if (goalId) params.set("goalId", goalId);
+      const period = optionalAllowedString(
+        "list_conditional_block_subscribers",
+        args,
+        "period",
+        ["1h", "24h", "7d", "30d", "90d", "all"]
+      );
+      if (period) params.set("period", period);
+      for (const key of ["start", "end"] as const) {
+        const value = optionalString(args, key);
+        if (value) params.set(key, value);
+      }
+      if (typeof args.includeMachineEngagement === "boolean") {
+        params.set(
+          "includeMachineEngagement",
+          String(args.includeMachineEngagement)
+        );
+      }
+      const page = optionalIntegerInRange(
+        "list_conditional_block_subscribers",
+        args,
+        "page",
+        1,
+        10_000
+      );
+      if (page !== undefined) params.set("page", String(page));
+      const limit = optionalIntegerInRange(
+        "list_conditional_block_subscribers",
+        args,
+        "limit",
+        1,
+        100
+      );
+      if (limit !== undefined) params.set("limit", String(limit));
+      const basePath =
+        sourceType === "campaign"
+          ? `/api/v1/metrics/campaigns/${encodeURIComponent(sourceId)}/conditional-blocks/${encodeURIComponent(blockId)}/subscribers`
+          : sourceType === "sequence_step"
+            ? `/api/v1/metrics/sequences/${encodeURIComponent(sequenceId ?? "")}/steps/${encodeURIComponent(sourceId)}/conditional-blocks/${encodeURIComponent(blockId)}/subscribers`
+            : `/api/v1/metrics/transactional/${encodeURIComponent(sourceId)}/conditional-blocks/${encodeURIComponent(blockId)}/subscribers`;
+      const query = params.toString();
+      result = await apiRequest(
+        "GET",
+        `${basePath}${query ? `?${query}` : ""}`,
+        undefined,
+        companyId
+      );
+      break;
+    }
+
     case "list_campaign_events": {
       const companyId = args.companyId as string | undefined;
       const campaignId = requiredString(
