@@ -34,7 +34,7 @@ export const SERVER_INFO = {
   name: "sequenzy",
   title: "Sequenzy",
   description:
-    "Email marketing for SaaS and apps: manage subscribers, lists, segments, campaigns, automated sequences, templates, transactional email and delivery stats.",
+    "AI-native email marketing tool: manage subscribers, lists, segments, campaigns, automated sequences, templates, transactional email, and delivery stats.",
   websiteUrl: "https://www.sequenzy.com",
   icons: [
     {
@@ -92,7 +92,7 @@ export function createSequenzyMcpServer(
         resources: { listChanged: false },
       },
       instructions: [
-        "Sequenzy email marketing MCP server: manage subscribers, campaigns, sequences, templates, and delivery stats.",
+        "Sequenzy AI-native email marketing MCP server: manage subscribers, campaigns, sequences, templates, and delivery stats.",
         ...(options.apiKeyMissing
           ? [
               `No Sequenzy API key is configured, so every tool returns MCP_AUTH_REQUIRED. Before calling tools, tell the user to create a free account at ${MCP_SIGNUP_URL} (or sign in), then run \`npx @sequenzy/setup\`, or add a key from Settings > API Keys as SEQUENZY_API_KEY in this MCP server's environment and restart the client.`,

@@ -729,6 +729,29 @@ export const emailThemePatchProperties = {
     description:
       'How primary buttons are filled: "solid" (default) or "outline" (transparent fill with a brand-color border).',
   },
+  backgroundImage: {
+    type: ["object", "null"],
+    description:
+      "Optional email background image over the solid fallback color; null removes it.",
+    properties: {
+      src: { type: "string", description: "http(s) image URL." },
+      fit: {
+        type: "string",
+        enum: ["cover", "tile"],
+        description: "cover (default) or tile.",
+      },
+      shade: {
+        type: "number",
+        description: "0-100 fallback-color tint (default 0).",
+      },
+      target: {
+        type: "string",
+        enum: ["both", "content", "canvas"],
+        description: "both (default), content, or canvas.",
+      },
+    },
+    additionalProperties: false,
+  },
   layout: {
     type: "object",
     description:

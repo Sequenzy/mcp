@@ -294,8 +294,9 @@ describe("MCP tool profiles", () => {
     // get_sequence_path_stats + list_sequence_path_subscribers tools plus
     // branches on get_sequence_stats, about 4 KB, and the
     // get_conditional_block_stats + list_conditional_block_subscribers tools,
-    // about 5 KB).
-    expect(JSON.stringify({ tools: standard }).length).toBeLessThan(1_795_000);
+    // about 5 KB, and emailTheme.backgroundImage on the shared theme patch
+    // schema, about 1 KB).
+    expect(JSON.stringify({ tools: standard }).length).toBeLessThan(1_797_000);
   });
 
   it("renames only on the OpenAI profile and keeps standard names", () => {

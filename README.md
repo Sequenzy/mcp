@@ -1,6 +1,6 @@
 # Sequenzy MCP Server
 
-Official MCP server for [Sequenzy](https://sequenzy.com), the AI-powered email marketing platform.
+Official MCP server for [Sequenzy](https://sequenzy.com), the AI-native email marketing tool.
 
 Connect Sequenzy to Claude Desktop, Claude Code, Codex, Cursor, Windsurf, VS Code Copilot, OpenClaw, and other MCP clients so your AI assistant can manage email operations with structured tools instead of hand-written API calls.
 
@@ -1555,7 +1555,10 @@ gives them. Within `colors`,
 `background` paints the outer canvas, `content` paints the inner content card,
 and `surface` paints nested cards or tinted tiles. Omitting `content` preserves
 its current value; when no content color is stored, the card follows
-`background`.
+`background`. `backgroundImage` sets an optional email-level background image
+(`src` HTTPS URL, `fit`: `cover` or `tile`, `target`: `both`, `content`, or
+`canvas`, and `shade` 0-100; `null` removes it) with the solid background color
+as the classic Outlook fallback.
 
 `update_company` also sets `emailStylePreference` (`visual` for designed
 emails, `plain` for simple text, `null` to clear the choice so the dashboard

@@ -1,19 +1,19 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.Sequenzy/mcp",
-  "description": "Sequenzy MCP server for AI-powered email marketing automation.",
+  "description": "Sequenzy MCP server for the AI-native email marketing tool.",
   "title": "Sequenzy MCP",
   "websiteUrl": "https://sequenzy.com/agent",
   "repository": {
     "url": "https://github.com/Sequenzy/mcp",
     "source": "github"
   },
-  "version": "0.0.264",
+  "version": "0.0.265",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@sequenzy/mcp",
-      "version": "0.0.264",
+      "version": "0.0.265",
       "runtime": "node",
       "transport": {
         "type": "stdio"
