@@ -81,6 +81,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
             "tag_added",
             "segment_entered",
             "segment_exited",
+            "field_changed",
             "event_received",
             "inbound_webhook",
             "inactivity",
@@ -129,6 +130,44 @@ export const sequenceEditingToolDefinitions: Tool[] = [
           type: "boolean",
           description:
             "For segment_entered, stop active enrollments when the subscriber leaves the segment.",
+        },
+        fieldName: {
+          type: "string",
+          description:
+            "Contact custom attribute name required for a field_changed trigger replacement.",
+        },
+        fieldOperator: {
+          type: "string",
+          enum: [
+            "any_change",
+            "equals",
+            "not_equals",
+            "one_of",
+            "contains",
+            "not_contains",
+            "greater_than",
+            "less_than",
+          ],
+          description:
+            "Matching operator for a field_changed trigger replacement. Defaults to 'any_change'.",
+        },
+        fieldValue: {
+          type: "string",
+          description:
+            "Target value for scalar field_changed operators on a trigger replacement.",
+        },
+        fieldValues: {
+          type: "array",
+          minItems: 1,
+          maxItems: 50,
+          items: { type: "string" },
+          description:
+            "Target values for field_changed with fieldOperator: 'one_of'.",
+        },
+        fieldFromValue: {
+          type: "string",
+          description:
+            "Optional prior value required before a field_changed trigger replacement fires.",
         },
         eventName: {
           type: "string",
@@ -915,7 +954,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
   {
     name: "insert_sequence_step",
     description:
-      "Insert one dashboard-compatible typed step into an existing sequence: email, SMS, delay/date wait, discount (later emails print the generated code with {{discount.code}}), subscriber update, tag/list action, outbound webhook, AI step (later steps use the generated text with {{ai.KEY.field}}), condition gate, wait-for-event, or wired If/Else branch. Use get_sequence first and pass afterNodeId. Branch paths can target existing nodes, including completion. To nest a branch inside a branch path, end that path with the step the nested branch should follow, then call insert_sequence_step again with type 'logic_branch' and afterNodeId set to that path node - addedBranchPathNodeIds in the response lists each path's node IDs in order, and the nested paths reconnect to the shared steps that already followed it. A logic_branch with splitMode 'random' plus randomPercentages is a weighted split rather than an If/Else, so it runs a concurrent A/B test inside the flow - use it to compare two offers in the same abandoned-cart sequence instead of running duplicate sequences one after another. To A/B test the content of one existing email step and have a winner picked automatically, use create_ab_test with automationNodeId instead. For active sequences, confirm the structural change first.",
+      "Insert one dashboard-compatible typed step into an existing sequence: email, SMS, delay/date wait, discount (later emails print the generated code with {{discount.code}}), subscriber update, tag/list action, outbound webhook, AI step (later steps use the generated text with {{ai.KEY.field}}), condition gate, wait-for-event, wait-until, or wired If/Else branch. Use get_sequence first and pass afterNodeId. Branch paths can target existing nodes, including completion. To nest a branch inside a branch path, end that path with the step the nested branch should follow, then call insert_sequence_step again with type 'logic_branch' and afterNodeId set to that path node - addedBranchPathNodeIds in the response lists each path's node IDs in order, and the nested paths reconnect to the shared steps that already followed it. A logic_branch with splitMode 'random' plus randomPercentages is a weighted split rather than an If/Else, so it runs a concurrent A/B test inside the flow - use it to compare two offers in the same abandoned-cart sequence instead of running duplicate sequences one after another. To A/B test the content of one existing email step and have a winner picked automatically, use create_ab_test with automationNodeId instead. For active sequences, confirm the structural change first.",
     inputSchema: {
       type: "object",
       properties: {
@@ -946,6 +985,7 @@ export const sequenceEditingToolDefinitions: Tool[] = [
             "ai",
             "condition",
             "logic_wait_for_event",
+            "logic_wait_until",
             "logic_branch",
           ],
           description: "Dashboard step type. Defaults to email.",
@@ -1214,6 +1254,14 @@ export const sequenceEditingToolDefinitions: Tool[] = [
           type: "string",
           description: "Optional cached segment display name.",
         },
+        automationId: {
+          type: "string",
+          description: "Other sequence ID for *_sequence conditions.",
+        },
+        automationName: {
+          type: "string",
+          description: "Optional sequence name.",
+        },
         conditionType: {
           type: "string",
           enum: [
@@ -1221,6 +1269,10 @@ export const sequenceEditingToolDefinitions: Tool[] = [
             "does_not_have_tag",
             "in_list",
             "in_segment",
+            "in_sequence",
+            "not_in_sequence",
+            "completed_sequence",
+            "not_completed_sequence",
             "event_received",
             "link_clicked",
             "field_equals",
@@ -1267,7 +1319,28 @@ export const sequenceEditingToolDefinitions: Tool[] = [
           type: "string",
           enum: ["continue", "exit"],
           description:
-            "logic_wait_for_event only: continue to the next node or exit the sequence when the timeout is reached. Defaults to continue.",
+            "logic_wait_for_event/logic_wait_until: continue (default) or exit on timeout.",
+        },
+        conditions: {
+          type: "array",
+          description:
+            "logic_wait_until only: rules shaped like condition fields.",
+          items: { type: "object", additionalProperties: true },
+        },
+        conditionLogic: {
+          type: "string",
+          enum: ["all", "any"],
+        },
+        timeout: {
+          type: "object",
+          description: "logic_wait_until only. Omit to wait until matched.",
+          properties: {
+            value: { type: "number" },
+            unit: {
+              type: "string",
+              enum: ["minutes", "hours", "days", "weeks"],
+            },
+          },
         },
         discount: {
           type: "object",

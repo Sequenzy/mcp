@@ -409,6 +409,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
             "tag_added",
             "segment_entered",
             "segment_exited",
+            "field_changed",
             "event_received",
             "inbound_webhook",
             "inactivity",
@@ -416,7 +417,7 @@ export const sequenceBasicToolDefinitions: Tool[] = [
             "manual",
           ],
           description:
-            "Trigger type: contact_added, tag_added, segment_entered, segment_exited, event_received, inbound_webhook, inactivity, frequency, or manual. segment_exited enrolls active contacts who stop matching the segment (unsubscribing or bouncing does not count), from activation onward. manual never enrolls anyone automatically: use it with keyDates and waitUntilKeyDate steps for one-time countdown campaigns (Black Friday, launches) and enroll the audience with enroll_sequence_audience once the sequence is enabled. Defaults to contact_added for a blank dashboard-compatible draft. For customer lifecycle state (customer, trial, past-due, cancelled, churned, refunded, visited-payment-page) prefer tag_added on the tag over the matching saas.* event: the tag is the contact's current state, also covers contacts imported or tagged by hand, and removing it ends the run (the default stop). These tags start sequences only when the company's sync rules add them, so check get_sync_rules first and ask the user before turning the preset on. Keep event_received when an email needs that occurrence's data (e.g. {{event.hostedInvoiceUrl}}) or must run once per occurrence.",
+            "Trigger type: contact_added, tag_added, segment_entered, segment_exited, field_changed, event_received, inbound_webhook, inactivity, frequency, or manual. segment_exited enrolls active contacts who stop matching the segment (unsubscribing or bouncing does not count), from activation onward. field_changed enrolls contacts whenever a custom attribute actually changes (writing the same value again does not re-trigger); supports any_change (default), equals, not_equals, one_of (multiple target values), contains, not_contains, greater_than, less_than, plus optional fieldFromValue. manual never enrolls anyone automatically: use it with keyDates and waitUntilKeyDate steps for one-time countdown campaigns (Black Friday, launches) and enroll the audience with enroll_sequence_audience once the sequence is enabled. Defaults to contact_added for a blank dashboard-compatible draft. For customer lifecycle state (customer, trial, past-due, cancelled, churned, refunded, visited-payment-page) prefer tag_added on the tag over the matching saas.* event: the tag is the contact's current state, also covers contacts imported or tagged by hand, and removing it ends the run (the default stop). These tags start sequences only when the company's sync rules add them, so check get_sync_rules first and ask the user before turning the preset on. Keep event_received when an email needs that occurrence's data (e.g. {{event.hostedInvoiceUrl}}) or must run once per occurrence.",
         },
         // contact_added trigger options
         listId: {
@@ -462,6 +463,44 @@ export const sequenceBasicToolDefinitions: Tool[] = [
           type: "boolean",
           description:
             "For segment_entered triggers, cancel active enrollments when the contact leaves the segment.",
+        },
+        fieldName: {
+          type: "string",
+          description:
+            "Contact custom attribute name to watch (required for field_changed trigger). Supports attribute names with spaces (e.g. 'Lead Status') and dot paths for nested objects.",
+        },
+        fieldOperator: {
+          type: "string",
+          enum: [
+            "any_change",
+            "equals",
+            "not_equals",
+            "one_of",
+            "contains",
+            "not_contains",
+            "greater_than",
+            "less_than",
+          ],
+          description:
+            "How the new attribute value is matched for a field_changed trigger. Defaults to 'any_change'. Use 'one_of' with fieldValues to match several target values (e.g. ['Agency Issue', 'Region Issue']).",
+        },
+        fieldValue: {
+          type: "string",
+          description:
+            "Target value for field_changed when fieldOperator is equals, not_equals, contains, not_contains, greater_than, or less_than.",
+        },
+        fieldValues: {
+          type: "array",
+          minItems: 1,
+          maxItems: 50,
+          items: { type: "string" },
+          description:
+            "Target values for field_changed when fieldOperator is 'one_of'. Changing to ANY of these values enrolls the contact.",
+        },
+        fieldFromValue: {
+          type: "string",
+          description:
+            "Optional prior value for field_changed. When set, the trigger only fires when the attribute changes from this previous value (so newly created contacts without a prior value do not match).",
         },
         // event_received, inactivity, frequency trigger options
         eventName: {

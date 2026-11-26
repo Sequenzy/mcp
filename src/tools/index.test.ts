@@ -294,9 +294,11 @@ describe("MCP tool profiles", () => {
     // get_sequence_path_stats + list_sequence_path_subscribers tools plus
     // branches on get_sequence_stats, about 4 KB, and the
     // get_conditional_block_stats + list_conditional_block_subscribers tools,
-    // about 5 KB, and emailTheme.backgroundImage on the shared theme patch
-    // schema, about 1 KB).
-    expect(JSON.stringify({ tools: standard }).length).toBeLessThan(1_797_000);
+    // about 5 KB, emailTheme.backgroundImage on the shared theme patch schema,
+    // about 1 KB, and sequence-membership conditions on sequence editing tools,
+    // about 2 KB, and field_changed trigger fields on create_sequence and
+    // update_sequence, about 3 KB).
+    expect(JSON.stringify({ tools: standard }).length).toBeLessThan(1_803_000);
   });
 
   it("renames only on the OpenAI profile and keeps standard names", () => {
@@ -9241,10 +9243,17 @@ describe("update_sequence tool", () => {
     const branchConditionType = branch?.properties?.branches?.items?.properties
       ?.conditionType as { enum?: string[] } | undefined;
     expect(branchConditionType?.enum).toContain("in_segment");
+    expect(branchConditionType?.enum).toContain("in_sequence");
+    expect(branchConditionType?.enum).toContain("not_in_sequence");
+    expect(branchConditionType?.enum).toContain("completed_sequence");
+    expect(branchConditionType?.enum).toContain("not_completed_sequence");
     expect(branchConditionType?.enum).toContain("event_received");
     expect(branchConditionType?.enum).toContain("link_clicked");
     expect(branch?.properties?.branches?.items?.properties).toHaveProperty(
       "segmentId"
+    );
+    expect(branch?.properties?.branches?.items?.properties).toHaveProperty(
+      "automationId"
     );
     expect(branch?.properties?.branches?.items?.properties).toHaveProperty(
       "eventName"
@@ -10578,6 +10587,7 @@ describe("insert_sequence_step tool", () => {
       "ai",
       "condition",
       "logic_wait_for_event",
+      "logic_wait_until",
       "logic_branch",
     ]);
     const branchesSchema = inputSchema?.properties?.["branches"] as
@@ -10635,6 +10645,111 @@ describe("insert_sequence_step tool", () => {
       },
       "comp_123"
     );
+  });
+
+  it("wraps a wait-until step in a linear sequence insertion", async () => {
+    mockApiRequest.mockResolvedValueOnce({
+      success: true,
+      sequence: { id: "seq_123", insertedNodeIds: ["wait_vip"] },
+    });
+
+    const result = await handleToolCall("insert_sequence_step", {
+      companyId: "comp_123",
+      sequenceId: "seq_123",
+      type: "logic_wait_until",
+      afterNodeId: "email_1",
+      label: "Wait for VIP",
+      conditions: [
+        { conditionType: "has_tag", tagName: "vip" },
+        { conditionType: "field_equals", fieldName: "plan", fieldValue: "pro" },
+      ],
+      conditionLogic: "any",
+      timeout: { value: 3, unit: "days" },
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PUT",
+      "/api/v1/sequences/seq_123",
+      {
+        insertSteps: {
+          afterNodeId: "email_1",
+          steps: [
+            {
+              nodeType: "logic_wait_until",
+              config: {
+                label: "Wait for VIP",
+                conditions: [
+                  { conditionType: "has_tag", tagName: "vip" },
+                  {
+                    conditionType: "field_equals",
+                    fieldName: "plan",
+                    fieldValue: "pro",
+                  },
+                ],
+                conditionLogic: "any",
+                timeout: { value: 3, unit: "days" },
+                timeoutAction: "continue",
+              },
+            },
+          ],
+        },
+      },
+      "comp_123"
+    );
+  });
+
+  it("rejects wait-until steps that are not set up before calling the API", async () => {
+    const cases: Array<[Record<string, unknown>, string]> = [
+      [{}, "`conditions` must list at least one rule"],
+      [{ conditions: ["vip"] }, "`conditions[0]` must be an object"],
+      [{ conditions: [{}] }, "`conditions[0].conditionType` is required"],
+      [
+        { conditions: [{ conditionType: "in_list" }] },
+        "`conditions[0].listId` is required",
+      ],
+      [
+        { conditions: [{ conditionType: "not_in_sequence" }] },
+        "`conditions[0].automationId` is required",
+      ],
+      [
+        { conditions: [{ conditionType: "completed_sequence" }] },
+        "`conditions[0].automationId` is required",
+      ],
+      [
+        {
+          conditions: [{ conditionType: "has_tag", tagName: "vip" }],
+          conditionLogic: "some",
+        },
+        "`conditionLogic` must be `all` or `any`",
+      ],
+      [
+        {
+          conditions: [{ conditionType: "has_tag", tagName: "vip" }],
+          timeout: { value: 0.5, unit: "days" },
+        },
+        "`timeout` must be",
+      ],
+      [
+        {
+          conditions: [{ conditionType: "has_tag", tagName: "vip" }],
+          timeoutAction: "later",
+        },
+        "`timeoutAction` must be `continue` or `exit`",
+      ],
+    ];
+    for (const [args, message] of cases) {
+      mockApiRequest.mockClear();
+      const result = await handleToolCall("insert_sequence_step", {
+        companyId: "comp_123",
+        sequenceId: "seq_123",
+        type: "logic_wait_until",
+        ...args,
+      });
+      expect(result.isError).toBe(true);
+      expect(JSON.stringify(result.content)).toContain(message);
+      expect(mockApiRequest).not.toHaveBeenCalled();
+    }
   });
 
   it("passes waitUntilKeyDate through for delay and email steps", async () => {

@@ -232,6 +232,17 @@ function validateBranchConditionFields(
     );
   }
   if (
+    (conditionType === "in_sequence" ||
+      conditionType === "not_in_sequence" ||
+      conditionType === "completed_sequence" ||
+      conditionType === "not_completed_sequence") &&
+    !optionalString(value, "automationId")
+  ) {
+    throw new Error(
+      `\`${pathLabel}.automationId\` is required for ${conditionType} when calling \`insert_sequence_step\`.`
+    );
+  }
+  if (
     conditionType === "event_received" &&
     !optionalString(value, "eventName")
   ) {
@@ -250,6 +261,99 @@ function validateBranchConditionFields(
   }
 }
 
+const WAIT_UNTIL_TIMEOUT_UNITS = new Set(["minutes", "hours", "days", "weeks"]);
+
+/**
+ * A wait-until step goes in like any linear step. When its timeout continues,
+ * the API gives it an empty "Timed out" path that rejoins the next step.
+ */
+function buildInsertWaitUntilBody(
+  args: Record<string, unknown>
+): Record<string, unknown> {
+  const rawConditions = args.conditions;
+  if (!Array.isArray(rawConditions) || rawConditions.length === 0) {
+    throw new Error(
+      "`conditions` must list at least one rule when inserting `logic_wait_until` with `insert_sequence_step`."
+    );
+  }
+  const conditions = rawConditions.map((raw, index) => {
+    const pathLabel = `conditions[${index}]`;
+    if (!isRecord(raw)) {
+      throw new Error(
+        `\`${pathLabel}\` must be an object when calling \`insert_sequence_step\`.`
+      );
+    }
+    const conditionType = optionalString(raw, "conditionType");
+    if (!conditionType) {
+      throw new Error(
+        `\`${pathLabel}.conditionType\` is required when calling \`insert_sequence_step\`.`
+      );
+    }
+    validateBranchConditionFields(conditionType, raw, pathLabel);
+    return raw;
+  });
+
+  const conditionLogic = optionalString(args, "conditionLogic") ?? "all";
+  if (conditionLogic !== "all" && conditionLogic !== "any") {
+    throw new Error(
+      "`conditionLogic` must be `all` or `any` when inserting `logic_wait_until` with `insert_sequence_step`."
+    );
+  }
+
+  let timeout: { value: number; unit: string } | null = null;
+  if (args.timeout !== undefined && args.timeout !== null) {
+    const raw = args.timeout;
+    const value = isRecord(raw) ? raw["value"] : undefined;
+    const unit = isRecord(raw) ? raw["unit"] : undefined;
+    if (
+      typeof value !== "number" ||
+      !Number.isInteger(value) ||
+      value < 1 ||
+      typeof unit !== "string" ||
+      !WAIT_UNTIL_TIMEOUT_UNITS.has(unit)
+    ) {
+      throw new Error(
+        "`timeout` must be `{ value, unit }` with a whole `value` of at least 1 and `unit` minutes, hours, days or weeks when inserting `logic_wait_until` with `insert_sequence_step`."
+      );
+    }
+    timeout = { value, unit };
+  }
+
+  const timeoutAction = optionalString(args, "timeoutAction") ?? "continue";
+  if (timeoutAction !== "continue" && timeoutAction !== "exit") {
+    throw new Error(
+      "`timeoutAction` must be `continue` or `exit` when inserting `logic_wait_until` with `insert_sequence_step`."
+    );
+  }
+
+  const label = optionalString(args, "label");
+  const insertSteps: Record<string, unknown> = {
+    steps: [
+      {
+        nodeType: "logic_wait_until",
+        config: {
+          ...(label ? { label } : {}),
+          conditions,
+          conditionLogic,
+          timeout,
+          timeoutAction,
+        },
+      },
+    ],
+  };
+  const afterNodeId = optionalString(args, "afterNodeId");
+  if (afterNodeId) {
+    insertSteps.afterNodeId = afterNodeId;
+  }
+
+  return {
+    ...(args.confirmStructuralChange !== undefined && {
+      confirmStructuralChange: args.confirmStructuralChange,
+    }),
+    insertSteps,
+  };
+}
+
 const RANDOM_SPLIT_CONDITION_FIELDS = [
   "conditionType",
   "tagId",
@@ -257,6 +361,8 @@ const RANDOM_SPLIT_CONDITION_FIELDS = [
   "listId",
   "segmentId",
   "segmentName",
+  "automationId",
+  "automationName",
   "eventName",
   "linkUrl",
   "activityScope",
@@ -284,6 +390,7 @@ export function buildInsertSequenceStepBody(
     "webhook",
     "ai",
     "logic_wait_for_event",
+    "logic_wait_until",
     "logic_branch",
   ]);
   if (!allowedStepTypes.has(stepType)) {
@@ -339,6 +446,10 @@ export function buildInsertSequenceStepBody(
     };
   }
 
+  if (stepType === "logic_wait_until") {
+    return buildInsertWaitUntilBody(args);
+  }
+
   if (stepType === "logic_branch") {
     const afterNodeId = requiredString(
       "insert_sequence_step",
@@ -356,6 +467,10 @@ export function buildInsertSequenceStepBody(
       "does_not_have_tag",
       "in_list",
       "in_segment",
+      "in_sequence",
+      "not_in_sequence",
+      "completed_sequence",
+      "not_completed_sequence",
       "event_received",
       "link_clicked",
       "field_equals",
@@ -425,6 +540,8 @@ export function buildInsertSequenceStepBody(
       "listId",
       "segmentId",
       "segmentName",
+      "automationId",
+      "automationName",
       "eventName",
       "linkUrl",
       "activityScope",
@@ -711,6 +828,10 @@ export function buildInsertSequenceStepBody(
         "does_not_have_tag",
         "in_list",
         "in_segment",
+        "in_sequence",
+        "not_in_sequence",
+        "completed_sequence",
+        "not_completed_sequence",
         "event_received",
         "link_clicked",
         "field_equals",
@@ -746,6 +867,17 @@ export function buildInsertSequenceStepBody(
         throw new Error("`segmentId` is required for an in_segment condition.");
       }
       if (
+        (conditionType === "in_sequence" ||
+          conditionType === "not_in_sequence" ||
+          conditionType === "completed_sequence" ||
+          conditionType === "not_completed_sequence") &&
+        !optionalString(args, "automationId")
+      ) {
+        throw new Error(
+          `\`automationId\` is required for a ${conditionType} condition.`
+        );
+      }
+      if (
         conditionType === "event_received" &&
         !optionalString(args, "eventName")
       ) {
@@ -772,6 +904,8 @@ export function buildInsertSequenceStepBody(
         "listId",
         "segmentId",
         "segmentName",
+        "automationId",
+        "automationName",
         "eventName",
         "linkUrl",
         "activityScope",

@@ -184,6 +184,35 @@ describe("sequence preview data", () => {
     expect(describeNode(node("w", "logic_wait_for_event")).kind).toBe("delay");
     expect(describeNode(node("tag", "action_add_tag")).title).toBe("add tag");
   });
+  it("describes wait-until steps and names their paths", () => {
+    const wait = node("w", "logic_wait_until", {
+      conditions: [
+        { conditionType: "has_tag", tagName: "vip" },
+        { conditionType: "in_segment", segmentName: "Buyers" },
+        {
+          conditionType: "not_in_sequence",
+          automationId: "seq_onb",
+          automationName: "Onboarding",
+        },
+      ],
+      conditionLogic: "any",
+      timeout: { value: 3, unit: "days" },
+    });
+    expect(describeNode(wait)).toMatchObject({
+      title: "Wait until",
+      subtitle: "vip or Buyers or Onboarding, up to 3 days",
+      kind: "delay",
+    });
+    expect(describeNode(node("w", "logic_wait_until")).subtitle).toBe(
+      "Conditions"
+    );
+    expect(edgeLabel(edge("w", "a", { branchId: "matched" }), wait)).toBe(
+      "Matched"
+    );
+    expect(edgeLabel(edge("w", "a", { branchId: "timed_out" }), wait)).toBe(
+      "Timed out"
+    );
+  });
   it("uses saved branch labels without inventing conditions", () => {
     const source = node("b", "logic_branch", {
       branches: [

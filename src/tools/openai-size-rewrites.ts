@@ -36,6 +36,42 @@ export const OPENAI_SIZE_TEXT_REWRITES: ReadonlyArray<
     /^Company ID\. If not provided, uses the currently selected company\.$/,
     "Company ID. Defaults to the selected company.",
   ],
+  // Repeated across analytics read tools.
+  [
+    /^If true, include machine-classified bot\/scanner opens and clicks\. Defaults to false, so metrics and activity are human-only\.$/,
+    "Include machine-classified bot opens/clicks (default false).",
+  ],
+  // Repeated on every sequence step schema (4 copies).
+  [
+    literal(
+      "Wait until a date from the trigger event or a contact attribute before this step. Use this for renewal reminders, appointment follow-ups, trial-expiry nudges, due-date or anniversary timelines, and other subscriber-specific dates. The field value must be an ISO date string or Unix timestamp. For a per-contact timeline that contacts can join late (e.g. emails at 20, 12 and 4 weeks before a dueDate attribute), use source attribute with pastAction skip on every wait so late joiners only get the steps still ahead, and pastAction continue on a final wait that everyone should reach."
+    ),
+    "Wait until an ISO date/Unix timestamp from a trigger event property or contact attribute before this step (use source 'attribute' + pastAction 'skip' for late-joiner timelines).",
+  ],
+  [
+    literal(
+      "Wait until the next occurrence of a weekday inside a local-time window before this step, e.g. { day: 'sunday', startTime: '09:00', endTime: '12:00', timezone: 'America/Los_Angeles' }. timezoneSource: 'subscriber' uses each contact's own timezone. Continues immediately when the step is reached inside the window, so a Sunday-morning enrollment is not pushed a full week. Add minimumWait: { days: 6 } to wait at least that long first and then release at the next window: one step instead of a fixed delay followed by a separate weekday wait. Place it immediately before the email when the send day matters - it controls when the flow resumes, so any step between it and the email shifts the send off the window (a sequence-level sendingWindow only holds emails at send time; it does not reschedule the graph)."
+    ),
+    "Wait until a weekday local-time window before this step, e.g. { day: 'sunday', startTime: '09:00', endTime: '12:00', timezone: 'America/Los_Angeles' }; supports timezoneSource: 'subscriber' and minimumWait. Place directly before the email.",
+  ],
+  [
+    literal(
+      "Fixed delay before this step. For a dynamic wait-until-date delay, either set mode:'until_date' plus untilDateField here, or use waitUntil. For a wait-until-weekday-window delay, either set mode:'until_weekday' plus untilDays/untilStartTime/untilTimezone here, or use waitUntilWeekday (use waitUntilWeekday.minimumWait to wait a few days first; days/hours/minutes here are ignored in that mode)."
+    ),
+    "Fixed delay before this step (or mode:'until_date' / mode:'until_weekday'; prefer waitUntil / waitUntilWeekday).",
+  ],
+  [
+    literal(
+      "Where field is read from. event (default) reads the trigger event properties and needs an event trigger. attribute reads the contact's custom attributes when the step is reached, so it works with any trigger. If the date moves later while a contact is waiting, the contact waits for the new date; moving it earlier does not release them sooner, and a date removed while waiting follows missingAction."
+    ),
+    "Date source: 'event' (default, trigger event properties) or 'attribute' (contact custom attributes; works with any trigger).",
+  ],
+  [
+    literal(
+      "Wait relative to one of the sequence's key dates before this step, e.g. { key: 'black_friday_starts', days: 7, direction: 'before' } or { key: 'black_friday_ends', hours: 1 }. The key must exist in the sequence's keyDates. pastAction decides what a late enrollee does when the moment already passed: skip (default) skips the following steps until the next wait, continue sends immediately, exit ends the enrollment. Use with a manual trigger for one-time countdown campaigns."
+    ),
+    "Wait relative to a sequence keyDates entry before this step, e.g. { key: 'black_friday_starts', days: 7, direction: 'before' }. pastAction: skip (default), continue, or exit.",
+  ],
 ];
 
 /**

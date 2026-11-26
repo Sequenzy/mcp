@@ -2417,10 +2417,10 @@ export const outputPropertiesByToolName: Record<
               "What put this contact into the sequence. Use this to distinguish which list or tag matched a multi-value trigger.",
             properties: {
               kind: stringOutputProperty(
-                "Entry source kind: list, tag, segment, event, inactivity, frequency, manual, test_run, or unknown."
+                "Entry source kind: list, tag, segment, field, event, inactivity, frequency, manual, test_run, or unknown."
               ),
               value: nullableStringOutputProperty(
-                "Raw list ID, tag name, segment ID, event name, or monitored event name. Null for manual, test_run, and unknown."
+                "Raw list ID, tag name, segment ID, attribute name, event name, or monitored event name. Null for manual, test_run, and unknown."
               ),
               name: nullableStringOutputProperty(
                 "Resolved display name for list and segment sources, or null when not applicable or deleted."

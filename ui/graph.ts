@@ -236,6 +236,13 @@ export function describeNode(
       kind: "branch",
       icon: "branch",
     };
+  if (node.nodeType === "logic_wait_until")
+    return {
+      title: label || "Wait until",
+      subtitle: describeWaitUntil(config),
+      kind: "delay",
+      icon: "clock",
+    };
   if (node.nodeType === "logic_wait_for_event")
     return {
       title: label || "Wait for event",
@@ -253,6 +260,42 @@ export function describeNode(
   };
 }
 
+function describeWaitUntil(config: Record<string, unknown>): string {
+  const conditions = Array.isArray(config["conditions"])
+    ? config["conditions"].map(record)
+    : [];
+  const rules = conditions
+    .map((condition) =>
+      text(
+        condition["tagName"],
+        text(
+          condition["segmentName"],
+          text(
+            condition["automationName"],
+            text(
+              condition["listName"],
+              text(
+                condition["eventName"],
+                text(
+                  condition["fieldName"],
+                  text(condition["conditionType"], "")
+                )
+              )
+            )
+          )
+        )
+      )
+    )
+    .filter(Boolean)
+    .join(config["conditionLogic"] === "any" ? " or " : " and ");
+  const timeout = record(config["timeout"]);
+  const limit =
+    typeof timeout["value"] === "number" && text(timeout["unit"], "")
+      ? `, up to ${timeout["value"]} ${text(timeout["unit"], "")}`
+      : "";
+  return `${rules || "Conditions"}${limit}`;
+}
+
 export function edgeLabel(edge: PreviewEdge, source: PreviewNode): string {
   const savedId = text(edge.condition["branchId"]);
   const legacy = text(edge.condition["branch"]);
@@ -260,6 +303,9 @@ export function edgeLabel(edge: PreviewEdge, source: PreviewNode): string {
     savedId ||
     (legacy === "yes" ? "branch-0" : legacy === "no" ? "else" : legacy);
   if (!id) return "";
+  if (source.nodeType === "logic_wait_until") {
+    return id === "timed_out" ? "Timed out" : "Matched";
+  }
   const branches = (
     Array.isArray(source.config["branches"]) ? source.config["branches"] : []
   ).map(record);

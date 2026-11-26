@@ -383,7 +383,7 @@ export const subscriberUpdateConfigSchema = {
 export const sequencePathStepConfigSchema = {
   type: "object",
   description:
-    "Config for advanced nodeType steps. Required fields depend on nodeType: action_add_tag and action_remove_tag need tagId or tagName; action_add_to_list and action_remove_from_list need listId; action_update_attributes uses the Update Subscriber fields (firstName, lastName, status, customAttributeUpdates) and may use trigger-event merge tags; logic_wait_for_event needs eventName plus optional timeoutDays and timeoutAction; logic_condition needs conditionType plus that condition's resource field; action_webhook needs an HTTPS url plus optional method, headers, body, resultKey, and onError; action_ai generates short per-contact fragments (a sentence or two each) that later email steps insert with {{ai.KEY.field}} merge tags, not whole emails, and needs prompt, resultKey, and outputFields plus optional includeTags, includeEventProperties, includeRecentEvents, recentEventLimit, includeAttributes, and onError; logic_delay uses delayDays/delayHours/delayMinutes. Fields that do not apply to the node type are dropped.",
+    "Config for advanced nodeType steps. Required fields depend on nodeType: action_add_tag and action_remove_tag need tagId or tagName; action_add_to_list and action_remove_from_list need listId; action_update_attributes uses the Update Subscriber fields (firstName, lastName, status, customAttributeUpdates) and may use trigger-event merge tags; logic_wait_for_event needs eventName plus optional timeoutDays and timeoutAction; logic_wait_until needs conditions, optional conditionLogic/timeout/timeoutAction; logic_condition needs conditionType plus that condition's resource field; action_webhook needs an HTTPS url plus optional method, headers, body, resultKey, and onError; action_ai generates short per-contact fragments (a sentence or two each) that later email steps insert with {{ai.KEY.field}} merge tags, not whole emails, and needs prompt, resultKey, and outputFields plus optional includeTags, includeEventProperties, includeRecentEvents, recentEventLimit, includeAttributes, and onError; logic_delay uses delayDays/delayHours/delayMinutes. Fields that do not apply to the node type are dropped.",
   properties: {
     ...subscriberUpdateConfigSchema.properties,
     tagId: {
@@ -428,6 +428,10 @@ export const sequencePathStepConfigSchema = {
         "does_not_have_tag",
         "in_list",
         "in_segment",
+        "in_sequence",
+        "not_in_sequence",
+        "completed_sequence",
+        "not_completed_sequence",
         "event_received",
         "link_clicked",
         "field_equals",
@@ -439,7 +443,7 @@ export const sequencePathStepConfigSchema = {
         "has_push_device",
       ],
       description:
-        "logic_condition: condition evaluated before continuing. has_phone, sms_subscribed and has_push_device need no resource fields. has_push_device passes when the contact has an active push device on a platform the workspace has push credentials for, unless its app reports notifications denied or not yet asked.",
+        "logic_condition: condition evaluated before continuing. in_sequence, not_in_sequence, completed_sequence and not_completed_sequence require automationId (targeting another sequence in the same company). has_phone, sms_subscribed and has_push_device need no resource fields. has_push_device passes when the contact has an active push device on a platform the workspace has push credentials for, unless its app reports notifications denied or not yet asked.",
     },
     segmentId: {
       type: "string",
@@ -448,6 +452,15 @@ export const sequencePathStepConfigSchema = {
     segmentName: {
       type: "string",
       description: "Optional cached segment display name.",
+    },
+    automationId: {
+      type: "string",
+      description:
+        "logic_condition: target sequence ID (must be another sequence in the same company) for in_sequence, not_in_sequence, completed_sequence, or not_completed_sequence.",
+    },
+    automationName: {
+      type: "string",
+      description: "Optional cached sequence display name.",
     },
     linkUrl: {
       type: "string",
@@ -733,6 +746,7 @@ export const sequencePathStepSchema = {
         "action_remove_from_list",
         "action_update_attributes",
         "logic_wait_for_event",
+        "logic_wait_until",
         "logic_condition",
         "action_webhook",
         "action_ai",
@@ -928,6 +942,10 @@ export const sequenceBranchConditionSchema = {
         "does_not_have_tag",
         "in_list",
         "in_segment",
+        "in_sequence",
+        "not_in_sequence",
+        "completed_sequence",
+        "not_completed_sequence",
         "event_received",
         "link_clicked",
         "field_equals",
@@ -939,7 +957,7 @@ export const sequenceBranchConditionSchema = {
         "has_push_device",
       ],
       description:
-        "Condition for this path. has_phone, sms_subscribed and has_push_device need no resource fields. has_push_device passes when the contact has an active push device on a platform the workspace has push credentials for, unless its app reports notifications denied or not yet asked. Required unless the branch sets splitMode 'random', where paths are chosen by percentage and this field must be omitted.",
+        "Condition for this path. in_sequence, not_in_sequence, completed_sequence and not_completed_sequence require automationId (targeting another sequence in the same company). has_phone, sms_subscribed and has_push_device need no resource fields. has_push_device passes when the contact has an active push device on a platform the workspace has push credentials for, unless its app reports notifications denied or not yet asked. Required unless the branch sets splitMode 'random', where paths are chosen by percentage and this field must be omitted.",
     },
     tagName: {
       type: "string",
@@ -961,6 +979,15 @@ export const sequenceBranchConditionSchema = {
     segmentName: {
       type: "string",
       description: "Optional display name for in_segment.",
+    },
+    automationId: {
+      type: "string",
+      description:
+        "Target sequence ID (must be another sequence in the same company) for in_sequence, not_in_sequence, completed_sequence, or not_completed_sequence.",
+    },
+    automationName: {
+      type: "string",
+      description: "Optional display name for sequence-membership conditions.",
     },
     eventName: {
       type: "string",
