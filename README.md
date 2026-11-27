@@ -1702,6 +1702,15 @@ Signups that fail it, or come from the plain HTML form snippet, which cannot
 run it, must confirm by email before they are subscribed. Turning it on requires a double opt-in confirmation email and a sender profile, otherwise the API returns 400. It defaults to
 `false`.
 
+Set `submitTokenMode` to `strict` on the same tools ("Embed-only signups" in
+the dashboard) to accept only signups sent by the hosted JavaScript embed or
+popup script. Signups from the plain HTML or fetch snippets, direct posts and
+mobile SDK signups get the normal success response but add no contact and send
+no confirmation email; with `botProtection` on, signups that fail the check are
+dropped the same way. `enforce` makes tokenless signups confirm by email, and
+`inherit` (the default) follows the workspace. A form or popup setting can only
+tighten the workspace mode.
+
 ### Saved Popups
 
 | Tool              | Description                                                                                       |

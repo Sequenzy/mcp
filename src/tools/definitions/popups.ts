@@ -140,6 +140,12 @@ export const savedPopupToolDefinitions: Tool[] = [
           description:
             "Turn on a Cloudflare Turnstile bot check before each signup. It runs invisibly for most visitors; signups that fail it must confirm by email before they are subscribed; turning it on requires a double opt-in confirmation email and a sender profile, otherwise the API returns 400. Defaults to false.",
         },
+        submitTokenMode: {
+          type: "string",
+          enum: ["inherit", "enforce", "strict"],
+          description:
+            "strict ignores signups not sent by the hosted popup script (success response, no contact, no email). enforce: they confirm by email. Default inherit.",
+        },
         headline: {
           type: "string",
           description: "Optional popup headline.",
@@ -271,6 +277,12 @@ export const savedPopupToolDefinitions: Tool[] = [
           type: "boolean",
           description:
             "Turn on a Cloudflare Turnstile bot check before each signup. It runs invisibly for most visitors; signups that fail it must confirm by email before they are subscribed; turning it on requires a double opt-in confirmation email and a sender profile, otherwise the API returns 400. Omit to keep the current setting.",
+        },
+        submitTokenMode: {
+          type: "string",
+          enum: ["inherit", "enforce", "strict"],
+          description:
+            "strict ignores signups not sent by the hosted popup script (success response, no contact, no email). enforce: they confirm by email. Default inherit.",
         },
         headline: {
           type: "string",

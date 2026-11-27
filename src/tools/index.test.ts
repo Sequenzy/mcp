@@ -297,8 +297,9 @@ describe("MCP tool profiles", () => {
     // about 5 KB, emailTheme.backgroundImage on the shared theme patch schema,
     // about 1 KB, and sequence-membership conditions on sequence editing tools,
     // about 2 KB, and field_changed trigger fields on create_sequence and
-    // update_sequence, about 3 KB).
-    expect(JSON.stringify({ tools: standard }).length).toBeLessThan(1_803_000);
+    // update_sequence, about 3 KB, and submitTokenMode on the form and popup
+    // write tools, about 2 KB).
+    expect(JSON.stringify({ tools: standard }).length).toBeLessThan(1_805_000);
   });
 
   it("renames only on the OpenAI profile and keeps standard names", () => {
@@ -7472,6 +7473,64 @@ describe("saved form tools", () => {
       { botProtection: false },
       "comp_123"
     );
+  });
+
+  it("exposes and forwards submitTokenMode on form and popup write tools", async () => {
+    for (const name of [
+      "create_form",
+      "update_form",
+      "create_popup",
+      "update_popup",
+    ]) {
+      const tool = tools.find((candidate) => candidate.name === name);
+      expect(tool?.inputSchema.properties?.["submitTokenMode"]).toMatchObject({
+        type: "string",
+        enum: ["inherit", "enforce", "strict"],
+      });
+      expect(tool?.inputSchema.required ?? []).not.toContain("submitTokenMode");
+    }
+
+    mockApiRequest.mockResolvedValue({ success: true });
+    await handleToolCall("update_form", {
+      companyId: "comp_123",
+      formId: "form_123",
+      submitTokenMode: "strict",
+    });
+    await handleToolCall("create_popup", {
+      companyId: "comp_123",
+      name: "Welcome offer",
+      submitTokenMode: "strict",
+    });
+
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "PATCH",
+      "/api/v1/forms/form_123",
+      { submitTokenMode: "strict" },
+      "comp_123"
+    );
+    expect(mockApiRequest).toHaveBeenCalledWith(
+      "POST",
+      "/api/v1/popups",
+      expect.objectContaining({ submitTokenMode: "strict" }),
+      "comp_123"
+    );
+  });
+
+  it("rejects unknown submitTokenMode values before calling the API", async () => {
+    for (const [tool, args] of [
+      ["create_form", { name: "Newsletter", listIds: ["list_123"] }],
+      ["update_form", { formId: "form_123" }],
+      ["create_popup", { name: "Welcome offer" }],
+      ["update_popup", { popupId: "pop_123" }],
+    ] as const) {
+      const result = await handleToolCall(tool, {
+        ...args,
+        submitTokenMode: "off",
+      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0]?.text).toContain("submitTokenMode");
+    }
+    expect(mockApiRequest).not.toHaveBeenCalled();
   });
 
   it("rejects unknown resubscribeBehavior values before calling the API", async () => {

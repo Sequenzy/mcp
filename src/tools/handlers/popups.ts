@@ -71,6 +71,12 @@ export async function handleSavedPopupTools(
         "resubscribeBehavior",
         ["reactivate", "double_opt_in"]
       );
+      const submitTokenMode = optionalAllowedString(
+        "create_popup",
+        args,
+        "submitTokenMode",
+        ["inherit", "enforce", "strict"]
+      );
       const status = optionalAllowedString("create_popup", args, "status", [
         "draft",
         "published",
@@ -89,6 +95,9 @@ export async function handleSavedPopupTools(
       }
       if (resubscribeBehavior !== undefined) {
         body["resubscribeBehavior"] = resubscribeBehavior;
+      }
+      if (submitTokenMode !== undefined) {
+        body["submitTokenMode"] = submitTokenMode;
       }
       if (status !== undefined) {
         body["status"] = status;
@@ -116,6 +125,12 @@ export async function handleSavedPopupTools(
         "resubscribeBehavior",
         ["reactivate", "double_opt_in"]
       );
+      const submitTokenMode = optionalAllowedString(
+        "update_popup",
+        args,
+        "submitTokenMode",
+        ["inherit", "enforce", "strict"]
+      );
       const status = optionalAllowedString("update_popup", args, "status", [
         "draft",
         "published",
@@ -136,6 +151,9 @@ export async function handleSavedPopupTools(
       }
       if (resubscribeBehavior !== undefined) {
         body["resubscribeBehavior"] = resubscribeBehavior;
+      }
+      if (submitTokenMode !== undefined) {
+        body["submitTokenMode"] = submitTokenMode;
       }
       if (status !== undefined) {
         body["status"] = status;

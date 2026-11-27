@@ -112,6 +112,12 @@ export const savedFormToolDefinitions: Tool[] = [
           description:
             "Turn on a Cloudflare Turnstile bot check before each signup. It runs invisibly in the hosted JavaScript embed for most visitors; signups that fail it, or that arrive from the plain HTML form snippet, which cannot run it, must confirm by email before they are subscribed; turning it on requires a double opt-in confirmation email and a sender profile, otherwise the API returns 400. Defaults to false.",
         },
+        submitTokenMode: {
+          type: "string",
+          enum: ["inherit", "enforce", "strict"],
+          description:
+            "strict ignores signups not sent by the hosted embed script (success response, no contact, no email). enforce: they confirm by email. Default inherit.",
+        },
         buttonText: {
           type: "string",
           description: "Optional submit button label.",
@@ -200,6 +206,12 @@ export const savedFormToolDefinitions: Tool[] = [
           type: "boolean",
           description:
             "Turn on a Cloudflare Turnstile bot check before each signup. It runs invisibly in the hosted JavaScript embed for most visitors; signups that fail it, or that arrive from the plain HTML form snippet, which cannot run it, must confirm by email before they are subscribed; turning it on requires a double opt-in confirmation email and a sender profile, otherwise the API returns 400. Omit to keep the current setting.",
+        },
+        submitTokenMode: {
+          type: "string",
+          enum: ["inherit", "enforce", "strict"],
+          description:
+            "strict ignores signups not sent by the hosted embed script (success response, no contact, no email). enforce: they confirm by email. Default inherit.",
         },
         headline: {
           type: "string",

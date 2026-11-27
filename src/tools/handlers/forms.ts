@@ -80,6 +80,12 @@ export async function handleSavedFormTools(
         "resubscribeBehavior",
         ["reactivate", "double_opt_in"]
       );
+      const submitTokenMode = optionalAllowedString(
+        "create_form",
+        args,
+        "submitTokenMode",
+        ["inherit", "enforce", "strict"]
+      );
       const body: Record<string, unknown> = {
         name: nameValue,
         listIds,
@@ -107,6 +113,9 @@ export async function handleSavedFormTools(
       if (resubscribeBehavior !== undefined) {
         body["resubscribeBehavior"] = resubscribeBehavior;
       }
+      if (submitTokenMode !== undefined) {
+        body["submitTokenMode"] = submitTokenMode;
+      }
 
       result = await apiRequest("POST", "/api/v1/forms", body, companyId);
       break;
@@ -126,6 +135,12 @@ export async function handleSavedFormTools(
         args,
         "resubscribeBehavior",
         ["reactivate", "double_opt_in"]
+      );
+      const submitTokenMode = optionalAllowedString(
+        "update_form",
+        args,
+        "submitTokenMode",
+        ["inherit", "enforce", "strict"]
       );
       const body: Record<string, unknown> = {};
 
@@ -151,6 +166,9 @@ export async function handleSavedFormTools(
       }
       if (resubscribeBehavior !== undefined) {
         body["resubscribeBehavior"] = resubscribeBehavior;
+      }
+      if (submitTokenMode !== undefined) {
+        body["submitTokenMode"] = submitTokenMode;
       }
       if (Object.keys(body).length === 0) {
         throw new Error(
