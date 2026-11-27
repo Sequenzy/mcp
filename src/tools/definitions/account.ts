@@ -426,7 +426,7 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
         replyTrackingEnabled: {
           type: "boolean",
           description:
-            "Enable or disable inbound reply capture (Inbox) for this company. Turning it on returns 409 receiving_domain_required when the workspace has no verified receiving domain and has never received a conversation: add one with add_receiving_domain instead, and its first verification turns Inbox on.",
+            "Turn reply tracking on or off for this company: whether new emails get a tracking Reply-To so replies are matched to them. Inbound mail to the inbox address and receiving domains is stored either way. The tracking address uses a verified receiving domain when available, or Sequenzy's shared inbound domain (inbound.sequenzy.com) by default.",
         },
         replyTrackingDomainMode: {
           type: "string",
@@ -437,6 +437,11 @@ The response shows 'companies' (all available) and 'selectedCompanyId' (currentl
           type: "boolean",
           description:
             "Enable or disable forwarding captured replies to the configured mailbox.",
+        },
+        transactionalReplyTrackingEnabled: {
+          type: "boolean",
+          description:
+            "Whether Transactional API sends rewrite Reply-To for Sequenzy Inbox by default. This cannot enable reply tracking when replyTrackingEnabled is false; individual sends may still opt out.",
         },
         defaultSubscriberListIds: {
           type: ["array", "null"],
@@ -1406,7 +1411,7 @@ Requires the companies:manage scope and owner or admin access to the company.`,
   {
     name: "update_tracking_settings",
     description:
-      "Update the company's email tracking defaults: account-wide open and click tracking, narrower open and click defaults for Transactional API sends, unsubscribe tracking, opt-in strict bot filtering, the default attribution window, and automatic UTM tagging, plus the account-wide double opt-in requirement for new contacts. Applies to emails sent afterwards; already-sent emails keep the links they were rendered with. Transactional API defaults cannot enable an account-wide setting that is off, and an individual send may opt out again. Provide at least one field. Reply tracking (inbound email, reply domain mode, reply forwarding) is on update_company. The company tracking domain is managed with set_tracking_domain, verify_tracking_domain and remove_tracking_domain.",
+      "Update the company's email tracking defaults: account-wide open and click tracking, narrower open, click, and reply defaults for Transactional API sends, unsubscribe tracking, opt-in strict bot filtering, the default attribution window, and automatic UTM tagging, plus the account-wide double opt-in requirement for new contacts. Applies to emails sent afterwards; already-sent emails keep the links they were rendered with. Transactional API defaults cannot enable an account-wide setting that is off, and an individual send may opt out again. Provide at least one field. Account-wide reply tracking (inbound email, reply domain mode, reply forwarding) is on update_company. The company tracking domain is managed with set_tracking_domain, verify_tracking_domain and remove_tracking_domain.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1434,6 +1439,11 @@ Requires the companies:manage scope and owner or admin access to the company.`,
           type: "boolean",
           description:
             "Whether Transactional API sends rewrite links for click tracking by default. This cannot enable clicks when clickTrackingEnabled is false; individual sends may still opt out.",
+        },
+        transactionalReplyTrackingEnabled: {
+          type: "boolean",
+          description:
+            "Whether Transactional API sends rewrite Reply-To for Sequenzy Inbox by default. This cannot enable reply tracking when account-wide reply tracking is off; individual sends may still opt out.",
         },
         strictBotFilteringEnabled: {
           type: "boolean",

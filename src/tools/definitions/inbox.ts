@@ -4,7 +4,7 @@ export const inboxToolDefinitions: Tool[] = [
   {
     name: "get_inbox_address",
     description:
-      "Get the email address anyone (a person, a service, or another agent) can write to so the message lands in this company's Sequenzy inbox. Also returns the default address, the branded address (customAddress, with status active or pending), whether receiving is on, whether attachments are stored, and how many days messages are kept. Replies to Sequenzy emails arrive in the same inbox automatically.",
+      "Get the email address anyone (a person, a service, or another agent) can write to so the message lands in this company's Sequenzy inbox. Also returns the default address, the branded address (customAddress, with status active or pending), whether reply tracking is on, whether attachments are stored, and how many days messages are kept. Replies to Sequenzy emails arrive in the same inbox automatically.",
     inputSchema: {
       type: "object",
       properties: {

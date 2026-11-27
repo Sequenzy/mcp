@@ -380,7 +380,12 @@ export async function handleAnalyticsAndTransactionalTools(
       });
 
       let trackingSettings:
-        { clickTracking?: boolean; openTracking?: boolean } | undefined;
+        | {
+            clickTracking?: boolean;
+            openTracking?: boolean;
+            replyTracking?: boolean;
+          }
+        | undefined;
       if (args.trackingSettings !== undefined) {
         if (
           typeof args.trackingSettings !== "object" ||
@@ -388,12 +393,16 @@ export async function handleAnalyticsAndTransactionalTools(
           Array.isArray(args.trackingSettings)
         ) {
           throw new Error(
-            "`trackingSettings` must be an object with optional boolean `clickTracking` and `openTracking` fields when calling `send_email`."
+            "`trackingSettings` must be an object with optional boolean `clickTracking`, `openTracking`, and `replyTracking` fields when calling `send_email`."
           );
         }
         const rawTracking = args.trackingSettings as Record<string, unknown>;
         trackingSettings = {};
-        for (const field of ["clickTracking", "openTracking"] as const) {
+        for (const field of [
+          "clickTracking",
+          "openTracking",
+          "replyTracking",
+        ] as const) {
           const value = rawTracking[field];
           if (value === undefined) continue;
           if (typeof value !== "boolean") {

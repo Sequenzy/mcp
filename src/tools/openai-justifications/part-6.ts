@@ -186,9 +186,9 @@ export const OPENAI_JUSTIFICATIONS_PART_6: Readonly<
   },
   verify_receiving_domain: {
     readOnly:
-      "Runs a DNS and SES check and writes the result to the domain row; the first success can turn Inbox on.",
+      "Runs a DNS and SES check and writes the result to the domain row; the first success can turn reply tracking on.",
     destructive:
-      "A failed check on a verified domain (confirmed by a second lookup) marks it failed, so new reply addresses stop using it; a first successful check turns Inbox on. Owner or admin only; already-arriving mail is still accepted.",
+      "A failed check on a verified domain (confirmed by a second lookup) marks it failed, so new reply addresses stop using it; a first successful check turns reply tracking on. Owner or admin only; already-arriving mail is still accepted.",
     openWorld:
       "Queries public DNS for the domain's MX record and checks or creates the receiving setup in Amazon SES.",
     effects:

@@ -17,7 +17,7 @@ export const receivingDomainToolDefinitions: Tool[] = [
   {
     name: "list_receiving_domains",
     description:
-      "List receiving domains: domains and subdomains whose mail reaches the inbox (every address on them). A workspace has one; once verified, replies to emails from all its sending domains come back to reply addresses on it, like the tracking domain. Workspaces that set up several before keep them; replies then prefer the sender's own domain or one on the same root, else the oldest verified one. status verified: mail arrives and new reply addresses use it. pending: publish its records (a new name is reserved 7 days); until then replies use Sequenzy's shared address. failed: something broke; mail that still arrives is accepted, but new reply addresses use Sequenzy's address until fixed.",
+      "List receiving domains: domains and subdomains whose mail reaches the inbox (every address on them). Once verified, replies prefer the sender's own domain or one on the same root, else the oldest verified one. status verified: mail arrives and new reply addresses use it. pending: publish its records (a new name is reserved 7 days); until then replies use Sequenzy's shared address. failed: something broke; mail that still arrives is accepted, but new reply addresses use Sequenzy's address until fixed.",
     inputSchema: {
       type: "object",
       properties: { companyId: companyIdProperty() },
@@ -26,7 +26,7 @@ export const receivingDomainToolDefinitions: Tool[] = [
   {
     name: "add_receiving_domain",
     description:
-      "Add the workspace's receiving domain: a domain or subdomain whose mail should reach the inbox. Once verified, replies to emails from all sending domains use reply addresses on it. Then the user publishes the returned MX record (and TXT record when listed) and you call verify_receiving_domain; the first verification turns Inbox on. A workspace has one receiving domain: a second returns 409 limit_reached before any DNS check (remove the current one first, after confirming with the user). A domain that already receives email elsewhere (its MX points at Google Workspace, Microsoft 365, Cloudflare Email Routing...) returns 409 domain_has_mailbox: suggest a subdomain such as support.acme.com and confirm with the user. 503 dns_check_failed means the MX lookup got no answer; retry in a minute. created is false when the workspace already has the name (returned unchanged, no check). The first receiving domain also sets replyTrackingDomainMode custom. Owner or admin only.",
+      "Add a receiving domain: a domain or subdomain whose mail should reach the inbox. A workspace can have up to 5; a sixth is refused with limit_reached. Once verified, replies to emails can use reply addresses on it. Then the user publishes the returned MX record (and TXT record when listed) and you call verify_receiving_domain; the first verification turns reply tracking on. A domain that already receives email elsewhere (its MX points at Google Workspace, Microsoft 365, Cloudflare Email Routing...) returns 409 domain_has_mailbox: suggest a subdomain such as support.acme.com and confirm with the user. 503 dns_check_failed means the MX lookup got no answer; retry in a minute. created is false when the workspace already has the name (returned unchanged, no check). The first receiving domain also sets replyTrackingDomainMode custom. Owner or admin only.",
     inputSchema: {
       type: "object",
       properties: {
@@ -53,7 +53,7 @@ export const receivingDomainToolDefinitions: Tool[] = [
   {
     name: "verify_receiving_domain",
     description:
-      "Check a receiving domain's DNS now instead of waiting for the automatic check. For a domain added with add_receiving_domain, the first successful verification turns Inbox on (replyTracking.inboundEmailEnabled); domains from an older reply setup or created by update_inbox_address leave it unchanged. Owner or admin only.",
+      "Check a receiving domain's DNS now instead of waiting for the automatic check. For a domain added with add_receiving_domain, the first successful verification turns reply tracking on (replyTracking.inboundEmailEnabled); domains from an older reply setup or created by update_inbox_address leave it unchanged. Owner or admin only.",
     inputSchema: {
       type: "object",
       properties: { companyId: companyIdProperty(), domain: domainProperty() },

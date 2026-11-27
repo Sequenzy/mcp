@@ -1588,13 +1588,14 @@ While a saved AI style exists (`get_email_ai_style`), AI-written emails keep its
 design, header and footer until it is cleared.
 
 Reply tracking is available on the same company tools. Use
-`replyTrackingEnabled`, `replyTrackingDomainMode` (`sequenzy` or `custom`), and
-`forwardReplies` with `update_company`. Company reads also return the current
-read-only `replyRetentionDays` value. Turning Inbox on with
-`replyTrackingEnabled: true` returns `409 receiving_domain_required` when the
-workspace has no verified receiving domain and has never received a
-conversation; add one with `add_receiving_domain` instead, and its first
-verification turns Inbox on.
+`replyTrackingEnabled`, `replyTrackingDomainMode` (`sequenzy` or `custom`),
+`forwardReplies`, and `transactionalReplyTrackingEnabled` with `update_company`
+(and `transactionalReplyTrackingEnabled` is also available on
+`update_tracking_settings`). Company reads also return the current
+read-only `replyRetentionDays` value. Turning reply tracking on with
+`replyTrackingEnabled: true` works immediately using Sequenzy's shared inbound
+domain (`inbound.sequenzy.com`), and switches to a verified custom receiving
+domain once one is added with `add_receiving_domain`.
 
 Polls and NPS surveys are native email blocks, so they work anywhere an email
 tool accepts `blocks`, including campaigns, templates, A/B variants,
@@ -2123,10 +2124,12 @@ needs `filename` and exactly one of Base64 `content` or a public HTTP(S) `path`.
 Set `contentId` to embed a CID image referenced from the HTML and optionally set
 `contentType` to override MIME detection.
 When `trackingSettings` is omitted, the company's Transactional API tracking
-defaults apply. Use `trackingSettings.clickTracking: false` or
-`trackingSettings.openTracking: false` to disable link rewriting or the open
-pixel for one send. These per-send options only opt out; they cannot enable
-tracking disabled by an account-wide or Transactional API default. Use
+defaults apply. Use `trackingSettings.clickTracking: false`,
+`trackingSettings.openTracking: false`, or
+`trackingSettings.replyTracking: false` to disable link rewriting, the open
+pixel, or Reply-To rewriting for one send. These per-send options only opt out;
+they cannot enable tracking disabled by an account-wide or Transactional API
+default. Use
 `get_tracking_settings` and `update_tracking_settings` to inspect or change
 those defaults. Set `unsubscribeTrackingEnabled: false` with
 `update_tracking_settings` to send unsubscribe links directly to
@@ -2255,7 +2258,7 @@ that reuses the key, so it is not an exact historical drill-down.
 | `list_team_members`               | List team members and pending invitations.                                                                                   |
 | `invite_team_member`              | Invite a teammate as admin or viewer, with optional billing access.                                                          |
 | `cancel_team_invitation`          | Cancel a pending team invitation.                                                                                            |
-| `get_inbox_address`               | Get the address anyone can email to reach the inbox, whether receiving is on, attachment availability, and retention.        |
+| `get_inbox_address`               | Get the address anyone can email to reach the inbox, whether reply tracking is on, attachment availability, and retention.        |
 | `update_inbox_address`            | Set a branded inbox address like support@support.acme.com on one of your receiving domains, or reset to the default.         |
 | `list_conversations`              | List inbox conversations (replies and inbox address email) with status and unread filters, each with a `lastMessagePreview`. |
 | `get_conversation`                | Read a conversation and its message history, with signed `downloadUrl`s for stored attachments.                              |
@@ -2266,7 +2269,7 @@ that reuses the key, so it is not an exact historical drill-down.
 | `bulk_update_conversation_spam`   | Move up to 100 conversations to the Spam folder or back to the inbox; reports updated, unchanged, and not-found IDs.         |
 | `list_conversation_recipients`    | List the inbox addresses conversations started at, for the `recipient` filter of `list_conversations`.                       |
 | `list_receiving_domains`          | List receiving domains (mail to any address on them reaches the inbox) with status and DNS records.                          |
-| `add_receiving_domain`            | Add the workspace's one receiving domain; returns the MX (and TXT) records to publish. Refuses domains with a mailbox.       |
+| `add_receiving_domain`            | Add a receiving domain; returns the MX (and TXT) records to publish. Refuses domains with an existing mailbox.               |
 | `get_receiving_domain`            | Read one receiving domain's status, records, error, and how long an unverified name stays reserved.                          |
 | `verify_receiving_domain`         | Check a receiving domain's DNS records now.                                                                                  |
 | `remove_receiving_domain`         | Destructive: remove a receiving domain; all mail to it, including replies to emails already sent, stops arriving.            |
@@ -2297,15 +2300,13 @@ and receiving domains (not replies to emails you sent, which are
 virus, and it is not added when `create_webhook` omits `events`.
 
 A receiving domain is a domain or subdomain whose mail reaches the inbox:
-every address on it arrives. A workspace has one, and like the tracking domain
-it serves every sending domain: once it is verified, replies to emails from any
-of your sending domains come back to reply addresses on it. Until then, replies
-use Sequenzy's shared inbound address. Workspaces that set up several before
-keep them; replies then prefer the sender's own domain or one on the same root,
-else the oldest verified one. Adding a second one returns `409 limit_reached`.
+every address on it arrives. Once verified, replies prefer the sender's own
+domain or one on the same root, else the oldest verified one. Until then,
+replies use Sequenzy's shared inbound address.
 After `add_receiving_domain`, publish the MX record (and the TXT record when
-listed), then call `verify_receiving_domain`. The first verification turns
-Inbox on. `verified` means mail arrives and new reply addresses use the domain;
+listed), then call `verify_receiving_domain`. A workspace can have up to 5
+receiving domains. The first verification turns
+reply tracking on. `verified` means mail arrives and new reply addresses use the domain;
 `pending` means its records are not published yet (a new name is reserved for 7
 days); `failed` means something broke: mail that still arrives is accepted, but
 new reply addresses use Sequenzy's address until it is fixed. A domain that

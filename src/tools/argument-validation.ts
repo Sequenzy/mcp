@@ -274,6 +274,7 @@ export const COMPANY_UPDATE_FIELDS = [
   "replyTrackingEnabled",
   "replyTrackingDomainMode",
   "forwardReplies",
+  "transactionalReplyTrackingEnabled",
   "defaultSubscriberListIds",
   "renameMatchingFooters",
   "previousCompanyName",
@@ -542,7 +543,11 @@ export function buildUpdateCompanyBody(
     }
   }
 
-  for (const key of ["replyTrackingEnabled", "forwardReplies"] as const) {
+  for (const key of [
+    "replyTrackingEnabled",
+    "forwardReplies",
+    "transactionalReplyTrackingEnabled",
+  ] as const) {
     if (args[key] !== undefined && typeof args[key] !== "boolean") {
       throw new Error(
         `\`${key}\` must be a boolean when calling \`update_company\`.`
@@ -593,6 +598,7 @@ export const TRACKING_SETTINGS_UPDATE_FIELDS = [
   "clickTrackingEnabled",
   "transactionalOpenTrackingEnabled",
   "transactionalClickTrackingEnabled",
+  "transactionalReplyTrackingEnabled",
   "strictBotFilteringEnabled",
   "unsubscribeTrackingEnabled",
   "emailContentStorageEnabled",

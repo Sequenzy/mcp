@@ -1193,7 +1193,7 @@ export const outputPropertiesByToolName: Record<
       "Company tracking domain, used by every sending domain, with verification and SSL status. Null when links use the shared Sequenzy tracking domain; links also use it while the tracking domain is unverified."
     ),
     replyTracking: objectOutputProperty(
-      "Inbound reply tracking configuration."
+      "Inbound reply tracking configuration, including transactionalReplyTrackingEnabled for Transactional API sends."
     ),
   },
   update_tracking_settings: {
@@ -1211,7 +1211,7 @@ export const outputPropertiesByToolName: Record<
       "Company tracking domain, used by every sending domain, with verification and SSL status. Null when links use the shared Sequenzy tracking domain; links also use it while the tracking domain is unverified."
     ),
     replyTracking: objectOutputProperty(
-      "Inbound reply tracking configuration. Unchanged by this tool; set it with update_company."
+      "Inbound reply tracking configuration after the update, including transactionalReplyTrackingEnabled. Account-wide reply tracking, reply domain mode, and reply forwarding are changed with update_company."
     ),
   },
   add_website: {

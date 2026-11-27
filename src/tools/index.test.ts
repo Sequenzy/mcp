@@ -1510,6 +1510,7 @@ describe("read-only audit tools", () => {
       emailContentStorageEnabled: false,
       transactionalOpenTrackingEnabled: false,
       transactionalClickTrackingEnabled: false,
+      transactionalReplyTrackingEnabled: false,
       autoUtmSettings: { source: "newsletter", term: null },
     });
 
@@ -1524,6 +1525,7 @@ describe("read-only audit tools", () => {
         emailContentStorageEnabled: false,
         transactionalOpenTrackingEnabled: false,
         transactionalClickTrackingEnabled: false,
+        transactionalReplyTrackingEnabled: false,
         autoUtmSettings: { source: "newsletter", term: null },
       },
       "company_123"
@@ -1545,6 +1547,9 @@ describe("read-only audit tools", () => {
     );
     expect(inputSchema?.properties).toHaveProperty(
       "transactionalClickTrackingEnabled"
+    );
+    expect(inputSchema?.properties).toHaveProperty(
+      "transactionalReplyTrackingEnabled"
     );
   });
 
@@ -5061,7 +5066,11 @@ describe("transactional email tools", () => {
     await handleToolCall("send_email", {
       to: "user@example.com",
       templateId: "order-confirmation",
-      trackingSettings: { clickTracking: false, openTracking: false },
+      trackingSettings: {
+        clickTracking: false,
+        openTracking: false,
+        replyTracking: false,
+      },
     });
 
     expect(mockApiRequest).toHaveBeenCalledWith(
@@ -5070,7 +5079,11 @@ describe("transactional email tools", () => {
       {
         to: "user@example.com",
         slug: "order-confirmation",
-        trackingSettings: { clickTracking: false, openTracking: false },
+        trackingSettings: {
+          clickTracking: false,
+          openTracking: false,
+          replyTracking: false,
+        },
       },
       undefined
     );
@@ -5128,6 +5141,17 @@ describe("transactional email tools", () => {
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toContain(
       "`trackingSettings.clickTracking` must be a boolean"
+    );
+
+    const replyResult = await handleToolCall("send_email", {
+      to: "user@example.com",
+      templateId: "order-confirmation",
+      trackingSettings: { replyTracking: "no" },
+    });
+
+    expect(replyResult.isError).toBe(true);
+    expect(replyResult.content[0]?.text).toContain(
+      "`trackingSettings.replyTracking` must be a boolean"
     );
   });
 
